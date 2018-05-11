@@ -10,7 +10,6 @@ extern "C" {
 /// Index of (l,m) in tables: l^2 + l + m
 #define lmind(l,m) ( ((size_t) (l))*(size_t (l)) + (size_t) (l) + (size_t) (m))
 
-
 namespace helfem {
   namespace gaunt {
 
@@ -50,7 +49,30 @@ namespace helfem {
     }
 
     double Gaunt::coeff(int L, int M, int l, int m, int lp, int mp) const {
-      return table(lmind(L,M),lmind(l,m),lmind(lp,mp));
+      size_t irow(lmind(L,M));
+      size_t icol(lmind(l,m));
+      size_t islice(lmind(lp,mp));
+#ifndef ARMA_NO_DEBUG
+      if(irow>table.n_rows) {
+        std::ostringstream oss;
+        oss << "Row index overflow for coeff(" << L << "," << M << "," << l << "," << m << "," << lp << "," << mp << ")!\n";
+        throw std::logic_error(oss.str());
+      }
+
+      if(icol>table.n_cols) {
+        std::ostringstream oss;
+        oss << "Column index overflow for coeff(" << L << "," << M << "," << l << "," << m << "," << lp << "," << mp << ")!\n";
+        throw std::logic_error(oss.str());
+      }
+
+      if(islice>table.n_cols) {
+        std::ostringstream oss;
+        oss << "Slice index overflow for coeff(" << L << "," << M << "," << l << "," << m << "," << lp << "," << mp << ")!\n";
+        throw std::logic_error(oss.str());
+      }
+#endif
+
+      return table(irow,icol,islice);
     }
   }
 }
