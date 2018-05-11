@@ -22,7 +22,7 @@ void get_functions(size_t iel, const arma::mat & bf, int noverlap, size_t & ifir
   ilast=ifirst+bf.n_cols-1;
 }
 
-arma::mat overlap(const arma::vec & r, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int noverlap) {  
+arma::mat overlap(const arma::vec & r, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int noverlap) {
   // Build overlap matrix
   size_t Nbf(get_Nbf(r,bf,noverlap));
   arma::mat S(Nbf,Nbf);
@@ -87,7 +87,7 @@ arma::mat kinetic(const arma::vec & r, const arma::vec & x, const arma::vec & wx
     for(size_t iel=0;iel<r.n_elem-1;iel++) {
       // Get the primitive overlap matrix
       arma::mat Lel(quadrature::radial_integral(r(iel),r(iel+1),0,x,wx,bf));
-      
+
       // Where are we in the matrix?
       size_t ifirst, ilast;
       get_functions(iel,bf,noverlap,ifirst,ilast);
@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
     printf("Usage: %s Rmax Nel Nnode Nder Nquad\n",argv[0]);
     return 1;
   }
-  
+
   // Maximum R
   double Rmax=atof(argv[1]);
   // Number of elements
@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
   printf("Using %i point quadrature rule.\n",Nquad);
   printf("Basis set composed of %i nodes with %i:th derivative continuity.\n",Nnodes,der_order);
   printf("This means using primitive polynomials of order %i.\n",Nnodes*(der_order+1)-1);
-  
+
   // Nuclear charge
   int Z=1;
   // l quantum number
@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
 #else
   arma::vec r(arma::exp(arma::linspace<arma::vec>(0,log(Rmax),Nelem+1))-arma::ones<arma::vec>(Nelem+1));
 #endif
-  
+
   // Quadrature rule
   arma::vec x, wx;
   chebyshev::chebyshev(Nquad,x,wx);
@@ -162,7 +162,7 @@ int main(int argc, char **argv) {
 
   size_t Nbf(get_Nbf(r,bf,noverlap));
   printf("Basis set contains %i functions\n",(int) Nbf);
-  
+
   // Form overlap matrix
   arma::mat S(overlap(r,x,wx,bf,noverlap));
   // Form nuclear attraction energy matrix
@@ -184,6 +184,17 @@ int main(int argc, char **argv) {
   //V.print("Nuclear");
   //H.print("Hamiltonian");
 
+  // Original overlap matrix
+  const arma::mat S0(S);
+
+  // Get the basis function norms
+  arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
+  arma::mat normat(arma::diagmat(bfnormlz));
+
+  // Go to normalized basis
+  S=normat*S*normat;
+
+#if 0
   // Form orthonormal basis
   arma::vec Sval;
   arma::mat Svec;
@@ -192,9 +203,14 @@ int main(int argc, char **argv) {
   //Sval.print("S eigenvalues");
   printf("Smallest value of overlap matrix is % e, condition number is %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
   printf("Smallest and largest bf norms are %e and %e\n",arma::min(arma::abs(arma::diagvec(S))),arma::max(arma::abs(arma::diagvec(S))));
-  
+
   // Form half-inverse
-  arma::mat Sinvh(Svec * arma::diagmat(arma::pow(Sval, -0.5)) * arma::trans(Svec));
+  arma::mat Sinvh(normat * Svec * arma::diagmat(arma::pow(Sval, -0.5)) * arma::trans(Svec));
+#else
+  // Form half-inverse using Cholesky
+  printf("Using Cholesky\n");
+  arma::mat Sinvh(normat * arma::inv(arma::chol(S)));
+#endif
 
   // Form orthonormal Hamiltonian
   arma::mat Horth(arma::trans(Sinvh)*H*Sinvh);
@@ -212,7 +228,7 @@ int main(int argc, char **argv) {
   C=Sinvh*C;
 
   // Test orthonormality
-  arma::mat Smo(C.t()*S*C);
+  arma::mat Smo(C.t()*S0*C);
   Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
   printf("Orbital orthonormality devation is %e\n",arma::norm(Smo,"fro"));
 
