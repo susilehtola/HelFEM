@@ -18,9 +18,14 @@ namespace helfem {
       arma::mat df;
 
       /// Number of overlapping functions (= der_order+1)
-      int noverlap;
+      size_t noverlap;
       /// Element boundary values
       arma::vec bval;
+
+      /// Get basis functions in element
+      arma::mat get_bf(size_t iel) const;
+      /// Get derivative functions in element
+      arma::mat get_df(size_t iel) const;
 
     public:
       /// Dummy constructor
@@ -30,6 +35,8 @@ namespace helfem {
       /// Destructor
       ~RadialBasis();
 
+      /// Get number of overlapping functions
+      size_t get_noverlap() const;
       /// Number of basis functions
       size_t Nbf() const;
       /// Number of primitive functions in element
@@ -39,6 +46,9 @@ namespace helfem {
       size_t Nel() const;
       /// Get function indices
       void get_idx(size_t iel, size_t & ifirst, size_t & ilast) const;
+
+      /// Form density matrix
+      arma::mat form_density(const arma::mat & Cl, const arma::mat & Cr, size_t nocc) const;
 
       /// Compute radial matrix elements <r^n> in element (overlap is n=2, nuclear is n=1)
       arma::mat radial_integral(int n, size_t iel) const;
@@ -68,6 +78,25 @@ namespace helfem {
 
       /// Primitive two-electron integrals: <Nel^2 * (2L+1)>
       std::vector<arma::mat> prim_tei;
+      /// Primitive two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
+      std::vector<arma::mat> prim_ktei;
+
+      /// Number of basis functions in angular block
+      size_t angular_nbf(size_t amind) const;
+      /// Offset for angular block
+      size_t angular_offset(size_t amind) const;
+
+      /// Add to radial submatrix
+      void add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
+      /// Set radial submatrix
+      void set_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
+      /// Get radial submatrix
+      arma::mat get_sub(const arma::mat & M, size_t iang, size_t jang) const;
+
+      /// Expand boundary conditions
+      arma::mat expand_boundaries(const arma::mat & H) const;
+      /// Remove boundary conditions
+      arma::mat remove_boundaries(const arma::mat & C) const;
 
     public:
       /// Constructor
@@ -83,12 +112,17 @@ namespace helfem {
 
       /// Form half-inverse overlap matrix
       arma::mat Sinvh() const;
+      /// Form radial integral
+      arma::mat radial_integral(int n) const;
       /// Form overlap matrix
       arma::mat overlap() const;
       /// Form kinetic energy matrix
       arma::mat kinetic() const;
       /// Form nuclear attraction matrix
       arma::mat nuclear() const;
+
+      /// Form density matrix
+      arma::mat form_density(const arma::mat & C, size_t nocc) const;
 
       /// Form Coulomb matrix
       arma::mat coulomb(const arma::mat & P) const;
