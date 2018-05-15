@@ -8,22 +8,34 @@ namespace helfem {
         f=f*x+cv(ip);
       return f;
     }
-    
+
     arma::mat polyval(const arma::mat & cv, const arma::vec & xv) {
       arma::mat fv(xv.n_elem,cv.n_cols);
       for(size_t ic=0;ic<cv.n_cols;ic++)
 	for(size_t ix=0;ix<xv.n_elem;ix++)
 	  fv(ix,ic)=polyval(cv.col(ic),xv(ix));
       return fv;
-    }        
-    
+    }
+
+    double factorial(int m) {
+      double r=1.0;
+      for(int p=m;p>0;p--)
+        r*=p;
+      return r;
+    }
+
     double factorial_ratio(int pmax, int pmin) {
       double r=1.0;
       for(int p=pmax;p>pmin;p--)
         r*=p;
       return r;
     }
-    
+
+    double choose(int n, int k) {
+      double val=factorial_ratio(n,n-k)/factorial(k);
+      return val;
+    }
+
     arma::mat derivative_coeffs(const arma::mat & c, int der_order) {
       arma::mat d(c.n_rows-der_order,c.n_cols);
 
@@ -31,11 +43,11 @@ namespace helfem {
       arma::vec fr(d.n_rows);
       for(size_t ir=0;ir<d.n_rows;ir++)
         fr(ir)=factorial_ratio(ir+der_order,ir);
-      
+
       for(size_t ic=0;ic<d.n_cols;ic++)
         for(size_t ir=0;ir<d.n_rows;ir++)
           d(ir,ic)=fr(ir)*c(ir+der_order,ic);
-      
+
       return d;
     }
 
@@ -47,7 +59,7 @@ namespace helfem {
       // We want the functions to be continuous to the kth order, so the
       // polynomials have to be of order p-1 where
       int pmax=(der_order+1)*n_nodes;
-  
+
       // Construct the coefficient matrix
       arma::mat ximat(pmax,pmax);
       ximat.zeros();
@@ -69,9 +81,32 @@ namespace helfem {
             ximat(row,col) = factorial_ratio(col,col-ider)*std::pow(xi(inode),col-ider);
         }
       //ximat.print("ximat");
-      
+
       // The coefficient matrix is simply
       return arma::inv(ximat);
+    }
+
+    arma::mat convert_coeffs(const arma::mat & C, double rmin, double rmax) {
+      // Midpoint of interval
+      double rmid((rmax+rmin)/2.0);
+      double invrmid((rmax+rmin)/2.0);
+      // Inverse length of interval
+      double invrlen(2.0/(rmax-rmin));
+
+      arma::mat D(C);
+      D.zeros();
+
+      // Loop over functions
+      for(size_t fn=0;fn<C.n_cols;fn++)
+        for(size_t m=0;m<C.n_rows;m++)
+          for(size_t k=0;k<=m;k++) {
+            int mmk=m-k;
+            double sign = ((m-k)%2) ? -1.0 : 1.0;
+            double rmp = (mmk < 0) ? std::pow(invrmid,-mmk) : std::pow(rmid,mmk);
+            D(k,fn)+=sign*std::pow(invrlen,m)*C(m,fn)*choose(m,k)*rmp;
+          }
+
+      return D;
     }
   }
 }

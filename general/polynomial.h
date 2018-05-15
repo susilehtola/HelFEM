@@ -17,7 +17,22 @@ namespace helfem {
      * at given point(s) x
      */
     arma::mat polyval(const arma::mat & c, const arma::vec & x);
-    
+
+    /**
+     * Calculate factorial n! = n*(n-1)*...*2*1
+     */
+    double factorial(int n);
+
+    /**
+     * Calculate ratio of factorials n!/(n-m!)
+     */
+    double factorial_ratio(int n, int m);
+
+    /**
+     * Calculate binomial coefficient
+     */
+    double choose(int n, int k);
+
     /**
      * Given the polynomial expansion
      *   f(x)  = c_0 + c_1 x + c_2 x^2 + ... + c_n x^n
@@ -34,6 +49,14 @@ namespace helfem {
      * Hermite (der_order>0) interpolating polynomial basis.
      */
     arma::mat hermite_coeffs(int n_nodes, int der_order);
+
+    /**
+     * Convert an expansion in [-1,1] given as
+     *   f(x)  = c_0 + c_1 x + c_2 x^2 + ... + c_n x^n
+     * into an expansion in an element
+     *   f(r)  = c_0 + c_1 r + c_2 r^2 + ... + c_n r^n
+     */
+    arma::mat convert_coeffs(const arma::mat & c, double rmin, double rmax);
   }
 }
 
