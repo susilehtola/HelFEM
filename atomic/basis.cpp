@@ -3,13 +3,15 @@
 #include "../general/polynomial.h"
 #include "../general/chebyshev.h"
 #include "../general/gaunt.h"
+#include <cassert>
+#include <cfloat>
 
 namespace helfem {
   namespace basis {
     RadialBasis::RadialBasis() {
     }
 
-    RadialBasis::RadialBasis(int n_nodes, int der_order, int n_quad, int num_el, double rmax) {
+    RadialBasis::RadialBasis(int n_nodes, int der_order, int n_quad, int num_el, double rmax, double zexp) {
       // Get primitive polynomial representation
       arma::mat bf_C=polynomial::hermite_coeffs(n_nodes, der_order);
       arma::mat df_C=polynomial::derivative_coeffs(bf_C, 1);
@@ -22,12 +24,23 @@ namespace helfem {
 
       // Number of overlapping functions is
       noverlap=der_order+1;
-      // Get boundary values: linear grid
+
+      // Get boundary values
+      // linear grid
       //bval=arma::linspace<arma::vec>(0,rmax,num_el+1);
+
       // quadratic grid (Schweizer et al 1999)
-      bval.zeros(num_el+1);
-      for(int i=0;i<=num_el;i++)
-	bval(i)=i*i*rmax/(num_el*num_el);
+      //bval.zeros(num_el+1);
+      //for(int i=0;i<=num_el;i++)
+      // 	bval(i)=i*i*rmax/(num_el*num_el);
+
+      // generalized polynomial grid, monotonic decrease till zexp~3, after that fails to work
+      //bval.zeros(num_el+1);
+      //for(int i=0;i<=num_el;i++)
+      //	bval(i)=rmax*std::pow(i*1.0/num_el,zexp);
+
+      // generalized logarithmic grid, monotonic decrease till zexp~2, after that fails to work
+      bval=arma::exp(arma::pow(arma::linspace<arma::vec>(0,std::pow(log(rmax+1),1.0/zexp),num_el+1),zexp))-arma::ones<arma::vec>(num_el+1);
 
       bval.print("Element boundaries");
     }
@@ -36,14 +49,20 @@ namespace helfem {
     }
 
     arma::mat RadialBasis::get_bf(size_t iel) const {
-      if(iel==bval.n_elem-2)
+      if(iel==0)
+	// Boundary condition at r=0
+	return bf.cols(noverlap,bf.n_cols-1);
+      else if(iel==bval.n_elem-2)
+	// Boundary condition at r=infinity
 	return bf.cols(0,bf.n_cols-1-noverlap);
       else
 	return bf;
     }
 
     arma::mat RadialBasis::get_df(size_t iel) const {
-      if(iel==bval.n_elem-2)
+      if(iel==0)
+	return df.cols(noverlap,bf.n_cols-1);
+      else if(iel==bval.n_elem-2)
 	return df.cols(0,bf.n_cols-1-noverlap);
       else
 	return df;
@@ -60,12 +79,17 @@ namespace helfem {
 
     size_t RadialBasis::Nbf() const {
       // The number of basis functions is Nbf*Nel - (Nel-1)*Noverlap -
-      // Noverlap or just
-      return Nel()*(bf.n_cols-noverlap);
+      // 2*Noverlap or just
+      return Nel()*(bf.n_cols-noverlap)-noverlap;
     }
 
     size_t RadialBasis::Nprim(size_t iel) const {
-      return (iel==bval.n_elem-2) ? (bf.n_cols-noverlap) : bf.n_cols;
+      if(iel==0)
+	return bf.n_cols-noverlap;
+      else if(iel==bval.n_elem-2)
+	return bf.n_cols-noverlap;
+      else
+	return bf.n_cols;
     }
 
     void RadialBasis::get_idx(size_t iel, size_t & ifirst, size_t & ilast) const {
@@ -73,6 +97,11 @@ namespace helfem {
       ifirst=iel*(bf.n_cols-noverlap);
       // and the last one will be
       ilast=ifirst+bf.n_cols-1;
+
+      // Account for the functions deleted at the origin
+      ilast-=noverlap;
+      if(iel>0)
+	ifirst-=noverlap;
 
       // Last element does not have trailing functions
       if(iel==bval.n_elem-2)
@@ -84,7 +113,7 @@ namespace helfem {
     }
 
     arma::mat RadialBasis::overlap(size_t iel) const {
-      return radial_integral(2,iel);
+      return radial_integral(0,iel);
     }
 
     arma::mat RadialBasis::kinetic(size_t iel) const {
@@ -92,22 +121,22 @@ namespace helfem {
     }
 
     arma::mat RadialBasis::kinetic_l(size_t iel) const {
-      return 0.5*radial_integral(0,iel);
+      return 0.5*radial_integral(-2,iel);
     }
 
     arma::mat RadialBasis::nuclear(size_t iel) const {
-      return -radial_integral(1,iel);
+      return -radial_integral(-1,iel);
     }
 
     arma::mat RadialBasis::twoe_integral(int L, size_t iel) const {
       return quadrature::twoe_integral(bval(iel),bval(iel+1),xq,wq,get_bf(iel),L);
     }
 
-    TwoDBasis::TwoDBasis(int Z_, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax) {
+    TwoDBasis::TwoDBasis(int Z_, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, double zexp) {
       // Nuclear charge
       Z=Z_;
       // Construct radial basis
-      radial=RadialBasis(n_nodes, der_order, n_quad, num_el, rmax);
+      radial=RadialBasis(n_nodes, der_order, n_quad, num_el, rmax, zexp);
 
       // Construct angular basis
       size_t nang=0;
@@ -144,11 +173,14 @@ namespace helfem {
     }
 
     size_t TwoDBasis::angular_nbf(size_t iam) const {
+      /*
       if(lval(iam)==0)
 	return radial.Nbf();
       else
 	// Boundary condition with l>0: remove first noverlap functions!
 	return radial.Nbf()-radial.get_noverlap();
+      */
+      return radial.Nbf();
     }
 
     size_t TwoDBasis::angular_offset(size_t iam) const {
@@ -208,7 +240,7 @@ namespace helfem {
     }
 
     arma::mat TwoDBasis::overlap() const {
-      return radial_integral(2);
+      return radial_integral(0);
     }
 
     arma::mat TwoDBasis::kinetic() const {
@@ -244,7 +276,7 @@ namespace helfem {
     }
 
     arma::mat TwoDBasis::nuclear() const {
-      return -Z*radial_integral(1);
+      return -Z*radial_integral(-1);
     }
 
     void TwoDBasis::compute_tei() {
@@ -253,13 +285,13 @@ namespace helfem {
       size_t Nel(radial.Nel());
 
       // Compute disjoint integrals
-      std::vector<arma::mat> disjoint_2pL, disjoint_1mL;
-      disjoint_2pL.resize(Nel*N_L);
-      disjoint_1mL.resize(Nel*N_L);
+      std::vector<arma::mat> disjoint_L, disjoint_m1L;
+      disjoint_L.resize(Nel*N_L);
+      disjoint_m1L.resize(Nel*N_L);
       for(size_t L=0;L<N_L;L++)
         for(size_t iel=0;iel<Nel;iel++) {
-          disjoint_2pL[L*Nel+iel]=radial.radial_integral(2+L,iel);
-          disjoint_1mL[L*Nel+iel]=radial.radial_integral(1-L,iel);
+          disjoint_L[L*Nel+iel]=radial.radial_integral(L,iel);
+          disjoint_m1L[L*Nel+iel]=radial.radial_integral(-1-L,iel);
         }
 
       // Form two-electron integrals
@@ -269,37 +301,38 @@ namespace helfem {
         double Lfac=4.0*M_PI/(2*L+1);
 
         for(size_t iel=0;iel<Nel;iel++) {
-          // Disjoint integrals - diagonal comes below
-          for(size_t jel=0;jel<iel;jel++) {
-            size_t Ni(radial.Nprim(iel));
-            size_t Nj(radial.Nprim(jel));
+          for(size_t jel=0;jel<Nel;jel++) {
+	    if(iel==jel) {
+	      // In-element integral
+	      prim_tei[Nel*Nel*L + iel*Nel + iel]=radial.twoe_integral(L,iel);
+	    } else {
+	      // Disjoint integrals
+	      size_t Ni(radial.Nprim(iel));
+	      size_t Nj(radial.Nprim(jel));
 
-            arma::mat teiblock(Ni*Ni,Nj*Nj);
-            teiblock.zeros();
+	      arma::mat teiblock(Ni*Ni,Nj*Nj);
+	      teiblock.zeros();
 
-            // r(iel)>r(jel) so iel gets 1-L, jel gets 2+L.
-            const arma::mat & iint(disjoint_1mL[L*Nel+iel]);
-            const arma::mat & jint(disjoint_2pL[L*Nel+jel]);
+	      // when r(iel)>r(jel), iel gets -1-L, jel gets L.
+	      const arma::mat & iint=(iel>jel) ? disjoint_m1L[L*Nel+iel] : disjoint_L[L*Nel+iel];
+	      const arma::mat & jint=(iel>jel) ? disjoint_L[L*Nel+jel] : disjoint_m1L[L*Nel+jel];
 
-            // Form block
-            for(size_t fk=0;fk<Nj;fk++)
-              for(size_t fl=0;fl<Nj;fl++) {
-                // Collect integral in temp variable and put the weight in
-                double klint(Lfac*jint(fk,fl));
+	      // Form block
+	      for(size_t fk=0;fk<Nj;fk++)
+		for(size_t fl=0;fl<Nj;fl++) {
+		  // Collect integral in temp variable and put the weight in
+		  double klint(Lfac*jint(fk,fl));
 
-                for(size_t fi=0;fi<Ni;fi++)
-                  for(size_t fj=0;fj<Ni;fj++)
-                    // (ij|kl) in Armadillo compatible indexing
-                    teiblock(fj*Ni+fi,fl*Nj+fk)=klint*iint(fi,fj);
-              }
+		  for(size_t fi=0;fi<Ni;fi++)
+		    for(size_t fj=0;fj<Ni;fj++)
+		      // (ij|kl) in Armadillo compatible indexing
+		      teiblock(fj*Ni+fi,fl*Nj+fk)=klint*iint(fi,fj);
+		}
 
-            // Store integrals
-            prim_tei[Nel*Nel*L + iel*Nel + jel]=teiblock;
-            prim_tei[Nel*Nel*L + jel*Nel + iel]=arma::trans(teiblock);
+	      // Store integrals
+	      prim_tei[Nel*Nel*L + iel*Nel + jel]=teiblock;
+	    }
           }
-
-          // In-element integral
-          prim_tei[Nel*Nel*L + iel*Nel + iel]=radial.twoe_integral(L,iel);
 	}
       }
 

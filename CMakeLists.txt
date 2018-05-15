@@ -3,8 +3,9 @@ cmake_minimum_required (VERSION 2.6)
 project (helfem CXX)
 
 INCLUDE_DIRECTORIES("/home/work/armadillo/include/")
+INCLUDE_DIRECTORIES("../arpack-arma/include/")
 
-add_library(helfem general/polynomial.cpp general/gaunt.cpp general/chebyshev.cpp)
+add_library(helfem general/polynomial.cpp general/gaunt.cpp general/chebyshev.cpp general/diis.cpp general/lbfgs.cpp)
 
 add_executable(harmonic harmonic/main.cpp harmonic/quadrature.cpp)
 target_link_libraries(harmonic helfem)

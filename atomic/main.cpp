@@ -1,22 +1,77 @@
 #include "../general/cmdline.h"
+#include "../general/diis.h"
 #include "basis.h"
 #include <boost/timer/timer.hpp>
+#include <cfloat>
+#include <SymEigsSolver.h>  // Also includes <MatOp/DenseGenMatProd.h>
+
+//#define SPARSE
 
 using namespace helfem;
 
 arma::mat form_density(const arma::mat & C, size_t nocc) {
   if(C.n_cols<nocc)
     throw std::logic_error("Not enough orbitals!\n");
-
-  if(nocc>0)
+  else if(nocc>0)
     return C.cols(0,nocc-1)*arma::trans(C.cols(0,nocc-1));
-  else
+  else // nocc=0
     return arma::zeros<arma::mat>(C.n_rows,C.n_rows);
 }
 
-void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh) {
+void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh, size_t neig) {
+  // Form matrix in orthonormal basis
   arma::mat Forth(Sinvh.t()*F*Sinvh);
-  arma::eig_sym(E,C,Forth);
+
+#ifndef SPARSE
+  printf("Dense diagonalization.\n");
+  if(!arma::eig_sym(E,C,Forth))
+    throw std::logic_error("Eigendecomposition failed!\n");
+
+  // Drop the virtuals
+  E=E.subvec(0,neig-1);
+  C=C.cols(0,neig-1);
+#else
+  printf("Sparse diagonalization.\n");
+  // Construct matrix operation object using the wrapper class DenseGenMatProd
+  DenseGenMatProd<double> op(Forth);
+
+  // Construct eigen solver object
+  SymEigsSolver< double, SMALLEST_ALGE, DenseGenMatProd<double> > eigs(&op, neig, neig+20);
+
+  // Initialize and compute
+  eigs.init();
+  int nconv = eigs.compute(10000,1e-6);
+
+  // Retrieve results
+  if(nconv == neig) {
+    E = eigs.eigenvalues();
+    C = eigs.eigenvectors();
+
+    // Values are returned in largest magnitude order, so they need to
+    // be resorted
+    arma::uvec Eord(arma::sort_index(E));
+    E=E(Eord);
+    C=C.cols(Eord);
+
+  } else {
+    std::ostringstream oss;
+    oss << "Eigendecomposition failed: only " << nconv << " eigenvalues converged!\n";
+    throw std::logic_error(oss.str());
+  }
+
+  if(E.n_elem != neig) {
+    std::ostringstream oss;
+    oss << "Not enough eigenvalues: asked for " << neig << ", got " << E.n_elem << "!\n";
+    throw std::logic_error(oss.str());
+  }
+  if(C.n_cols != neig) {
+    std::ostringstream oss;
+    oss << "Not enough eigenvectors: asked for " << neig << ", got " << C.n_cols << "!\n";
+    throw std::logic_error(oss.str());
+  }
+#endif
+
+  // Return to non-orthonormal basis
   C=Sinvh*C;
 }
 
@@ -30,15 +85,16 @@ int main(int argc, char **argv) {
   parser.add<int>("lmax", 0, "maximum l quantum number");
   parser.add<int>("mmax", 0, "maximum m quantum number");
   parser.add<double>("Rmax", 0, "practical infinity");
+  parser.add<double>("zexp", 0, "exponent in radial grid");
   parser.add<int>("nelem", 0, "number of elements");
   parser.add<int>("nnodes", 0, "number of nodes per element");
   parser.add<int>("der_order", 0, "level of derivative continuity");
   parser.add<int>("nquad", 0, "number of quadrature points");
-  parser.add<double>("damp", 0, "damping factor");
   parser.parse_check(argc, argv);
 
   // Get parameters
   double Rmax(parser.get<double>("Rmax"));
+  double zexp(parser.get<double>("zexp"));
   // Number of elements
   int Nelem(parser.get<int>("nelem"));
   // Number of nodes
@@ -56,8 +112,6 @@ int main(int argc, char **argv) {
   // Number of occupied states
   int nela(parser.get<int>("nela"));
   int nelb(parser.get<int>("nelb"));
-  // Damping factor
-  double damp(parser.get<double>("damp"));
 
   printf("Running calculation with Rmax=%e and %i elements.\n",Rmax,Nelem);
   printf("Using %i point quadrature rule.\n",Nquad);
@@ -66,7 +120,7 @@ int main(int argc, char **argv) {
 
   printf("Angular grid spanning from l=0..%i, m=%i..%i.\n",lmax,-mmax,mmax);
 
-  basis::TwoDBasis basis(Z, Nnodes, der_order, Nquad, Nelem, Rmax, lmax, mmax);
+  basis::TwoDBasis basis(Z, Nnodes, der_order, Nquad, Nelem, Rmax, lmax, mmax, zexp);
   printf("Basis set contains %i functions\n",(int) basis.Nbf());
 
   printf("Nuclear charge is %i\n",Z);
@@ -91,12 +145,17 @@ int main(int argc, char **argv) {
   arma::mat Sinvh(basis.Sinvh());
   printf("Half-inverse formed in %.6f\n",timer.elapsed().wall*1e-9);
 
+  // Number of states to find
+  int nstates(std::min((arma::uword) nela+20,Sinvh.n_cols-1));
+
   // Diagonalize Hamiltonian
+  timer.start();
   arma::vec Ea, Eb;
   arma::mat Ca, Cb;
-  eig_gsym(Ea,Ca,H0,Sinvh);
+  eig_gsym(Ea,Ca,H0,Sinvh,nstates);
   Eb=Ea;
   Cb=Ca;
+  printf("Diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
 
   arma::uword nena(std::min((arma::uword) nela+4,Ea.n_elem-1));
   arma::uword nenb(std::min((arma::uword) nelb+4,Eb.n_elem-1));
@@ -109,63 +168,62 @@ int main(int argc, char **argv) {
   basis.compute_tei();
   printf("Done in %.6f\n",timer.elapsed().wall*1e-9);
 
-  arma::mat Paold, Pbold;
   double Ekin, Epot, Ecoul, Exx, Etot;
   double Eold=0.0;
+
+  double diiseps=1e-2, diisthr=1e-3;
+  bool usediis=true, useadiis=true;
+  bool diis_c1=false;
+  int diisorder=5;
+  uDIIS diis(S,Sinvh,usediis,diis_c1,diiseps,diisthr,useadiis,true,diisorder);
+  double diiserr;
+
   for(int i=0;i<1000;i++) {
     printf("\n**** Iteration %i ****\n\n",i);
 
     // Form density matrix
-    arma::mat Panew(form_density(Ca,nela));
-    arma::mat Pbnew(form_density(Cb,nelb));
+    arma::mat Pa(form_density(Ca,nela));
+    arma::mat Pb(form_density(Cb,nelb));
+    arma::mat P(Pa+Pb);
 
     // Calculate <r^2>
     //printf("<r^2> is %e\n",arma::trace(basis.radial_integral(4)*Pnew));
 
-    // Damp update
-    arma::mat Pa, Pb;
-    if(i==0) {
-      Pa=Panew;
-      Pb=Pbnew;
-    } else {
-      Pa=(1-damp)*Paold+damp*Panew;
-      Pb=(1-damp)*Pbold+damp*Pbnew;
-    }
-    Paold=Pa;
-    Pbold=Pb;
-    arma::mat P(Pa+Pb);
-
     printf("Tr Pa = %f\n",arma::trace(Pa*S));
     printf("Tr Pb = %f\n",arma::trace(Pb*S));
 
+    Ekin=arma::trace(P*T);
+    Epot=arma::trace(P*Vnuc);
+
     // Form Coulomb matrix
+    timer.start();
     arma::mat J(basis.coulomb(P));
+    double tJ(timer.elapsed().wall*1e-9);
+    Ecoul=0.5*arma::trace(P*J);
+    printf("Coulomb energy %.10f % .6f\n",Ecoul,tJ);
+
     // Form exchange matrix
+    timer.start();
     arma::mat Ka(basis.exchange(Pa));
-    arma::mat Kb(basis.exchange(Pb));
+    arma::mat Kb;
+    if(nelb)
+      Kb=basis.exchange(Pb);
+    else
+      Kb.zeros(Cb.n_rows,Cb.n_rows);
+    double tK(timer.elapsed().wall*1e-9);
+    Exx=0.5*(arma::trace(Pa*Ka)+arma::trace(Pb*Kb));
+    printf("Exchange energy %.10f % .6f\n",Exx,tK);
+
     // Fock matrices
     arma::mat Fa(H0+J+Ka);
     arma::mat Fb(H0+J+Kb);
-
-    Ekin=arma::trace(P*T);
-    Epot=arma::trace(P*Vnuc);
-    Ecoul=0.5*arma::trace(P*J);
-    Exx=0.5*(arma::trace(Pa*Ka)+arma::trace(Pb*Kb));
     Etot=Ekin+Epot+Ecoul+Exx;
-
-    printf("Coulomb energy %.10f\n",Ecoul);
-    printf("Exchange energy %.10f\n",Exx);
 
     if(i>0)
       printf("Energy changed by %e\n",Etot-Eold);
     Eold=Etot;
 
     /*
-    arma::mat Jmo(Ca.t()*J*Ca);
-    arma::mat Kmo(Ca.t()*Ka*Ca);
-    Jmo.submat(0,0,10,10).print("Jmo");
-    Kmo.submat(0,0,10,10).print("Kmo");
-
     S.print("S");
     T.print("T");
     Vnuc.print("Vnuc");
@@ -173,6 +231,12 @@ int main(int argc, char **argv) {
     Pa.print("Pa");
     J.print("J");
     Ka.print("Ka");
+
+    arma::mat Jmo(Ca.t()*J*Ca);
+    arma::mat Kmo(Ca.t()*Ka*Ca);
+    Jmo.submat(0,0,10,10).print("Jmo");
+    Kmo.submat(0,0,10,10).print("Kmo");
+
 
     Kmo+=Jmo;
     Kmo.print("Jmo+Kmo");
@@ -195,28 +259,31 @@ int main(int argc, char **argv) {
     Fmo.print("F");
     */
 
-    // Diagonalize Fock matrix to get new orbitals
-    eig_gsym(Ea,Ca,Fa,Sinvh);
-    eig_gsym(Eb,Cb,Fb,Sinvh);
-
-    // Check commutator
-    arma::mat comma(arma::trans(Sinvh)*(Fa*Panew*S-S*Panew*Fa)*Sinvh);
-    arma::mat commb(arma::trans(Sinvh)*(Fb*Pbnew*S-S*Pbnew*Fb)*Sinvh);
-    double diiserra(arma::max(arma::max(arma::abs(comma))));
-    double diiserrb(arma::max(arma::max(arma::abs(commb))));
-
-    printf("Diis error is %e %e\n",diiserra,diiserrb);
+    // Update DIIS
+    timer.start();
+    diis.update(Fa,Fb,Pa,Pb,Etot,diiserr);
+    printf("Diis error is %e\n",diiserr);
     fflush(stdout);
+    // Solve DIIS to get Fock update
+    diis.solve_F(Fa,Fb);
+    printf("DIIS update and solution done in %.6f\n",timer.elapsed().wall*1e-9);
 
-    if(std::max(diiserra,diiserrb)<1e-6)
+    // Diagonalize Fock matrix to get new orbitals
+    timer.start();
+    eig_gsym(Ea,Ca,Fa,Sinvh,nstates);
+    eig_gsym(Eb,Cb,Fb,Sinvh,nstates);
+    printf("Diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
+
+    double convthr(1e-8);
+    if(i>0 && diiserr<convthr && std::abs(Etot-Eold)<convthr)
       break;
   }
 
-  printf("%-21s energy: % .16e\n","Kinetic",Ekin);
-  printf("%-21s energy: % .16e\n","Nuclear attraction",Epot);
-  printf("%-21s energy: % .16e\n","Coulomb",Ecoul);
-  printf("%-21s energy: % .16e\n","Exchange",Exx);
-  printf("%-21s energy: % .16e\n","Total",Etot);
+  printf("%-21s energy: % .10f\n","Kinetic",Ekin);
+  printf("%-21s energy: % .10f\n","Nuclear attraction",Epot);
+  printf("%-21s energy: % .10f\n","Coulomb",Ecoul);
+  printf("%-21s energy: % .10f\n","Exchange",Exx);
+  printf("%-21s energy: % .10f\n","Total",Etot);
   Ea.subvec(0,nena).t().print("Alpha orbital energies");
   Eb.subvec(0,nenb).t().print("Beta  orbital energies");
 

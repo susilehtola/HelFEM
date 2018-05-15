@@ -52,18 +52,14 @@ namespace helfem {
       }
 #endif
 
-      // Midpoint is at
-      double rmid(0.5*(rmax+rmin));
-      // and half-length of interval is
+      // Half-length of interval is
       double rlen(0.5*(rmax-rmin));
-      // R values are then
-      arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
 
       // Put in weight
       arma::mat wdbf(dbf);
       for(size_t i=0;i<dbf.n_cols;i++)
 	// We get +1 rlen from the jacobian, but -2 from the derivatives
-	wdbf.col(i)%=wx%arma::square(r)/rlen;
+	wdbf.col(i)%=wx/rlen;
 
       // Integral is
       return arma::trans(wdbf)*dbf;
@@ -88,8 +84,8 @@ namespace helfem {
       inner.zeros();
       // Calculate total weight per point
       arma::vec wp(wx*rlen);
-      // Put in r^(2+L)
-      wp%=arma::pow(r,2+L);
+      // Put in r^L
+      wp%=arma::pow(r,L);
 
       // Put in weight
       for(size_t i=0;i<bfprod.n_cols;i++)
@@ -100,9 +96,9 @@ namespace helfem {
         for(size_t ir=1;ir<inner.n_rows;ir++)
           inner(ir,ic)+=inner(ir-1,ic);
 
-      r.save("r.dat",arma::raw_ascii);
-      bf.save("bf.dat",arma::raw_ascii);
-      inner.save("inner.dat",arma::raw_ascii);
+      //r.save("r.dat",arma::raw_ascii);
+      //bf.save("bf.dat",arma::raw_ascii);
+      //inner.save("inner.dat",arma::raw_ascii);
 
       return inner;
     }
@@ -138,8 +134,8 @@ namespace helfem {
 
       // Next, the outer integrals
       arma::vec wp(wx*rlen);
-      // Put in r^(1-L)
-      wp%=arma::pow(r,1-L);
+      // Put in r^(-1-L)
+      wp%=arma::pow(r,-1-L);
       for(size_t i=0;i<bfprod.n_cols;i++)
         bfprod.col(i)%=wp;
 
