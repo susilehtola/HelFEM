@@ -12,9 +12,13 @@ namespace helfem {
       /// Quadrature weights
       arma::vec wq;
 
+      /// Primitive polynomial basis, polynomial expansion
+      arma::mat bf_C;
       /// Primitive polynomial basis
       arma::mat bf;
-      /// .. and its derivatives
+      /// .. and its derivatives, polynomial expansion
+      arma::mat df_C;
+      /// evaluated on the quadrature grid
       arma::mat df;
 
       /// Number of overlapping functions (= der_order+1)
@@ -23,9 +27,9 @@ namespace helfem {
       arma::vec bval;
 
       /// Get basis functions in element
-      arma::mat get_bf(size_t iel) const;
-      /// Get derivative functions in element
-      arma::mat get_df(size_t iel) const;
+      arma::mat get_basis(const arma::mat & b, size_t iel) const;
+      /// Get expansion in r instead of x
+      arma::mat convert_expansion(const arma::mat & b, size_t iel) const;
 
     public:
       /// Dummy constructor
@@ -50,7 +54,9 @@ namespace helfem {
       /// Form density matrix
       arma::mat form_density(const arma::mat & Cl, const arma::mat & Cr, size_t nocc) const;
 
-      /// Compute radial matrix elements <r^n> in element (overlap is n=2, nuclear is n=1)
+      /// Compute radial matrix elements <r^n> in element (overlap is n=0, nuclear is n=-1)
+      arma::mat radial_integral(const arma::mat & bf_c, int n, size_t iel) const;
+      /// Compute radial matrix elements <r^n> in element (overlap is n=0, nuclear is n=-1)
       arma::mat radial_integral(int n, size_t iel) const;
       /// Compute overlap matrix in element
       arma::mat overlap(size_t iel) const;
@@ -60,6 +66,7 @@ namespace helfem {
       arma::mat kinetic_l(size_t iel) const;
       /// Compute nuclear attraction matrix in element
       arma::mat nuclear(size_t iel) const;
+
       /// Compute primitive two-electron integral
       arma::mat twoe_integral(int L, size_t iel) const;
     };
@@ -128,6 +135,9 @@ namespace helfem {
       arma::mat coulomb(const arma::mat & P) const;
       /// Form exchange matrix
       arma::mat exchange(const arma::mat & P) const;
+
+      /// Get primitive integrals
+      std::vector<arma::mat> get_prim_tei() const;
     };
   }
 }

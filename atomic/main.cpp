@@ -28,8 +28,10 @@ void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat
     throw std::logic_error("Eigendecomposition failed!\n");
 
   // Drop the virtuals
-  E=E.subvec(0,neig-1);
-  C=C.cols(0,neig-1);
+  if(neig>E.n_elem) {
+    E=E.subvec(0,neig-1);
+    C=C.cols(0,neig-1);
+  }
 #else
   printf("Sparse diagonalization.\n");
   // Construct matrix operation object using the wrapper class DenseGenMatProd
@@ -187,7 +189,7 @@ int main(int argc, char **argv) {
     arma::mat P(Pa+Pb);
 
     // Calculate <r^2>
-    //printf("<r^2> is %e\n",arma::trace(basis.radial_integral(4)*Pnew));
+    //printf("<r^2> is %e\n",arma::trace(basis.radial_integral(2)*Pnew));
 
     printf("Tr Pa = %f\n",arma::trace(Pa*S));
     printf("Tr Pb = %f\n",arma::trace(Pb*S));

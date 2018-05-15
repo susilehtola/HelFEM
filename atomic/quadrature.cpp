@@ -143,7 +143,9 @@ namespace helfem {
       arma::mat ints(4.0*M_PI/(2*L+1)*arma::trans(bfprod)*inner);
       // but we are still missing the second term which can be
       // obtained as simply as
-      return ints+arma::trans(ints);
+      ints+=arma::trans(ints);
+
+      return ints;
     }
   }
 }

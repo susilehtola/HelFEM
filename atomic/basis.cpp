@@ -6,6 +6,13 @@
 #include <cassert>
 #include <cfloat>
 
+/// Use quadrature for one-electron integrals?
+//#define OEI_QUADRATURE
+/// Use quadrature for two-electron integrals?
+//#define TEI_QUADRATURE
+/// Use Cholesky for Sinvh?
+//#define CHOL_SINVH
+
 namespace helfem {
   namespace basis {
     RadialBasis::RadialBasis() {
@@ -13,11 +20,18 @@ namespace helfem {
 
     RadialBasis::RadialBasis(int n_nodes, int der_order, int n_quad, int num_el, double rmax, double zexp) {
       // Get primitive polynomial representation
-      arma::mat bf_C=polynomial::hermite_coeffs(n_nodes, der_order);
-      arma::mat df_C=polynomial::derivative_coeffs(bf_C, 1);
+      bf_C=polynomial::hermite_coeffs(n_nodes, der_order);
+      df_C=polynomial::derivative_coeffs(bf_C, 1);
 
       // Get quadrature rule
       chebyshev::chebyshev(n_quad,xq,wq);
+      for(size_t i=0;i<xq.n_elem;i++) {
+        if(!std::isfinite(xq[i]))
+          printf("xq[%i]=%e\n",(int) i, xq[i]);
+        if(!std::isfinite(wq[i]))
+          printf("wq[%i]=%e\n",(int) i, wq[i]);
+      }
+
       // Evaluate polynomials at quadrature points
       bf=polynomial::polyval(bf_C,xq);
       df=polynomial::polyval(df_C,xq);
@@ -27,7 +41,7 @@ namespace helfem {
 
       // Get boundary values
       // linear grid
-      //bval=arma::linspace<arma::vec>(0,rmax,num_el+1);
+      bval=arma::linspace<arma::vec>(0,rmax,num_el+1);
 
       // quadratic grid (Schweizer et al 1999)
       //bval.zeros(num_el+1);
@@ -37,36 +51,42 @@ namespace helfem {
       // generalized polynomial grid, monotonic decrease till zexp~3, after that fails to work
       //bval.zeros(num_el+1);
       //for(int i=0;i<=num_el;i++)
-      //	bval(i)=rmax*std::pow(i*1.0/num_el,zexp);
+      //bval(i)=rmax*std::pow(i*1.0/num_el,zexp);
 
       // generalized logarithmic grid, monotonic decrease till zexp~2, after that fails to work
-      bval=arma::exp(arma::pow(arma::linspace<arma::vec>(0,std::pow(log(rmax+1),1.0/zexp),num_el+1),zexp))-arma::ones<arma::vec>(num_el+1);
+      //bval=arma::exp(arma::pow(arma::linspace<arma::vec>(0,std::pow(log(rmax+1),1.0/zexp),num_el+1),zexp))-arma::ones<arma::vec>(num_el+1);
 
-      bval.print("Element boundaries");
+      //bval.print("Element boundaries");
+
+#ifdef OEI_QUADRATURE
+      printf("One-electron integrals evaluated using quadrature.\n");
+#else
+      printf("One-electron integrals evaluated analytically.\n");
+#endif
+#ifdef TEI_QUADRATURE
+      printf("Two-electron integrals evaluated using quadrature.\n");
+#else
+      printf("Two-electron integrals evaluated analytically.\n");
+#endif
     }
 
     RadialBasis::~RadialBasis() {
     }
 
-    arma::mat RadialBasis::get_bf(size_t iel) const {
-      if(iel==0)
+    arma::mat RadialBasis::get_basis(const arma::mat & bas, size_t iel) const {
+      if(iel==0 && iel==bval.n_elem-2)
+	// Boundary condition both at r=0 and at r=infinity
+	return bas.cols(noverlap,bf.n_cols-1-noverlap);
+      else if(iel==0)
 	// Boundary condition at r=0
-	return bf.cols(noverlap,bf.n_cols-1);
+	return bas.cols(noverlap,bf.n_cols-1);
       else if(iel==bval.n_elem-2)
 	// Boundary condition at r=infinity
-	return bf.cols(0,bf.n_cols-1-noverlap);
+	return bas.cols(0,bf.n_cols-1-noverlap);
       else
-	return bf;
+	return bas;
     }
 
-    arma::mat RadialBasis::get_df(size_t iel) const {
-      if(iel==0)
-	return df.cols(noverlap,bf.n_cols-1);
-      else if(iel==bval.n_elem-2)
-	return df.cols(0,bf.n_cols-1-noverlap);
-      else
-	return df;
-    }
 
     size_t RadialBasis::get_noverlap() const {
       return noverlap;
@@ -84,7 +104,9 @@ namespace helfem {
     }
 
     size_t RadialBasis::Nprim(size_t iel) const {
-      if(iel==0)
+      if(iel==0 && iel==bval.n_elem-2)
+	return bf.n_cols-2*noverlap;
+      else if(iel==0)
 	return bf.n_cols-noverlap;
       else if(iel==bval.n_elem-2)
 	return bf.n_cols-noverlap;
@@ -109,15 +131,63 @@ namespace helfem {
     }
 
     arma::mat RadialBasis::radial_integral(int Rexp, size_t iel) const {
-      return quadrature::radial_integral(bval(iel),bval(iel+1),Rexp,xq,wq,get_bf(iel));
+      return radial_integral(bf_C,Rexp,iel);
     }
 
-    arma::mat RadialBasis::overlap(size_t iel) const {
-      return radial_integral(0,iel);
+#ifndef OEI_QUADRATURE
+    static double primrad_int(int n, double Rmin, double Rmax) {
+      if(n==-1)
+        return log(Rmax)-log(Rmin);
+      else
+        return (std::pow(Rmax,n+1)-std::pow(Rmin,n+1))/(n+1);
+    }
+#endif
+
+    arma::mat RadialBasis::radial_integral(const arma::mat & bf_cexp, int Rexp, size_t iel) const {
+      double Rmin(bval(iel));
+      double Rmax(bval(iel+1));
+
+#ifdef OEI_QUADRATURE
+      // Integral by quadrature
+      return quadrature::radial_integral(Rmin,Rmax,Rexp,xq,wq,get_basis(polynomial::polyval(bf_cexp,xq),iel));
+#else
+      // Coefficients
+      arma::mat C(polynomial::convert_coeffs(get_basis(bf_cexp,iel),Rmin,Rmax));
+      size_t Nx(C.n_rows);
+
+      // Primitive integrals
+      arma::mat primint(Nx,Nx);
+      for(size_t i=0;i<Nx;i++)
+        for(size_t j=0;j<Nx;j++)
+          primint(i,j)=primrad_int(i+j+Rexp,Rmin,Rmax);
+
+      primint.print("primitive integrals");
+
+      // Set any diverging integrals to zero
+      for(size_t i=0;i<Nx;i++)
+        for(size_t j=0;j<Nx;j++)
+          if(!std::isnormal(primint(i,j)))
+            primint(i,j)=0.0;
+
+      // Analytical integrals
+      arma::mat anal(C.t()*primint*C);
+      anal.print("analytical");
+
+      arma::mat quad(quadrature::radial_integral(Rmin,Rmax,Rexp,xq,wq,get_basis(polynomial::polyval(bf_cexp,xq),iel)));
+      quad.print("quadrature");
+
+      arma::mat diff(quad-anal);
+      printf("Error in analytical integral for Rexp=%i in element %i is %e\n",Rexp,(int) iel,arma::norm(diff,"fro"));
+
+      return (anal+anal.t())/2.0;
+#endif
     }
 
     arma::mat RadialBasis::kinetic(size_t iel) const {
-      return 0.5*quadrature::derivative_integral(bval(iel),bval(iel+1),xq,wq,get_df(iel));
+      // We get 1/rlen^2 from the derivatives
+      double rlen((bval(iel+1)-bval(iel))/2);
+
+      return 0.5*radial_integral(df_C,0,iel)/(rlen*rlen);
     }
 
     arma::mat RadialBasis::kinetic_l(size_t iel) const {
@@ -128,8 +198,84 @@ namespace helfem {
       return -radial_integral(-1,iel);
     }
 
+#ifndef TEI_QUADRATURE
+    // Two-electron primitive integral
+    static double primitive_tei(double rmin, double rmax, int k, int l) {
+      assert(l!=-1);
+      if(k==-1)
+        return 1.0/(l+1)*( 1.0/(l+1)*(std::pow(rmax,l+1)-std::pow(rmin,l+1)) - std::pow(rmin,l+1)*log(rmax/rmin));
+      else {
+        assert(k+l+1!=-1);
+        return 1.0/(l+1)*( 1.0/(k+l+2)*(std::pow(rmax,k+l+2)-std::pow(rmin,k+l+2)) - 1.0/(k+1)*std::pow(rmin,l+1)*(std::pow(rmax,k+1)-std::pow(rmin,k+1)));
+      }
+    }
+#endif
+
     arma::mat RadialBasis::twoe_integral(int L, size_t iel) const {
-      return quadrature::twoe_integral(bval(iel),bval(iel+1),xq,wq,get_bf(iel),L);
+      double Rmin(bval(iel));
+      double Rmax(bval(iel+1));
+
+#ifdef TEI_QUADRATURE
+      // Integral by quadrature
+      return quadrature::twoe_integral(Rmin,Rmax,xq,wq,get_basis(bf,iel),L);
+#else
+      arma::mat quad(quadrature::twoe_integral(Rmin,Rmax,xq,wq,get_basis(bf,iel),L));
+
+      // Coefficients
+      arma::mat C(polynomial::convert_coeffs(get_basis(bf_C,iel),Rmin,Rmax));
+      size_t Nx(C.n_rows);
+      size_t N(C.n_cols);
+
+      // Primitive integrals
+      arma::mat primint(2*Nx,2*Nx);
+      for(size_t ij=0;ij<2*Nx;ij++)
+        for(size_t kl=0;kl<2*Nx;kl++)
+          primint(ij,kl)=primitive_tei(Rmin,Rmax,ij-L-1,kl+L);
+
+      // Set any diverging primitive integrals to zero
+      for(size_t ij=0;ij<2*Nx;ij++)
+        for(size_t kl=0;kl<2*Nx;kl++)
+          if(!std::isnormal(primint(ij,kl)))
+            primint(ij,kl)=0.0;
+
+      // and the factor
+      primint*=4.0*M_PI/(2*L+1);
+
+      // Half-transformed eris
+      arma::mat heri(N*N,2*Nx);
+      for(size_t fi=0;fi<N;fi++)
+        for(size_t fj=0;fj<N;fj++)
+          for(size_t kl=0;kl<2*Nx;kl++)
+              {
+                double el=0.0;
+                for(size_t pi=0;pi<Nx;pi++)
+                  for(size_t pj=0;pj<Nx;pj++)
+                    el+=primint(pi+pj,kl)*C(pi,fi)*C(pj,fj);
+                heri(fj*N+fi,kl)=el;
+              }
+
+      // Full transform
+      arma::mat eri(N*N,N*N);
+      for(size_t fk=0;fk<N;fk++)
+        for(size_t fl=0;fl<N;fl++)
+          for(size_t fi=0;fi<N;fi++)
+            for(size_t fj=0;fj<N;fj++)
+              {
+                double el=0.0;
+                for(size_t pk=0;pk<Nx;pk++)
+                  for(size_t pl=0;pl<Nx;pl++)
+                    el+=heri(fj*N+fi,pk+pl)*C(pk,fk)*C(pl,fl);
+                eri(fj*N+fi,fl*N+fk)=el;
+              }
+
+      // Add in other half
+      eri+=eri.t();
+
+      eri.print("Analytical integrals");
+      quad.print("Quadrature integrals");
+
+      return eri;
+#endif
     }
 
     TwoDBasis::TwoDBasis(int Z_, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, double zexp) {
@@ -199,8 +345,23 @@ namespace helfem {
       // Go to normalized basis
       S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
 
+#ifdef CHOL_SINVH
       // Half-inverse is
       return arma::diagmat(bfnormlz) * arma::inv(arma::chol(S));
+#else
+      arma::vec Sval;
+      arma::mat Svec;
+      if(!arma::eig_sym(Sval,Svec,S)) {
+        S.save("S.dat",arma::raw_ascii);
+        throw std::logic_error("Diagonalization of overlap matrix failed\n");
+      }
+      printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
+
+      arma::mat Sinvh(Svec*arma::diagmat(arma::pow(Sval,-0.5))*arma::trans(Svec));
+      Sinvh=arma::diagmat(bfnormlz)*Sinvh;
+
+      return Sinvh;
+#endif
     }
 
     void TwoDBasis::set_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Mrad) const {
@@ -653,6 +814,10 @@ namespace helfem {
       //Pnob.print("Output: w/o built-in boundaries");
 
       return Pnob;
+    }
+
+    std::vector<arma::mat> TwoDBasis::get_prim_tei() const {
+      return prim_tei;
     }
   }
 }
