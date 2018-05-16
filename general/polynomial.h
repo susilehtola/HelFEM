@@ -51,6 +51,14 @@ namespace helfem {
     arma::mat hermite_coeffs(int n_nodes, int der_order);
 
     /**
+     * Generates the transformation matrix from
+     *   f(x)  = c_0 + c_1 x + c_2 x^2 + ... + c_n x^n
+     * to
+     *   f(r)  = c_0 + c_1 r + c_2 r^2 + ... + c_n r^n
+     */
+    arma::mat conversion_matrix(int xmax, double rmin, double rmax);
+
+    /**
      * Convert an expansion in [-1,1] given as
      *   f(x)  = c_0 + c_1 x + c_2 x^2 + ... + c_n x^n
      * into an expansion in an element

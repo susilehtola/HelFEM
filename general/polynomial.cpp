@@ -86,27 +86,30 @@ namespace helfem {
       return arma::inv(ximat);
     }
 
-    arma::mat convert_coeffs(const arma::mat & C, double rmin, double rmax) {
+    arma::mat conversion_matrix(size_t xmax, double rmin, double rmax) {
       // Midpoint of interval
       double rmid((rmax+rmin)/2.0);
       double invrmid((rmax+rmin)/2.0);
       // Inverse length of interval
       double invrlen(2.0/(rmax-rmin));
 
-      arma::mat D(C);
-      D.zeros();
+      arma::mat T(xmax,xmax);
+      T.zeros();
 
       // Loop over functions
-      for(size_t fn=0;fn<C.n_cols;fn++)
-        for(size_t m=0;m<C.n_rows;m++)
-          for(size_t k=0;k<=m;k++) {
-            int mmk=m-k;
-            double sign = ((m-k)%2) ? -1.0 : 1.0;
-            double rmp = (mmk < 0) ? std::pow(invrmid,-mmk) : std::pow(rmid,mmk);
-            D(k,fn)+=sign*std::pow(invrlen,m)*C(m,fn)*choose(m,k)*rmp;
-          }
+      for(size_t m=0;m<xmax;m++)
+        for(size_t k=0;k<=m;k++) {
+          int mmk=m-k;
+          double sign = ((m-k)%2) ? -1.0 : 1.0;
+          double rmp = (mmk < 0) ? std::pow(invrmid,-mmk) : std::pow(rmid,mmk);
+          T(k,m)+=sign*std::pow(invrlen,m)*choose(m,k)*rmp;
+        }
 
-      return D;
+      return T;
+    }
+
+    arma::mat convert_coeffs(const arma::mat & C, double rmin, double rmax) {
+      return conversion_matrix(C.n_rows,rmin,rmax)*C;
     }
   }
 }
