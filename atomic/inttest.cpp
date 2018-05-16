@@ -35,25 +35,25 @@ void run(double R, int n_quad) {
   arma::mat teiq(quadrature::twoe_integral(0,R,xq,wq,bf,0));
 
   arma::mat tei(4,4);
-  // Maple gives the following integrals for L=0, in units of R^5
+  // Maple gives the following integrals for L=0, in units of R
 
   // 1111
-  tei(0,0) = 1.0/1008.0;
+  tei(0,0) = 47.0/180.0;
   // 1112
-  tei(0,1) = 1.0/1440.0;
+  tei(0,1) = 11/360.0;
   // 1121
   tei(0,2) = tei(0,1);
   // 1122
-  tei(0,3) = 1.0/1260.0;
+  tei(0,3) = 1.0/90.0;
 
   // 1211
-  tei(1,0) = 1.0/560.0;
+  tei(1,0) = 1.0/10.0;
   // 1212
-  tei(1,1) = 17.0/10080.0;
+  tei(1,1) = 1.0/40.0;
   // 1221
   tei(1,2) = tei(1,1);
   // 1222
-  tei(1,3) = 1.0/360.0;
+  tei(1,3) = 1.0/60.0;
 
   // 2111
   tei(2,0) = tei(1,0);
@@ -65,16 +65,16 @@ void run(double R, int n_quad) {
   tei(2,3) = tei(1,3);
 
   // 2211
-  tei(3,0) = 37.0/5040.0;
+  tei(3,0) = 3.0/20.0;
   // 2212
-  tei(3,1) = 13.0/1440.0;
+  tei(3,1) = 7.0/120.0;
   // 2221
   tei(3,2) = tei(3,1);
   // 2222
-  tei(3,3) = 1.0/45.0;
+  tei(3,3) = 1.0/15.0;
 
   // Symmetrization and coefficient
-  tei=4.0*M_PI*(tei+tei.t())*std::pow(R,5);
+  tei=4.0*M_PI*(tei+tei.t())*R;
 
   tei.print("Analytical");
   teiq.print("Quadrature");

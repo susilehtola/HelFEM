@@ -7,9 +7,9 @@
 #include <cfloat>
 
 /// Use quadrature for one-electron integrals?
-//#define OEI_QUADRATURE
+#define OEI_QUADRATURE
 /// Use quadrature for two-electron integrals?
-//#define TEI_QUADRATURE
+#define TEI_QUADRATURE
 /// Use Cholesky for Sinvh?
 //#define CHOL_SINVH
 
@@ -210,6 +210,25 @@ namespace helfem {
       }
     }
 #endif
+
+    void RadialBasis::twoe_integral_test(int L, size_t iel) const {
+      double Rmin(bval(iel));
+      double Rmax(bval(iel+1));
+
+      for(int nq=10;nq<20000;nq*=2) {
+        arma::vec qx, qw;
+        chebyshev::chebyshev(nq,qx,qw);
+
+        arma::mat inner(quadrature::twoe_inner_integral(Rmin,Rmax,qx,qw,polynomial::polyval(get_basis(bf,iel),qx),L));
+        std::ostringstream fname;
+        fname << "inner_" << nq << "_L" << L << "_e" << iel << ".dat";
+        inner.save(fname.str(),arma::raw_ascii);
+
+        fname.str("");
+        fname << "x_" << nq << ".dat";
+        qx.save(fname.str(),arma::raw_ascii);
+      }
+    }
 
     arma::mat RadialBasis::twoe_integral(int L, size_t iel) const {
       double Rmin(bval(iel));
@@ -454,6 +473,9 @@ namespace helfem {
           disjoint_L[L*Nel+iel]=radial.radial_integral(L,iel);
           disjoint_m1L[L*Nel+iel]=radial.radial_integral(-1-L,iel);
         }
+
+      // Test integral quadrature
+      radial.twoe_integral_test(0,0);
 
       // Form two-electron integrals
       prim_tei.resize(Nel*Nel*N_L);

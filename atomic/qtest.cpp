@@ -4,9 +4,9 @@ using namespace helfem;
 
 int main(int argc, char **argv) {
   int Z=1;
-  int Nnodes=2;
+  int Nnodes=10;
   int der_order=0;
-  int Nelem=3;
+  int Nelem=5;
   double Rmax=50;
   int lmax=0;
   int mmax=0;
@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
       fname << "ptei_" << iel << "_" << iel << "_" << nquad << ".dat";
       ptei[idx].save(fname.str(),arma::raw_ascii);
 
-      ptei[idx].print(fname.str());
+      //ptei[idx].print(fname.str());
     }
     
     if(Sold.n_elem) {

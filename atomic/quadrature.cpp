@@ -77,7 +77,7 @@ namespace helfem {
       // and half-length of interval is
       double rlen(0.5*(rmax-rmin));
       // r values are then
-      arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
+      arma::vec fracr((rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x)/rmax);
 
       // Compute the "inner" integrals as function of r.
       arma::mat inner(bfprod.n_rows, bfprod.n_cols);
@@ -85,7 +85,19 @@ namespace helfem {
       // Calculate total weight per point
       arma::vec wp(wx*rlen);
       // Put in r^L
-      wp%=arma::pow(r,L);
+      switch(L) {
+      case(0):
+        break;
+      case(1):
+        wp%=fracr;
+        break;
+      case(2):
+        wp%=arma::square(fracr);
+        break;
+      default:
+        wp%=arma::pow(fracr,L);
+        break;
+      }
 
       // Put in weight
       for(size_t i=0;i<bfprod.n_cols;i++)
@@ -134,10 +146,16 @@ namespace helfem {
 
       // Next, the outer integrals
       arma::vec wp(wx*rlen);
-      // Put in r^(-1-L)
-      wp%=arma::pow(r,-1-L);
+      // Put in 1/r
+      wp/=r;
       for(size_t i=0;i<bfprod.n_cols;i++)
         bfprod.col(i)%=wp;
+
+      // Regularize NaNs and infs
+      for(size_t ic=0;ic<bfprod.n_cols;ic++)
+        for(size_t ir=0;ir<bfprod.n_rows;ir++)
+          if(!std::isnormal(bfprod(ir,ic)))
+            bfprod(ir,ic)=0.0;
 
       // Integrals are then
       arma::mat ints(4.0*M_PI/(2*L+1)*arma::trans(bfprod)*inner);
