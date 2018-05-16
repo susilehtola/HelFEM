@@ -13,26 +13,28 @@ void run(double R, int n_quad) {
   // Get quadrature rule
   arma::vec xq, wq;
   chebyshev::chebyshev(n_quad,xq,wq);
-  // Evaluate polynomials at quadrature points
-  arma::mat bf=polynomial::polyval(bf_C,xq);
-
-  // r values are
-  arma::vec r(0.5*R*arma::ones<arma::vec>(xq.n_elem)+0.5*R*xq);
 
   // Get inner integral by quadrature
-  arma::mat teiinner(quadrature::twoe_inner_integral(0,R,xq,wq,bf,0));
+  arma::mat teiinner(quadrature::twoe_inner_integral(0,R,xq,wq,bf_C,0));
 
-  // Test against analytical integrals
+  // Test against analytical integrals. r values are
+  arma::vec r(0.5*R*arma::ones<arma::vec>(xq.n_elem)+0.5*R*xq);
+
+  // The inner integral should give the following
   arma::mat teiishould(r.n_elem,4);
-  teiishould.col(0)=arma::pow(r,5)/(5.0*std::pow(R,2))-arma::pow(r,4)/(2.0*R)+arma::pow(r,3)/3.0;
-  teiishould.col(1)=-arma::pow(r,5)/(5.0*std::pow(R,2))+arma::pow(r,4)/(4.0*R);
+  teiishould.col(0)=(arma::ones<arma::vec>(r.n_elem) - r/R + 1.0/3.0*arma::square(r)/(R*R));
+  teiishould.col(1)=r%(-2.0*r + 3*R*arma::ones<arma::vec>(r.n_elem))/(6.0*R*R);
   teiishould.col(2)=teiishould.col(1);
-  teiishould.col(3)=arma::pow(r,5)/(5.0*std::pow(R,2));
+  teiishould.col(3)=arma::square(r)/(3.0*R*R);
 
+  r.save("r.dat",arma::raw_ascii);
   teiinner.save("teii_q.dat",arma::raw_ascii);
   teiishould.save("teii.dat",arma::raw_ascii);
 
-  arma::mat teiq(quadrature::twoe_integral(0,R,xq,wq,bf,0));
+  teiishould-=teiinner;
+  printf("Error in inner integral is %e\n",arma::norm(teiishould,"fro"));
+
+  arma::mat teiq(quadrature::twoe_integral(0,R,xq,wq,bf_C,0));
 
   arma::mat tei(4,4);
   // Maple gives the following integrals for L=0, in units of R

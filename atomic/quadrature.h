@@ -6,7 +6,7 @@
 namespace helfem {
   namespace quadrature {
     /**
-     * Computes a radial integral of the type B_1 (r) B_2(r) r^n dr.
+     * Computes a radial integral of the type \f$ \int_0^\infty B_1 (r) B_2(r) r^n dr \f$.
      *
      * Input
      *   rmin: start of element boundary
@@ -24,15 +24,17 @@ namespace helfem {
     arma::mat derivative_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & dbf);
 
     /**
-     * Computes the inner in-element integral.
+     * Computes the inner in-element two-electron integral:
+     * \f$ \phi(r) = \frac 1 r^{L+1} \int_0^r dr' r'^{L} B_k(r') B_l(r') \f$
      */
-    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int L);
+    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L);
 
     /**
      * Computes a primitive two-electron in-element integral.
      * Cross-element integrals reduce to products of radial integrals.
+     * Note that the routine needs the polynomial representation.
      */
-    arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int L);
+    arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L);
   }
 }
 

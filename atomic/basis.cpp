@@ -219,7 +219,7 @@ namespace helfem {
         arma::vec qx, qw;
         chebyshev::chebyshev(nq,qx,qw);
 
-        arma::mat inner(quadrature::twoe_inner_integral(Rmin,Rmax,qx,qw,polynomial::polyval(get_basis(bf,iel),qx),L));
+        arma::mat inner(quadrature::twoe_inner_integral(Rmin,Rmax,qx,qw,polynomial::polyval(get_basis(bf_C,iel),qx),L));
         std::ostringstream fname;
         fname << "inner_" << nq << "_L" << L << "_e" << iel << ".dat";
         inner.save(fname.str(),arma::raw_ascii);
@@ -236,9 +236,9 @@ namespace helfem {
 
 #ifdef TEI_QUADRATURE
       // Integral by quadrature
-      return quadrature::twoe_integral(Rmin,Rmax,xq,wq,get_basis(bf,iel),L);
+      return quadrature::twoe_integral(Rmin,Rmax,xq,wq,get_basis(bf_C,iel),L);
 #else
-      arma::mat quad(quadrature::twoe_integral(Rmin,Rmax,xq,wq,get_basis(bf,iel),L));
+      arma::mat quad(quadrature::twoe_integral(Rmin,Rmax,xq,wq,get_basis(bf_C,iel),L));
 
       // Coefficients
       arma::mat C(polynomial::convert_coeffs(get_basis(bf_C,iel),Rmin,Rmax));
