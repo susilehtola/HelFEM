@@ -10,13 +10,14 @@ int main(int argc, char **argv) {
   double Rmax=50;
   int lmax=0;
   int mmax=0;
+  int igrid=1;
   double zexp=2.0;
 
   arma::mat Sold, Vold, Told;
   std::vector<arma::mat> pteiold;
 
   for(int nquad=10;nquad<=1e5;nquad*=2) {  
-    basis::TwoDBasis basis(Z, Nnodes, der_order, nquad, Nelem, Rmax, lmax, mmax, zexp);
+    basis::TwoDBasis basis(Z, Nnodes, der_order, nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
 
     // Form overlap matrix
     arma::mat S(basis.overlap());

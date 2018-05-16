@@ -87,7 +87,8 @@ int main(int argc, char **argv) {
   parser.add<int>("lmax", 0, "maximum l quantum number");
   parser.add<int>("mmax", 0, "maximum m quantum number");
   parser.add<double>("Rmax", 0, "practical infinity");
-  parser.add<double>("zexp", 0, "exponent in radial grid");
+  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for logarithmic");
+  parser.add<double>("zexp", 0, "parameter in radial grid");
   parser.add<int>("nelem", 0, "number of elements");
   parser.add<int>("nnodes", 0, "number of nodes per element");
   parser.add<int>("der_order", 0, "level of derivative continuity");
@@ -96,6 +97,7 @@ int main(int argc, char **argv) {
 
   // Get parameters
   double Rmax(parser.get<double>("Rmax"));
+  int igrid(parser.get<int>("grid"));
   double zexp(parser.get<double>("zexp"));
   // Number of elements
   int Nelem(parser.get<int>("nelem"));
@@ -122,7 +124,7 @@ int main(int argc, char **argv) {
 
   printf("Angular grid spanning from l=0..%i, m=%i..%i.\n",lmax,-mmax,mmax);
 
-  basis::TwoDBasis basis(Z, Nnodes, der_order, Nquad, Nelem, Rmax, lmax, mmax, zexp);
+  basis::TwoDBasis basis(Z, Nnodes, der_order, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
   printf("Basis set contains %i functions\n",(int) basis.Nbf());
 
   printf("Nuclear charge is %i\n",Z);

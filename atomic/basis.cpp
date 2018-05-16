@@ -18,7 +18,7 @@ namespace helfem {
     RadialBasis::RadialBasis() {
     }
 
-    RadialBasis::RadialBasis(int n_nodes, int der_order, int n_quad, int num_el, double rmax, double zexp) {
+    RadialBasis::RadialBasis(int n_nodes, int der_order, int n_quad, int num_el, double rmax, int igrid, double zexp) {
       // Get primitive polynomial representation
       bf_C=polynomial::hermite_coeffs(n_nodes, der_order);
       df_C=polynomial::derivative_coeffs(bf_C, 1);
@@ -40,21 +40,38 @@ namespace helfem {
       noverlap=der_order+1;
 
       // Get boundary values
-      // linear grid
-      bval=arma::linspace<arma::vec>(0,rmax,num_el+1);
+      switch(igrid) {
+        // linear grid
+      case(1):
+        printf("Using linear grid\n");
+        bval=arma::linspace<arma::vec>(0,rmax,num_el+1);
+        break;
 
-      // quadratic grid (Schweizer et al 1999)
-      //bval.zeros(num_el+1);
-      //for(int i=0;i<=num_el;i++)
-      // 	bval(i)=i*i*rmax/(num_el*num_el);
+        // quadratic grid (Schweizer et al 1999)
+      case(2):
+        printf("Using quadratic grid\n");
+        bval.zeros(num_el+1);
+        for(int i=0;i<=num_el;i++)
+          bval(i)=i*i*rmax/(num_el*num_el);
+        break;
 
       // generalized polynomial grid, monotonic decrease till zexp~3, after that fails to work
-      //bval.zeros(num_el+1);
-      //for(int i=0;i<=num_el;i++)
-      //bval(i)=rmax*std::pow(i*1.0/num_el,zexp);
+      case(3):
+        printf("Using generalized polynomial grid, zexp = %e\n",zexp);
+        bval.zeros(num_el+1);
+        for(int i=0;i<=num_el;i++)
+          bval(i)=rmax*std::pow(i*1.0/num_el,zexp);
+        break;
 
-      // generalized logarithmic grid, monotonic decrease till zexp~2, after that fails to work
-      //bval=arma::exp(arma::pow(arma::linspace<arma::vec>(0,std::pow(log(rmax+1),1.0/zexp),num_el+1),zexp))-arma::ones<arma::vec>(num_el+1);
+        // generalized logarithmic grid, monotonic decrease till zexp~2, after that fails to work
+      case(4):
+        printf("Using generalized logarithmic grid, zexp = %e\n",zexp);
+        bval=arma::exp(arma::pow(arma::linspace<arma::vec>(0,std::pow(log(rmax+1),1.0/zexp),num_el+1),zexp))-arma::ones<arma::vec>(num_el+1);
+        break;
+
+      default:
+          throw std::logic_error("Invalid choice for grid\n");
+      }
 
       //bval.print("Element boundaries");
 
@@ -211,25 +228,6 @@ namespace helfem {
     }
 #endif
 
-    void RadialBasis::twoe_integral_test(int L, size_t iel) const {
-      double Rmin(bval(iel));
-      double Rmax(bval(iel+1));
-
-      for(int nq=10;nq<20000;nq*=2) {
-        arma::vec qx, qw;
-        chebyshev::chebyshev(nq,qx,qw);
-
-        arma::mat inner(quadrature::twoe_inner_integral(Rmin,Rmax,qx,qw,polynomial::polyval(get_basis(bf_C,iel),qx),L));
-        std::ostringstream fname;
-        fname << "inner_" << nq << "_L" << L << "_e" << iel << ".dat";
-        inner.save(fname.str(),arma::raw_ascii);
-
-        fname.str("");
-        fname << "x_" << nq << ".dat";
-        qx.save(fname.str(),arma::raw_ascii);
-      }
-    }
-
     arma::mat RadialBasis::twoe_integral(int L, size_t iel) const {
       double Rmin(bval(iel));
       double Rmax(bval(iel+1));
@@ -297,11 +295,11 @@ namespace helfem {
 #endif
     }
 
-    TwoDBasis::TwoDBasis(int Z_, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, double zexp) {
+    TwoDBasis::TwoDBasis(int Z_, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp) {
       // Nuclear charge
       Z=Z_;
       // Construct radial basis
-      radial=RadialBasis(n_nodes, der_order, n_quad, num_el, rmax, zexp);
+      radial=RadialBasis(n_nodes, der_order, n_quad, num_el, rmax, igrid, zexp);
 
       // Construct angular basis
       size_t nang=0;
@@ -473,9 +471,6 @@ namespace helfem {
           disjoint_L[L*Nel+iel]=radial.radial_integral(L,iel);
           disjoint_m1L[L*Nel+iel]=radial.radial_integral(-1-L,iel);
         }
-
-      // Test integral quadrature
-      radial.twoe_integral_test(0,0);
 
       // Form two-electron integrals
       prim_tei.resize(Nel*Nel*N_L);
