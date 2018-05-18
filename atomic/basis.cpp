@@ -457,6 +457,48 @@ namespace helfem {
       return -Z*radial_integral(-1);
     }
 
+    arma::mat TwoDBasis::electric(double Ez) const {
+      // Build radial elements
+      size_t Nrad(radial.Nbf());
+      arma::mat Orad(Nrad,Nrad);
+      Orad.zeros();
+
+      // Full electric couplings
+      arma::mat V(Nbf(),Nbf());
+      V.zeros();
+
+      if(Ez!=0.0) {
+        // Loop over elements
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          // Where are we in the matrix?
+          size_t ifirst, ilast;
+          radial.get_idx(iel,ifirst,ilast);
+          Orad.submat(ifirst,ifirst,ilast,ilast)+=Ez*radial.radial_integral(1,iel);
+        }
+
+        int gmax(std::max(arma::max(lval),arma::max(mval)));
+        gaunt::Gaunt gaunt(gmax,1,gmax);
+
+        // Fill elements
+        for(size_t iang=0;iang<lval.n_elem;iang++) {
+          int li(lval(iang));
+          int mi(mval(iang));
+
+          for(size_t jang=0;jang<lval.n_elem;jang++) {
+            int lj(lval(jang));
+            int mj(mval(jang));
+
+            // Calculate coupling
+            double cpl(gaunt.cosine_coupling(lj,mj,li,mi));
+            if(cpl!=0.0)
+              set_sub(V,iang,jang,Orad*cpl);
+          }
+        }
+      }
+
+      return remove_boundaries(V);
+    }
+
     void TwoDBasis::compute_tei() {
       // Number of distinct L values is
       size_t N_L(2*arma::max(lval)+1);
@@ -559,8 +601,8 @@ namespace helfem {
 	throw std::logic_error("Density matrix has incorrect size!\n");
 
       // Gaunt coefficient table
-      int lmax(arma::max(lval));
-      gaunt::Gaunt gaunt(lmax,2*lmax,lmax);
+      int gmax(std::max(arma::max(lval),arma::max(mval)));
+      gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
 
       // Number of radial elements
       size_t Nel(radial.Nel());
@@ -616,6 +658,9 @@ namespace helfem {
 
 		      // Get density submatrix
 		      arma::vec Psub(arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast)));
+                      // Don't calculate zeros
+                      if(arma::norm(Psub,2)==0.0)
+                        continue;
 
 		      // Contract integrals
 		      arma::vec Jsub(cpl*(prim_tei[Nel*Nel*L + iel*Nel + jel]*Psub));
@@ -651,8 +696,8 @@ namespace helfem {
 	throw std::logic_error("Density matrix has incorrect size!\n");
 
       // Gaunt coefficient table
-      int lmax(arma::max(lval));
-      gaunt::Gaunt gaunt(lmax,2*lmax,lmax);
+      int gmax(std::max(arma::max(lval),arma::max(mval)));
+      gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
 
       // Number of radial elements
       size_t Nel(radial.Nel());
@@ -722,16 +767,9 @@ namespace helfem {
 
                       // Get density submatrix
                       arma::vec Psub(arma::vectorise(P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast)));
-
-		      arma::mat tei(Ni*Nj,Ni*Nj);
-		      tei.zeros();
-		      const arma::mat & ptei(prim_tei[Nel*Nel*L + iel*Nel+jel]);
-		      for(size_t ii=0;ii<Ni;ii++)
-			for(size_t jj=0;jj<Ni;jj++)
-			  for(size_t kk=0;kk<Nj;kk++)
-			    for(size_t ll=0;ll<Nj;ll++)
-			      // (ik|jl) in Armadillo compatible indexing
-			      tei(kk*Ni+jj,ll*Ni+ii)=ptei(jj*Ni+ii,ll*Nj+kk);
+                      // Don't calculate zeros
+                      if(arma::norm(Psub,2)==0.0)
+                        continue;
 
 		      // Exchange submatrix
                       arma::vec Ksub(cpl*(prim_ktei[Nel*Nel*L + iel*Nel + jel]*Psub));

@@ -28,8 +28,6 @@ namespace helfem {
 
       /// Get basis functions in element
       arma::mat get_basis(const arma::mat & b, size_t iel) const;
-      /// Get expansion in r instead of x
-      arma::mat convert_expansion(const arma::mat & b, size_t iel) const;
 
     public:
       /// Dummy constructor
@@ -69,8 +67,6 @@ namespace helfem {
 
       /// Compute primitive two-electron integral
       arma::mat twoe_integral(int L, size_t iel) const;
-      /// Compute primitive two-electron integral
-      void twoe_integral_test(int L, size_t iel) const;
     };
 
     /// Two-dimensional basis set
@@ -129,6 +125,8 @@ namespace helfem {
       arma::mat kinetic() const;
       /// Form nuclear attraction matrix
       arma::mat nuclear() const;
+      /// Form electric field coupling matrix
+      arma::mat electric(double Ez) const;
 
       /// Form density matrix
       arma::mat form_density(const arma::mat & C, size_t nocc) const;

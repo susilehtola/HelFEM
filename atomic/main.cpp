@@ -93,12 +93,14 @@ int main(int argc, char **argv) {
   parser.add<int>("nnodes", 0, "number of nodes per element");
   parser.add<int>("der_order", 0, "level of derivative continuity");
   parser.add<int>("nquad", 0, "number of quadrature points");
+  parser.add<double>("Ez", 0, "electric field");
   parser.parse_check(argc, argv);
 
   // Get parameters
   double Rmax(parser.get<double>("Rmax"));
   int igrid(parser.get<int>("grid"));
   double zexp(parser.get<double>("zexp"));
+  double Ez(parser.get<double>("Ez"));
   // Number of elements
   int Nelem(parser.get<int>("nelem"));
   // Number of nodes
@@ -136,11 +138,13 @@ int main(int argc, char **argv) {
   arma::mat S(basis.overlap());
   // Form nuclear attraction energy matrix
   arma::mat Vnuc(basis.nuclear());
+  // Form electric field coupling matrix
+  arma::mat Vel(basis.electric(Ez));
   // Form kinetic energy matrix
   arma::mat T(basis.kinetic());
 
   // Form Hamiltonian
-  arma::mat H0(T+Vnuc);
+  arma::mat H0(T+Vnuc+Vel);
 
   printf("One-electron matrices formed in %.6f\n",timer.elapsed().wall*1e-9);
 
@@ -172,7 +176,7 @@ int main(int argc, char **argv) {
   basis.compute_tei();
   printf("Done in %.6f\n",timer.elapsed().wall*1e-9);
 
-  double Ekin, Epot, Ecoul, Exx, Etot;
+  double Ekin, Epot, Ecoul, Exx, Efield, Etot;
   double Eold=0.0;
 
   double diiseps=1e-2, diisthr=1e-3;
@@ -198,13 +202,14 @@ int main(int argc, char **argv) {
 
     Ekin=arma::trace(P*T);
     Epot=arma::trace(P*Vnuc);
+    Efield=arma::trace(P*Vel);
 
     // Form Coulomb matrix
     timer.start();
     arma::mat J(basis.coulomb(P));
     double tJ(timer.elapsed().wall*1e-9);
     Ecoul=0.5*arma::trace(P*J);
-    printf("Coulomb energy %.10f % .6f\n",Ecoul,tJ);
+    printf("Coulomb energy %.10e % .6f\n",Ecoul,tJ);
 
     // Form exchange matrix
     timer.start();
@@ -216,12 +221,12 @@ int main(int argc, char **argv) {
       Kb.zeros(Cb.n_rows,Cb.n_rows);
     double tK(timer.elapsed().wall*1e-9);
     Exx=0.5*(arma::trace(Pa*Ka)+arma::trace(Pb*Kb));
-    printf("Exchange energy %.10f % .6f\n",Exx,tK);
+    printf("Exchange energy %.10e % .6f\n",Exx,tK);
 
     // Fock matrices
     arma::mat Fa(H0+J+Ka);
     arma::mat Fb(H0+J+Kb);
-    Etot=Ekin+Epot+Ecoul+Exx;
+    Etot=Ekin+Epot+Efield+Ecoul+Exx;
 
     if(i>0)
       printf("Energy changed by %e\n",Etot-Eold);
@@ -283,11 +288,12 @@ int main(int argc, char **argv) {
       break;
   }
 
-  printf("%-21s energy: % .10f\n","Kinetic",Ekin);
-  printf("%-21s energy: % .10f\n","Nuclear attraction",Epot);
-  printf("%-21s energy: % .10f\n","Coulomb",Ecoul);
-  printf("%-21s energy: % .10f\n","Exchange",Exx);
-  printf("%-21s energy: % .10f\n","Total",Etot);
+  printf("%-21s energy: % .16f\n","Kinetic",Ekin);
+  printf("%-21s energy: % .16f\n","Nuclear attraction",Epot);
+  printf("%-21s energy: % .16f\n","Coulomb",Ecoul);
+  printf("%-21s energy: % .16f\n","Exchange",Exx);
+  printf("%-21s energy: % .16f\n","Electric field",Efield);
+  printf("%-21s energy: % .16f\n","Total",Etot);
   Ea.subvec(0,nena).t().print("Alpha orbital energies");
   Eb.subvec(0,nenb).t().print("Beta  orbital energies");
 
