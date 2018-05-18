@@ -25,6 +25,10 @@ add_executable(atomic_itest atomic/inttest.cpp atomic/basis.cpp atomic/quadratur
 target_link_libraries(atomic_itest helfem)
 target_link_libraries(atomic_itest gsl openblas64)
 
-#add_executable(diatomic diatomic/main.cpp diatomic/basis.cpp diatomic/quadrature.cpp)
-#target_link_libraries(diatomic helfem)
-#target_link_libraries(diatomic gsl openblas)
+add_executable(diatomic diatomic/main.cpp diatomic/basis.cpp diatomic/quadrature.cpp)
+target_link_libraries(diatomic helfem)
+target_link_libraries(diatomic gsl openblas boost_timer)
+
+add_executable(diatomic_itest diatomic/inttest.cpp diatomic/basis.cpp diatomic/quadrature.cpp)
+target_link_libraries(diatomic_itest helfem)
+target_link_libraries(diatomic_itest gsl openblas)
