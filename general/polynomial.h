@@ -56,7 +56,7 @@ namespace helfem {
      * to
      *   f(r)  = c_0 + c_1 r + c_2 r^2 + ... + c_n r^n
      */
-    arma::mat conversion_matrix(int xmax, double rmin, double rmax);
+    arma::mat conversion_matrix(size_t xmax, double rmin, double rmax);
 
     /**
      * Convert an expansion in [-1,1] given as
