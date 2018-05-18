@@ -25,6 +25,13 @@ namespace helfem {
 
       /// Get Gaunt coefficient
       double coeff(int L, int M, int l, int m, int lp, int mp) const;
+
+      /// Get cosine type coupling
+      double cosine_coupling(int lj, int mj, int li, int mi) const;
+      /// Get cosine^2 type coupling
+      double cosine2_coupling(int lj, int mj, int li, int mi) const;
+      /// Get cosine^3 type coupling
+      double cosine3_coupling(int lj, int mj, int li, int mi) const;
     };
   }
 }

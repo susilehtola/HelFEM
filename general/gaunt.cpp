@@ -65,7 +65,7 @@ namespace helfem {
         throw std::logic_error(oss.str());
       }
 
-      if(islice>table.n_cols) {
+      if(islice>table.n_slices) {
         std::ostringstream oss;
         oss << "Slice index overflow for coeff(" << L << "," << M << "," << l << "," << m << "," << lp << "," << mp << ")!\n";
         throw std::logic_error(oss.str());
@@ -73,6 +73,26 @@ namespace helfem {
 #endif
 
       return table(irow,icol,islice);
+    }
+
+    double Gaunt::cosine_coupling(int lj, int mj, int li, int mi) const {
+      // cos th = const1 * Y_1^0
+      static const double const1(2.0*sqrt(M_PI/3.0));
+      return const1*coeff(lj,mj,1,0,li,mi);
+    }
+
+    double Gaunt::cosine2_coupling(int lj, int mj, int li, int mi) const {
+      // cos^2 th = const0 * Y_0^0 + const2 * Y_2^0
+      static const double const0(2.0/3.0*sqrt(M_PI));
+      static const double const2(4.0/15.0*sqrt(5.0*M_PI));
+      return const0*coeff(lj,mj,0,0,li,mi) + const2*coeff(lj,mj,2,0,li,mi);
+    }
+
+    double Gaunt::cosine3_coupling(int lj, int mj, int li, int mi) const {
+      // cos^3 th = const1 * Y_1^0 + const3 * Y_3^0
+      static const double const1(2.0/5.0*sqrt(3.0*M_PI));
+      static const double const3(4.0/35.0*sqrt(7.0*M_PI));
+      return const1*coeff(lj,mj,1,0,li,mi) + const3*coeff(lj,mj,3,0,li,mi);
     }
   }
 }
