@@ -14,7 +14,7 @@ int main(void) {
 
     for(int l=0;l<=lmax;l++)
       for(int m=0;m<=l;m++)
-        lm(l,m)=legendreP_prolate(l,m,x(i));
+        lm(l,m)=::legendre::legendreP_prolate(l,m,x(i));
 
     printf("\n\tPlm x=%.6f\n",x(i));
     for(size_t r=0;r<lm.n_rows;r++) {
@@ -29,7 +29,7 @@ int main(void) {
 
     for(int l=0;l<=lmax;l++)
       for(int m=0;m<=lmax;m++)
-        lm(l,m)=legendreQ_prolate(l,m,x(i));
+        lm(l,m)=::legendre::legendreQ_prolate(l,m,x(i));
 
     printf("\n\tQlm x=%.6f\n",x(i));
     for(size_t r=0;r<lm.n_rows;r++) {

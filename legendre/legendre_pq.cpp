@@ -5,11 +5,12 @@
 
 #include "legendre_pq.h"
 
-int legendrePQ_max_l() {
-  return 20;
-}
+namespace legendre {
+  int legendrePQ_max_l() {
+    return 20;
+  }
 
-int legendrePQ_max_m() {
-  return 6;
+  int legendrePQ_max_m() {
+    return 6;
+  }
 }
-
