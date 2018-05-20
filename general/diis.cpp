@@ -111,8 +111,8 @@ void rDIIS::update(const arma::mat & F, const arma::mat & P, double E, double & 
 }
 
 void rDIIS::PiF_update() {
-  arma::mat Fn=stack[stack.size()-1].F;
-  arma::mat Pn=stack[stack.size()-1].P;
+  const arma::mat & Fn=stack[stack.size()-1].F;
+  const arma::mat & Pn=stack[stack.size()-1].P;
 
   // Update matrices
   PiF.zeros(stack.size());
@@ -157,10 +157,10 @@ void uDIIS::update(const arma::mat & Fa, const arma::mat & Fb, const arma::mat &
 }
 
 void uDIIS::PiF_update() {
-  arma::mat Fan=stack[stack.size()-1].Fa;
-  arma::mat Fbn=stack[stack.size()-1].Fb;
-  arma::mat Pan=stack[stack.size()-1].Pa;
-  arma::mat Pbn=stack[stack.size()-1].Pb;
+  const arma::mat & Fan=stack[stack.size()-1].Fa;
+  const arma::mat & Fbn=stack[stack.size()-1].Fb;
+  const arma::mat & Pan=stack[stack.size()-1].Pa;
+  const arma::mat & Pbn=stack[stack.size()-1].Pb;
 
   // Update matrices
   PiF.zeros(stack.size());
