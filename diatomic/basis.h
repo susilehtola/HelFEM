@@ -54,7 +54,7 @@ namespace helfem {
         arma::mat form_density(const arma::mat & Cl, const arma::mat & Cr, size_t nocc) const;
 
         /// Compute radial matrix elements \f$ B_1(\mu) B_2(\mu) \sinh^m (\mu) \cosh^m (\mu) d\mu \f$
-        arma::mat radial_integral(const arma::mat & bf_c, int m, int n, size_t iel) const;
+        arma::mat radial_integral(const arma::mat & bf, int m, int n, size_t iel) const;
         /// Compute radial matrix elements in element
         arma::mat radial_integral(int m, int n, size_t iel) const;
         /// Compute radial matrix elements
@@ -64,9 +64,20 @@ namespace helfem {
         /// Compute primitive kinetic energy matrix
         arma::mat kinetic() const;
 
+        /// Compute Plm integral
+        arma::mat Plm_integral(int k, int L, int M, size_t iel) const;
+        /// Compute Qlm integral
+        arma::mat Qlm_integral(int k, int L, int M, size_t iel) const;
         /// Compute primitive two-electron integral
-        arma::mat twoe_integral(int L, size_t iel) const;
+        arma::mat twoe_integral(int k, int l, int L, int M, size_t iel) const;
       };
+
+      /// L, |M| index type
+      typedef std::pair<int, int> lmidx_t;
+      /// Sort operator
+      bool operator<(const lmidx_t & lh, const lmidx_t & rh);
+      /// Equivalence operator
+      bool operator==(const lmidx_t & lh, const lmidx_t & rh);
 
       /// Two-dimensional basis set
       class TwoDBasis {
@@ -82,10 +93,12 @@ namespace helfem {
         /// Angular basis set: function m values
         arma::ivec mval;
 
-        /// Primitive two-electron integrals: <Nel^2 * (2L+1)>
-        std::vector<arma::mat> prim_tei;
-        /// Primitive two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
-        std::vector<arma::mat> prim_ktei;
+        /// L, |M| map
+        std::vector<lmidx_t> lm_map;
+        /// Primitive two-electron integrals: <Nel^2 * N_L>
+        std::vector<arma::mat> prim_tei00, prim_tei02, prim_tei20, prim_tei22;
+        /// Primitive two-electron integrals: <Nel^2 * N_L> sorted for exchange
+        std::vector<arma::mat> prim_ktei00, prim_ktei02, prim_ktei20, prim_ktei22;
 
         /// Number of basis functions in angular block
         size_t angular_nbf(size_t amind) const;

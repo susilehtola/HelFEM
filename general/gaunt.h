@@ -25,6 +25,8 @@ namespace helfem {
 
       /// Get Gaunt coefficient
       double coeff(int L, int M, int l, int m, int lp, int mp) const;
+      /// Get "modified" Gaunt coefficient (interim coupling through cos^2)
+      double mod_coeff(int L, int M, int l, int m, int lp, int mp) const;
 
       /// Get cosine type coupling
       double cosine_coupling(int lj, int mj, int li, int mi) const;

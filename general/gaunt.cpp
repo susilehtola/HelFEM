@@ -88,6 +88,21 @@ namespace helfem {
       return const0*coeff(lj,mj,0,0,li,mi) + const2*coeff(lj,mj,2,0,li,mi);
     }
 
+    double Gaunt::mod_coeff(int L, int M, int l, int m, int lp, int mp) const {
+      static const double const0(2.0/3.0*sqrt(M_PI));
+      static const double const2(4.0/15.0*sqrt(5.0*M_PI));
+
+      // Coupling through Y_0^0
+      double cpl0(coeff(L,M,0,0,L,M)*coeff(L,M,l,m,lp,mp));
+
+      // Coupling through Y_2^0
+      double cpl2=0.0;
+      for(int Lp=std::max(L-2,0);Lp<=L+2;Lp+=2)
+        cpl2+=coeff(L,M,2,0,Lp,M)*coeff(Lp,M,l,m,lp,mp);
+
+      return const0*cpl0+const2*cpl2;
+    }
+
     double Gaunt::cosine3_coupling(int lj, int mj, int li, int mi) const {
       // cos^3 th = const1 * Y_1^0 + const3 * Y_3^0
       static const double const1(2.0/5.0*sqrt(3.0*M_PI));

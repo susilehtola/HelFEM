@@ -88,7 +88,7 @@ void run(double Rhalf, double mumax, int n_quad) {
   return;
 
   // Get inner integral by quadrature
-  arma::mat teiinner(diatomic::quadrature::twoe_inner_integral(mumin,mumax,xq,wq,bf_C,0));
+  arma::mat teiinner;//(diatomic::quadrature::twoe_inner_integral(mumin,mumax,xq,wq,bf_C,0));
 
   // Test against analytical integrals. r values are
   arma::vec mu(0.5*mumax*arma::ones<arma::vec>(xq.n_elem)+0.5*mumax*xq);

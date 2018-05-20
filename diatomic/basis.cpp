@@ -3,6 +3,8 @@
 #include "../general/polynomial.h"
 #include "../general/chebyshev.h"
 #include "../general/gaunt.h"
+#include "../general/utils.h"
+#include <algorithm>
 #include <cassert>
 #include <cfloat>
 
@@ -118,15 +120,15 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::radial_integral(int m, int n, size_t iel) const {
-        return radial_integral(bf_C,m,n,iel);
+        return radial_integral(bf,m,n,iel);
       }
 
-      arma::mat RadialBasis::radial_integral(const arma::mat & bf_cexp, int m, int n, size_t iel) const {
+      arma::mat RadialBasis::radial_integral(const arma::mat & bas, int m, int n, size_t iel) const {
         double Rmin(bval(iel));
         double Rmax(bval(iel+1));
 
         // Integral by quadrature
-        return diatomic::quadrature::radial_integral(Rmin,Rmax,m,n,xq,wq,get_basis(polynomial::polyval(bf_cexp,xq),iel));
+        return diatomic::quadrature::radial_integral(Rmin,Rmax,m,n,xq,wq,get_basis(bas,iel));
       }
 
       arma::mat RadialBasis::radial_integral(int m, int n) const {
@@ -145,11 +147,27 @@ namespace helfem {
         return R;
       }
 
+      arma::mat RadialBasis::Plm_integral(int k, int L, int M, size_t iel) const {
+        double Rmin(bval(iel));
+        double Rmax(bval(iel+1));
+
+        // Integral by quadrature
+        return diatomic::quadrature::Plm_radial_integral(Rmin,Rmax,k,xq,wq,get_basis(bf,iel),L,M);
+      }
+
+      arma::mat RadialBasis::Qlm_integral(int k, int L, int M, size_t iel) const {
+        double Rmin(bval(iel));
+        double Rmax(bval(iel+1));
+
+        // Integral by quadrature
+        return diatomic::quadrature::Qlm_radial_integral(Rmin,Rmax,k,xq,wq,get_basis(bf,iel),L,M);
+      }
+
       arma::mat RadialBasis::kinetic(size_t iel) const {
         // We get 1/rlen^2 from the derivatives
         double rlen((bval(iel+1)-bval(iel))/2);
 
-        return radial_integral(df_C,1,0,iel)/(rlen*rlen);
+        return radial_integral(df,1,0,iel)/(rlen*rlen);
       }
 
       arma::mat RadialBasis::kinetic() const {
@@ -168,16 +186,12 @@ namespace helfem {
         return T;
       }
 
-      arma::mat RadialBasis::twoe_integral(int L, size_t iel) const {
+      arma::mat RadialBasis::twoe_integral(int k, int l, int L, int M, size_t iel) const {
         double Rmin(bval(iel));
         double Rmax(bval(iel+1));
 
         // Integral by quadrature
-        return quadrature::twoe_integral(Rmin,Rmax,xq,wq,get_basis(bf_C,iel),L);
-      }
-
-      static double arcosh(double x) {
-        return log(x+sqrt(x*x-1.0));
+        return quadrature::twoe_integral(Rmin,Rmax,k,l,xq,wq,get_basis(bf_C,iel),L,M);
       }
 
       TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rbond, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp) {
@@ -187,7 +201,7 @@ namespace helfem {
         Rhalf=Rbond/2.0;
 
         // Compute max mu value
-        double mumax=arcosh(rmax/Rhalf);
+        double mumax=utils::arcosh(rmax/Rhalf);
 
         printf("Rmax = %e yields mumax = %e\n",rmax,mumax);
 
@@ -449,64 +463,116 @@ namespace helfem {
         return remove_boundaries(V);
       }
 
-      void TwoDBasis::compute_tei() {
+      bool lm_lt(const lmidx_t & lh, const lmidx_t & rh) {
+        if(lh.first < rh.first)
+          return true;
+        if(lh.first > rh.first)
+          return false;
 
-        throw std::logic_error("Not implemented!\n");
+        if(lh.second < rh.second)
+          return true;
+        if(lh.second > rh.second)
+          return false;
+
+        return false;
+      }
+
+      bool lm_eq(const lmidx_t & lh, const lmidx_t & rh) {
+        return (lh.first == rh.first) && (lh.second == rh.second);
+      }
+
+      void TwoDBasis::compute_tei() {
+        // Maximum l value is
+        int lmax=arma::max(lval);
+        // Maximum m value is
+        int mmax=arma::max(mval);
+
+        // Form lm map
+        lm_map.clear();
+        for(int L=0;L<=2*lmax;L++) // Coupling: lmax and 2*lmax can still couple to lmax
+          for(int M=0;M<=std::min(2*mmax,L);M++) { // -mmax and 2*mmax can still couple to mmax
+            lmidx_t p;
+            p.first=L;
+            p.second=M;
+
+            std::vector<lmidx_t>::iterator low(std::lower_bound(lm_map.begin(),lm_map.end(),p,lm_lt));
+            if(low != lm_map.end())
+              throw std::logic_error("Found match already on the list!\n");
+            else
+              // Add a new case
+              lm_map.insert(low,p);
+          }
 
         // Number of distinct L values is
-        size_t N_L(2*arma::max(lval)+1);
         size_t Nel(radial.Nel());
 
         // Compute disjoint integrals
-        std::vector<arma::mat> disjoint_L, disjoint_m1L;
-        disjoint_L.resize(Nel*N_L);
-        disjoint_m1L.resize(Nel*N_L);
-        for(size_t L=0;L<N_L;L++)
+        std::vector<arma::mat> disjoint_P0(Nel*lm_map.size());
+        std::vector<arma::mat> disjoint_P2(Nel*lm_map.size());
+        std::vector<arma::mat> disjoint_Q0(Nel*lm_map.size());
+        std::vector<arma::mat> disjoint_Q2(Nel*lm_map.size());
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+        for(size_t ilm=0;ilm<lm_map.size();ilm++) {
+          int L(lm_map[ilm].first);
+          int M(lm_map[ilm].second);
           for(size_t iel=0;iel<Nel;iel++) {
-            disjoint_L[L*Nel+iel]=radial.radial_integral(L,iel);
-            disjoint_m1L[L*Nel+iel]=radial.radial_integral(-1-L,iel);
+            disjoint_P0[ilm*Nel+iel]=radial.Plm_integral(0,L,M,iel);
+            disjoint_P2[ilm*Nel+iel]=radial.Plm_integral(2,L,M,iel);
+            disjoint_Q0[ilm*Nel+iel]=radial.Qlm_integral(0,L,M,iel);
+            disjoint_Q2[ilm*Nel+iel]=radial.Qlm_integral(2,L,M,iel);
           }
+        }
 
-        // Form two-electron integrals
-        prim_tei.resize(Nel*Nel*N_L);
-        for(size_t L=0;L<N_L;L++) {
-          // Normalization factor
-          double Lfac=4.0*M_PI/(2*L+1);
+        // Form primitive two-electron integrals
+        prim_tei00.resize(Nel*Nel*lm_map.size());
+        prim_tei02.resize(Nel*Nel*lm_map.size());
+        prim_tei20.resize(Nel*Nel*lm_map.size());
+        prim_tei22.resize(Nel*Nel*lm_map.size());
 
+        for(size_t ilm=0;ilm<lm_map.size();ilm++) {
+          int L(lm_map[ilm].first);
+          int M(lm_map[ilm].second);
           for(size_t iel=0;iel<Nel;iel++) {
             for(size_t jel=0;jel<Nel;jel++) {
               if(iel==jel) {
-                // In-element integral
-                prim_tei[Nel*Nel*L + iel*Nel + iel]=radial.twoe_integral(L,iel);
+                // In-element integrals
+                prim_tei00[Nel*Nel*ilm + iel*Nel + iel]=radial.twoe_integral(0,0,L,M,iel);
+                prim_tei02[Nel*Nel*ilm + iel*Nel + iel]=radial.twoe_integral(0,2,L,M,iel);
+                prim_tei20[Nel*Nel*ilm + iel*Nel + iel]=radial.twoe_integral(2,0,L,M,iel);
+                prim_tei22[Nel*Nel*ilm + iel*Nel + iel]=radial.twoe_integral(2,2,L,M,iel);
               } else {
                 // Disjoint integrals
-                size_t Ni(radial.Nprim(iel));
-                size_t Nj(radial.Nprim(jel));
+                double LMfac(std::pow(-1.0,M)/polynomial::factorial_ratio(L+M,L-M));
 
-                arma::mat teiblock(Ni*Ni,Nj*Nj);
-                teiblock.zeros();
-
-                // when r(iel)>r(jel), iel gets -1-L, jel gets L.
-                const arma::mat & iint=(iel>jel) ? disjoint_m1L[L*Nel+iel] : disjoint_L[L*Nel+iel];
-                const arma::mat & jint=(iel>jel) ? disjoint_L[L*Nel+jel] : disjoint_m1L[L*Nel+jel];
-
-                // Form block
-                for(size_t fk=0;fk<Nj;fk++)
-                  for(size_t fl=0;fl<Nj;fl++) {
-                    // Collect integral in temp variable and put the weight in
-                    double klint(Lfac*jint(fk,fl));
-
-                    for(size_t fi=0;fi<Ni;fi++)
-                      for(size_t fj=0;fj<Ni;fj++)
-                        // (ij|kl) in Armadillo compatible indexing
-                        teiblock(fj*Ni+fi,fl*Nj+fk)=klint*iint(fi,fj);
-                  }
+                // when r(iel)>r(jel), iel gets Q, jel gets P
+                const arma::mat & i0=(iel>jel) ? disjoint_P0[ilm*Nel+iel] : disjoint_Q0[ilm*Nel+iel];
+                const arma::mat & j0=(iel>jel) ? disjoint_Q0[ilm*Nel+jel] : disjoint_P0[ilm*Nel+jel];
+                const arma::mat & i2=(iel>jel) ? disjoint_P2[ilm*Nel+iel] : disjoint_Q2[ilm*Nel+iel];
+                const arma::mat & j2=(iel>jel) ? disjoint_Q2[ilm*Nel+jel] : disjoint_P2[ilm*Nel+jel];
 
                 // Store integrals
-                prim_tei[Nel*Nel*L + iel*Nel + jel]=teiblock;
+                prim_tei00[Nel*Nel*ilm + iel*Nel + jel]=utils::product_tei(LMfac*i0,j0);
+                prim_tei02[Nel*Nel*ilm + iel*Nel + jel]=utils::product_tei(LMfac*i0,j2);
+                prim_tei20[Nel*Nel*ilm + iel*Nel + jel]=utils::product_tei(LMfac*i2,j0);
+                prim_tei22[Nel*Nel*ilm + iel*Nel + jel]=utils::product_tei(LMfac*i2,j2);
               }
             }
           }
+        }
+
+        // Plug in prefactor
+        {
+          double teipre(4.0*M_PI*std::pow(Rhalf,5));
+          for(size_t i=0;i<prim_tei00.size();i++)
+            prim_tei00[i]*=teipre;
+          for(size_t i=0;i<prim_tei02.size();i++)
+            prim_tei02[i]*=teipre;
+          for(size_t i=0;i<prim_tei20.size();i++)
+            prim_tei20[i]*=teipre;
+          for(size_t i=0;i<prim_tei22.size();i++)
+            prim_tei22[i]*=teipre;
         }
 
         /*
@@ -519,33 +585,25 @@ namespace helfem {
           K(jk) = (jk;il) P(il)
           so we don't have to reform the permutations in the exchange routine.
         */
-        prim_ktei.resize(Nel*Nel*N_L);
-        for(size_t L=0;L<N_L;L++)
+        prim_ktei00.resize(prim_tei00.size());
+        prim_ktei02.resize(prim_tei02.size());
+        prim_ktei20.resize(prim_tei20.size());
+        prim_ktei22.resize(prim_tei22.size());
+        for(size_t ilm=0;ilm<lm_map.size();ilm++)
           for(size_t iel=0;iel<Nel;iel++)
             for(size_t jel=0;jel<Nel;jel++) {
+              size_t idx=Nel*Nel*ilm + iel*Nel + jel;
               size_t Ni(radial.Nprim(iel));
               size_t Nj(radial.Nprim(jel));
-
-              arma::mat tei(Ni*Nj,Ni*Nj);
-              tei.zeros();
-              const arma::mat & ptei(prim_tei[Nel*Nel*L + iel*Nel+jel]);
-              for(size_t ii=0;ii<Ni;ii++)
-                for(size_t jj=0;jj<Ni;jj++)
-                  for(size_t kk=0;kk<Nj;kk++)
-                    for(size_t ll=0;ll<Nj;ll++)
-                      // (ik|jl) in Armadillo compatible indexing
-                      tei(kk*Ni+jj,ll*Ni+ii)=ptei(jj*Ni+ii,ll*Nj+kk);
-
-              prim_ktei[Nel*Nel*L + iel*Nel + jel]=tei;
-              // For some reason this gives the wrong answer
-              //prim_ktei[Nel*Nel*L + jel*Nel + iel]=arma::trans(tei);
+              prim_ktei00[idx]=utils::exchange_tei(prim_tei00[idx],Ni,Ni,Nj,Nj);
+              prim_ktei02[idx]=utils::exchange_tei(prim_tei02[idx],Ni,Ni,Nj,Nj);
+              prim_ktei20[idx]=utils::exchange_tei(prim_tei20[idx],Ni,Ni,Nj,Nj);
+              prim_ktei22[idx]=utils::exchange_tei(prim_tei22[idx],Ni,Ni,Nj,Nj);
             }
       }
 
       arma::mat TwoDBasis::coulomb(const arma::mat & P0) const {
-        throw std::logic_error("Not implemented!\n");
-
-        if(!prim_tei.size())
+        if(!prim_tei00.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
         // Extend to boundaries
@@ -555,9 +613,9 @@ namespace helfem {
         if(P.n_cols != Nbf())
           throw std::logic_error("Density matrix has incorrect size!\n");
 
-        // Gaunt coefficient table
+        // Gaunt coefficients
         int gmax(std::max(arma::max(lval),arma::max(mval)));
-        gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
+        gaunt::Gaunt gaunt(gmax+2,std::max(2*gmax,2),gmax+2);
 
         // Number of radial elements
         size_t Nel(radial.Nel());
@@ -598,9 +656,23 @@ namespace helfem {
 
                 for(int L=Lmin;L<=Lmax;L++) {
                   // Calculate total coupling coefficient
-                  double cpl(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
+                  double cpl00(gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
+                  double cpl02(gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
+                  double cpl20(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
+                  double cpl22(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
 
-                  if(cpl!=0.0) {
+                  // Find index in the L,|M| table
+                  lmidx_t p(L,std::abs(M));
+                  std::vector<lmidx_t>::const_iterator low(std::lower_bound(lm_map.begin(),lm_map.end(),p,lm_lt));
+                  if(low == lm_map.end()) {
+                    std::ostringstream oss;
+                    oss << "Could not find L=" << p.first << ", |M|= " << p.second << " on the list!\n";
+                    throw std::logic_error(oss.str());
+                  }
+                 // Index is
+                  const size_t ilm(low-lm_map.begin());
+
+                  if(cpl00!=0.0 || cpl02!=0.0 || cpl20!=0.0 || cpl22!=0.0) {
                     // Loop over elements: output
                     for(size_t iel=0;iel<Nel;iel++) {
                       size_t ifirst, ilast;
@@ -613,16 +685,27 @@ namespace helfem {
 
                         // Get density submatrix
                         arma::vec Psub(arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast)));
+                        // Don't calculate zeros
+                        if(arma::norm(Psub,2)==0.0)
+                          continue;
+
+                        // Allocate helper
+                        size_t Ni(ilast-ifirst+1);
+                        arma::vec Jsub(Ni*Ni);
+                        Jsub.zeros();
 
                         // Contract integrals
-                        arma::vec Jsub(cpl*(prim_tei[Nel*Nel*L + iel*Nel + jel]*Psub));
+                        if(cpl00!=0.0)
+                          Jsub+=cpl00*(prim_tei00[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                        if(cpl02!=0.0)
+                          Jsub+=cpl02*(prim_tei02[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                        if(cpl20!=0.0)
+                          Jsub+=cpl20*(prim_tei20[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                        if(cpl22!=0.0)
+                          Jsub+=cpl22*(prim_tei22[Nel*Nel*ilm + iel*Nel + jel]*Psub);
 
                         // Increment global Coulomb matrix
                         J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=arma::reshape(Jsub,ilast-ifirst+1,ilast-ifirst+1);
-
-                        //arma::vec Ptgt(arma::vectorise(P.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)));
-                        //printf("(%i %i) (%i %i) (%i %i) (%i %i) [%i %i]\n",li,mi,lj,mj,lk,mk,ll,ml,L,M);
-                        //printf("Element %i - %i contribution to Coulomb energy % .10e\n",(int) iel,(int) jel,0.5*arma::dot(Jsub,Ptgt));
                       }
                     }
                   }
@@ -636,9 +719,7 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::exchange(const arma::mat & P0) const {
-        throw std::logic_error("Not implemented!\n");
-
-        if(!prim_ktei.size())
+        if(!prim_ktei00.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
         // Extend to boundaries
@@ -651,7 +732,7 @@ namespace helfem {
 
         // Gaunt coefficient table
         int gmax(std::max(arma::max(lval),arma::max(mval)));
-        gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
+        gaunt::Gaunt gaunt(gmax+2,std::max(2*gmax,2),gmax+2);
 
         // Number of radial elements
         size_t Nel(radial.Nel());
@@ -692,9 +773,23 @@ namespace helfem {
 
                 for(int L=Lmin;L<=Lmax;L++) {
                   // Calculate total coupling coefficient
-                  double cpl(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
+                  double cpl00(gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
+                  double cpl02(gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
+                  double cpl20(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
+                  double cpl22(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
 
-                  if(cpl!=0.0) {
+                  // Find index in the L,|M| table
+                  lmidx_t p(L,std::abs(M));
+                  std::vector<lmidx_t>::const_iterator low(std::lower_bound(lm_map.begin(),lm_map.end(),p));
+                  if(low == lm_map.end()) {
+                    std::ostringstream oss;
+                    oss << "Could not find L=" << p.first << ", |M|= " << p.second << " on the list!\n";
+                    throw std::logic_error(oss.str());
+                  }
+                  // Index is
+                  const size_t ilm(low-lm_map.begin());
+
+                  if(cpl00!=0.0 || cpl02!=0.0 || cpl20!=0.0 || cpl22!=0.0) {
                     // Loop over elements: output
                     for(size_t iel=0;iel<Nel;iel++) {
                       size_t ifirst, ilast;
@@ -721,26 +816,26 @@ namespace helfem {
 
                         // Get density submatrix
                         arma::vec Psub(arma::vectorise(P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast)));
+                        // Don't calculate zeros
+                        if(arma::norm(Psub,2)==0.0)
+                          continue;
 
-                        arma::mat tei(Ni*Nj,Ni*Nj);
-                        tei.zeros();
-                        const arma::mat & ptei(prim_tei[Nel*Nel*L + iel*Nel+jel]);
-                        for(size_t ii=0;ii<Ni;ii++)
-                          for(size_t jj=0;jj<Ni;jj++)
-                            for(size_t kk=0;kk<Nj;kk++)
-                              for(size_t ll=0;ll<Nj;ll++)
-                                // (ik|jl) in Armadillo compatible indexing
-                                tei(kk*Ni+jj,ll*Ni+ii)=ptei(jj*Ni+ii,ll*Nj+kk);
+                        // Allocate helper
+                        arma::vec Ksub(Ni*Nj);
+                        Ksub.zeros();
 
-                        // Exchange submatrix
-                        arma::vec Ksub(cpl*(prim_ktei[Nel*Nel*L + iel*Nel + jel]*Psub));
+                        // Contract integrals
+                        if(cpl00!=0.0)
+                          Ksub+=cpl00*(prim_ktei00[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                        if(cpl02!=0.0)
+                          Ksub+=cpl02*(prim_ktei02[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                        if(cpl20!=0.0)
+                          Ksub+=cpl20*(prim_ktei20[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                        if(cpl22!=0.0)
+                          Ksub+=cpl22*(prim_ktei22[Nel*Nel*ilm + iel*Nel + jel]*Psub);
 
                         // Increment global exchange matrix
                         K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=arma::reshape(Ksub,Ni,Nj);
-
-                        //arma::vec Ptgt(arma::vectorise(P.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)));
-                        //printf("(%i %i) (%i %i) (%i %i) (%i %i) [%i %i]\n",li,mi,lj,mj,lk,mk,ll,ml,L,M);
-                        //printf("Element %i - %i contribution to exchange energy % .10e\n",(int) iel,(int) jel,-0.5*arma::dot(Ksub,Ptgt));
                       }
                     }
                   }
@@ -830,10 +925,6 @@ namespace helfem {
         //Pnob.print("Output: w/o built-in boundaries");
 
         return Pnob;
-      }
-
-      std::vector<arma::mat> TwoDBasis::get_prim_tei() const {
-        return prim_tei;
       }
     }
   }
