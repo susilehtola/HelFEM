@@ -21,6 +21,10 @@ add_executable(harmonic harmonic/main.cpp harmonic/quadrature.cpp)
 target_link_libraries(harmonic helfem)
 target_link_libraries(harmonic gsl openblas64)
 
+add_executable(legendre_test legendre/legendre_test.cpp)
+target_link_libraries(legendre_test helfem legendre)
+target_link_libraries(legendre_test gsl openblas64)
+
 add_executable(atomic atomic/main.cpp atomic/basis.cpp atomic/quadrature.cpp)
 target_link_libraries(atomic helfem)
 target_link_libraries(atomic gsl openblas64 boost_timer)
