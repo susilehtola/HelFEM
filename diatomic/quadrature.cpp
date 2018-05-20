@@ -67,9 +67,10 @@ namespace helfem {
 
         // Calculate total weight per point
         arma::vec wp(wx*mulen);
+        wp%=arma::sinh(mu);
         if(k!=0)
           wp%=arma::pow(chmu,k);
-        wp%=legendre::legendreP(L,M,chmu);
+        wp%=legendre::legendreP_prolate(L,M,chmu);
 
         // Put in weight
         arma::mat wbf(bf);
@@ -104,9 +105,10 @@ namespace helfem {
 
         // Calculate total weight per point
         arma::vec wp(wx*mulen);
+        wp%=arma::sinh(mu);
         if(k!=0)
           wp%=arma::pow(chmu,k);
-        wp%=legendre::legendreQ(L,M,chmu);
+        wp%=legendre::legendreQ_prolate(L,M,chmu);
 
         // Put in weight
         arma::mat wbf(bf);

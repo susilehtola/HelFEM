@@ -117,6 +117,9 @@ namespace helfem {
         /// Remove boundary conditions
         arma::mat remove_boundaries(const arma::mat & C) const;
 
+        /// Find index in (L,|M|) table
+        size_t lmind(int L, int M, bool check=true) const;
+
       public:
         /// Constructor
         TwoDBasis(int Z1, int Z2, double Rbond, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp);

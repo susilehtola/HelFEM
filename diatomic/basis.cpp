@@ -463,7 +463,7 @@ namespace helfem {
         return remove_boundaries(V);
       }
 
-      bool lm_lt(const lmidx_t & lh, const lmidx_t & rh) {
+      bool operator<(const lmidx_t & lh, const lmidx_t & rh) {
         if(lh.first < rh.first)
           return true;
         if(lh.first > rh.first)
@@ -477,7 +477,7 @@ namespace helfem {
         return false;
       }
 
-      bool lm_eq(const lmidx_t & lh, const lmidx_t & rh) {
+      bool operator==(const lmidx_t & lh, const lmidx_t & rh) {
         return (lh.first == rh.first) && (lh.second == rh.second);
       }
 
@@ -489,18 +489,16 @@ namespace helfem {
 
         // Form lm map
         lm_map.clear();
-        for(int L=0;L<=2*lmax;L++) // Coupling: lmax and 2*lmax can still couple to lmax
-          for(int M=0;M<=std::min(2*mmax,L);M++) { // -mmax and 2*mmax can still couple to mmax
+        for(int L=0;L<=2*lmax+2;L++) // Coupling: l=lmax and L=2*lmax+2 can still couple to l'=lmax through the cos^2 term
+          for(int M=0;M<=std::min(2*mmax,L);M++) { // m=-mmax and M=2*mmax can still couple to m'=mmax
             lmidx_t p;
             p.first=L;
             p.second=M;
 
-            std::vector<lmidx_t>::iterator low(std::lower_bound(lm_map.begin(),lm_map.end(),p,lm_lt));
-            if(low != lm_map.end())
-              throw std::logic_error("Found match already on the list!\n");
+            if(!lm_map.size())
+              lm_map.push_back(p);
             else
-              // Add a new case
-              lm_map.insert(low,p);
+              lm_map.insert(lm_map.begin()+lmind(L,M,false),p);
           }
 
         // Number of distinct L values is
@@ -602,6 +600,23 @@ namespace helfem {
             }
       }
 
+      size_t TwoDBasis::lmind(int L, int M, bool check) const {
+        // Find index in the L,|M| table
+        lmidx_t p(L,std::abs(M));
+        std::vector<lmidx_t>::const_iterator low(std::lower_bound(lm_map.begin(),lm_map.end(),p));
+        if(check && low == lm_map.end()) {
+          std::ostringstream oss;
+          oss << "Could not find L=" << p.first << ", |M|= " << p.second << " on the list!\n";
+          throw std::logic_error(oss.str());
+        }
+        // Index is
+        size_t idx(low-lm_map.begin());
+        if(check && (lm_map[idx].first != L || lm_map[idx].second != M))
+          throw std::logic_error("Map error!\n");
+
+        return idx;
+      }
+
       arma::mat TwoDBasis::coulomb(const arma::mat & P0) const {
         if(!prim_tei00.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
@@ -657,20 +672,11 @@ namespace helfem {
                 for(int L=Lmin;L<=Lmax;L++) {
                   // Calculate total coupling coefficient
                   double cpl00(gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
-                  double cpl02(gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
-                  double cpl20(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
+                  double cpl02(-gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
+                  double cpl20(-gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
                   double cpl22(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
-
-                  // Find index in the L,|M| table
-                  lmidx_t p(L,std::abs(M));
-                  std::vector<lmidx_t>::const_iterator low(std::lower_bound(lm_map.begin(),lm_map.end(),p,lm_lt));
-                  if(low == lm_map.end()) {
-                    std::ostringstream oss;
-                    oss << "Could not find L=" << p.first << ", |M|= " << p.second << " on the list!\n";
-                    throw std::logic_error(oss.str());
-                  }
-                 // Index is
-                  const size_t ilm(low-lm_map.begin());
+                  // Index in the L,|M| table
+                  const size_t ilm(lmind(L,M));
 
                   if(cpl00!=0.0 || cpl02!=0.0 || cpl20!=0.0 || cpl22!=0.0) {
                     // Loop over elements: output
@@ -714,6 +720,8 @@ namespace helfem {
             }
           }
         }
+
+        printf("J asymmetricity %e\n",arma::norm(J-J.t(),"fro"));
 
         return remove_boundaries(J);
       }
@@ -774,20 +782,11 @@ namespace helfem {
                 for(int L=Lmin;L<=Lmax;L++) {
                   // Calculate total coupling coefficient
                   double cpl00(gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
-                  double cpl02(gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
-                  double cpl20(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
+                  double cpl02(-gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
+                  double cpl20(-gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
                   double cpl22(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
-
-                  // Find index in the L,|M| table
-                  lmidx_t p(L,std::abs(M));
-                  std::vector<lmidx_t>::const_iterator low(std::lower_bound(lm_map.begin(),lm_map.end(),p));
-                  if(low == lm_map.end()) {
-                    std::ostringstream oss;
-                    oss << "Could not find L=" << p.first << ", |M|= " << p.second << " on the list!\n";
-                    throw std::logic_error(oss.str());
-                  }
-                  // Index is
-                  const size_t ilm(low-lm_map.begin());
+                  // Index in the L,|M| table
+                  const size_t ilm(lmind(L,M));
 
                   if(cpl00!=0.0 || cpl02!=0.0 || cpl20!=0.0 || cpl22!=0.0) {
                     // Loop over elements: output
@@ -844,6 +843,8 @@ namespace helfem {
             }
           }
         }
+
+        printf("K asymmetricity %e\n",arma::norm(K-K.t(),"fro"));
 
         return remove_boundaries(K);
       }
