@@ -534,27 +534,32 @@ namespace helfem {
           int M(lm_map[ilm].second);
           for(size_t iel=0;iel<Nel;iel++) {
             for(size_t jel=0;jel<Nel;jel++) {
+              // Index in array
+              const size_t idx(Nel*Nel*ilm + iel*Nel + jel);
+
               if(iel==jel) {
                 // In-element integrals
-                prim_tei00[Nel*Nel*ilm + iel*Nel + iel]=radial.twoe_integral(0,0,L,M,iel);
-                prim_tei02[Nel*Nel*ilm + iel*Nel + iel]=radial.twoe_integral(0,2,L,M,iel);
-                prim_tei20[Nel*Nel*ilm + iel*Nel + iel]=radial.twoe_integral(2,0,L,M,iel);
-                prim_tei22[Nel*Nel*ilm + iel*Nel + iel]=radial.twoe_integral(2,2,L,M,iel);
+                prim_tei00[idx]=radial.twoe_integral(0,0,L,M,iel);
+                prim_tei02[idx]=radial.twoe_integral(0,2,L,M,iel);
+                prim_tei20[idx]=radial.twoe_integral(2,0,L,M,iel);
+                prim_tei22[idx]=radial.twoe_integral(2,2,L,M,iel);
+
               } else {
                 // Disjoint integrals
                 double LMfac(std::pow(-1.0,M)/polynomial::factorial_ratio(L+M,L-M));
 
-                // when r(iel)>r(jel), iel gets Q, jel gets P
-                const arma::mat & i0=(iel>jel) ? disjoint_P0[ilm*Nel+iel] : disjoint_Q0[ilm*Nel+iel];
-                const arma::mat & j0=(iel>jel) ? disjoint_Q0[ilm*Nel+jel] : disjoint_P0[ilm*Nel+jel];
-                const arma::mat & i2=(iel>jel) ? disjoint_P2[ilm*Nel+iel] : disjoint_Q2[ilm*Nel+iel];
-                const arma::mat & j2=(iel>jel) ? disjoint_Q2[ilm*Nel+jel] : disjoint_P2[ilm*Nel+jel];
+                // when r(iel)>r(jel), iel gets Q
+                const arma::mat & i0=(iel>jel) ? disjoint_Q0[ilm*Nel+iel] : disjoint_P0[ilm*Nel+iel];
+                const arma::mat & i2=(iel>jel) ? disjoint_Q2[ilm*Nel+iel] : disjoint_P2[ilm*Nel+iel];
+                // and jel gets P
+                const arma::mat & j0=(iel>jel) ? disjoint_P0[ilm*Nel+jel] : disjoint_Q0[ilm*Nel+jel];
+                const arma::mat & j2=(iel>jel) ? disjoint_P2[ilm*Nel+jel] : disjoint_Q2[ilm*Nel+jel];
 
                 // Store integrals
-                prim_tei00[Nel*Nel*ilm + iel*Nel + jel]=utils::product_tei(LMfac*i0,j0);
-                prim_tei02[Nel*Nel*ilm + iel*Nel + jel]=utils::product_tei(LMfac*i0,j2);
-                prim_tei20[Nel*Nel*ilm + iel*Nel + jel]=utils::product_tei(LMfac*i2,j0);
-                prim_tei22[Nel*Nel*ilm + iel*Nel + jel]=utils::product_tei(LMfac*i2,j2);
+                prim_tei00[idx]=utils::product_tei(LMfac*i0,j0);
+                prim_tei02[idx]=utils::product_tei(LMfac*i0,j2);
+                prim_tei20[idx]=utils::product_tei(LMfac*i2,j0);
+                prim_tei22[idx]=utils::product_tei(LMfac*i2,j2);
               }
             }
           }
@@ -701,14 +706,15 @@ namespace helfem {
                         Jsub.zeros();
 
                         // Contract integrals
+                        const size_t idx(Nel*Nel*ilm + iel*Nel + jel);
                         if(cpl00!=0.0)
-                          Jsub+=cpl00*(prim_tei00[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                          Jsub+=cpl00*(prim_tei00[idx]*Psub);
                         if(cpl02!=0.0)
-                          Jsub+=cpl02*(prim_tei02[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                          Jsub+=cpl02*(prim_tei02[idx]*Psub);
                         if(cpl20!=0.0)
-                          Jsub+=cpl20*(prim_tei20[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                          Jsub+=cpl20*(prim_tei20[idx]*Psub);
                         if(cpl22!=0.0)
-                          Jsub+=cpl22*(prim_tei22[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                          Jsub+=cpl22*(prim_tei22[idx]*Psub);
 
                         // Increment global Coulomb matrix
                         J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=arma::reshape(Jsub,ilast-ifirst+1,ilast-ifirst+1);
@@ -824,14 +830,15 @@ namespace helfem {
                         Ksub.zeros();
 
                         // Contract integrals
+                        const size_t idx(Nel*Nel*ilm + iel*Nel + jel);
                         if(cpl00!=0.0)
-                          Ksub+=cpl00*(prim_ktei00[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                          Ksub+=cpl00*(prim_ktei00[idx]*Psub);
                         if(cpl02!=0.0)
-                          Ksub+=cpl02*(prim_ktei02[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                          Ksub+=cpl02*(prim_ktei02[idx]*Psub);
                         if(cpl20!=0.0)
-                          Ksub+=cpl20*(prim_ktei20[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                          Ksub+=cpl20*(prim_ktei20[idx]*Psub);
                         if(cpl22!=0.0)
-                          Ksub+=cpl22*(prim_ktei22[Nel*Nel*ilm + iel*Nel + jel]*Psub);
+                          Ksub+=cpl22*(prim_ktei22[idx]*Psub);
 
                         // Increment global exchange matrix
                         K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=arma::reshape(Ksub,Ni,Nj);
