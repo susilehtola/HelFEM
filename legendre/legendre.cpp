@@ -6,8 +6,10 @@ namespace helfem {
     arma::vec legendreP(int l, int m, const arma::vec & x) {
       if(l>legendrePQ_max_l())
         throw std::logic_error("l value outside range!\n");
+      if(m<0)
+        throw std::logic_error("m value outside range!\n");
       if(m>legendrePQ_max_m())
-        throw std::logic_error("l value outside range!\n");
+        throw std::logic_error("m value outside range!\n");
   
       arma::vec r(x.n_elem);
       for(size_t i=0;i<x.n_elem;i++)
@@ -19,8 +21,10 @@ namespace helfem {
     arma::vec legendreQ(int l, int m, const arma::vec & x) {
       if(l>legendrePQ_max_l())
         throw std::logic_error("l value outside range!\n");
+      if(m<0)
+        throw std::logic_error("m value outside range!\n");
       if(m>legendrePQ_max_m())
-        throw std::logic_error("l value outside range!\n");
+        throw std::logic_error("m value outside range!\n");
   
       arma::vec r(x.n_elem);
       for(size_t i=0;i<x.n_elem;i++)
@@ -32,8 +36,10 @@ namespace helfem {
     arma::vec legendreP_prolate(int l, int m, const arma::vec & x) {
       if(l>legendrePQ_max_l())
         throw std::logic_error("l value outside range!\n");
+      if(m<0)
+        throw std::logic_error("m value outside range!\n");
       if(m>legendrePQ_max_m())
-        throw std::logic_error("l value outside range!\n");
+        throw std::logic_error("m value outside range!\n");
   
       arma::vec r(x.n_elem);
       for(size_t i=0;i<x.n_elem;i++)
@@ -45,8 +51,10 @@ namespace helfem {
     arma::vec legendreQ_prolate(int l, int m, const arma::vec & x) {
       if(l>legendrePQ_max_l())
         throw std::logic_error("l value outside range!\n");
+      if(m<0)
+        throw std::logic_error("m value outside range!\n");
       if(m>legendrePQ_max_m())
-        throw std::logic_error("l value outside range!\n");
+        throw std::logic_error("m value outside range!\n");
   
       arma::vec r(x.n_elem);
       for(size_t i=0;i<x.n_elem;i++)
