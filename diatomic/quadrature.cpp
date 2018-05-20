@@ -134,7 +134,7 @@ namespace helfem {
         double mulen0(0.5*(mumax0-mumin0));
 
         // Calculate total weight per point
-        arma::vec wp((wx%arma::pow(mu,L))*mulen);
+        arma::vec wp(wx*mulen);
         wp%=arma::sinh(mu);
         if(l!=0)
           // cosh term
@@ -205,7 +205,7 @@ namespace helfem {
             bfprod.col(fi*bf.n_cols+fj)=bf.col(fi)%bf.col(fj);
         // Put in the weights for the outer integral
         arma::vec wp(wx*mulen);
-        wp%=arma::sinh(chmu);
+        wp%=arma::sinh(mu);
         if(k!=0)
           wp%=arma::pow(chmu,k);
         wp%=legendre::legendreQ_prolate(L,M,chmu);
