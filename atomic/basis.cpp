@@ -3,6 +3,7 @@
 #include "../general/polynomial.h"
 #include "../general/chebyshev.h"
 #include "../general/gaunt.h"
+#include "../general/utils.h"
 #include <cassert>
 #include <cfloat>
 
@@ -526,31 +527,12 @@ namespace helfem {
 	      // In-element integral
 	      prim_tei[Nel*Nel*L + iel*Nel + iel]=radial.twoe_integral(L,iel);
 	    } else {
-	      // Disjoint integrals
-	      size_t Ni(radial.Nprim(iel));
-	      size_t Nj(radial.Nprim(jel));
-
-	      arma::mat teiblock(Ni*Ni,Nj*Nj);
-	      teiblock.zeros();
-
-	      // when r(iel)>r(jel), iel gets -1-L, jel gets L.
+	      // Disjoint integrals. When r(iel)>r(jel), iel gets -1-L, jel gets L.
 	      const arma::mat & iint=(iel>jel) ? disjoint_m1L[L*Nel+iel] : disjoint_L[L*Nel+iel];
 	      const arma::mat & jint=(iel>jel) ? disjoint_L[L*Nel+jel] : disjoint_m1L[L*Nel+jel];
 
-	      // Form block
-	      for(size_t fk=0;fk<Nj;fk++)
-		for(size_t fl=0;fl<Nj;fl++) {
-		  // Collect integral in temp variable and put the weight in
-		  double klint(Lfac*jint(fk,fl));
-
-		  for(size_t fi=0;fi<Ni;fi++)
-		    for(size_t fj=0;fj<Ni;fj++)
-		      // (ij|kl) in Armadillo compatible indexing
-		      teiblock(fj*Ni+fi,fl*Nj+fk)=klint*iint(fi,fj);
-		}
-
 	      // Store integrals
-	      prim_tei[Nel*Nel*L + iel*Nel + jel]=teiblock;
+	      prim_tei[Nel*Nel*L + iel*Nel + jel]=utils::product_tei(Lfac*iint,jint);
 	    }
           }
 	}
@@ -572,21 +554,8 @@ namespace helfem {
           for(size_t jel=0;jel<Nel;jel++) {
             size_t Ni(radial.Nprim(iel));
             size_t Nj(radial.Nprim(jel));
-
-	    arma::mat tei(Ni*Nj,Ni*Nj);
-	    tei.zeros();
-	    const arma::mat & ptei(prim_tei[Nel*Nel*L + iel*Nel+jel]);
-	    for(size_t ii=0;ii<Ni;ii++)
-	      for(size_t jj=0;jj<Ni;jj++)
-		for(size_t kk=0;kk<Nj;kk++)
-		  for(size_t ll=0;ll<Nj;ll++)
-		    // (ik|jl) in Armadillo compatible indexing
-		    tei(kk*Ni+jj,ll*Ni+ii)=ptei(jj*Ni+ii,ll*Nj+kk);
-
-	    prim_ktei[Nel*Nel*L + iel*Nel + jel]=tei;
-	    // For some reason this gives the wrong answer
-	    //prim_ktei[Nel*Nel*L + jel*Nel + iel]=arma::trans(tei);
-	  }
+            prim_ktei[Nel*Nel*L + iel*Nel + jel]=utils::exchange_tei(prim_tei[Nel*Nel*L + iel*Nel + jel],Ni,Ni,Nj,Nj);
+          }
     }
 
     arma::mat TwoDBasis::coulomb(const arma::mat & P0) const {
