@@ -56,18 +56,21 @@ namespace helfem {
       if(irow>table.n_rows) {
         std::ostringstream oss;
         oss << "Row index overflow for coeff(" << L << "," << M << "," << l << "," << m << "," << lp << "," << mp << ")!\n";
+        oss << "Wanted element at (" << irow << "," << icol << "," << islice << ") but table is " << table.n_rows << " x " << table.n_cols << " x " << table.n_slices << "\n";
         throw std::logic_error(oss.str());
       }
 
       if(icol>table.n_cols) {
         std::ostringstream oss;
         oss << "Column index overflow for coeff(" << L << "," << M << "," << l << "," << m << "," << lp << "," << mp << ")!\n";
+        oss << "Wanted element at (" << irow << "," << icol << "," << islice << ") but table is " << table.n_rows << " x " << table.n_cols << " x " << table.n_slices << "\n";
         throw std::logic_error(oss.str());
       }
 
       if(islice>table.n_slices) {
         std::ostringstream oss;
         oss << "Slice index overflow for coeff(" << L << "," << M << "," << l << "," << m << "," << lp << "," << mp << ")!\n";
+        oss << "Wanted element at (" << irow << "," << icol << "," << islice << ") but table is " << table.n_rows << " x " << table.n_cols << " x " << table.n_slices << "\n";
         throw std::logic_error(oss.str());
       }
 #endif
@@ -88,17 +91,17 @@ namespace helfem {
       return const0*coeff(lj,mj,0,0,li,mi) + const2*coeff(lj,mj,2,0,li,mi);
     }
 
-    double Gaunt::mod_coeff(int L, int M, int l, int m, int lp, int mp) const {
+    double Gaunt::mod_coeff(int lj, int mj, int L, int M, int li, int mi) const {
       static const double const0(2.0/3.0*sqrt(M_PI));
       static const double const2(4.0/15.0*sqrt(5.0*M_PI));
 
       // Coupling through Y_0^0
-      double cpl0(coeff(L,M,0,0,L,M)*coeff(L,M,l,m,lp,mp));
+      double cpl0(coeff(L,M,0,0,L,M)*coeff(lj,mj,li,mi,L,M));
 
       // Coupling through Y_2^0
       double cpl2=0.0;
-      for(int Lp=std::max(L-2,0);Lp<=L+2;Lp+=2)
-        cpl2+=coeff(L,M,2,0,Lp,M)*coeff(Lp,M,l,m,lp,mp);
+      for(int Lp=std::max(std::max(L-2,0),std::abs(M));Lp<=L+2;Lp+=2)
+        cpl2+=coeff(Lp,M,2,0,L,M)*coeff(lj,mj,li,mi,Lp,M);
 
       return const0*cpl0+const2*cpl2;
     }

@@ -489,7 +489,7 @@ namespace helfem {
 
         // Form lm map
         lm_map.clear();
-        for(int L=0;L<=2*lmax+2;L++) // Coupling: l=lmax and L=2*lmax+2 can still couple to l'=lmax through the cos^2 term
+        for(int L=0;L<=2*lmax;L++) // Coupling: l=lmax and L=2*lmax can still couple to l'=lmax (cos^2 term doesn't show up here explicitly)
           for(int M=0;M<=std::min(2*mmax,L);M++) { // m=-mmax and M=2*mmax can still couple to m'=mmax
             lmidx_t p;
             p.first=L;
@@ -578,6 +578,22 @@ namespace helfem {
             prim_tei22[i]*=teipre;
         }
 
+        // Make sure teis are symmetric
+        /*
+        for(size_t ilm=0;ilm<lm_map.size();ilm++)
+          for(size_t iel=0;iel<Nel;iel++)
+            for(size_t jel=0;jel<Nel;jel++) {
+              size_t idx=Nel*Nel*ilm + iel*Nel + jel;
+              size_t Ni(radial.Nprim(iel));
+              size_t Nj(radial.Nprim(jel));
+              printf("ilm = %i, iel = %i, jel = %i\n",(int) ilm, (int) iel, (int) jel);
+              utils::check_tei_symmetry(prim_tei00[idx],Ni,Ni,Nj,Nj);
+              utils::check_tei_symmetry(prim_tei02[idx],Ni,Ni,Nj,Nj);
+              utils::check_tei_symmetry(prim_tei20[idx],Ni,Ni,Nj,Nj);
+              utils::check_tei_symmetry(prim_tei22[idx],Ni,Ni,Nj,Nj);
+            }
+        */
+
         /*
           The exchange matrix is given by
           K(jk) = (ij|kl) P(il)
@@ -606,8 +622,10 @@ namespace helfem {
       }
 
       size_t TwoDBasis::lmind(int L, int M, bool check) const {
+        // Switch to |M|
+        M=std::abs(M);
         // Find index in the L,|M| table
-        lmidx_t p(L,std::abs(M));
+        lmidx_t p(L,M);
         std::vector<lmidx_t>::const_iterator low(std::lower_bound(lm_map.begin(),lm_map.end(),p));
         if(check && low == lm_map.end()) {
           std::ostringstream oss;
@@ -616,8 +634,11 @@ namespace helfem {
         }
         // Index is
         size_t idx(low-lm_map.begin());
-        if(check && (lm_map[idx].first != L || lm_map[idx].second != M))
-          throw std::logic_error("Map error!\n");
+        if(check && (lm_map[idx].first != L || lm_map[idx].second != M)) {
+          std::ostringstream oss;
+          oss << "Map error: tried to get L = " << L << ", M = " << M << " but got instead L = " << lm_map[idx].first << ", M = " << lm_map[idx].second << "!\n";
+          throw std::logic_error(oss.str());
+        }
 
         return idx;
       }
@@ -634,8 +655,8 @@ namespace helfem {
           throw std::logic_error("Density matrix has incorrect size!\n");
 
         // Gaunt coefficients
-        int gmax(std::max(arma::max(lval),arma::max(mval)));
-        gaunt::Gaunt gaunt(gmax+2,std::max(2*gmax,2),gmax+2);
+        int gmax(2*arma::max(lval));
+        gaunt::Gaunt gaunt(gmax+2,std::max(gmax,2),gmax+2);
 
         // Number of radial elements
         size_t Nel(radial.Nel());
@@ -683,6 +704,9 @@ namespace helfem {
                   // Index in the L,|M| table
                   const size_t ilm(lmind(L,M));
 
+                  // Debug
+                  cpl00=cpl02=cpl20=0.0;
+
                   if(cpl00!=0.0 || cpl02!=0.0 || cpl20!=0.0 || cpl22!=0.0) {
                     // Loop over elements: output
                     for(size_t iel=0;iel<Nel;iel++) {
@@ -717,7 +741,7 @@ namespace helfem {
                           Jsub+=cpl22*(prim_tei22[idx]*Psub);
 
                         // Increment global Coulomb matrix
-                        J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=arma::reshape(Jsub,ilast-ifirst+1,ilast-ifirst+1);
+                        J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=arma::reshape(Jsub,Ni,Ni);
                       }
                     }
                   }
@@ -727,7 +751,22 @@ namespace helfem {
           }
         }
 
+        // Analyze asymmetricity
+        for(size_t iang=0;iang<lval.n_elem;iang++)
+          for(size_t jang=0;jang<iang;jang++) {
+            arma::mat Jij(J.submat(iang*Nrad,jang*Nrad,(iang+1)*Nrad-1,(jang+1)*Nrad-1));
+            arma::mat Jji(J.submat(jang*Nrad,iang*Nrad,(jang+1)*Nrad-1,(iang+1)*Nrad-1));
+            Jij-=Jji.t();
+
+            std::ostringstream oss;
+            oss << iang << "(" << lval(iang) << "," << mval(iang) << ") - "<< jang << "(" << lval(jang) << "," << mval(jang) << ")";
+            oss << ", norm " << arma::norm(Jij,"fro");
+            Jij.print(oss.str());
+          }
         printf("J asymmetricity %e\n",arma::norm(J-J.t(),"fro"));
+
+        // Force symmetricity
+        J=(J+J.t())/2;
 
         return remove_boundaries(J);
       }
@@ -745,8 +784,8 @@ namespace helfem {
           throw std::logic_error("Density matrix has incorrect size!\n");
 
         // Gaunt coefficient table
-        int gmax(std::max(arma::max(lval),arma::max(mval)));
-        gaunt::Gaunt gaunt(gmax+2,std::max(2*gmax,2),gmax+2);
+        int gmax(2*arma::max(lval));
+        gaunt::Gaunt gaunt(gmax+2,std::max(gmax,2),gmax+2);
 
         // Number of radial elements
         size_t Nel(radial.Nel());
@@ -793,6 +832,9 @@ namespace helfem {
                   double cpl22(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
                   // Index in the L,|M| table
                   const size_t ilm(lmind(L,M));
+
+                  // Debug
+                  cpl00=cpl02=cpl20=0.0;
 
                   if(cpl00!=0.0 || cpl02!=0.0 || cpl20!=0.0 || cpl22!=0.0) {
                     // Loop over elements: output
@@ -852,6 +894,8 @@ namespace helfem {
         }
 
         printf("K asymmetricity %e\n",arma::norm(K-K.t(),"fro"));
+        // Force symmetricity
+        K=(K+K.t())/2;
 
         return remove_boundaries(K);
       }
