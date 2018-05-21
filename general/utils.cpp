@@ -35,6 +35,40 @@ namespace helfem {
       return teiblock;
     }
 
+    void check_tei_symmetry(const arma::mat & tei, size_t Ni, size_t Nj, size_t Nk, size_t Nl) {
+      arma::mat teiwrk(tei);
+
+      // (ij|kl) = (ji|kl)
+      for(size_t ii=0;ii<Ni;ii++)
+        for(size_t jj=0;jj<Nj;jj++)
+          for(size_t kk=0;kk<Nk;kk++)
+            for(size_t ll=0;ll<Nl;ll++)
+              teiwrk(ii*Nj+jj,ll*Nk+kk)=tei(jj*Ni+ii,ll*Nk+kk);
+      teiwrk-=tei;
+      double jinorm(arma::norm(teiwrk,"fro"));
+
+      // (ij|kl) = (ij|lk)
+      for(size_t ii=0;ii<Ni;ii++)
+        for(size_t jj=0;jj<Nj;jj++)
+          for(size_t kk=0;kk<Nk;kk++)
+            for(size_t ll=0;ll<Nl;ll++)
+              teiwrk(jj*Ni+ii,kk*Nl+ll)=tei(jj*Ni+ii,ll*Nk+kk);
+      teiwrk-=tei;
+      double lknorm(arma::norm(teiwrk,"fro"));
+
+      // (ij|kl) = (ji|lk)
+      arma::mat tei_jilk(tei);
+      for(size_t ii=0;ii<Ni;ii++)
+        for(size_t jj=0;jj<Nj;jj++)
+          for(size_t kk=0;kk<Nk;kk++)
+            for(size_t ll=0;ll<Nl;ll++)
+              teiwrk(ii*Nj+jj,kk*Nl+ll)=tei(jj*Ni+ii,ll*Nk+kk);
+      teiwrk-=tei;
+      double jilknorm(arma::norm(teiwrk,"fro"));
+
+      printf("%e %e %e\n",jinorm,lknorm,jilknorm);
+    }
+
     arma::mat exchange_tei(const arma::mat & tei, size_t Ni, size_t Nj, size_t Nk, size_t Nl) {
 #ifndef ARMA_NO_DEBUG
       if(tei.n_rows != Ni*Nj) {
