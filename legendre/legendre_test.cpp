@@ -1,4 +1,5 @@
 #include "legendre_pq.h"
+#include "legendre.h"
 
 #include <armadillo>
 
@@ -38,6 +39,33 @@ int main(void) {
       printf("\n");
     }
   }
-  
+
+  x=arma::linspace<arma::vec>(-0.999,0.999,1999);
+  x.save("x.dat",arma::raw_ascii);
+  for(int l=0;l<=lmax;l++)
+    for(int m=0;m<=std::min(l,::legendre::legendrePQ_max_m());m++) {
+      printf("l=%i, m=%i\n",l,m);
+      arma::vec Plm(helfem::legendre::legendreP(l,m,x));
+      arma::vec Qlm(helfem::legendre::legendreQ(l,m,x));
+
+      std::ostringstream oss;
+      oss << l << "_" << m;
+      Plm.save("P_" + oss.str() + ".dat",arma::raw_ascii);
+      Qlm.save("Q_" + oss.str() + ".dat",arma::raw_ascii);
+    }
+
+  x=arma::linspace<arma::vec>(1.1,40,389);
+  x.save("xpro.dat",arma::raw_ascii);
+  for(int l=0;l<=lmax;l++)
+    for(int m=0;m<=std::min(l,::legendre::legendrePQ_max_m());m++) {
+      arma::vec Plm(helfem::legendre::legendreP_prolate(l,m,x));
+      arma::vec Qlm(helfem::legendre::legendreQ_prolate(l,m,x));
+
+      std::ostringstream oss;
+      oss << l << "_" << m;
+      Plm.save("Ppro_" + oss.str() + ".dat",arma::raw_ascii);
+      Qlm.save("Qpro_" + oss.str() + ".dat",arma::raw_ascii);
+    }
+
   return 0;
 }
