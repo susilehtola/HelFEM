@@ -40,7 +40,7 @@ namespace helfem {
 
       return const0*cpl0+const2*cpl2;
     }
-    
+
     Gaunt::Gaunt() {
     }
 
@@ -64,6 +64,10 @@ namespace helfem {
     }
 
     double Gaunt::coeff(int L, int M, int l, int m, int lp, int mp) const {
+      if(abs(M)>L) return 0.0;
+      if(abs(m)>l) return 0.0;
+      if(abs(mp)>lp) return 0.0;
+
       size_t irow(lmind(L,M));
       size_t icol(lmind(l,m));
       size_t islice(lmind(lp,mp));
