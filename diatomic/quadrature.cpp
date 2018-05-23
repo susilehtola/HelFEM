@@ -177,7 +177,7 @@ namespace helfem {
         return inner;
       }
 
-      arma::mat twoe_integral(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M) {
+      static arma::mat twoe_integral_wrk(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M) {
 #ifndef ARMA_NO_DEBUG
         if(x.n_elem != wx.n_elem) {
           std::ostringstream oss;
@@ -216,11 +216,12 @@ namespace helfem {
 
         // Integrals are then
         arma::mat ints(arma::trans(bfprod)*inner);
-        // but we are still missing the second term which can be
-        // obtained as simply as
-        ints+=arma::trans(ints);
 
         return ints;
+      }
+
+      arma::mat twoe_integral(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M) {
+        return twoe_integral_wrk(mumin,mumax,k,l,x,wx,bf_C,L,M) + arma::trans(twoe_integral_wrk(mumin,mumax,l,k,x,wx,bf_C,L,M));
       }
     }
   }
