@@ -119,6 +119,8 @@ namespace helfem {
 
         /// Find index in (L,|M|) table
         size_t lmind(int L, int M, bool check=true) const;
+        /// Get L_max
+        int L_max() const;
 
         /// Number of dummy basis functions
         size_t Ndummy() const;
@@ -158,6 +160,9 @@ namespace helfem {
 
         /// Get primitive integrals
         std::vector<arma::mat> get_prim_tei() const;
+
+        /// Set elements to zero
+        void set_zero(int lmax, arma::mat & M) const;
       };
     }
   }

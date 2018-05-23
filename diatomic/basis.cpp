@@ -11,8 +11,6 @@
 /// Use Cholesky for Sinvh?
 //#define CHOL_SINVH
 
-#define SET_ZERO(x) {static bool prt_x=false; if(!prt_x) {printf("Setting %s to zero\n",#x); prt_x=true;} x=0.0;}
-
 namespace helfem {
   namespace diatomic {
     namespace basis {
@@ -87,7 +85,6 @@ namespace helfem {
         else
           return bas;
       }
-
 
       size_t RadialBasis::get_noverlap() const {
         return noverlap;
@@ -236,10 +233,10 @@ namespace helfem {
         if(iang!=lval.n_elem)
           throw std::logic_error("Error.\n");
 
-        arma::imat ang(lval.n_elem,2);
-        ang.col(0)=lval;
-        ang.col(1)=mval;
-        ang.print("Angular basis");
+        arma::imat bang(lval.n_elem,2);
+        bang.col(0)=lval;
+        bang.col(1)=mval;
+        bang.print("Angular basis");
       }
 
       TwoDBasis::~TwoDBasis() {
@@ -493,15 +490,18 @@ namespace helfem {
         return (lh.first == rh.first) && (lh.second == rh.second);
       }
 
+      int TwoDBasis::L_max() const {
+        // l=lmax and L=2*lmax+2 can still couple to l'=lmax through the cos^2 term
+        return 2*arma::max(lval)+2;
+      }
+
       void TwoDBasis::compute_tei() {
-        // Maximum l value is
-        int lmax=arma::max(lval);
         // Maximum m value is
         int mmax=arma::max(mval);
 
         // Form lm map
         lm_map.clear();
-        for(int L=0;L<=2*lmax;L++) // Coupling: l=lmax and L=2*lmax can still couple to l'=lmax (cos^2 term doesn't show up here explicitly)
+        for(int L=0;L<=L_max();L++)
           for(int M=0;M<=std::min(2*mmax,L);M++) { // m=-mmax and M=2*mmax can still couple to m'=mmax
             lmidx_t p;
             p.first=L;
@@ -545,7 +545,6 @@ namespace helfem {
           int L(lm_map[ilm].first);
           int M(lm_map[ilm].second);
 	  const double LMfac(std::pow(-1.0,M)/polynomial::factorial_ratio(L+M,L-M));
-	  printf("L=%i M=%i coeff = % e\n",L,M,LMfac);
 
           for(size_t iel=0;iel<Nel;iel++) {
             for(size_t jel=0;jel<Nel;jel++) {
@@ -671,8 +670,8 @@ namespace helfem {
         arma::mat P(expand_boundaries(P0));
 
         // Gaunt coefficients
-        int gmax(2*arma::max(lval));
-        gaunt::Gaunt gaunt(gmax+2,std::max(gmax,2),gmax+2);
+        int Lmax(L_max());
+        gaunt::Gaunt gaunt(Lmax+2,Lmax,Lmax+2);
 
         // Number of radial elements
         size_t Nel(radial.Nel());
@@ -708,8 +707,8 @@ namespace helfem {
                   continue;
 
                 // M values match. Loop over possible couplings
-                int Lmin=std::max(std::max(std::abs(li-lj),std::abs(lk-ll)),abs(M));
-                int Lmax=std::min(li+lj,lk+ll);
+                int Lmin=std::max(std::max(std::abs(li-lj),std::abs(lk-ll))-2,abs(M));
+                int Lmax=std::min(li+lj,lk+ll)+2;
 
                 for(int L=Lmin;L<=Lmax;L++) {
                   // Calculate total coupling coefficient
@@ -719,12 +718,6 @@ namespace helfem {
                   double cpl22(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
                   // Index in the L,|M| table
                   const size_t ilm(lmind(L,M));
-
-                  // Debug
-                  //SET_ZERO(cpl00);
-                  //SET_ZERO(cpl02);
-                  //SET_ZERO(cpl20);
-                  //SET_ZERO(cpl22);
 
                   if(cpl00!=0.0 || cpl02!=0.0 || cpl20!=0.0 || cpl22!=0.0) {
                     // Loop over elements: output
@@ -739,7 +732,6 @@ namespace helfem {
 
                         // Get density submatrix
                         arma::vec Psub(arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast)));
-			arma::vec Pdum(arma::vectorise(P.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)));
                         // Don't calculate zeros
                         if(arma::norm(Psub,2)==0.0)
                           continue;
@@ -771,12 +763,7 @@ namespace helfem {
           }
         }
 
-	arma::mat Sh(Sinvh());
-	arma::mat Jmo(Sh.t()*remove_boundaries(J)*Sh);
-        printf("J asymmetricity %e (%e)\n",arma::norm(J-J.t(),"fro"),arma::norm(J-J.t(),"fro")/arma::norm(J,"fro"));
-	printf("J_MO asymmetricity %e (%e)\n",arma::norm(Jmo-Jmo.t(),"fro"),arma::norm(Jmo-Jmo.t(),"fro")/arma::norm(Jmo,"fro"));
-
-	//J=0.5*(J+J.t());
+        //printf("J asymmetricity %e (%e)\n",arma::norm(J-J.t(),"fro"),arma::norm(J-J.t(),"fro")/arma::norm(J,"fro"));
 
         return remove_boundaries(J);
       }
@@ -793,8 +780,8 @@ namespace helfem {
         arma::mat P(expand_boundaries(P0));
 
         // Gaunt coefficient table
-        int gmax(2*arma::max(lval));
-        gaunt::Gaunt gaunt(gmax+2,std::max(gmax,2),gmax+2);
+        int Lmax(L_max());
+        gaunt::Gaunt gaunt(Lmax+2,Lmax,Lmax+2);
 
         // Number of radial elements
         size_t Nel(radial.Nel());
@@ -830,8 +817,8 @@ namespace helfem {
                   continue;
 
                 // M values match. Loop over possible couplings
-                int Lmin=std::max(std::max(std::abs(li-lj),std::abs(lk-ll)),abs(M));
-                int Lmax=std::min(li+lj,lk+ll);
+                int Lmin=std::max(std::max(std::abs(li-lj),std::abs(lk-ll))-2,abs(M));
+                int Lmax=std::min(li+lj,lk+ll)+2;
 
                 for(int L=Lmin;L<=Lmax;L++) {
                   // Calculate total coupling coefficient
@@ -841,12 +828,6 @@ namespace helfem {
                   double cpl22(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
                   // Index in the L,|M| table
                   const size_t ilm(lmind(L,M));
-
-                  // Debug
-                  SET_ZERO(cpl00);
-                  SET_ZERO(cpl02);
-                  SET_ZERO(cpl20);
-                  //SET_ZERO(cpl22);
 
                   if(cpl00!=0.0 || cpl02!=0.0 || cpl20!=0.0 || cpl22!=0.0) {
                     // Loop over elements: output
@@ -875,8 +856,6 @@ namespace helfem {
 
                         // Get density submatrix
                         arma::vec Psub(arma::vectorise(P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast)));
-
-			arma::vec Pdum(arma::vectorise(P.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)));
                         // Don't calculate zeros
                         if(arma::norm(Psub,2)==0.0)
                           continue;
@@ -907,13 +886,7 @@ namespace helfem {
           }
         }
 
-        // Analyze asymmetricity
-	arma::mat Sh(Sinvh());
-	arma::mat Kmo(Sh.t()*remove_boundaries(K)*Sh);
-        printf("K asymmetricity %e (%e)\n",arma::norm(K-K.t(),"fro"),arma::norm(K-K.t(),"fro")/arma::norm(K,"fro"));
-	printf("K_MO asymmetricity %e (%e)\n",arma::norm(Kmo-Kmo.t(),"fro"),arma::norm(Kmo-Kmo.t(),"fro")/arma::norm(Kmo,"fro"));
-
-	//K=0.5*(K+K.t());
+        //printf("K asymmetricity %e (%e)\n",arma::norm(K-K.t(),"fro"),arma::norm(K-K.t(),"fro")/arma::norm(K,"fro"));
 
         return remove_boundaries(K);
       }
@@ -995,6 +968,23 @@ namespace helfem {
         //Pnob.print("Output: w/o built-in boundaries");
 
         return Pnob;
+      }
+
+      void TwoDBasis::set_zero(int lmax, arma::mat & M) const {
+        if(M.n_rows != Nbf())
+          throw std::logic_error("Matrix has incorrect size!\n");
+        if(M.n_cols != Nbf())
+          throw std::logic_error("Matrix has incorrect size!\n");
+        M=expand_boundaries(M);
+        // Number of functions in radial basis
+        size_t Nrad=radial.Nbf();
+
+        for(size_t iang=0;iang<lval.n_elem;iang++)
+          for(size_t jang=0;jang<lval.n_elem;jang++)
+            if(lval(iang)>lmax || lval(jang)>lmax)
+              M.submat(iang*Nrad,jang*Nrad,(iang+1)*Nrad-1,(jang+1)*Nrad-1).zeros();
+
+        M=remove_boundaries(M);
       }
     }
   }
