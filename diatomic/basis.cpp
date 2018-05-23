@@ -11,6 +11,8 @@
 /// Use Cholesky for Sinvh?
 //#define CHOL_SINVH
 
+#define SET_ZERO(x) {static bool prt_x=false; if(!prt_x) {printf("Setting %s to zero\n",#x); prt_x=true;} x=0.0;}
+
 namespace helfem {
   namespace diatomic {
     namespace basis {
@@ -124,11 +126,11 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::radial_integral(const arma::mat & bas, int m, int n, size_t iel) const {
-        double Rmin(bval(iel));
-        double Rmax(bval(iel+1));
+        double mumin(bval(iel));
+        double mumax(bval(iel+1));
 
         // Integral by quadrature
-        return diatomic::quadrature::radial_integral(Rmin,Rmax,m,n,xq,wq,get_basis(bas,iel));
+        return diatomic::quadrature::radial_integral(mumin,mumax,m,n,xq,wq,get_basis(bas,iel));
       }
 
       arma::mat RadialBasis::radial_integral(int m, int n) const {
@@ -147,20 +149,20 @@ namespace helfem {
         return R;
       }
 
-      arma::mat RadialBasis::Plm_integral(int k, int L, int M, size_t iel) const {
-        double Rmin(bval(iel));
-        double Rmax(bval(iel+1));
+      arma::mat RadialBasis::Plm_integral(int k, size_t iel, int L, int M) const {
+        double mumin(bval(iel));
+        double mumax(bval(iel+1));
 
         // Integral by quadrature
-        return diatomic::quadrature::Plm_radial_integral(Rmin,Rmax,k,xq,wq,get_basis(bf,iel),L,M);
+        return diatomic::quadrature::Plm_radial_integral(mumin,mumax,k,xq,wq,get_basis(bf,iel),L,M);
       }
 
-      arma::mat RadialBasis::Qlm_integral(int k, int L, int M, size_t iel) const {
-        double Rmin(bval(iel));
-        double Rmax(bval(iel+1));
+      arma::mat RadialBasis::Qlm_integral(int k, size_t iel, int L, int M) const {
+        double mumin(bval(iel));
+        double mumax(bval(iel+1));
 
         // Integral by quadrature
-        return diatomic::quadrature::Qlm_radial_integral(Rmin,Rmax,k,xq,wq,get_basis(bf,iel),L,M);
+        return diatomic::quadrature::Qlm_radial_integral(mumin,mumax,k,xq,wq,get_basis(bf,iel),L,M);
       }
 
       arma::mat RadialBasis::kinetic(size_t iel) const {
@@ -186,12 +188,12 @@ namespace helfem {
         return T;
       }
 
-      arma::mat RadialBasis::twoe_integral(int k, int l, int L, int M, size_t iel) const {
-        double Rmin(bval(iel));
-        double Rmax(bval(iel+1));
+      arma::mat RadialBasis::twoe_integral(int alpha, int beta, size_t iel, int L, int M) const {
+        double mumin(bval(iel));
+        double mumax(bval(iel+1));
 
         // Integral by quadrature
-        return quadrature::twoe_integral(Rmin,Rmax,k,l,xq,wq,get_basis(bf_C,iel),L,M);
+        return quadrature::twoe_integral(mumin,mumax,alpha,beta,xq,wq,get_basis(bf_C,iel),L,M);
       }
 
       TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rbond, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp) {
@@ -203,7 +205,7 @@ namespace helfem {
         // Compute max mu value
         double mumax=utils::arcosh(rmax/Rhalf);
 
-        printf("Rmax = %e yields mumax = %e\n",rmax,mumax);
+        printf("rmax = %e yields mumax = %e\n",rmax,mumax);
 
         // Construct radial basis
         radial=RadialBasis(n_nodes, der_order, n_quad, num_el, mumax, igrid, zexp);
@@ -224,22 +226,31 @@ namespace helfem {
             lval(iang)=l;
             mval(iang)=mabs;
             iang++;
-
-            if(mabs>0) {
-              lval(iang)=l;
-              mval(iang)=-mabs;
-              iang++;
-            }
+          }
+        for(int mabs=1;mabs<=mmax;mabs++)
+          for(int l=mabs;l<=lmax;l++) {
+            lval(iang)=l;
+            mval(iang)=-mabs;
+            iang++;
           }
         if(iang!=lval.n_elem)
           throw std::logic_error("Error.\n");
+
+        arma::imat ang(lval.n_elem,2);
+        ang.col(0)=lval;
+        ang.col(1)=mval;
+        ang.print("Angular basis");
       }
 
       TwoDBasis::~TwoDBasis() {
       }
 
-      size_t TwoDBasis::Nbf() const {
+      size_t TwoDBasis::Ndummy() const {
         return lval.n_elem*radial.Nbf();
+      }
+
+      size_t TwoDBasis::Nbf() const {
+	return angular_offset(lval.n_elem);
       }
 
       size_t TwoDBasis::angular_nbf(size_t iam) const {
@@ -263,6 +274,7 @@ namespace helfem {
 
         // Get the basis function norms
         arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
+	printf("Smallest normalization constant % e, largest % e\n",arma::min(bfnormlz),arma::max(bfnormlz));
         // Go to normalized basis
         S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
 
@@ -299,7 +311,7 @@ namespace helfem {
 
       arma::mat TwoDBasis::radial_integral(int Rexp) const {
         // Full overlap matrix
-        arma::mat O(Nbf(),Nbf());
+        arma::mat O(Ndummy(),Ndummy());
         O.zeros();
 
         throw std::logic_error("not implemented.!\n");
@@ -317,7 +329,7 @@ namespace helfem {
         gaunt::Gaunt gaunt(gmax,2,gmax);
 
         // Full overlap matrix
-        arma::mat S(Nbf(),Nbf());
+        arma::mat S(Ndummy(),Ndummy());
         S.zeros();
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++) {
@@ -354,7 +366,7 @@ namespace helfem {
         arma::mat Im1(radial.radial_integral(-1,0));
 
         // Full kinetic energy matrix
-        arma::mat T(Nbf(),Nbf());
+        arma::mat T(Ndummy(),Ndummy());
         T.zeros();
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++) {
@@ -381,7 +393,7 @@ namespace helfem {
         arma::mat I11(radial.radial_integral(1,1));
 
         // Full nuclear attraction matrix
-        arma::mat V(Nbf(),Nbf());
+        arma::mat V(Ndummy(),Ndummy());
         V.zeros();
 
         // Gaunt coefficients
@@ -420,7 +432,7 @@ namespace helfem {
 
       arma::mat TwoDBasis::electric(double Ez) const {
         // Full electric couplings
-        arma::mat V(Nbf(),Nbf());
+        arma::mat V(Ndummy(),Ndummy());
         V.zeros();
 
         if(Ez!=0.0) {
@@ -516,10 +528,10 @@ namespace helfem {
           int L(lm_map[ilm].first);
           int M(lm_map[ilm].second);
           for(size_t iel=0;iel<Nel;iel++) {
-            disjoint_P0[ilm*Nel+iel]=radial.Plm_integral(0,L,M,iel);
-            disjoint_P2[ilm*Nel+iel]=radial.Plm_integral(2,L,M,iel);
-            disjoint_Q0[ilm*Nel+iel]=radial.Qlm_integral(0,L,M,iel);
-            disjoint_Q2[ilm*Nel+iel]=radial.Qlm_integral(2,L,M,iel);
+            disjoint_P0[ilm*Nel+iel]=radial.Plm_integral(0,iel,L,M);
+            disjoint_P2[ilm*Nel+iel]=radial.Plm_integral(2,iel,L,M);
+            disjoint_Q0[ilm*Nel+iel]=radial.Qlm_integral(0,iel,L,M);
+            disjoint_Q2[ilm*Nel+iel]=radial.Qlm_integral(2,iel,L,M);
           }
         }
 
@@ -532,6 +544,9 @@ namespace helfem {
         for(size_t ilm=0;ilm<lm_map.size();ilm++) {
           int L(lm_map[ilm].first);
           int M(lm_map[ilm].second);
+	  const double LMfac(std::pow(-1.0,M)/polynomial::factorial_ratio(L+M,L-M));
+	  printf("L=%i M=%i coeff = % e\n",L,M,LMfac);
+
           for(size_t iel=0;iel<Nel;iel++) {
             for(size_t jel=0;jel<Nel;jel++) {
               // Index in array
@@ -539,21 +554,22 @@ namespace helfem {
 
               if(iel==jel) {
                 // In-element integrals
-                prim_tei00[idx]=radial.twoe_integral(0,0,L,M,iel);
-                prim_tei02[idx]=radial.twoe_integral(0,2,L,M,iel);
-                prim_tei20[idx]=radial.twoe_integral(2,0,L,M,iel);
-                prim_tei22[idx]=radial.twoe_integral(2,2,L,M,iel);
+                prim_tei00[idx]=radial.twoe_integral(0,0,iel,L,M)*LMfac;
+                prim_tei02[idx]=radial.twoe_integral(0,2,iel,L,M)*LMfac;
+                prim_tei20[idx]=radial.twoe_integral(2,0,iel,L,M)*LMfac;
+                prim_tei22[idx]=radial.twoe_integral(2,2,iel,L,M)*LMfac;
 
               } else {
-                // Disjoint integrals
-                double LMfac(std::pow(-1.0,M)/polynomial::factorial_ratio(L+M,L-M));
+		// Index in disjoint array
+		const size_t iidx(ilm*Nel+iel);
+		const size_t jidx(ilm*Nel+jel);
 
                 // when r(iel)>r(jel), iel gets Q
-                const arma::mat & i0=(iel>jel) ? disjoint_Q0[ilm*Nel+iel] : disjoint_P0[ilm*Nel+iel];
-                const arma::mat & i2=(iel>jel) ? disjoint_Q2[ilm*Nel+iel] : disjoint_P2[ilm*Nel+iel];
+                const arma::mat & i0=(iel>jel) ? disjoint_Q0[iidx] : disjoint_P0[iidx];
+                const arma::mat & i2=(iel>jel) ? disjoint_Q2[iidx] : disjoint_P2[iidx];
                 // and jel gets P
-                const arma::mat & j0=(iel>jel) ? disjoint_P0[ilm*Nel+jel] : disjoint_Q0[ilm*Nel+jel];
-                const arma::mat & j2=(iel>jel) ? disjoint_P2[ilm*Nel+jel] : disjoint_Q2[ilm*Nel+jel];
+                const arma::mat & j0=(iel>jel) ? disjoint_P0[jidx] : disjoint_Q0[jidx];
+                const arma::mat & j2=(iel>jel) ? disjoint_P2[jidx] : disjoint_Q2[jidx];
 
                 // Store integrals
                 prim_tei00[idx]=utils::product_tei(LMfac*i0,j0);
@@ -567,7 +583,7 @@ namespace helfem {
 
         // Plug in prefactor
         {
-          double teipre(4.0*M_PI*std::pow(Rhalf,5));
+          const double teipre(4.0*M_PI*std::pow(Rhalf,5));
           for(size_t i=0;i<prim_tei00.size();i++)
             prim_tei00[i]*=teipre;
           for(size_t i=0;i<prim_tei02.size();i++)
@@ -648,11 +664,11 @@ namespace helfem {
           throw std::logic_error("Primitive teis have not been computed!\n");
 
         // Extend to boundaries
+        if(P0.n_rows != Nbf())
+          throw std::logic_error("Density matrix has incorrect size!\n");
+        if(P0.n_cols != Nbf())
+          throw std::logic_error("Density matrix has incorrect size!\n");
         arma::mat P(expand_boundaries(P0));
-        if(P.n_rows != Nbf())
-          throw std::logic_error("Density matrix has incorrect size!\n");
-        if(P.n_cols != Nbf())
-          throw std::logic_error("Density matrix has incorrect size!\n");
 
         // Gaunt coefficients
         int gmax(2*arma::max(lval));
@@ -664,7 +680,7 @@ namespace helfem {
         size_t Nrad(radial.Nbf());
 
         // Full Coulomb matrix
-        arma::mat J(Nbf(),Nbf());
+        arma::mat J(Ndummy(),Ndummy());
         J.zeros();
 
         // Increment
@@ -705,7 +721,10 @@ namespace helfem {
                   const size_t ilm(lmind(L,M));
 
                   // Debug
-                  cpl00=cpl02=cpl20=0.0;
+                  //SET_ZERO(cpl00);
+                  //SET_ZERO(cpl02);
+                  //SET_ZERO(cpl20);
+                  //SET_ZERO(cpl22);
 
                   if(cpl00!=0.0 || cpl02!=0.0 || cpl20!=0.0 || cpl22!=0.0) {
                     // Loop over elements: output
@@ -720,6 +739,7 @@ namespace helfem {
 
                         // Get density submatrix
                         arma::vec Psub(arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast)));
+			arma::vec Pdum(arma::vectorise(P.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)));
                         // Don't calculate zeros
                         if(arma::norm(Psub,2)==0.0)
                           continue;
@@ -738,7 +758,7 @@ namespace helfem {
                         if(cpl20!=0.0)
                           Jsub+=cpl20*(prim_tei20[idx]*Psub);
                         if(cpl22!=0.0)
-                          Jsub+=cpl22*(prim_tei22[idx]*Psub);
+			  Jsub+=cpl22*(prim_tei22[idx]*Psub);
 
                         // Increment global Coulomb matrix
                         J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=arma::reshape(Jsub,Ni,Ni);
@@ -751,22 +771,12 @@ namespace helfem {
           }
         }
 
-        // Analyze asymmetricity
-        for(size_t iang=0;iang<lval.n_elem;iang++)
-          for(size_t jang=0;jang<iang;jang++) {
-            arma::mat Jij(J.submat(iang*Nrad,jang*Nrad,(iang+1)*Nrad-1,(jang+1)*Nrad-1));
-            arma::mat Jji(J.submat(jang*Nrad,iang*Nrad,(jang+1)*Nrad-1,(iang+1)*Nrad-1));
-            Jij-=Jji.t();
+	arma::mat Sh(Sinvh());
+	arma::mat Jmo(Sh.t()*remove_boundaries(J)*Sh);
+        printf("J asymmetricity %e (%e)\n",arma::norm(J-J.t(),"fro"),arma::norm(J-J.t(),"fro")/arma::norm(J,"fro"));
+	printf("J_MO asymmetricity %e (%e)\n",arma::norm(Jmo-Jmo.t(),"fro"),arma::norm(Jmo-Jmo.t(),"fro")/arma::norm(Jmo,"fro"));
 
-            std::ostringstream oss;
-            oss << iang << "(" << lval(iang) << "," << mval(iang) << ") - "<< jang << "(" << lval(jang) << "," << mval(jang) << ")";
-            oss << ", norm " << arma::norm(Jij,"fro");
-            Jij.print(oss.str());
-          }
-        printf("J asymmetricity %e\n",arma::norm(J-J.t(),"fro"));
-
-        // Force symmetricity
-        J=(J+J.t())/2;
+	//J=0.5*(J+J.t());
 
         return remove_boundaries(J);
       }
@@ -776,12 +786,11 @@ namespace helfem {
           throw std::logic_error("Primitive teis have not been computed!\n");
 
         // Extend to boundaries
+        if(P0.n_rows != Nbf())
+          throw std::logic_error("Density matrix has incorrect size!\n");
+        if(P0.n_cols != Nbf())
+          throw std::logic_error("Density matrix has incorrect size!\n");
         arma::mat P(expand_boundaries(P0));
-
-        if(P.n_rows != Nbf())
-          throw std::logic_error("Density matrix has incorrect size!\n");
-        if(P.n_cols != Nbf())
-          throw std::logic_error("Density matrix has incorrect size!\n");
 
         // Gaunt coefficient table
         int gmax(2*arma::max(lval));
@@ -793,7 +802,7 @@ namespace helfem {
         size_t Nrad(radial.Nbf());
 
         // Full exchange matrix
-        arma::mat K(Nbf(),Nbf());
+        arma::mat K(Ndummy(),Ndummy());
         K.zeros();
 
         // Increment
@@ -834,7 +843,10 @@ namespace helfem {
                   const size_t ilm(lmind(L,M));
 
                   // Debug
-                  cpl00=cpl02=cpl20=0.0;
+                  SET_ZERO(cpl00);
+                  SET_ZERO(cpl02);
+                  SET_ZERO(cpl20);
+                  //SET_ZERO(cpl22);
 
                   if(cpl00!=0.0 || cpl02!=0.0 || cpl20!=0.0 || cpl22!=0.0) {
                     // Loop over elements: output
@@ -863,6 +875,8 @@ namespace helfem {
 
                         // Get density submatrix
                         arma::vec Psub(arma::vectorise(P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast)));
+
+			arma::vec Pdum(arma::vectorise(P.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)));
                         // Don't calculate zeros
                         if(arma::norm(Psub,2)==0.0)
                           continue;
@@ -893,9 +907,13 @@ namespace helfem {
           }
         }
 
-        printf("K asymmetricity %e\n",arma::norm(K-K.t(),"fro"));
-        // Force symmetricity
-        K=(K+K.t())/2;
+        // Analyze asymmetricity
+	arma::mat Sh(Sinvh());
+	arma::mat Kmo(Sh.t()*remove_boundaries(K)*Sh);
+        printf("K asymmetricity %e (%e)\n",arma::norm(K-K.t(),"fro"),arma::norm(K-K.t(),"fro")/arma::norm(K,"fro"));
+	printf("K_MO asymmetricity %e (%e)\n",arma::norm(Kmo-Kmo.t(),"fro"),arma::norm(Kmo-Kmo.t(),"fro")/arma::norm(Kmo,"fro"));
+
+	//K=0.5*(K+K.t());
 
         return remove_boundaries(K);
       }

@@ -81,7 +81,7 @@ namespace helfem {
         return arma::trans(wbf)*bf;
       }
 
-      arma::mat Qlm_radial_integral(double mumin, double mumax, int k, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int L, int M) {
+      arma::mat Qlm_radial_integral(double mumin, double mumax, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int L, int M) {
 #ifndef ARMA_NO_DEBUG
         if(x.n_elem != wx.n_elem) {
           std::ostringstream oss;
@@ -94,7 +94,6 @@ namespace helfem {
           throw std::logic_error(oss.str());
         }
 #endif
-
         // Midpoint is at
         double mumid(0.5*(mumax+mumin));
         // and half-length of interval is
@@ -106,16 +105,18 @@ namespace helfem {
         // Calculate total weight per point
         arma::vec wp(wx*mulen);
         wp%=arma::sinh(mu);
-        if(k!=0)
-          wp%=arma::pow(chmu,k);
+        if(l!=0)
+          // cosh term
+          wp%=arma::pow(chmu,l);
+        // Legendre polynomial
         wp%=legendre::legendreQ_prolate(L,M,chmu);
 
         // Put in weight
         arma::mat wbf(bf);
-        for(size_t i=0;i<bf.n_cols;i++)
+        for(size_t i=0;i<wbf.n_cols;i++)
           wbf.col(i)%=wp;
 
-        // Matrix elements are then
+        // The integrals are then
         return arma::trans(wbf)*bf;
       }
 
@@ -214,7 +215,7 @@ namespace helfem {
           bfprod.col(i)%=wp;
 
         // Integrals are then
-        arma::mat ints((std::pow(-1.0,M)/polynomial::factorial_ratio(L+M,L-M))*arma::trans(bfprod)*inner);
+        arma::mat ints(arma::trans(bfprod)*inner);
         // but we are still missing the second term which can be
         // obtained as simply as
         ints+=arma::trans(ints);

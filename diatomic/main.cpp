@@ -21,6 +21,8 @@ arma::mat form_density(const arma::mat & C, size_t nocc) {
 void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh, size_t neig) {
   // Form matrix in orthonormal basis
   arma::mat Forth(Sinvh.t()*F*Sinvh);
+  // Symmetrize
+  Forth=0.5*(Forth+Forth.t());
 
 #ifndef SPARSE
   printf("Dense diagonalization.\n");
@@ -241,6 +243,9 @@ int main(int argc, char **argv) {
     if(i>0)
       printf("Energy changed by %e\n",Etot-Eold);
     Eold=Etot;
+
+    J.print("J");
+    Ka.print("Ka");
 
     /*
     S.print("S");

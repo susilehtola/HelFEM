@@ -65,11 +65,11 @@ namespace helfem {
         arma::mat kinetic() const;
 
         /// Compute Plm integral
-        arma::mat Plm_integral(int k, int L, int M, size_t iel) const;
+        arma::mat Plm_integral(int beta, size_t iel, int L, int M) const;
         /// Compute Qlm integral
-        arma::mat Qlm_integral(int k, int L, int M, size_t iel) const;
+        arma::mat Qlm_integral(int alpha, size_t iel, int L, int M) const;
         /// Compute primitive two-electron integral
-        arma::mat twoe_integral(int k, int l, int L, int M, size_t iel) const;
+        arma::mat twoe_integral(int alpha, int beta, size_t iel, int L, int M) const;
       };
 
       /// L, |M| index type
@@ -119,6 +119,9 @@ namespace helfem {
 
         /// Find index in (L,|M|) table
         size_t lmind(int L, int M, bool check=true) const;
+
+        /// Number of dummy basis functions
+        size_t Ndummy() const;
 
       public:
         /// Constructor
