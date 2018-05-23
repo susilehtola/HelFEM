@@ -11,6 +11,9 @@ namespace helfem {
  */
     double gaunt_coefficient(int L, int M, int l, int m, int lp, int mp);
 
+    /// Get "modified" Gaunt coefficient (interim coupling through cos^2)
+    double modified_gaunt_coefficient(int L, int M, int l, int m, int lp, int mp);
+
     /// Table of Gaunt coefficients
     class Gaunt {
       /// Table of coefficients

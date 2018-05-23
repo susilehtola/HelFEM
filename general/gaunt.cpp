@@ -26,6 +26,21 @@ namespace helfem {
       return res;
     }
 
+    double modified_gaunt_coefficient(int lj, int mj, int L, int M, int li, int mi) {
+      static const double const0(2.0/3.0*sqrt(M_PI));
+      static const double const2(4.0/15.0*sqrt(5.0*M_PI));
+
+      // Coupling through Y_0^0
+      double cpl0(gaunt_coefficient(L,M,0,0,L,M)*gaunt_coefficient(lj,mj,li,mi,L,M));
+
+      // Coupling through Y_2^0
+      double cpl2=0.0;
+      for(int Lp=std::max(std::max(L-2,0),std::abs(M));Lp<=L+2;Lp++)
+        cpl2+=gaunt_coefficient(Lp,M,2,0,L,M)*gaunt_coefficient(lj,mj,li,mi,Lp,M);
+
+      return const0*cpl0+const2*cpl2;
+    }
+    
     Gaunt::Gaunt() {
     }
 
@@ -100,7 +115,7 @@ namespace helfem {
 
       // Coupling through Y_2^0
       double cpl2=0.0;
-      for(int Lp=std::max(std::max(L-2,0),std::abs(M));Lp<=L+2;Lp+=2)
+      for(int Lp=std::max(std::max(L-2,0),std::abs(M));Lp<=L+2;Lp++)
         cpl2+=coeff(Lp,M,2,0,L,M)*coeff(lj,mj,li,mi,Lp,M);
 
       return const0*cpl0+const2*cpl2;

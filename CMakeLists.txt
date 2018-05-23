@@ -16,6 +16,9 @@ legendre/legendre_p_normal.cpp legendre/legendre_pq.cpp
 legendre/legendre_q_prolate.cpp legendre/legendre_p_prolate.cpp
 legendre/legendre_q_normal.cpp)
 
+add_executable(gaunt_test general/gaunt_test.cpp)
+target_link_libraries(gaunt_test helfem)
+target_link_libraries(gaunt_test gsl openblas64)
 
 add_executable(harmonic harmonic/main.cpp harmonic/quadrature.cpp)
 target_link_libraries(harmonic helfem)
