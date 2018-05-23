@@ -140,6 +140,9 @@ int main(int argc, char **argv) {
 
   boost::timer::cpu_timer timer;
 
+  const double Enuc(Z1*Z2/Rbond);
+  printf("Nuclear repulsion energy is %e\n",Enuc);
+
   // Form overlap matrix
   arma::mat S(basis.overlap());
   // Form nuclear attraction energy matrix
@@ -162,13 +165,21 @@ int main(int argc, char **argv) {
   // Number of states to find
   int nstates(std::min((arma::uword) nela+20,Sinvh.n_cols-1));
 
+  // Start iteration with lmin
+  int lmin(mmax);
+
   // Diagonalize Hamiltonian
   timer.start();
   arma::vec Ea, Eb;
   arma::mat Ca, Cb;
-  eig_gsym(Ea,Ca,H0,Sinvh,nstates);
-  Eb=Ea;
-  Cb=Ca;
+  {
+    // Set blocks to zero
+    arma::mat F(H0);
+    basis.set_zero(lmin,F);
+    eig_gsym(Ea,Ca,F,Sinvh,nstates);
+    Eb=Ea;
+    Cb=Ca;
+  }
   printf("Diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
 
   arma::uword nena(std::min((arma::uword) nela+4,Ea.n_elem-1));
@@ -181,7 +192,7 @@ int main(int argc, char **argv) {
   T.print("T");
   Vnuc.print("Vnuc");
   */
-  
+
   printf("Computing two-electron integrals\n");
   fflush(stdout);
   timer.start();
@@ -198,109 +209,114 @@ int main(int argc, char **argv) {
   uDIIS diis(S,Sinvh,usediis,diis_c1,diiseps,diisthr,useadiis,true,diisorder);
   double diiserr;
 
-  for(int i=0;i<1000;i++) {
-    printf("\n**** Iteration %i ****\n\n",i);
+  for(int l=lmin;l<=lmax;l++) {
+    diis.clear();
 
-    // Form density matrix
-    arma::mat Pa(form_density(Ca,nela));
-    arma::mat Pb(form_density(Cb,nelb));
-    arma::mat P(Pa+Pb);
+    for(int i=0;i<1000;i++) {
+      printf("\n**** l=%i iteration %i ****\n\n",l,i);
 
-    // Calculate <r^2>
-    //printf("<r^2> is %e\n",arma::trace(basis.radial_integral(2)*Pnew));
+      // Form density matrix
+      arma::mat Pa(form_density(Ca,nela));
+      arma::mat Pb(form_density(Cb,nelb));
+      arma::mat P(Pa+Pb);
 
-    printf("Tr Pa = %f\n",arma::trace(Pa*S));
-    printf("Tr Pb = %f\n",arma::trace(Pb*S));
+      // Calculate <r^2>
+      //printf("<r^2> is %e\n",arma::trace(basis.radial_integral(2)*Pnew));
 
-    Ekin=arma::trace(P*T);
-    Epot=arma::trace(P*Vnuc);
-    Efield=arma::trace(P*Vel);
+      printf("Tr Pa = %f\n",arma::trace(Pa*S));
+      printf("Tr Pb = %f\n",arma::trace(Pb*S));
 
-    // Form Coulomb matrix
-    timer.start();
-    arma::mat J(basis.coulomb(P));
-    double tJ(timer.elapsed().wall*1e-9);
-    Ecoul=0.5*arma::trace(P*J);
-    printf("Coulomb energy %.10e % .6f\n",Ecoul,tJ);
+      Ekin=arma::trace(P*T);
+      Epot=arma::trace(P*Vnuc);
+      Efield=arma::trace(P*Vel);
 
-    // Form exchange matrix
-    timer.start();
-    arma::mat Ka(basis.exchange(Pa));
-    arma::mat Kb;
-    if(nelb)
-      Kb=basis.exchange(Pb);
-    else
-      Kb.zeros(Cb.n_rows,Cb.n_rows);
-    double tK(timer.elapsed().wall*1e-9);
-    Exx=0.5*(arma::trace(Pa*Ka)+arma::trace(Pb*Kb));
-    printf("Exchange energy %.10e % .6f\n",Exx,tK);
+      // Form Coulomb matrix
+      timer.start();
+      arma::mat J(basis.coulomb(P));
+      double tJ(timer.elapsed().wall*1e-9);
+      Ecoul=0.5*arma::trace(P*J);
+      printf("Coulomb energy %.10e % .6f\n",Ecoul,tJ);
 
-    // Fock matrices
-    arma::mat Fa(H0+J+Ka);
-    arma::mat Fb(H0+J+Kb);
-    Etot=Ekin+Epot+Efield+Ecoul+Exx;
+      // Form exchange matrix
+      timer.start();
+      arma::mat Ka(basis.exchange(Pa));
+      arma::mat Kb;
+      if(nelb)
+        Kb=basis.exchange(Pb);
+      else
+        Kb.zeros(Cb.n_rows,Cb.n_rows);
+      double tK(timer.elapsed().wall*1e-9);
+      Exx=0.5*(arma::trace(Pa*Ka)+arma::trace(Pb*Kb));
+      printf("Exchange energy %.10e % .6f\n",Exx,tK);
 
-    if(i>0)
-      printf("Energy changed by %e\n",Etot-Eold);
-    Eold=Etot;
+      // Fock matrices
+      arma::mat Fa(H0+J+Ka);
+      arma::mat Fb(H0+J+Kb);
+      // Set blocks to zero
+      basis.set_zero(l,Fa);
+      basis.set_zero(l,Fb);
 
-    J.print("J");
-    Ka.print("Ka");
+      Etot=Ekin+Epot+Efield+Ecoul+Exx+Enuc;
 
-    /*
-    S.print("S");
-    T.print("T");
-    Vnuc.print("Vnuc");
-    Ca.print("Ca");
-    Pa.print("Pa");
-    J.print("J");
-    Ka.print("Ka");
+      if(i>0)
+        printf("Energy changed by %e\n",Etot-Eold);
+      Eold=Etot;
 
-    arma::mat Jmo(Ca.t()*J*Ca);
-    arma::mat Kmo(Ca.t()*Ka*Ca);
-    Jmo.submat(0,0,10,10).print("Jmo");
-    Kmo.submat(0,0,10,10).print("Kmo");
+      /*
+        S.print("S");
+        T.print("T");
+        Vnuc.print("Vnuc");
+        Ca.print("Ca");
+        Pa.print("Pa");
+        J.print("J");
+        Ka.print("Ka");
+
+        arma::mat Jmo(Ca.t()*J*Ca);
+        arma::mat Kmo(Ca.t()*Ka*Ca);
+        Jmo.submat(0,0,10,10).print("Jmo");
+        Kmo.submat(0,0,10,10).print("Kmo");
 
 
-    Kmo+=Jmo;
-    Kmo.print("Jmo+Kmo");
+        Kmo+=Jmo;
+        Kmo.print("Jmo+Kmo");
 
-    Fa.print("Fa");
-    arma::mat Fao(Sinvh.t()*Fa*Sinvh);
-    Fao.print("Fao");
-    Sinvh.print("Sinvh");
-    */
+        Fa.print("Fa");
+        arma::mat Fao(Sinvh.t()*Fa*Sinvh);
+        Fao.print("Fao");
+        Sinvh.print("Sinvh");
+      */
 
-    /*
-    arma::mat Jmo(Ca.t()*J*Ca);
-    arma::mat Kmo(Ca.t()*Ka*Ca);
-    arma::mat Fmo(Ca.t()*Fa*Ca);
-    Jmo=Jmo.submat(0,0,4,4);
-    Kmo=Kmo.submat(0,0,4,4);
-    Fmo=Fmo.submat(0,0,4,4);
-    Jmo.print("J");
-    Kmo.print("K");
-    Fmo.print("F");
-    */
+      /*
+        arma::mat Jmo(Ca.t()*J*Ca);
+        arma::mat Kmo(Ca.t()*Ka*Ca);
+        arma::mat Fmo(Ca.t()*Fa*Ca);
+        Jmo=Jmo.submat(0,0,4,4);
+        Kmo=Kmo.submat(0,0,4,4);
+        Fmo=Fmo.submat(0,0,4,4);
+        Jmo.print("J");
+        Kmo.print("K");
+        Fmo.print("F");
+      */
 
-    // Update DIIS
-    timer.start();
-    diis.update(Fa,Fb,Pa,Pb,Etot,diiserr);
-    printf("Diis error is %e\n",diiserr);
-    fflush(stdout);
-    // Solve DIIS to get Fock update
-    diis.solve_F(Fa,Fb);
-    printf("DIIS update and solution done in %.6f\n",timer.elapsed().wall*1e-9);
+      // Update DIIS
+      timer.start();
+      diis.update(Fa,Fb,Pa,Pb,Etot,diiserr);
+      printf("Diis error is %e\n",diiserr);
+      fflush(stdout);
+      // Solve DIIS to get Fock update
+      diis.solve_F(Fa,Fb);
+      printf("DIIS update and solution done in %.6f\n",timer.elapsed().wall*1e-9);
 
-    // Diagonalize Fock matrix to get new orbitals
-    timer.start();
-    eig_gsym(Ea,Ca,Fa,Sinvh,nstates);
-    eig_gsym(Eb,Cb,Fb,Sinvh,nstates);
-    printf("Diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
+      // Diagonalize Fock matrix to get new orbitals
+      timer.start();
+      eig_gsym(Ea,Ca,Fa,Sinvh,nstates);
+      eig_gsym(Eb,Cb,Fb,Sinvh,nstates);
+      printf("Diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
 
-    double convthr(1e-8);
-    if(i>0 && diiserr<convthr && std::abs(Etot-Eold)<convthr)
-      break;
+      double convthr(1e-8);
+      if(i>0 && diiserr<convthr && std::abs(Etot-Eold)<convthr)
+        break;
+    }
   }
 
   printf("%-21s energy: % .16f\n","Kinetic",Ekin);
