@@ -88,6 +88,88 @@ namespace helfem {
 #endif
     }
 
+    RadialBasis::RadialBasis(int n_nodes, int der_order, int n_quad, int num_el0, double Rhalf, int num_el, double rmax, int igrid, double zexp) {
+      // Get primitive polynomial representation
+      bf_C=polynomial::hermite_coeffs(n_nodes, der_order);
+      df_C=polynomial::derivative_coeffs(bf_C, 1);
+
+      // Get quadrature rule
+      chebyshev::chebyshev(n_quad,xq,wq);
+      for(size_t i=0;i<xq.n_elem;i++) {
+        if(!std::isfinite(xq[i]))
+          printf("xq[%i]=%e\n",(int) i, xq[i]);
+        if(!std::isfinite(wq[i]))
+          printf("wq[%i]=%e\n",(int) i, wq[i]);
+      }
+
+      // Evaluate polynomials at quadrature points
+      bf=polynomial::polyval(bf_C,xq);
+      df=polynomial::polyval(df_C,xq);
+
+      // Number of overlapping functions is
+      noverlap=der_order+1;
+
+      // First interval
+      arma::vec bval0(arma::linspace<arma::vec>(0,Rhalf,num_el0+1));
+      arma::vec bval1;
+
+      // Get boundary values
+      switch(igrid) {
+        // linear grid
+      case(1):
+        printf("Using linear grid\n");
+        bval1=arma::linspace<arma::vec>(Rhalf,rmax,num_el+1);
+        break;
+
+        // quadratic grid (Schweizer et al 1999)
+      case(2):
+        printf("Using quadratic grid\n");
+        bval1.zeros(num_el+1);
+        for(int i=0;i<=num_el;i++)
+          bval1(i)=Rhalf+i*i*(rmax-Rhalf)/(num_el*num_el);
+        break;
+
+      // generalized polynomial grid, monotonic decrease till zexp~3, after that fails to work
+      case(3):
+        printf("Using generalized polynomial grid, zexp = %e\n",zexp);
+        bval1.zeros(num_el+1);
+        for(int i=0;i<=num_el;i++)
+          bval1(i)=Rhalf+(rmax-Rhalf)*std::pow(i*1.0/num_el,zexp);
+        break;
+
+        // generalized logarithmic grid, monotonic decrease till zexp~2, after that fails to work
+      case(4):
+        printf("Using generalized logarithmic grid, zexp = %e\n",zexp);
+        bval1=Rhalf+arma::exp(arma::pow(arma::linspace<arma::vec>(0,std::pow(log(rmax-Rhalf+1),1.0/zexp),num_el+1),zexp))-arma::ones<arma::vec>(num_el+1);
+        break;
+
+      default:
+          throw std::logic_error("Invalid choice for grid\n");
+      }
+
+      if(std::abs(bval0(bval0.n_elem-1)-bval1(0))>=sqrt(DBL_EPSILON)*Rhalf)
+        throw std::logic_error("bval0 and bval1 are not adjacent!\n");
+
+      bval.zeros(bval0.n_elem+bval1.n_elem-1); // Rhalf is shared
+      bval.subvec(0,bval0.n_elem-1)=bval0;
+      bval.subvec(bval0.n_elem,bval.n_elem-1)=bval1.subvec(1,bval1.n_elem-1);
+      // Boundary exactly at Rhalf
+      bval(bval0.n_elem-1)=Rhalf;
+
+      bval.print("Element boundaries");
+
+#ifdef OEI_QUADRATURE
+      printf("One-electron integrals evaluated using quadrature.\n");
+#else
+      printf("One-electron integrals evaluated analytically.\n");
+#endif
+#ifdef TEI_QUADRATURE
+      printf("Two-electron integrals evaluated using quadrature.\n");
+#else
+      printf("Two-electron integrals evaluated analytically.\n");
+#endif
+    }
+
     RadialBasis::~RadialBasis() {
     }
 
@@ -216,6 +298,15 @@ namespace helfem {
       return -radial_integral(-1,iel);
     }
 
+    arma::mat RadialBasis::nuclear_offcenter(size_t iel, double Rhalf, int L) const {
+      if(bval(iel)>=Rhalf)
+        return -sqrt(4.0*M_PI/(2*L+1))*radial_integral(-L-1,iel)*std::pow(Rhalf,L);
+      else if(bval(iel+1)<=Rhalf)
+        return -sqrt(4.0*M_PI/(2*L+1))*radial_integral(L,iel)*std::pow(Rhalf,-L-1);
+      else
+        throw std::logic_error("Nucleus placed within element!\n");
+    }
+
 #ifndef TEI_QUADRATURE
     // Two-electron primitive integral
     static double primitive_tei(double rmin, double rmax, int k, int l) {
@@ -296,11 +387,55 @@ namespace helfem {
 #endif
     }
 
+    TwoDBasis::TwoDBasis() {
+    }
+
     TwoDBasis::TwoDBasis(int Z_, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp) {
       // Nuclear charge
       Z=Z_;
+      Zl=0;
+      Zr=0;
+      Rhalf=0.0;
+
       // Construct radial basis
       radial=RadialBasis(n_nodes, der_order, n_quad, num_el, rmax, igrid, zexp);
+
+      // Construct angular basis
+      size_t nang=0;
+      for(int l=0;l<=lmax;l++)
+        nang+=2*std::min(mmax,l)+1;
+
+      // Allocate memory
+      lval.zeros(nang);
+      mval.zeros(nang);
+
+      // Store values
+      size_t iang=0;
+      for(int mabs=0;mabs<=mmax;mabs++)
+        for(int l=mabs;l<=lmax;l++) {
+          lval(iang)=l;
+          mval(iang)=mabs;
+          iang++;
+
+          if(mabs>0) {
+            lval(iang)=l;
+            mval(iang)=-mabs;
+            iang++;
+          }
+      }
+      if(iang!=lval.n_elem)
+        throw std::logic_error("Error.\n");
+    }
+
+    TwoDBasis::TwoDBasis(int Z_, int n_nodes, int der_order, int n_quad, int num_el0, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int Zl_, int Zr_, double Rhalf_) {
+      // Nuclear charge
+      Z=Z_;
+      Zl=Zl_;
+      Zr=Zr_;
+      Rhalf=Rhalf_;
+
+      // Construct radial basis
+      radial=RadialBasis(n_nodes, der_order, n_quad, num_el0, Rhalf, num_el, rmax, igrid, zexp);
 
       // Construct angular basis
       size_t nang=0;
@@ -455,7 +590,70 @@ namespace helfem {
     }
 
     arma::mat TwoDBasis::nuclear() const {
-      return -Z*radial_integral(-1);
+      // Full nuclear attraction matrix
+      arma::mat V(Nbf(),Nbf());
+      V.zeros();
+
+      if(Z!=0.0) {
+        size_t Nrad(radial.Nbf());
+        arma::mat Vrad(Nrad,Nrad);
+        Vrad.zeros();
+        // Loop over elements
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          // Where are we in the matrix?
+          size_t ifirst, ilast;
+          radial.get_idx(iel,ifirst,ilast);
+          Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(-1,iel);
+        }
+        // Fill elements
+        for(size_t iang=0;iang<lval.n_elem;iang++)
+          set_sub(V,iang,iang,-Z*Vrad);
+      }
+
+      if(Zl != 0.0 || Zr != 0.0) {
+        // Auxiliary matrices
+        size_t Nrad(radial.Nbf());
+        int Lmax(2*arma::max(lval));
+        std::vector<arma::mat> Vaux(Lmax+1);
+        for(int L=0;L<=Lmax;L++) {
+          Vaux[L].zeros(Nrad,Nrad);
+          for(size_t iel=0;iel<radial.Nel();iel++) {
+            // Where are we in the matrix?
+            size_t ifirst, ilast;
+            radial.get_idx(iel,ifirst,ilast);
+            Vaux[L].submat(ifirst,ifirst,ilast,ilast)+=radial.nuclear_offcenter(iel,Rhalf,L);
+          }
+        }
+
+        int gmax(std::max(arma::max(lval),arma::max(mval)));
+        gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
+
+        /// Loop over basis set
+        for(size_t iang=0;iang<lval.n_elem;iang++) {
+          int li(lval(iang));
+          int mi(mval(iang));
+
+          for(size_t jang=0;jang<lval.n_elem;jang++) {
+            int lj(lval(jang));
+            int mj(mval(jang));
+
+            // Zero contribution
+            if(mi!=mj)
+              continue;
+
+            // Loop over L
+            for(int L=std::abs(li-lj);L<=li+lj;L++) {
+              double cpl(gaunt.coeff(li,mi,L,0,lj,mj));
+              if(cpl==0.0)
+                continue;
+
+              add_sub(V,iang,jang,cpl*(std::pow(-1.0,L)*Zl + Zr)*Vaux[L]);
+            }
+          }
+        }
+      }
+
+      return remove_boundaries(V);
     }
 
     arma::mat TwoDBasis::electric(double Ez) const {

@@ -82,6 +82,9 @@ int main(int argc, char **argv) {
 
   // full option name, no short option, description, argument required
   parser.add<int>("Z", 0, "nuclear charge");
+  parser.add<int>("Zl", 0, "left-hand nuclear charge");
+  parser.add<int>("Zr", 0, "right-hand nuclear charge");
+  parser.add<double>("Rmid", 0, "distance of nuclei from center");
   parser.add<int>("nela", 0, "number of alpha electrons");
   parser.add<int>("nelb", 0, "number of beta  electrons");
   parser.add<int>("lmax", 0, "maximum l quantum number");
@@ -89,6 +92,7 @@ int main(int argc, char **argv) {
   parser.add<double>("Rmax", 0, "practical infinity");
   parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for logarithmic");
   parser.add<double>("zexp", 0, "parameter in radial grid");
+  parser.add<int>("nelem0", 0, "number of elements between center and off-center nuclei");
   parser.add<int>("nelem", 0, "number of elements");
   parser.add<int>("nnodes", 0, "number of nodes per element");
   parser.add<int>("der_order", 0, "level of derivative continuity");
@@ -102,6 +106,7 @@ int main(int argc, char **argv) {
   double zexp(parser.get<double>("zexp"));
   double Ez(parser.get<double>("Ez"));
   // Number of elements
+  int Nelem0(parser.get<int>("nelem0"));
   int Nelem(parser.get<int>("nelem"));
   // Number of nodes
   int Nnodes(parser.get<int>("nnodes"));
@@ -115,6 +120,9 @@ int main(int argc, char **argv) {
 
   // Nuclear charge
   int Z(parser.get<int>("Z"));
+  int Zl(parser.get<int>("Zl"));
+  int Zr(parser.get<int>("Zr"));
+  double Rhalf(parser.get<double>("Rmid"));
   // Number of occupied states
   int nela(parser.get<int>("nela"));
   int nelb(parser.get<int>("nelb"));
@@ -126,10 +134,17 @@ int main(int argc, char **argv) {
 
   printf("Angular grid spanning from l=0..%i, m=%i..%i.\n",lmax,-mmax,mmax);
 
-  basis::TwoDBasis basis(Z, Nnodes, der_order, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
+  basis::TwoDBasis basis;
+  if((Zl!=0 || Zr!=0) && Rhalf!=0.0)
+    basis=basis::TwoDBasis(Z, Nnodes, der_order, Nquad, Nelem0, Nelem, Rmax, lmax, mmax, igrid, zexp, Zl, Zr, Rhalf);
+  else
+    basis=basis::TwoDBasis(Z, Nnodes, der_order, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
   printf("Basis set contains %i functions\n",(int) basis.Nbf());
 
-  printf("Nuclear charge is %i\n",Z);
+  double Enucr=Z*(Zl+Zr)/Rhalf + Zl*Zr/(2*Rhalf);
+  printf("Central nuclear charge is %i\n",Z);
+  printf("Left- and right-hand nuclear charges are %i and %i at distance % .3f from center\n",Zl,Zr,Rhalf);
+  printf("Nuclear repulsion energy is %e\n",Enucr);
   printf("Number of electrons is %i %i\n",nela,nelb);
 
   boost::timer::cpu_timer timer;
@@ -226,7 +241,7 @@ int main(int argc, char **argv) {
     // Fock matrices
     arma::mat Fa(H0+J+Ka);
     arma::mat Fb(H0+J+Kb);
-    Etot=Ekin+Epot+Efield+Ecoul+Exx;
+    Etot=Ekin+Epot+Efield+Ecoul+Exx+Enucr;
 
     if(i>0)
       printf("Energy changed by %e\n",Etot-Eold);
@@ -290,6 +305,7 @@ int main(int argc, char **argv) {
 
   printf("%-21s energy: % .16f\n","Kinetic",Ekin);
   printf("%-21s energy: % .16f\n","Nuclear attraction",Epot);
+  printf("%-21s energy: % .16f\n","Nuclear repulsion",Enucr);
   printf("%-21s energy: % .16f\n","Coulomb",Ecoul);
   printf("%-21s energy: % .16f\n","Exchange",Exx);
   printf("%-21s energy: % .16f\n","Electric field",Efield);

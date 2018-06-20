@@ -34,6 +34,8 @@ namespace helfem {
       RadialBasis();
       /// Construct radial basis
       RadialBasis(int n_nodes, int der_order, int n_quad, int num_el, double rmax, int igrid, double zexp);
+      /// Construct radial basis
+      RadialBasis(int n_nodes, int der_order, int n_quad, int num_el0, double Rhalf, int num_el, double rmax, int igrid, double zexp);
       /// Destructor
       ~RadialBasis();
 
@@ -64,6 +66,8 @@ namespace helfem {
       arma::mat kinetic_l(size_t iel) const;
       /// Compute nuclear attraction matrix in element
       arma::mat nuclear(size_t iel) const;
+      /// Compute off-center nuclear attraction matrix in element
+      arma::mat nuclear_offcenter(size_t iel, double Rhalf, int L) const;
 
       /// Compute primitive two-electron integral
       arma::mat twoe_integral(int L, size_t iel) const;
@@ -73,6 +77,13 @@ namespace helfem {
     class TwoDBasis {
       /// Nuclear charge
       int Z;
+
+      /// Left-hand nuclear charge
+      int Zl;
+      /// Right-hand nuclear charge
+      int Zr;
+      /// Bond length
+      double Rhalf;
 
       /// Radial basis set
       RadialBasis radial;
@@ -104,8 +115,10 @@ namespace helfem {
       arma::mat remove_boundaries(const arma::mat & C) const;
 
     public:
+      TwoDBasis();
       /// Constructor
       TwoDBasis(int Z, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp);
+      TwoDBasis(int Z, int n_nodes, int der_order, int n_quad, int num_el0, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int Zl, int Zr, double Rhalf);
       /// Destructor
       ~TwoDBasis();
 
