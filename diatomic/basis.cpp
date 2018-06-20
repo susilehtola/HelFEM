@@ -237,6 +237,16 @@ namespace helfem {
         bang.col(0)=lval;
         bang.col(1)=mval;
         bang.print("Angular basis");
+
+        // Gaunt coefficients
+        int gmax(std::max(lmax,mmax));
+        int Lmax(L_max());
+
+        // One-electron matrices need gmax,3,gmax
+        // Two-electron matrices need Lmax+2,Lmax,Lmax+2
+        int lrval(std::max(Lmax+2,gmax));
+        int mval(std::max(Lmax,3));
+        gaunt=gaunt::Gaunt(lrval,mval,lrval);
       }
 
       TwoDBasis::~TwoDBasis() {
@@ -321,10 +331,6 @@ namespace helfem {
         arma::mat I10(radial.radial_integral(1,0));
         arma::mat I12(radial.radial_integral(1,2));
 
-        // Gaunt coefficients
-        int gmax(std::max(arma::max(lval),arma::max(mval)));
-        gaunt::Gaunt gaunt(gmax,2,gmax);
-
         // Full overlap matrix
         arma::mat S(Ndummy(),Ndummy());
         S.zeros();
@@ -393,10 +399,6 @@ namespace helfem {
         arma::mat V(Ndummy(),Ndummy());
         V.zeros();
 
-        // Gaunt coefficients
-        int gmax(std::max(arma::max(lval),arma::max(mval)));
-        gaunt::Gaunt gaunt(gmax,1,gmax);
-
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++) {
           int li(lval(iang));
@@ -436,10 +438,6 @@ namespace helfem {
           // Build radial matrix elements
           arma::mat I11(radial.radial_integral(1,1));
           arma::mat I13(radial.radial_integral(1,3));
-
-          // Gaunt coefficients
-          int gmax(std::max(arma::max(lval),arma::max(mval)));
-          gaunt::Gaunt gaunt(gmax,3,gmax);
 
           // Fill elements
           for(size_t iang=0;iang<lval.n_elem;iang++) {
@@ -669,10 +667,6 @@ namespace helfem {
           throw std::logic_error("Density matrix has incorrect size!\n");
         arma::mat P(expand_boundaries(P0));
 
-        // Gaunt coefficients
-        int Lmax(L_max());
-        gaunt::Gaunt gaunt(Lmax+2,Lmax,Lmax+2);
-
         // Number of radial elements
         size_t Nel(radial.Nel());
         // Number of radial functions
@@ -704,6 +698,12 @@ namespace helfem {
                 // RH m value
                 int Mp(mk-ml);
                 if(M!=Mp)
+                  continue;
+
+                // Do we have any density in this block?
+                double bdens(arma::norm(P.submat(kang*Nrad,lang*Nrad,(kang+1)*Nrad-1,(lang+1)*Nrad-1),"fro"));
+                //printf("(%i %i) (%i %i) density block norm %e\n",lk,mk,ll,ml,bdens);
+                if(bdens<10*DBL_EPSILON)
                   continue;
 
                 // M values match. Loop over possible couplings
@@ -779,10 +779,6 @@ namespace helfem {
           throw std::logic_error("Density matrix has incorrect size!\n");
         arma::mat P(expand_boundaries(P0));
 
-        // Gaunt coefficient table
-        int Lmax(L_max());
-        gaunt::Gaunt gaunt(Lmax+2,Lmax,Lmax+2);
-
         // Number of radial elements
         size_t Nel(radial.Nel());
         // Number of radial basis functions
@@ -814,6 +810,12 @@ namespace helfem {
                 // RH m value
                 int Mp(mk-ml);
                 if(M!=Mp)
+                  continue;
+
+                // Do we have any density in this block?
+                double bdens(arma::norm(P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1),"fro"));
+                //printf("(%i %i) (%i %i) density block norm %e\n",li,mi,ll,ml,bdens);
+                if(bdens<10*DBL_EPSILON)
                   continue;
 
                 // M values match. Loop over possible couplings

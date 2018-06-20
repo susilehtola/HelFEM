@@ -2,6 +2,7 @@
 #define BASIS_H
 
 #include <armadillo>
+#include "../general/gaunt.h"
 
 namespace helfem {
   namespace diatomic {
@@ -92,6 +93,9 @@ namespace helfem {
         arma::ivec lval;
         /// Angular basis set: function m values
         arma::ivec mval;
+
+        /// Gaunt coefficient table
+        gaunt::Gaunt gaunt;
 
         /// L, |M| map
         std::vector<lmidx_t> lm_map;
