@@ -257,8 +257,8 @@ int main(int argc, char **argv) {
 
     // Have we converged?
     double convthr(1e-8);
-    // convergence is only meaningful if without active space
-    bool convd=(nfull==0 && diiserr<convthr && std::abs(dE)<convthr);
+    // convergence is only meaningful if previous update was without active space
+    bool convd=((nfull==0) && (diiserr<convthr) && (std::abs(dE)<convthr));
 
     // Full update?
     //bool fullupd=(i%1==0 || convd);
@@ -266,19 +266,7 @@ int main(int argc, char **argv) {
 
     // Diagonalize Fock matrix to get new orbitals
     timer.start();
-    eig_gsym(Ea,Ca,Fa,Sinvh);
-    eig_gsym(Eb,Cb,Fb,Sinvh);
 
-      printf("%-21s energy: % .16f\n","Kinetic",Ekin);
-  printf("%-21s energy: % .16f\n","Nuclear attraction",Epot);
-  printf("%-21s energy: % .16f\n","Nuclear repulsion",Enucr);
-  printf("%-21s energy: % .16f\n","Coulomb",Ecoul);
-  printf("%-21s energy: % .16f\n","Exchange",Exx);
-  printf("%-21s energy: % .16f\n","Electric field",Efield);
-  printf("%-21s energy: % .16f\n","Total",Etot);
-  Ea.subvec(0,nena).t().print("Alpha orbital energies");
-  Eb.subvec(0,nenb).t().print("Beta  orbital energies");
-/*
     if(fullupd) {
       eig_gsym(Ea,Ca,Fa,Sinvh);
       eig_gsym(Eb,Cb,Fb,Sinvh);
@@ -292,7 +280,6 @@ int main(int argc, char **argv) {
       nfull++;
       printf("Active space diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
     }
-    */
 
     if(convd)
       break;

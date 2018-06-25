@@ -849,19 +849,23 @@ namespace helfem {
                       radial.get_idx(jel,jfirst,jlast);
 
 		      // Get density submatrix
-		      arma::vec Psub(mem_Psub.memptr(),Nrad*Nrad,false,true);
-                      Psub=arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast));
+		      //arma::vec Psub(mem_Psub.memptr(),Nrad*Nrad,false,true);
+                      //Psub=arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast));
+                      arma::vec Psub(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast));
                       // Don't calculate zeros
                       if(arma::norm(Psub,2)==0.0)
                         continue;
 
 		      // Contract integrals
-                      arma::mat Jsub(mem_Jsub.memptr(),Nrad*Nrad,1,false,true);
-		      Jsub=cpl*(prim_tei[Nel*Nel*L + iel*Nel + jel]*Psub);
-                      Jsub.resize(ilast-ifirst+1,ilast-ifirst+1);
+                      //arma::mat Jsub(mem_Jsub.memptr(),Nrad*Nrad,1,false,true);
+		      //Jsub=cpl*(prim_tei[Nel*Nel*L + iel*Nel + jel]*Psub);
+                      //Jsub.resize(ilast-ifirst+1,ilast-ifirst+1);
 
 		      // Increment global Coulomb matrix
-		      J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=Jsub;
+		      //J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=Jsub;
+
+                      arma::vec Jsub(cpl*(prim_tei[Nel*Nel*L + iel*Nel + jel]*Psub));
+                      J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=arma::reshape(Jsub,ilast-ifirst+1,ilast-ifirst+1);
 
 		      //arma::vec Ptgt(arma::vectorise(P.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)));
 		      //printf("(%i %i) (%i %i) (%i %i) (%i %i) [%i %i]\n",li,mi,lj,mj,lk,mk,ll,ml,L,M);
@@ -971,19 +975,24 @@ namespace helfem {
 		      */
 
                       // Get density submatrix
-		      arma::vec Psub(mem_Psub.memptr(),Nrad*Nrad,false,true);
-                      Psub=arma::vectorise(P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast));
+		      //arma::vec Psub(mem_Psub.memptr(),Nrad*Nrad,false,true);
+                      //Psub=arma::vectorise(P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast));
+                      arma::vec Psub(arma::vectorise(P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast)));
+
                       // Don't calculate zeros
                       if(arma::norm(Psub,2)==0.0)
                         continue;
 
 		      // Exchange submatrix
-                      arma::mat Ksub(mem_Ksub.memptr(),Nrad*Nrad,1,false,true);
-                      Ksub=cpl*(prim_ktei[Nel*Nel*L + iel*Nel + jel]*Psub);
-                      Ksub.resize(Ni,Nj);
+                      //arma::mat Ksub(mem_Ksub.memptr(),Nrad*Nrad,1,false,true);
+                      //Ksub=cpl*(prim_ktei[Nel*Nel*L + iel*Nel + jel]*Psub);
+                      //Ksub.resize(Ni,Nj);
 
                       // Increment global exchange matrix
-                      K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
+                      //K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
+
+                      arma::vec Ksub(cpl*(prim_ktei[Nel*Nel*L + iel*Nel + jel]*Psub));
+                      K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=arma::reshape(Ksub,Ni,Nj);
 
 		      //arma::vec Ptgt(arma::vectorise(P.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)));
 		      //printf("(%i %i) (%i %i) (%i %i) (%i %i) [%i %i]\n",li,mi,lj,mj,lk,mk,ll,ml,L,M);
