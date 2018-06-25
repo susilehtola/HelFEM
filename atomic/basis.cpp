@@ -16,6 +16,48 @@
 
 namespace helfem {
   namespace basis {
+
+    static arma::vec get_grid(double rmax, int num_el, int igrid, double zexp) {
+      // Boundary values
+      arma::vec bval;
+
+      // Get boundary values
+      switch(igrid) {
+        // linear grid
+      case(1):
+        printf("Using linear grid\n");
+        bval=arma::linspace<arma::vec>(0,rmax,num_el+1);
+        break;
+
+        // quadratic grid (Schweizer et al 1999)
+      case(2):
+        printf("Using quadratic grid\n");
+        bval.zeros(num_el+1);
+        for(int i=0;i<=num_el;i++)
+          bval(i)=i*i*rmax/(num_el*num_el);
+        break;
+
+        // generalized polynomial grid, monotonic decrease till zexp~3, after that fails to work
+      case(3):
+        printf("Using generalized polynomial grid, zexp = %e\n",zexp);
+        bval.zeros(num_el+1);
+        for(int i=0;i<=num_el;i++)
+          bval(i)=rmax*std::pow(i*1.0/num_el,zexp);
+        break;
+
+        // generalized logarithmic grid, monotonic decrease till zexp~2, after that fails to work
+      case(4):
+        printf("Using generalized logarithmic grid, zexp = %e\n",zexp);
+        bval=arma::exp(arma::pow(arma::linspace<arma::vec>(0,std::pow(log(rmax+1),1.0/zexp),num_el+1),zexp))-arma::ones<arma::vec>(num_el+1);
+        break;
+
+      default:
+          throw std::logic_error("Invalid choice for grid\n");
+      }
+
+      return bval;
+    }
+
     RadialBasis::RadialBasis() {
     }
 
@@ -41,38 +83,7 @@ namespace helfem {
       noverlap=der_order+1;
 
       // Get boundary values
-      switch(igrid) {
-        // linear grid
-      case(1):
-        printf("Using linear grid\n");
-        bval=arma::linspace<arma::vec>(0,rmax,num_el+1);
-        break;
-
-        // quadratic grid (Schweizer et al 1999)
-      case(2):
-        printf("Using quadratic grid\n");
-        bval.zeros(num_el+1);
-        for(int i=0;i<=num_el;i++)
-          bval(i)=i*i*rmax/(num_el*num_el);
-        break;
-
-      // generalized polynomial grid, monotonic decrease till zexp~3, after that fails to work
-      case(3):
-        printf("Using generalized polynomial grid, zexp = %e\n",zexp);
-        bval.zeros(num_el+1);
-        for(int i=0;i<=num_el;i++)
-          bval(i)=rmax*std::pow(i*1.0/num_el,zexp);
-        break;
-
-        // generalized logarithmic grid, monotonic decrease till zexp~2, after that fails to work
-      case(4):
-        printf("Using generalized logarithmic grid, zexp = %e\n",zexp);
-        bval=arma::exp(arma::pow(arma::linspace<arma::vec>(0,std::pow(log(rmax+1),1.0/zexp),num_el+1),zexp))-arma::ones<arma::vec>(num_el+1);
-        break;
-
-      default:
-          throw std::logic_error("Invalid choice for grid\n");
-      }
+      bval=get_grid(rmax,num_el,igrid,zexp);
 
       //bval.print("Element boundaries");
 
@@ -88,7 +99,7 @@ namespace helfem {
 #endif
     }
 
-    RadialBasis::RadialBasis(int n_nodes, int der_order, int n_quad, int num_el0, double Rhalf, int num_el, double rmax, int igrid, double zexp) {
+    RadialBasis::RadialBasis(int n_nodes, int der_order, int n_quad, int num_el0, int Zm, int Zlr, double Rhalf, int num_el, double rmax, int igrid, double zexp) {
       // Get primitive polynomial representation
       bf_C=polynomial::hermite_coeffs(n_nodes, der_order);
       df_C=polynomial::derivative_coeffs(bf_C, 1);
@@ -109,53 +120,57 @@ namespace helfem {
       // Number of overlapping functions is
       noverlap=der_order+1;
 
-      // First interval
-      arma::vec bval0(arma::linspace<arma::vec>(0,Rhalf,num_el0+1));
-      arma::vec bval1;
+      // First boundary at
+      int b0used = (Zm != 0);
+      double b0=Zm*Rhalf/(Zm+Zlr);
+      // Second boundary at
+      int b1used = (Zlr != 0);
+      double b1=Rhalf;
+      // Last boundary at
+      double b2=rmax;
 
-      // Get boundary values
-      switch(igrid) {
-        // linear grid
-      case(1):
-        printf("Using linear grid\n");
-        bval1=arma::linspace<arma::vec>(Rhalf,rmax,num_el+1);
-        break;
+      printf("b0 = %e, b0used = %i\n",b0,b0used);
+      printf("b1 = %e, b1used = %i\n",b1,b1used);
+      printf("b2 = %e\n",b2);
 
-        // quadratic grid (Schweizer et al 1999)
-      case(2):
-        printf("Using quadratic grid\n");
-        bval1.zeros(num_el+1);
-        for(int i=0;i<=num_el;i++)
-          bval1(i)=Rhalf+i*i*(rmax-Rhalf)/(num_el*num_el);
-        break;
-
-      // generalized polynomial grid, monotonic decrease till zexp~3, after that fails to work
-      case(3):
-        printf("Using generalized polynomial grid, zexp = %e\n",zexp);
-        bval1.zeros(num_el+1);
-        for(int i=0;i<=num_el;i++)
-          bval1(i)=Rhalf+(rmax-Rhalf)*std::pow(i*1.0/num_el,zexp);
-        break;
-
-        // generalized logarithmic grid, monotonic decrease till zexp~2, after that fails to work
-      case(4):
-        printf("Using generalized logarithmic grid, zexp = %e\n",zexp);
-        bval1=Rhalf+arma::exp(arma::pow(arma::linspace<arma::vec>(0,std::pow(log(rmax-Rhalf+1),1.0/zexp),num_el+1),zexp))-arma::ones<arma::vec>(num_el+1);
-        break;
-
-      default:
-          throw std::logic_error("Invalid choice for grid\n");
+      // Get grids
+      arma::vec bval0;
+      if(b0used) {
+        bval0=get_grid(b0,num_el0,igrid,zexp);
+        bval0.print("bval0");
       }
+      arma::vec bval1;
+      if(b1used) {
+        // Reverse grid to get tighter spacing around nucleus
+        bval1=-arma::reverse(get_grid(b1-b0,num_el0,igrid,zexp));
+        bval1+=arma::ones<arma::vec>(bval1.n_elem)*(b1-b0);
+        bval1.print("bval1");
+      }
+      arma::vec bval2(get_grid(b2-b1,num_el,igrid,zexp));
+      bval2.print("bval2");
 
-      if(std::abs(bval0(bval0.n_elem-1)-bval1(0))>=sqrt(DBL_EPSILON)*Rhalf)
-        throw std::logic_error("bval0 and bval1 are not adjacent!\n");
+      // Total number of gridpoints
+      size_t ngrid(bval2.n_elem + bval0.n_elem + bval1.n_elem -1);
+      if(b0used && b1used)
+        // We have another shared grid point
+        ngrid--;
 
-      bval.zeros(bval0.n_elem+bval1.n_elem-1); // Rhalf is shared
-      bval.subvec(0,bval0.n_elem-1)=bval0;
-      bval.subvec(bval0.n_elem,bval.n_elem-1)=bval1.subvec(1,bval1.n_elem-1);
-      // Boundary exactly at Rhalf
-      bval(bval0.n_elem-1)=Rhalf;
-
+      bval.zeros(ngrid);
+      size_t ioff=0;
+      if(b0used) {
+        bval.subvec(0,bval0.n_elem-1)=bval0;
+        ioff+=bval0.n_elem;
+      }
+      if(b1used) {
+        if(b0used) {
+          bval.subvec(ioff,ioff+bval1.n_elem-2)=bval1.subvec(1,bval1.n_elem-1)+b0*arma::ones<arma::vec>(bval1.n_elem);
+          ioff+=bval1.n_elem-1;
+        } else {
+          bval.subvec(ioff,ioff+bval1.n_elem-1)=bval1;
+          ioff+=bval1.n_elem;
+        }
+      }
+      bval.subvec(ioff,bval.n_elem-1)=bval2.subvec(1,bval2.n_elem-1)+b1*arma::ones<arma::vec>(bval2.n_elem-1);
       bval.print("Element boundaries");
 
 #ifdef OEI_QUADRATURE
@@ -435,7 +450,7 @@ namespace helfem {
       Rhalf=Rhalf_;
 
       // Construct radial basis
-      radial=RadialBasis(n_nodes, der_order, n_quad, num_el0, Rhalf, num_el, rmax, igrid, zexp);
+      radial=RadialBasis(n_nodes, der_order, n_quad, num_el0, Z_, std::max(Zl_,Zr_), Rhalf, num_el, rmax, igrid, zexp);
 
       // Construct angular basis
       size_t nang=0;
@@ -780,6 +795,10 @@ namespace helfem {
       arma::mat J(Nbf(),Nbf());
       J.zeros();
 
+      // Helper memory
+      arma::vec mem_Jsub(Nrad*Nrad);
+      arma::vec mem_Psub(Nrad*Nrad);
+
       // Increment
       for(size_t iang=0;iang<lval.n_elem;iang++) {
         int li(lval(iang));
@@ -804,6 +823,12 @@ namespace helfem {
               if(M!=Mp)
                 continue;
 
+              // Do we have any density in this block?
+              double bdens(arma::norm(P.submat(kang*Nrad,lang*Nrad,(kang+1)*Nrad-1,(lang+1)*Nrad-1),"fro"));
+              //printf("(%i %i) (%i %i) density block norm %e\n",lk,mk,ll,ml,bdens);
+              if(bdens<10*DBL_EPSILON)
+                continue;
+
               // M values match. Loop over possible couplings
               int Lmin=std::max(std::max(std::abs(li-lj),std::abs(lk-ll)),abs(M));
               int Lmax=std::min(li+lj,lk+ll);
@@ -824,16 +849,19 @@ namespace helfem {
                       radial.get_idx(jel,jfirst,jlast);
 
 		      // Get density submatrix
-		      arma::vec Psub(arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast)));
+		      arma::vec Psub(mem_Psub.memptr(),Nrad*Nrad,false,true);
+                      Psub=arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast));
                       // Don't calculate zeros
                       if(arma::norm(Psub,2)==0.0)
                         continue;
 
 		      // Contract integrals
-		      arma::vec Jsub(cpl*(prim_tei[Nel*Nel*L + iel*Nel + jel]*Psub));
+                      arma::mat Jsub(mem_Jsub.memptr(),Nrad*Nrad,1,false,true);
+		      Jsub=cpl*(prim_tei[Nel*Nel*L + iel*Nel + jel]*Psub);
+                      Jsub.resize(ilast-ifirst+1,ilast-ifirst+1);
 
 		      // Increment global Coulomb matrix
-		      J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=arma::reshape(Jsub,ilast-ifirst+1,ilast-ifirst+1);
+		      J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=Jsub;
 
 		      //arma::vec Ptgt(arma::vectorise(P.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)));
 		      //printf("(%i %i) (%i %i) (%i %i) (%i %i) [%i %i]\n",li,mi,lj,mj,lk,mk,ll,ml,L,M);
@@ -875,6 +903,10 @@ namespace helfem {
       arma::mat K(Nbf(),Nbf());
       K.zeros();
 
+      // Helper memory
+      arma::vec mem_Ksub(Nrad*Nrad);
+      arma::vec mem_Psub(Nrad*Nrad);
+
       // Increment
       for(size_t iang=0;iang<lval.n_elem;iang++) {
         int li(lval(iang));
@@ -897,6 +929,12 @@ namespace helfem {
               // RH m value
               int Mp(mk-ml);
               if(M!=Mp)
+                continue;
+
+              // Do we have any density in this block?
+              double bdens(arma::norm(P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1),"fro"));
+              //printf("(%i %i) (%i %i) density block norm %e\n",li,mi,ll,ml,bdens);
+              if(bdens<10*DBL_EPSILON)
                 continue;
 
               // M values match. Loop over possible couplings
@@ -933,16 +971,19 @@ namespace helfem {
 		      */
 
                       // Get density submatrix
-                      arma::vec Psub(arma::vectorise(P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast)));
+		      arma::vec Psub(mem_Psub.memptr(),Nrad*Nrad,false,true);
+                      Psub=arma::vectorise(P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast));
                       // Don't calculate zeros
                       if(arma::norm(Psub,2)==0.0)
                         continue;
 
 		      // Exchange submatrix
-                      arma::vec Ksub(cpl*(prim_ktei[Nel*Nel*L + iel*Nel + jel]*Psub));
+                      arma::mat Ksub(mem_Ksub.memptr(),Nrad*Nrad,1,false,true);
+                      Ksub=cpl*(prim_ktei[Nel*Nel*L + iel*Nel + jel]*Psub);
+                      Ksub.resize(Ni,Nj);
 
                       // Increment global exchange matrix
-                      K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=arma::reshape(Ksub,Ni,Nj);
+                      K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
 
 		      //arma::vec Ptgt(arma::vectorise(P.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)));
 		      //printf("(%i %i) (%i %i) (%i %i) (%i %i) [%i %i]\n",li,mi,lj,mj,lk,mk,ll,ml,L,M);

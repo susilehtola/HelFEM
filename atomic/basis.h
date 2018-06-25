@@ -35,7 +35,7 @@ namespace helfem {
       /// Construct radial basis
       RadialBasis(int n_nodes, int der_order, int n_quad, int num_el, double rmax, int igrid, double zexp);
       /// Construct radial basis
-      RadialBasis(int n_nodes, int der_order, int n_quad, int num_el0, double Rhalf, int num_el, double rmax, int igrid, double zexp);
+      RadialBasis(int n_nodes, int der_order, int n_quad, int num_el0, int Zm, int Zlr, double Rhalf, int num_el, double rmax, int igrid, double zexp);
       /// Destructor
       ~RadialBasis();
 

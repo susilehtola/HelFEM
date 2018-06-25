@@ -18,60 +18,12 @@ arma::mat form_density(const arma::mat & C, size_t nocc) {
     return arma::zeros<arma::mat>(C.n_rows,C.n_rows);
 }
 
-void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh, size_t neig) {
+void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh) {
   // Form matrix in orthonormal basis
   arma::mat Forth(Sinvh.t()*F*Sinvh);
 
-#ifndef SPARSE
-  printf("Dense diagonalization.\n");
   if(!arma::eig_sym(E,C,Forth))
     throw std::logic_error("Eigendecomposition failed!\n");
-
-  // Drop the virtuals
-  if(neig>E.n_elem) {
-    E=E.subvec(0,neig-1);
-    C=C.cols(0,neig-1);
-  }
-#else
-  printf("Sparse diagonalization.\n");
-  // Construct matrix operation object using the wrapper class DenseGenMatProd
-  DenseGenMatProd<double> op(Forth);
-
-  // Construct eigen solver object
-  SymEigsSolver< double, SMALLEST_ALGE, DenseGenMatProd<double> > eigs(&op, neig, neig+20);
-
-  // Initialize and compute
-  eigs.init();
-  int nconv = eigs.compute(10000,1e-6);
-
-  // Retrieve results
-  if(nconv == neig) {
-    E = eigs.eigenvalues();
-    C = eigs.eigenvectors();
-
-    // Values are returned in largest magnitude order, so they need to
-    // be resorted
-    arma::uvec Eord(arma::sort_index(E));
-    E=E(Eord);
-    C=C.cols(Eord);
-
-  } else {
-    std::ostringstream oss;
-    oss << "Eigendecomposition failed: only " << nconv << " eigenvalues converged!\n";
-    throw std::logic_error(oss.str());
-  }
-
-  if(E.n_elem != neig) {
-    std::ostringstream oss;
-    oss << "Not enough eigenvalues: asked for " << neig << ", got " << E.n_elem << "!\n";
-    throw std::logic_error(oss.str());
-  }
-  if(C.n_cols != neig) {
-    std::ostringstream oss;
-    oss << "Not enough eigenvectors: asked for " << neig << ", got " << C.n_cols << "!\n";
-    throw std::logic_error(oss.str());
-  }
-#endif
 
   // Return to non-orthonormal basis
   C=Sinvh*C;
@@ -135,13 +87,13 @@ int main(int argc, char **argv) {
   printf("Angular grid spanning from l=0..%i, m=%i..%i.\n",lmax,-mmax,mmax);
 
   basis::TwoDBasis basis;
-  if((Zl!=0 || Zr!=0) && Rhalf!=0.0)
+  if(Rhalf!=0.0)
     basis=basis::TwoDBasis(Z, Nnodes, der_order, Nquad, Nelem0, Nelem, Rmax, lmax, mmax, igrid, zexp, Zl, Zr, Rhalf);
   else
     basis=basis::TwoDBasis(Z, Nnodes, der_order, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
   printf("Basis set contains %i functions\n",(int) basis.Nbf());
 
-  double Enucr=Z*(Zl+Zr)/Rhalf + Zl*Zr/(2*Rhalf);
+  double Enucr=(Rhalf>0) ? Z*(Zl+Zr)/Rhalf + Zl*Zr/(2*Rhalf) : 0.0;
   printf("Central nuclear charge is %i\n",Z);
   printf("Left- and right-hand nuclear charges are %i and %i at distance % .3f from center\n",Zl,Zr,Rhalf);
   printf("Nuclear repulsion energy is %e\n",Enucr);
@@ -152,7 +104,13 @@ int main(int argc, char **argv) {
   // Form overlap matrix
   arma::mat S(basis.overlap());
   // Form nuclear attraction energy matrix
+  timer.start();
+  if(Zl!=0 || Zr !=0)
+    printf("Computing nuclear attraction integrals\n");
   arma::mat Vnuc(basis.nuclear());
+  if(Zl!=0 || Zr !=0)
+    printf("Done in %.6f\n",timer.elapsed().wall*1e-9);
+
   // Form electric field coupling matrix
   arma::mat Vel(basis.electric(Ez));
   // Form kinetic energy matrix
@@ -168,14 +126,11 @@ int main(int argc, char **argv) {
   arma::mat Sinvh(basis.Sinvh());
   printf("Half-inverse formed in %.6f\n",timer.elapsed().wall*1e-9);
 
-  // Number of states to find
-  int nstates(std::min((arma::uword) nela+20,Sinvh.n_cols-1));
-
   // Diagonalize Hamiltonian
   timer.start();
   arma::vec Ea, Eb;
   arma::mat Ca, Cb;
-  eig_gsym(Ea,Ca,H0,Sinvh,nstates);
+  eig_gsym(Ea,Ca,H0,Sinvh);
   Eb=Ea;
   Cb=Ca;
   printf("Diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
@@ -201,7 +156,14 @@ int main(int argc, char **argv) {
   uDIIS diis(S,Sinvh,usediis,diis_c1,diiseps,diisthr,useadiis,true,diisorder);
   double diiserr;
 
-  for(int i=0;i<1000;i++) {
+  // Active space
+  int Nact=std::min((arma::uword) (1000),Ca.n_cols);
+  arma::mat Caact(Ca.cols(0,Nact-1));
+  arma::mat Cbact(Cb.cols(0,Nact-1));
+
+  size_t nfull=1;
+
+  for(int i=1;i<1000;i++) {
     printf("\n**** Iteration %i ****\n\n",i);
 
     // Form density matrix
@@ -242,9 +204,10 @@ int main(int argc, char **argv) {
     arma::mat Fa(H0+J+Ka);
     arma::mat Fb(H0+J+Kb);
     Etot=Ekin+Epot+Efield+Ecoul+Exx+Enucr;
+    double dE=Etot-Eold;
 
-    if(i>0)
-      printf("Energy changed by %e\n",Etot-Eold);
+    if(i>1)
+      printf("Energy changed by %e\n",dE);
     Eold=Etot;
 
     /*
@@ -292,14 +255,46 @@ int main(int argc, char **argv) {
     diis.solve_F(Fa,Fb);
     printf("DIIS update and solution done in %.6f\n",timer.elapsed().wall*1e-9);
 
+    // Have we converged?
+    double convthr(1e-8);
+    // convergence is only meaningful if without active space
+    bool convd=(nfull==0 && diiserr<convthr && std::abs(dE)<convthr);
+
+    // Full update?
+    //bool fullupd=(i%1==0 || convd);
+    bool fullupd(true);
+
     // Diagonalize Fock matrix to get new orbitals
     timer.start();
-    eig_gsym(Ea,Ca,Fa,Sinvh,nstates);
-    eig_gsym(Eb,Cb,Fb,Sinvh,nstates);
-    printf("Diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
+    eig_gsym(Ea,Ca,Fa,Sinvh);
+    eig_gsym(Eb,Cb,Fb,Sinvh);
 
-    double convthr(1e-8);
-    if(i>0 && diiserr<convthr && std::abs(Etot-Eold)<convthr)
+      printf("%-21s energy: % .16f\n","Kinetic",Ekin);
+  printf("%-21s energy: % .16f\n","Nuclear attraction",Epot);
+  printf("%-21s energy: % .16f\n","Nuclear repulsion",Enucr);
+  printf("%-21s energy: % .16f\n","Coulomb",Ecoul);
+  printf("%-21s energy: % .16f\n","Exchange",Exx);
+  printf("%-21s energy: % .16f\n","Electric field",Efield);
+  printf("%-21s energy: % .16f\n","Total",Etot);
+  Ea.subvec(0,nena).t().print("Alpha orbital energies");
+  Eb.subvec(0,nenb).t().print("Beta  orbital energies");
+/*
+    if(fullupd) {
+      eig_gsym(Ea,Ca,Fa,Sinvh);
+      eig_gsym(Eb,Cb,Fb,Sinvh);
+      Caact=Ca.cols(0,Nact-1);
+      Cbact=Cb.cols(0,Nact-1);
+      nfull=0;
+      printf("Full diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
+    } else {
+      eig_gsym(Ea,Ca,Fa,Caact);
+      eig_gsym(Eb,Cb,Fb,Cbact);
+      nfull++;
+      printf("Active space diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
+    }
+    */
+
+    if(convd)
       break;
   }
 
