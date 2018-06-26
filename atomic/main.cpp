@@ -34,25 +34,27 @@ int main(int argc, char **argv) {
   cmdline::parser parser;
 
   // full option name, no short option, description, argument required
-  parser.add<int>("Z", 0, "nuclear charge");
-  parser.add<int>("Zl", 0, "left-hand nuclear charge");
-  parser.add<int>("Zr", 0, "right-hand nuclear charge");
-  parser.add<double>("Rmid", 0, "distance of nuclei from center");
-  parser.add<int>("nela", 0, "number of alpha electrons");
-  parser.add<int>("nelb", 0, "number of beta  electrons");
-  parser.add<int>("lmax", 0, "maximum l quantum number");
-  parser.add<int>("mmax", 0, "maximum m quantum number");
-  parser.add<double>("Rmax", 0, "practical infinity");
-  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for logarithmic");
-  parser.add<double>("zexp", 0, "parameter in radial grid");
-  parser.add<int>("nelem0", 0, "number of elements between center and off-center nuclei");
-  parser.add<int>("nelem", 0, "number of elements");
-  parser.add<int>("nnodes", 0, "number of nodes per element");
-  parser.add<int>("der_order", 0, "level of derivative continuity");
-  parser.add<int>("nquad", 0, "number of quadrature points");
-  parser.add<int>("maxit", 0, "maximum number of iterations");
-  parser.add<double>("convthr", 0, "convergence threshold");
-  parser.add<double>("Ez", 0, "electric field");
+  parser.add<int>("Z", 0, "nuclear charge", false, 0);
+  parser.add<int>("Zl", 0, "left-hand nuclear charge", false, 0);
+  parser.add<int>("Zr", 0, "right-hand nuclear charge", false, 0);
+  parser.add<double>("Rmid", 0, "distance of nuclei from center", false, 0.0);
+  parser.add<int>("nela", 0, "number of alpha electrons", true);
+  parser.add<int>("nelb", 0, "number of beta  electrons", true);
+  parser.add<int>("lmax", 0, "maximum l quantum number", true);
+  parser.add<int>("mmax", 0, "maximum m quantum number", true);
+  parser.add<double>("Rmax", 0, "practical infinity", false, 40.0);
+  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for logarithmic", false, 4);
+  parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
+  parser.add<int>("nelem0", 0, "number of elements between center and off-center nuclei", true);
+  parser.add<int>("nelem", 0, "number of elements", true);
+  parser.add<int>("nnodes", 0, "number of nodes per element", false, 6);
+  parser.add<int>("der_order", 0, "level of derivative continuity", false, 0);
+  parser.add<int>("nquad", 0, "number of quadrature points", false, 10);
+  parser.add<int>("nfull", 0, "full diagonalization every n iterations", false, 1);
+  parser.add<int>("nsub", 0, "dimension of active subspace", false, 1000);
+  parser.add<int>("maxit", 0, "maximum number of iterations", false, 50);
+  parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
+  parser.add<double>("Ez", 0, "electric field", false, 0.0);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -63,6 +65,8 @@ int main(int argc, char **argv) {
 
   int maxit(parser.get<int>("maxit"));
   double convthr(parser.get<double>("convthr"));
+  int nfull(parser.get<int>("nfull"));
+  int nsub(parser.get<int>("nsub"));
 
   // Number of elements
   int Nelem0(parser.get<int>("nelem0"));
@@ -164,11 +168,11 @@ int main(int argc, char **argv) {
   double diiserr;
 
   // Active space
-  int Nact=std::min((arma::uword) (1000),Ca.n_cols);
+  int Nact=std::min((arma::uword) (nsub),Ca.n_cols);
   arma::mat Caact(Ca.cols(0,Nact-1));
   arma::mat Cbact(Cb.cols(0,Nact-1));
 
-  size_t nfull=1;
+  size_t ifull=1;
 
   for(int i=1;i<=maxit;i++) {
     printf("\n**** Iteration %i ****\n\n",i);
@@ -265,11 +269,10 @@ int main(int argc, char **argv) {
 
     // Have we converged?
     // Convergence is only meaningful if previous update was without active space
-    bool convd=((nfull==0) && (diiserr<convthr) && (std::abs(dE)<convthr));
+    bool convd=((ifull==0) && (diiserr<convthr) && (std::abs(dE)<convthr));
 
     // Full update?
-    //bool fullupd=(i%1==0 || convd);
-    bool fullupd(true);
+    bool fullupd=(ifull==nfull || convd);
 
     // Diagonalize Fock matrix to get new orbitals
     timer.start();
@@ -279,12 +282,12 @@ int main(int argc, char **argv) {
       eig_gsym(Eb,Cb,Fb,Sinvh);
       Caact=Ca.cols(0,Nact-1);
       Cbact=Cb.cols(0,Nact-1);
-      nfull=0;
+      ifull=0;
       printf("Full diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
     } else {
       eig_gsym(Ea,Ca,Fa,Caact);
       eig_gsym(Eb,Cb,Fb,Cbact);
-      nfull++;
+      ifull++;
       printf("Active space diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
     }
 
