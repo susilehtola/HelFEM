@@ -137,17 +137,19 @@ namespace helfem {
       arma::vec bval0;
       if(b0used) {
         bval0=get_grid(b0,num_el0,igrid,zexp);
-        bval0.print("bval0");
+        //bval0.print("bval0");
       }
       arma::vec bval1;
       if(b1used) {
         // Reverse grid to get tighter spacing around nucleus
         bval1=-arma::reverse(get_grid(b1-b0,num_el0,igrid,zexp));
         bval1+=arma::ones<arma::vec>(bval1.n_elem)*(b1-b0);
-        bval1.print("bval1");
+        if(!b0used)
+          bval1(0)=0.0;
+        //bval1.print("bval1");
       }
       arma::vec bval2(get_grid(b2-b1,num_el,igrid,zexp));
-      bval2.print("bval2");
+      //bval2.print("bval2");
 
       // Total number of gridpoints
       size_t ngrid(bval2.n_elem + bval0.n_elem + bval1.n_elem -1);
@@ -630,6 +632,9 @@ namespace helfem {
         size_t Nrad(radial.Nbf());
         int Lmax(2*arma::max(lval));
         std::vector<arma::mat> Vaux(Lmax+1);
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
         for(int L=0;L<=Lmax;L++) {
           Vaux[L].zeros(Nrad,Nrad);
           for(size_t iel=0;iel<radial.Nel();iel++) {
@@ -644,11 +649,14 @@ namespace helfem {
         gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
 
         /// Loop over basis set
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
         for(size_t iang=0;iang<lval.n_elem;iang++) {
-          int li(lval(iang));
-          int mi(mval(iang));
-
           for(size_t jang=0;jang<lval.n_elem;jang++) {
+            int li(lval(iang));
+            int mi(mval(iang));
+
             int lj(lval(jang));
             int mj(mval(jang));
 
@@ -730,12 +738,15 @@ namespace helfem {
 
       // Form two-electron integrals
       prim_tei.resize(Nel*Nel*N_L);
+#ifdef _OPENMP
+#pragma omp parallel for collapse(3)
+#endif
       for(size_t L=0;L<N_L;L++) {
-        // Normalization factor
-        double Lfac=4.0*M_PI/(2*L+1);
-
         for(size_t iel=0;iel<Nel;iel++) {
           for(size_t jel=0;jel<Nel;jel++) {
+            // Normalization factor
+            double Lfac=4.0*M_PI/(2*L+1);
+
 	    if(iel==jel) {
 	      // In-element integral
 	      prim_tei[Nel*Nel*L + iel*Nel + iel]=radial.twoe_integral(L,iel);
@@ -762,6 +773,9 @@ namespace helfem {
 	so we don't have to reform the permutations in the exchange routine.
       */
       prim_ktei.resize(Nel*Nel*N_L);
+#ifdef _OPENMP
+#pragma omp parallel for collapse(3)
+#endif
       for(size_t L=0;L<N_L;L++)
         for(size_t iel=0;iel<Nel;iel++)
           for(size_t jel=0;jel<Nel;jel++) {
@@ -800,11 +814,14 @@ namespace helfem {
       arma::vec mem_Psub(Nrad*Nrad);
 
       // Increment
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
       for(size_t iang=0;iang<lval.n_elem;iang++) {
-        int li(lval(iang));
-        int mi(mval(iang));
-
         for(size_t jang=0;jang<lval.n_elem;jang++) {
+          int li(lval(iang));
+          int mi(mval(iang));
+
           int lj(lval(jang));
           int mj(mval(jang));
           // LH m value
@@ -851,7 +868,7 @@ namespace helfem {
 		      // Get density submatrix
 		      //arma::vec Psub(mem_Psub.memptr(),Nrad*Nrad,false,true);
                       //Psub=arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast));
-                      arma::vec Psub(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast));
+                      arma::vec Psub(arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast)));
                       // Don't calculate zeros
                       if(arma::norm(Psub,2)==0.0)
                         continue;
@@ -907,29 +924,34 @@ namespace helfem {
       arma::mat K(Nbf(),Nbf());
       K.zeros();
 
+      //
+
       // Helper memory
       arma::vec mem_Ksub(Nrad*Nrad);
       arma::vec mem_Psub(Nrad*Nrad);
 
       // Increment
-      for(size_t iang=0;iang<lval.n_elem;iang++) {
-        int li(lval(iang));
-        int mi(mval(iang));
-
-        for(size_t jang=0;jang<lval.n_elem;jang++) {
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+      for(size_t jang=0;jang<lval.n_elem;jang++) {
+        for(size_t kang=0;kang<lval.n_elem;kang++) {
           int lj(lval(jang));
           int mj(mval(jang));
-          // LH m value
-          int M(mj-mi);
 
-          for(size_t kang=0;kang<lval.n_elem;kang++) {
-            int lk(lval(kang));
-            int mk(mval(kang));
+          int lk(lval(kang));
+          int mk(mval(kang));
+
+          for(size_t iang=0;iang<lval.n_elem;iang++) {
+            int li(lval(iang));
+            int mi(mval(iang));
 
             for(size_t lang=0;lang<lval.n_elem;lang++) {
               int ll(lval(lang));
               int ml(mval(lang));
 
+              // LH m value
+              int M(mj-mi);
               // RH m value
               int Mp(mk-ml);
               if(M!=Mp)
