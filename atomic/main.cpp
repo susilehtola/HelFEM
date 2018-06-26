@@ -1,3 +1,4 @@
+#define HARTREEINEV 27.211386
 #include "../general/cmdline.h"
 #include "../general/diis.h"
 #include "basis.h"
@@ -49,6 +50,8 @@ int main(int argc, char **argv) {
   parser.add<int>("nnodes", 0, "number of nodes per element");
   parser.add<int>("der_order", 0, "level of derivative continuity");
   parser.add<int>("nquad", 0, "number of quadrature points");
+  parser.add<int>("maxit", 0, "maximum number of iterations");
+  parser.add<double>("convthr", 0, "convergence threshold");
   parser.add<double>("Ez", 0, "electric field");
   parser.parse_check(argc, argv);
 
@@ -57,6 +60,10 @@ int main(int argc, char **argv) {
   int igrid(parser.get<int>("grid"));
   double zexp(parser.get<double>("zexp"));
   double Ez(parser.get<double>("Ez"));
+
+  int maxit(parser.get<int>("maxit"));
+  double convthr(parser.get<double>("convthr"));
+
   // Number of elements
   int Nelem0(parser.get<int>("nelem0"));
   int Nelem(parser.get<int>("nelem"));
@@ -163,7 +170,7 @@ int main(int argc, char **argv) {
 
   size_t nfull=1;
 
-  for(int i=1;i<1000;i++) {
+  for(int i=1;i<=maxit;i++) {
     printf("\n**** Iteration %i ****\n\n",i);
 
     // Form density matrix
@@ -206,6 +213,7 @@ int main(int argc, char **argv) {
     Etot=Ekin+Epot+Efield+Ecoul+Exx+Enucr;
     double dE=Etot-Eold;
 
+    printf("Total energy is % .10f\n",Etot);
     if(i>1)
       printf("Energy changed by %e\n",dE);
     Eold=Etot;
@@ -256,8 +264,7 @@ int main(int argc, char **argv) {
     printf("DIIS update and solution done in %.6f\n",timer.elapsed().wall*1e-9);
 
     // Have we converged?
-    double convthr(1e-8);
-    // convergence is only meaningful if previous update was without active space
+    // Convergence is only meaningful if previous update was without active space
     bool convd=((nfull==0) && (diiserr<convthr) && (std::abs(dE)<convthr));
 
     // Full update?
@@ -280,6 +287,11 @@ int main(int argc, char **argv) {
       nfull++;
       printf("Active space diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
     }
+
+    if(nelb)
+      printf("HOMO-LUMO gap is % .3f % .3f eV\n",(Ea(nela)-Ea(nela-1))*HARTREEINEV,(Eb(nelb)-Eb(nelb-1))*HARTREEINEV);
+    else
+      printf("HOMO-LUMO gap is % .3f eV\n",(Ea(nela)-Ea(nela-1))*HARTREEINEV);
 
     if(convd)
       break;
