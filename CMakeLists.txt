@@ -2,6 +2,16 @@
 cmake_minimum_required (VERSION 2.6)
 project (helfem CXX)
 
+option(USE_OPENMP "Compile OpenMP enabled version (for parallel calculations)?" ON)
+# Find OpenMP support
+if(USE_OPENMP)
+ find_package( OpenMP )
+ if(OPENMP_FOUND)
+  # Add flags to CXX flags
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+ endif()
+endif()
+
 INCLUDE_DIRECTORIES("/home/work/armadillo/include/")
 INCLUDE_DIRECTORIES("../arpack-arma/include/")
 # Large matrix support
@@ -18,32 +28,32 @@ legendre/legendre_q_normal.cpp)
 
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem)
-target_link_libraries(gaunt_test gsl openblas64)
+target_link_libraries(gaunt_test gsl openblaso64)
 
 add_executable(harmonic harmonic/main.cpp harmonic/quadrature.cpp)
 target_link_libraries(harmonic helfem)
-target_link_libraries(harmonic gsl openblas64)
+target_link_libraries(harmonic gsl openblaso64)
 
 add_executable(legendre_test legendre/legendre_test.cpp)
 target_link_libraries(legendre_test helfem legendre)
-target_link_libraries(legendre_test gsl openblas64)
+target_link_libraries(legendre_test gsl openblaso64)
 
 add_executable(atomic atomic/main.cpp atomic/basis.cpp atomic/quadrature.cpp)
 target_link_libraries(atomic helfem)
-target_link_libraries(atomic gsl openblas64 boost_timer)
+target_link_libraries(atomic gsl openblaso64 boost_timer)
 
 add_executable(atomic_qtest atomic/qtest.cpp atomic/basis.cpp atomic/quadrature.cpp)
 target_link_libraries(atomic_qtest helfem)
-target_link_libraries(atomic_qtest gsl openblas64)
+target_link_libraries(atomic_qtest gsl openblaso64)
 
 add_executable(atomic_itest atomic/inttest.cpp atomic/basis.cpp atomic/quadrature.cpp)
 target_link_libraries(atomic_itest helfem)
-target_link_libraries(atomic_itest gsl openblas64)
+target_link_libraries(atomic_itest gsl openblaso64)
 
 add_executable(diatomic diatomic/main.cpp diatomic/basis.cpp diatomic/quadrature.cpp)
 target_link_libraries(diatomic helfem legendre)
-target_link_libraries(diatomic gsl openblas boost_timer)
+target_link_libraries(diatomic gsl openblaso64 boost_timer)
 
 add_executable(diatomic_itest diatomic/inttest.cpp diatomic/basis.cpp diatomic/quadrature.cpp)
 target_link_libraries(diatomic_itest helfem legendre)
-target_link_libraries(diatomic_itest gsl openblas)
+target_link_libraries(diatomic_itest gsl openblaso64)
