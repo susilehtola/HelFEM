@@ -7,6 +7,10 @@
 #include <cassert>
 #include <cfloat>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 /// Use quadrature for one-electron integrals?
 #define OEI_QUADRATURE
 /// Use quadrature for two-electron integrals?
@@ -52,8 +56,12 @@ namespace helfem {
         break;
 
       default:
-          throw std::logic_error("Invalid choice for grid\n");
+        throw std::logic_error("Invalid choice for grid\n");
       }
+
+      // Make sure start and end points are numerically exact
+      bval(0)=0.0;
+      bval(bval.n_elem-1)=rmax;
 
       return bval;
     }
@@ -99,6 +107,24 @@ namespace helfem {
 #endif
     }
 
+    static arma::vec concatenate_grid(const arma::vec & left, const arma::vec & right) {
+      if(!left.n_elem)
+        return right;
+      if(!right.n_elem)
+        return left;
+
+      if(left(0) != 0.0)
+        throw std::logic_error("left vector doesn't start from zero");
+      if(right(0) != 0.0)
+        throw std::logic_error("right vector doesn't start from zero");
+
+      // Concatenated vector
+      arma::vec ret(left.n_elem + right.n_elem - 1);
+      ret.subvec(0,left.n_elem-1)=left;
+      ret.subvec(left.n_elem,ret.n_elem-1)=right.subvec(1,right.n_elem-1) + left(left.n_elem-1)*arma::ones<arma::vec>(right.n_elem-1);
+      return ret;
+    }
+
     RadialBasis::RadialBasis(int n_nodes, int der_order, int n_quad, int num_el0, int Zm, int Zlr, double Rhalf, int num_el, double rmax, int igrid, double zexp) {
       // Get primitive polynomial representation
       bf_C=polynomial::hermite_coeffs(n_nodes, der_order);
@@ -134,45 +160,35 @@ namespace helfem {
       printf("b2 = %e\n",b2);
 
       // Get grids
-      arma::vec bval0;
+      arma::vec bval0, bval1;
       if(b0used) {
+        // 0 to b0
         bval0=get_grid(b0,num_el0,igrid,zexp);
-        //bval0.print("bval0");
       }
-      arma::vec bval1;
       if(b1used) {
+        // b0 to b1
+
         // Reverse grid to get tighter spacing around nucleus
         bval1=-arma::reverse(get_grid(b1-b0,num_el0,igrid,zexp));
         bval1+=arma::ones<arma::vec>(bval1.n_elem)*(b1-b0);
-        if(!b0used)
-          bval1(0)=0.0;
-        //bval1.print("bval1");
+        // Assert numerical exactness
+        bval1(0)=0.0;
+        bval1(bval1.n_elem-1)=b1-b0;
       }
-      arma::vec bval2(get_grid(b2-b1,num_el,igrid,zexp));
-      //bval2.print("bval2");
+      arma::vec bval2=get_grid(b2-b1,num_el,igrid,zexp);
 
-      // Total number of gridpoints
-      size_t ngrid(bval2.n_elem + bval0.n_elem + bval1.n_elem -1);
-      if(b0used && b1used)
-        // We have another shared grid point
-        ngrid--;
-
-      bval.zeros(ngrid);
-      size_t ioff=0;
-      if(b0used) {
-        bval.subvec(0,bval0.n_elem-1)=bval0;
-        ioff+=bval0.n_elem;
+      if(b0used && b1used) {
+        bval=concatenate_grid(bval0,bval1);
+      } else if(b0used) {
+        bval=bval0;
+      } else if(b1used) {
+        bval=bval1;
       }
-      if(b1used) {
-        if(b0used) {
-          bval.subvec(ioff,ioff+bval1.n_elem-2)=bval1.subvec(1,bval1.n_elem-1)+b0*arma::ones<arma::vec>(bval1.n_elem);
-          ioff+=bval1.n_elem-1;
-        } else {
-          bval.subvec(ioff,ioff+bval1.n_elem-1)=bval1;
-          ioff+=bval1.n_elem;
-        }
+      if(b0used || b1used) {
+        bval=concatenate_grid(bval,bval2);
+      } else {
+        bval=bval2;
       }
-      bval.subvec(ioff,bval.n_elem-1)=bval2.subvec(1,bval2.n_elem-1)+b1*arma::ones<arma::vec>(bval2.n_elem-1);
       bval.print("Element boundaries");
 
 #ifdef OEI_QUADRATURE
@@ -229,6 +245,10 @@ namespace helfem {
 	return bf.n_cols-noverlap;
       else
 	return bf.n_cols;
+    }
+
+    size_t RadialBasis::max_Nprim() const {
+      return bf.n_cols;
     }
 
     void RadialBasis::get_idx(size_t iel, size_t & ifirst, size_t & ilast) const {
@@ -372,13 +392,13 @@ namespace helfem {
       for(size_t fi=0;fi<N;fi++)
         for(size_t fj=0;fj<N;fj++)
           for(size_t kl=0;kl<2*Nx;kl++)
-              {
-                double el=0.0;
-                for(size_t pi=0;pi<Nx;pi++)
-                  for(size_t pj=0;pj<Nx;pj++)
-                    el+=primint(pi+pj,kl)*C(pi,fi)*C(pj,fj);
-                heri(fj*N+fi,kl)=el;
-              }
+            {
+              double el=0.0;
+              for(size_t pi=0;pi<Nx;pi++)
+                for(size_t pj=0;pj<Nx;pj++)
+                  el+=primint(pi+pj,kl)*C(pi,fi)*C(pj,fj);
+              heri(fj*N+fi,kl)=el;
+            }
 
       // Full transform
       arma::mat eri(N*N,N*N);
@@ -439,7 +459,7 @@ namespace helfem {
             mval(iang)=-mabs;
             iang++;
           }
-      }
+        }
       if(iang!=lval.n_elem)
         throw std::logic_error("Error.\n");
     }
@@ -476,7 +496,7 @@ namespace helfem {
             mval(iang)=-mabs;
             iang++;
           }
-      }
+        }
       if(iang!=lval.n_elem)
         throw std::logic_error("Error.\n");
     }
@@ -490,9 +510,9 @@ namespace helfem {
 
     size_t TwoDBasis::angular_nbf(size_t iam) const {
       /*
-      if(lval(iam)==0)
+        if(lval(iam)==0)
 	return radial.Nbf();
-      else
+        else
 	// Boundary condition with l>0: remove first noverlap functions!
 	return radial.Nbf()-radial.get_noverlap();
       */
@@ -769,7 +789,7 @@ namespace helfem {
 	in the density matrix.
 
 	To get this in the proper order, we permute the integrals
-	           K(jk) = (jk;il) P(il)
+        K(jk) = (jk;il) P(il)
 	so we don't have to reform the permutations in the exchange routine.
       */
       prim_ktei.resize(Nel*Nel*N_L);
@@ -810,83 +830,103 @@ namespace helfem {
       J.zeros();
 
       // Helper memory
-      arma::vec mem_Jsub(Nrad*Nrad);
-      arma::vec mem_Psub(Nrad*Nrad);
-
-      // Increment
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2)
+      const int nth(omp_get_max_threads());
+#else
+      const int nth(1);
 #endif
-      for(size_t iang=0;iang<lval.n_elem;iang++) {
-        for(size_t jang=0;jang<lval.n_elem;jang++) {
-          int li(lval(iang));
-          int mi(mval(iang));
+      std::vector<arma::vec> mem_Jsub(nth);
+      std::vector<arma::vec> mem_Psub(nth);
 
-          int lj(lval(jang));
-          int mj(mval(jang));
-          // LH m value
-          int M(mj-mi);
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+      {
+#ifdef _OPENMP
+        const int ith(omp_get_thread_num());
+#else
+        const int ith(0);
+#endif
+        // These are only small submatrices!
+        mem_Psub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
+        mem_Jsub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
 
-          for(size_t kang=0;kang<lval.n_elem;kang++) {
-            int lk(lval(kang));
-            int mk(mval(kang));
+        // Increment
+#ifdef _OPENMP
+#pragma omp for collapse(2)
+#endif
+        for(size_t iang=0;iang<lval.n_elem;iang++) {
+          for(size_t jang=0;jang<lval.n_elem;jang++) {
+            int li(lval(iang));
+            int mi(mval(iang));
 
-            for(size_t lang=0;lang<lval.n_elem;lang++) {
-              int ll(lval(lang));
-              int ml(mval(lang));
+            int lj(lval(jang));
+            int mj(mval(jang));
+            // LH m value
+            int M(mj-mi);
 
-              // RH m value
-              int Mp(mk-ml);
-              if(M!=Mp)
-                continue;
+            for(size_t kang=0;kang<lval.n_elem;kang++) {
+              int lk(lval(kang));
+              int mk(mval(kang));
 
-              // Do we have any density in this block?
-              double bdens(arma::norm(P.submat(kang*Nrad,lang*Nrad,(kang+1)*Nrad-1,(lang+1)*Nrad-1),"fro"));
-              //printf("(%i %i) (%i %i) density block norm %e\n",lk,mk,ll,ml,bdens);
-              if(bdens<10*DBL_EPSILON)
-                continue;
+              for(size_t lang=0;lang<lval.n_elem;lang++) {
+                int ll(lval(lang));
+                int ml(mval(lang));
 
-              // M values match. Loop over possible couplings
-              int Lmin=std::max(std::max(std::abs(li-lj),std::abs(lk-ll)),abs(M));
-              int Lmax=std::min(li+lj,lk+ll);
+                // RH m value
+                int Mp(mk-ml);
+                if(M!=Mp)
+                  continue;
 
-              for(int L=Lmin;L<=Lmax;L++) {
-                // Calculate total coupling coefficient
-                double cpl(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
+                // Do we have any density in this block?
+                double bdens(arma::norm(P.submat(kang*Nrad,lang*Nrad,(kang+1)*Nrad-1,(lang+1)*Nrad-1),"fro"));
+                //printf("(%i %i) (%i %i) density block norm %e\n",lk,mk,ll,ml,bdens);
+                if(bdens<10*DBL_EPSILON)
+                  continue;
 
-                if(cpl!=0.0) {
-                  // Loop over elements: output
-                  for(size_t iel=0;iel<Nel;iel++) {
-                    size_t ifirst, ilast;
-		    radial.get_idx(iel,ifirst,ilast);
+                // M values match. Loop over possible couplings
+                int Lmin=std::max(std::max(std::abs(li-lj),std::abs(lk-ll)),abs(M));
+                int Lmax=std::min(li+lj,lk+ll);
 
-                    // Input
-                    for(size_t jel=0;jel<Nel;jel++) {
-                      size_t jfirst, jlast;
-                      radial.get_idx(jel,jfirst,jlast);
+                for(int L=Lmin;L<=Lmax;L++) {
+                  // Calculate total coupling coefficient
+                  double cpl(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
 
-		      // Get density submatrix
-		      //arma::vec Psub(mem_Psub.memptr(),Nrad*Nrad,false,true);
-                      //Psub=arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast));
-                      arma::vec Psub(arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast)));
-                      // Don't calculate zeros
-                      if(arma::norm(Psub,2)==0.0)
-                        continue;
+                  if(cpl!=0.0) {
+                    // Loop over elements: output
+                    for(size_t iel=0;iel<Nel;iel++) {
+                      size_t ifirst, ilast;
+                      radial.get_idx(iel,ifirst,ilast);
 
-		      // Contract integrals
-                      //arma::mat Jsub(mem_Jsub.memptr(),Nrad*Nrad,1,false,true);
-		      //Jsub=cpl*(prim_tei[Nel*Nel*L + iel*Nel + jel]*Psub);
-                      //Jsub.resize(ilast-ifirst+1,ilast-ifirst+1);
+                      // Input
+                      for(size_t jel=0;jel<Nel;jel++) {
+                        size_t jfirst, jlast;
+                        radial.get_idx(jel,jfirst,jlast);
 
-		      // Increment global Coulomb matrix
-		      //J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=Jsub;
+                        // Number of functions in the two elements
+                        size_t Ni(ilast-ifirst+1);
+                        size_t Nj(jlast-jfirst+1);
 
-                      arma::vec Jsub(cpl*(prim_tei[Nel*Nel*L + iel*Nel + jel]*Psub));
-                      J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=arma::reshape(Jsub,ilast-ifirst+1,ilast-ifirst+1);
+                        // Get density submatrix
+                        arma::vec Psub(mem_Psub[ith].memptr(),Nj*Nj,false,true);
+                        Psub=arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast));
+                        //arma::vec Psub(arma::vectorise(P.submat(kang*Nrad+jfirst,lang*Nrad+jfirst,kang*Nrad+jlast,lang*Nrad+jlast)));
+                        // Don't calculate zeros
+                        if(arma::norm(Psub,2)==0.0)
+                          continue;
 
-		      //arma::vec Ptgt(arma::vectorise(P.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)));
-		      //printf("(%i %i) (%i %i) (%i %i) (%i %i) [%i %i]\n",li,mi,lj,mj,lk,mk,ll,ml,L,M);
-		      //printf("Element %i - %i contribution to Coulomb energy % .10e\n",(int) iel,(int) jel,0.5*arma::dot(Jsub,Ptgt));
+                        // Contract integrals
+                        arma::mat Jsub(mem_Jsub[ith].memptr(),Ni*Ni,1,false,true);
+                        Jsub=cpl*(prim_tei[Nel*Nel*L + iel*Nel + jel]*Psub);
+                        Jsub.reshape(Ni,Ni);
+
+                        // Increment global Coulomb matrix
+                        J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=Jsub;
+
+                        //arma::vec Ptgt(arma::vectorise(P.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)));
+                        //printf("(%i %i) (%i %i) (%i %i) (%i %i) [%i %i]\n",li,mi,lj,mj,lk,mk,ll,ml,L,M);
+                        //printf("Element %i - %i contribution to Coulomb energy % .10e\n",(int) iel,(int) jel,0.5*arma::dot(Jsub,Ptgt));
+                      }
                     }
                   }
                 }
@@ -924,101 +964,114 @@ namespace helfem {
       arma::mat K(Nbf(),Nbf());
       K.zeros();
 
-      //
-
       // Helper memory
-      arma::vec mem_Ksub(Nrad*Nrad);
-      arma::vec mem_Psub(Nrad*Nrad);
-
-      // Increment
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2)
+      const int nth(omp_get_max_threads());
+#else
+      const int nth(1);
 #endif
-      for(size_t jang=0;jang<lval.n_elem;jang++) {
-        for(size_t kang=0;kang<lval.n_elem;kang++) {
-          int lj(lval(jang));
-          int mj(mval(jang));
+      std::vector<arma::vec> mem_Ksub(nth);
+      std::vector<arma::vec> mem_Psub(nth);
 
-          int lk(lval(kang));
-          int mk(mval(kang));
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+      {
+#ifdef _OPENMP
+        const int ith(omp_get_thread_num());
+#else
+        const int ith(0);
+#endif
+        // These are only small submatrices!
+        mem_Psub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
+        mem_Ksub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
 
-          for(size_t iang=0;iang<lval.n_elem;iang++) {
-            int li(lval(iang));
-            int mi(mval(iang));
+        // Increment
+#ifdef _OPENMP
+#pragma omp for collapse(2)
+#endif
+        for(size_t jang=0;jang<lval.n_elem;jang++) {
+          for(size_t kang=0;kang<lval.n_elem;kang++) {
+            int lj(lval(jang));
+            int mj(mval(jang));
 
-            for(size_t lang=0;lang<lval.n_elem;lang++) {
-              int ll(lval(lang));
-              int ml(mval(lang));
+            int lk(lval(kang));
+            int mk(mval(kang));
 
-              // LH m value
-              int M(mj-mi);
-              // RH m value
-              int Mp(mk-ml);
-              if(M!=Mp)
-                continue;
+            for(size_t iang=0;iang<lval.n_elem;iang++) {
+              int li(lval(iang));
+              int mi(mval(iang));
 
-              // Do we have any density in this block?
-              double bdens(arma::norm(P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1),"fro"));
-              //printf("(%i %i) (%i %i) density block norm %e\n",li,mi,ll,ml,bdens);
-              if(bdens<10*DBL_EPSILON)
-                continue;
+              for(size_t lang=0;lang<lval.n_elem;lang++) {
+                int ll(lval(lang));
+                int ml(mval(lang));
 
-              // M values match. Loop over possible couplings
-              int Lmin=std::max(std::max(std::abs(li-lj),std::abs(lk-ll)),abs(M));
-              int Lmax=std::min(li+lj,lk+ll);
+                // LH m value
+                int M(mj-mi);
+                // RH m value
+                int Mp(mk-ml);
+                if(M!=Mp)
+                  continue;
 
-              for(int L=Lmin;L<=Lmax;L++) {
-                // Calculate total coupling coefficient
-                double cpl(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
+                // Do we have any density in this block?
+                double bdens(arma::norm(P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1),"fro"));
+                //printf("(%i %i) (%i %i) density block norm %e\n",li,mi,ll,ml,bdens);
+                if(bdens<10*DBL_EPSILON)
+                  continue;
 
-                if(cpl!=0.0) {
-                  // Loop over elements: output
-                  for(size_t iel=0;iel<Nel;iel++) {
-                    size_t ifirst, ilast;
-                     radial.get_idx(iel,ifirst,ilast);
+                // M values match. Loop over possible couplings
+                int Lmin=std::max(std::max(std::abs(li-lj),std::abs(lk-ll)),abs(M));
+                int Lmax=std::min(li+lj,lk+ll);
 
-                    // Input
-                    for(size_t jel=0;jel<Nel;jel++) {
-                      size_t jfirst, jlast;
-                      radial.get_idx(jel,jfirst,jlast);
+                for(int L=Lmin;L<=Lmax;L++) {
+                  // Calculate total coupling coefficient
+                  double cpl(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
 
-                      // Number of functions in the two elements
-                      size_t Ni(ilast-ifirst+1);
-                      size_t Nj(jlast-jfirst+1);
+                  if(cpl!=0.0) {
+                    // Loop over elements: output
+                    for(size_t iel=0;iel<Nel;iel++) {
+                      size_t ifirst, ilast;
+                      radial.get_idx(iel,ifirst,ilast);
 
-		      /*
-			The exchange matrix is given by
-			K(jk) = (ij|kl) P(il)
-			i.e. the complex conjugation hits i and l as
-			in the density matrix.
+                      // Input
+                      for(size_t jel=0;jel<Nel;jel++) {
+                        size_t jfirst, jlast;
+                        radial.get_idx(jel,jfirst,jlast);
 
-			To get this in the proper order, we permute the integrals
-			K(jk) = (jk;il) P(il)
-		      */
+                        // Number of functions in the two elements
+                        size_t Ni(ilast-ifirst+1);
+                        size_t Nj(jlast-jfirst+1);
 
-                      // Get density submatrix
-		      //arma::vec Psub(mem_Psub.memptr(),Nrad*Nrad,false,true);
-                      //Psub=arma::vectorise(P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast));
-                      arma::vec Psub(arma::vectorise(P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast)));
+                        /*
+                          The exchange matrix is given by
+                          K(jk) = (ij|kl) P(il)
+                          i.e. the complex conjugation hits i and l as
+                          in the density matrix.
 
-                      // Don't calculate zeros
-                      if(arma::norm(Psub,2)==0.0)
-                        continue;
+                          To get this in the proper order, we permute the integrals
+                          K(jk) = (jk;il) P(il)
+                        */
 
-		      // Exchange submatrix
-                      //arma::mat Ksub(mem_Ksub.memptr(),Nrad*Nrad,1,false,true);
-                      //Ksub=cpl*(prim_ktei[Nel*Nel*L + iel*Nel + jel]*Psub);
-                      //Ksub.resize(Ni,Nj);
+                        // Get density submatrix
+                        arma::vec Psub(mem_Psub[ith].memptr(),Ni*Nj,false,true);
+                        Psub=arma::vectorise(P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast));
 
-                      // Increment global exchange matrix
-                      //K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
+                        // Don't calculate zeros
+                        if(arma::norm(Psub,2)==0.0)
+                          continue;
 
-                      arma::vec Ksub(cpl*(prim_ktei[Nel*Nel*L + iel*Nel + jel]*Psub));
-                      K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=arma::reshape(Ksub,Ni,Nj);
+                        // Exchange submatrix
+                        arma::mat Ksub(mem_Ksub[ith].memptr(),Ni*Nj,1,false,true);
+                        Ksub=cpl*(prim_ktei[Nel*Nel*L + iel*Nel + jel]*Psub);
+                        Ksub.reshape(Ni,Nj);
 
-		      //arma::vec Ptgt(arma::vectorise(P.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)));
-		      //printf("(%i %i) (%i %i) (%i %i) (%i %i) [%i %i]\n",li,mi,lj,mj,lk,mk,ll,ml,L,M);
-		      //printf("Element %i - %i contribution to exchange energy % .10e\n",(int) iel,(int) jel,-0.5*arma::dot(Ksub,Ptgt));
+                        // Increment global exchange matrix
+                        K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
+
+                        //arma::vec Ptgt(arma::vectorise(P.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)));
+                        //printf("(%i %i) (%i %i) (%i %i) (%i %i) [%i %i]\n",li,mi,lj,mj,lk,mk,ll,ml,L,M);
+                        //printf("Element %i - %i contribution to exchange energy % .10e\n",(int) iel,(int) jel,-0.5*arma::dot(Ksub,Ptgt));
+                      }
                     }
                   }
                 }

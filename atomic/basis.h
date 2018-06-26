@@ -45,6 +45,8 @@ namespace helfem {
       size_t Nbf() const;
       /// Number of primitive functions in element
       size_t Nprim(size_t iel) const;
+      /// Number of primitive functions in element
+      size_t max_Nprim() const;
 
       /// Number of elements
       size_t Nel() const;
