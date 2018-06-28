@@ -16,7 +16,7 @@
 /// Use quadrature for two-electron integrals?
 #define TEI_QUADRATURE
 /// Use Cholesky for Sinvh?
-//#define CHOL_SINVH
+#define CHOL_SINVH
 
 namespace helfem {
   namespace basis {
