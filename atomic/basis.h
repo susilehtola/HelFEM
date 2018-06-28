@@ -124,11 +124,22 @@ namespace helfem {
       /// Destructor
       ~TwoDBasis();
 
+      /// Memory for one-electron integral matrix
+      size_t mem_1el() const;
+      /// Memory for auxiliary one-electron integrals (off-center nuclei)
+      size_t mem_1el_aux() const;
+      /// Memory for auxiliary two-electron integrals
+      size_t mem_2el_aux() const;
+
       /// Compute two-electron integrals
       void compute_tei();
 
       /// Number of basis functions
       size_t Nbf() const;
+      /// Number of radial functions
+      size_t Nrad() const;
+      /// Number of angular shells
+      size_t Nang() const;
 
       /// Form half-inverse overlap matrix
       arma::mat Sinvh() const;

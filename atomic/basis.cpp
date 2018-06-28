@@ -508,6 +508,14 @@ namespace helfem {
       return lval.n_elem*radial.Nbf();
     }
 
+    size_t TwoDBasis::Nrad() const {
+      return radial.Nbf();
+    }
+
+    size_t TwoDBasis::Nang() const {
+      return lval.n_elem;
+    }
+
     size_t TwoDBasis::angular_nbf(size_t iam) const {
       /*
         if(lval(iam)==0)
@@ -740,6 +748,30 @@ namespace helfem {
 
       return remove_boundaries(V);
     }
+
+    size_t TwoDBasis::mem_1el() const {
+      return Nbf()*Nbf()*sizeof(double);
+    }
+
+    size_t TwoDBasis::mem_1el_aux() const {
+      size_t Nrad(radial.Nbf());
+      size_t N_L(2*arma::max(lval)+1);
+
+      return N_L*Nrad*Nrad*sizeof(double);
+    }
+
+    size_t TwoDBasis::mem_2el_aux() const {
+      // Auxiliary integrals required up to
+      size_t N_L(2*arma::max(lval)+1);
+      // Number of elements
+      size_t Nel(radial.Nel());
+      // Number of primitive functions per element
+      size_t Nprim(radial.max_Nprim());
+
+      // Memory use is thus
+      return N_L*Nel*Nel*Nprim*Nprim*Nprim*Nprim*sizeof(double);
+    }
+
 
     void TwoDBasis::compute_tei() {
       // Number of distinct L values is

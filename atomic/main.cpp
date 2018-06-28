@@ -30,6 +30,36 @@ void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat
   C=Sinvh*C;
 }
 
+std::string memory_size(size_t size) {
+  std::ostringstream ret;
+
+  const size_t kilo(1000);
+  const size_t mega(kilo*kilo);
+  const size_t giga(mega*kilo);
+
+  // Number of gigabytes
+  size_t gigs(size/giga);
+  if(gigs>0) {
+    size-=gigs*giga;
+    ret << gigs;
+    ret << " G ";
+  }
+  size_t megs(size/mega);
+  if(megs>0) {
+    size-=megs*mega;
+    ret << megs;
+    ret << " M ";
+  }
+  size_t kils(size/kilo);
+  if(kils>0) {
+    size-=kils*kilo;
+    ret << kils;
+    ret << " k ";
+  }
+
+  return ret.str();
+}
+
 int main(int argc, char **argv) {
   cmdline::parser parser;
 
@@ -102,7 +132,11 @@ int main(int argc, char **argv) {
     basis=basis::TwoDBasis(Z, Nnodes, der_order, Nquad, Nelem0, Nelem, Rmax, lmax, mmax, igrid, zexp, Zl, Zr, Rhalf);
   else
     basis=basis::TwoDBasis(Z, Nnodes, der_order, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
-  printf("Basis set contains %i functions\n",(int) basis.Nbf());
+  printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
+
+  printf("One-electron matrix requires %s\n",memory_size(basis.mem_1el()).c_str());
+  printf("Auxiliary one-electron integrals require %s\n",memory_size(basis.mem_1el_aux()).c_str());
+  printf("Auxiliary two-electron integrals require %s\n",memory_size(basis.mem_2el_aux()).c_str());
 
   double Enucr=(Rhalf>0) ? Z*(Zl+Zr)/Rhalf + Zl*Zr/(2*Rhalf) : 0.0;
   printf("Central nuclear charge is %i\n",Z);
@@ -223,39 +257,39 @@ int main(int argc, char **argv) {
     Eold=Etot;
 
     /*
-    S.print("S");
-    T.print("T");
-    Vnuc.print("Vnuc");
-    Ca.print("Ca");
-    Pa.print("Pa");
-    J.print("J");
-    Ka.print("Ka");
+      S.print("S");
+      T.print("T");
+      Vnuc.print("Vnuc");
+      Ca.print("Ca");
+      Pa.print("Pa");
+      J.print("J");
+      Ka.print("Ka");
 
-    arma::mat Jmo(Ca.t()*J*Ca);
-    arma::mat Kmo(Ca.t()*Ka*Ca);
-    Jmo.submat(0,0,10,10).print("Jmo");
-    Kmo.submat(0,0,10,10).print("Kmo");
+      arma::mat Jmo(Ca.t()*J*Ca);
+      arma::mat Kmo(Ca.t()*Ka*Ca);
+      Jmo.submat(0,0,10,10).print("Jmo");
+      Kmo.submat(0,0,10,10).print("Kmo");
 
 
-    Kmo+=Jmo;
-    Kmo.print("Jmo+Kmo");
+      Kmo+=Jmo;
+      Kmo.print("Jmo+Kmo");
 
-    Fa.print("Fa");
-    arma::mat Fao(Sinvh.t()*Fa*Sinvh);
-    Fao.print("Fao");
-    Sinvh.print("Sinvh");
+      Fa.print("Fa");
+      arma::mat Fao(Sinvh.t()*Fa*Sinvh);
+      Fao.print("Fao");
+      Sinvh.print("Sinvh");
     */
 
     /*
-    arma::mat Jmo(Ca.t()*J*Ca);
-    arma::mat Kmo(Ca.t()*Ka*Ca);
-    arma::mat Fmo(Ca.t()*Fa*Ca);
-    Jmo=Jmo.submat(0,0,4,4);
-    Kmo=Kmo.submat(0,0,4,4);
-    Fmo=Fmo.submat(0,0,4,4);
-    Jmo.print("J");
-    Kmo.print("K");
-    Fmo.print("F");
+      arma::mat Jmo(Ca.t()*J*Ca);
+      arma::mat Kmo(Ca.t()*Ka*Ca);
+      arma::mat Fmo(Ca.t()*Fa*Ca);
+      Jmo=Jmo.submat(0,0,4,4);
+      Kmo=Kmo.submat(0,0,4,4);
+      Fmo=Fmo.submat(0,0,4,4);
+      Jmo.print("J");
+      Kmo.print("K");
+      Fmo.print("F");
     */
 
     // Update DIIS
