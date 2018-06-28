@@ -60,6 +60,33 @@ std::string memory_size(size_t size) {
   return ret.str();
 }
 
+
+bool check_space(const arma::mat & F, const arma::mat & Cocc, const arma::mat & Cvirt, const arma::mat & Cfrz, double thr) {
+  // Compute orbital gradient in active space
+  arma::mat Focc(F*Cocc);
+
+  arma::mat virt(arma::trans(Cvirt)*Focc);
+  arma::mat frz(arma::trans(Cfrz)*Focc);
+
+  // Occupied-active virtual
+  double actfro(arma::norm(virt,"fro"));
+  double actmax(arma::max(arma::max(arma::abs(virt))));
+  // Occupied-frozen virtual
+  double frzfro(arma::norm(frz,"fro"));
+  double frzmax(arma::max(arma::max(arma::abs(frz))));
+
+  printf("Active space rms gradient %e max gradient %e\n",actfro,actmax);
+  printf("Frozen space rms gradient %e max gradient %e\n",frzfro,frzmax);
+
+  // Require full update if either rms or maximum fulfils criterion
+  if(frzfro*thr > actfro)
+    return true;
+  if(frzmax*thr > actmax)
+    return true;
+
+  return false;
+}
+
 int main(int argc, char **argv) {
   cmdline::parser parser;
 
@@ -80,11 +107,11 @@ int main(int argc, char **argv) {
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 6);
   parser.add<int>("der_order", 0, "level of derivative continuity", false, 0);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 10);
-  parser.add<int>("nfull", 0, "full diagonalization every n iterations", false, 1);
-  parser.add<int>("nsub", 0, "dimension of active subspace", false, 1000);
   parser.add<int>("maxit", 0, "maximum number of iterations", false, 50);
   parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
   parser.add<double>("Ez", 0, "electric field", false, 0.0);
+  parser.add<int>("nsub", 0, "dimension of active subspace", false, 1000);
+  parser.add<double>("subthr", 0, "active space update threshold", false, 1.0);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -95,8 +122,8 @@ int main(int argc, char **argv) {
 
   int maxit(parser.get<int>("maxit"));
   double convthr(parser.get<double>("convthr"));
-  int nfull(parser.get<int>("nfull"));
   int nsub(parser.get<int>("nsub"));
+  double subthr(parser.get<double>("subthr"));
 
   // Number of elements
   int Nelem0(parser.get<int>("nelem0"));
@@ -203,10 +230,8 @@ int main(int argc, char **argv) {
 
   // Active space
   int Nact=std::min((arma::uword) (nsub),Ca.n_cols);
-  arma::mat Caact(Ca.cols(0,Nact-1));
-  arma::mat Cbact(Cb.cols(0,Nact-1));
-
-  size_t ifull=1;
+  arma::mat Caact(Ca.cols(0,Nact-1)), Cafrz(Ca.cols(Nact,Ca.n_cols-1));
+  arma::mat Cbact(Cb.cols(0,Nact-1)), Cbfrz(Cb.cols(Nact,Cb.n_cols-1));
 
   for(int i=1;i<=maxit;i++) {
     printf("\n**** Iteration %i ****\n\n",i);
@@ -301,12 +326,14 @@ int main(int argc, char **argv) {
     diis.solve_F(Fa,Fb);
     printf("DIIS update and solution done in %.6f\n",timer.elapsed().wall*1e-9);
 
-    // Have we converged?
-    // Convergence is only meaningful if previous update was without active space
-    bool convd=((ifull==0) && (diiserr<convthr) && (std::abs(dE)<convthr));
+    // Have we converged? Note that DIIS error is still wrt full space, not active space.
+    bool convd=(diiserr<convthr) && (std::abs(dE)<convthr);
 
-    // Full update?
-    bool fullupd=(ifull==nfull || convd);
+    // Figure out whether to do full update by checking orbital gradients
+    bool fullupda(check_space(Fa,Ca.cols(0,nela-1),Ca.cols(nela,Nact-1),Cafrz,subthr));
+    bool fullupdb(check_space(Fb,Cb.cols(0,nelb-1),Cb.cols(nelb,Nact-1),Cbfrz,subthr));
+    // also do full update if we've converged
+    bool fullupd(fullupda || fullupdb || convd);
 
     // Diagonalize Fock matrix to get new orbitals
     timer.start();
@@ -315,13 +342,13 @@ int main(int argc, char **argv) {
       eig_gsym(Ea,Ca,Fa,Sinvh);
       eig_gsym(Eb,Cb,Fb,Sinvh);
       Caact=Ca.cols(0,Nact-1);
+      Cafrz=Ca.cols(Nact,Ca.n_cols-1);
       Cbact=Cb.cols(0,Nact-1);
-      ifull=0;
+      Cbfrz=Cb.cols(Nact,Cb.n_cols-1);
       printf("Full diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
     } else {
       eig_gsym(Ea,Ca,Fa,Caact);
       eig_gsym(Eb,Cb,Fb,Cbact);
-      ifull++;
       printf("Active space diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
     }
 
