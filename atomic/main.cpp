@@ -31,36 +31,29 @@ void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat
 }
 
 void eig_sub_wrk(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, size_t Nact) {
-  // Pick the virtual orbitals with the largest gradient in the subspace
-  if(Nact < Cocc.n_cols+Cvirt.n_cols) {
-    // Form orbital gradient
-    arma::mat Forth(Cocc.t()*F*Cvirt);
+  // Form orbital gradient
+  arma::mat Forth(Cocc.t()*F*Cvirt);
 
-    // Compute gradient norms
-    arma::vec Fnorm(Forth.n_cols);
-    for(size_t i=0;i<Forth.n_cols;i++)
-      Fnorm(i)=arma::norm(Forth.col(i),"fro");
+  // Compute gradient norms
+  arma::vec Fnorm(Forth.n_cols);
+  for(size_t i=0;i<Forth.n_cols;i++)
+    Fnorm(i)=arma::norm(Forth.col(i),"fro");
 
-    // Sort in decreasing value
-    arma::uvec idx(arma::sort_index(Fnorm,"descend"));
+  // Sort in decreasing value
+  arma::uvec idx(arma::sort_index(Fnorm,"descend"));
 
-    // Update order
-    Cvirt=Cvirt.cols(idx);
-    Fnorm=Fnorm(idx);
+  // Update order
+  Cvirt=Cvirt.cols(idx);
+  Fnorm=Fnorm(idx);
 
-    // Calculate norms
-    double act(arma::sum(Fnorm.subvec(0,Nact-Cocc.n_cols-1)));
-    double frz(arma::sum(Fnorm.subvec(Nact-Cocc.n_cols-1,Fnorm.n_elem-1)));
-    printf("Active space norm %e, frozen space norm %e\n",act,frz);
-  }
+  // Calculate norms
+  double act(arma::sum(Fnorm.subvec(0,Nact-Cocc.n_cols-1)));
+  double frz(arma::sum(Fnorm.subvec(Nact-Cocc.n_cols-1,Fnorm.n_elem-1)));
+  printf("Active space norm %e, frozen space norm %e\n",act,frz);
 
-  // Form subspace problem
-  arma::mat Corth(Cocc.n_rows,Nact);
-  Corth.cols(0,Cocc.n_cols-1)=Cocc;
-  Corth.cols(Cocc.n_cols,Nact-1)=Cvirt.cols(0,Nact-Cocc.n_cols-1);
-
-  // Form solution in the subspace
+  // Form subspace solution
   arma::mat C;
+  arma::mat Corth(arma::join_rows(Cocc,Cvirt.cols(0,Nact-Cocc.n_cols-1)));
   eig_gsym(E,C,F,Corth);
 
   // Update occupied and virtual orbitals
@@ -69,6 +62,16 @@ void eig_sub_wrk(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma:
 }
 
 void eig_sub(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, size_t nsub, int maxit, double convthr) {
+  if(nsub >= Cocc.n_cols+Cvirt.n_cols) {
+    arma::mat Corth(arma::join_rows(Cocc,Cvirt));
+
+    arma::mat C;
+    eig_gsym(E,C,F,Corth);
+    Cocc=C.cols(0,Cocc.n_cols-1);
+    Cvirt=C.cols(Cocc.n_cols,C.n_cols-1);
+    return;
+  }
+
   // Perform initial solution
   eig_sub_wrk(E,Cocc,Cvirt,F,nsub);
 
@@ -76,8 +79,10 @@ void eig_sub(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat
   for(int iit=1;iit<=maxit;iit++) {
     // New subspace solution
     eig_sub_wrk(E,Cocc,Cvirt,F,nsub);
+    // Frozen subspace gradient
+    arma::mat Cfrz(Cvirt.cols(nsub-Cocc.n_cols,Cvirt.n_cols-1));
     // Orbital gradient
-    arma::mat G(arma::trans(Cocc)*F*Cvirt);
+    arma::mat G(arma::trans(Cocc)*F*Cfrz);
     double ograd(arma::norm(G,"fro"));
     printf("Eigeniteration %i orbital gradient %e\n",iit,ograd);
     if(ograd<convthr)
@@ -138,9 +143,10 @@ int main(int argc, char **argv) {
   parser.add<int>("maxit", 0, "maximum number of iterations", false, 50);
   parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
   parser.add<double>("Ez", 0, "electric field", false, 0.0);
-  parser.add<int>("nsub", 0, "dimension of active subspace", false, 0);
+  parser.add<int>("nsub", 0, "dimension of active subspace", false, 1000);
   parser.add<double>("eigthr", 0, "convergence threshold for eigenvectors", false, 1e-9);
   parser.add<int>("maxeig", 0, "maximum number of iterations for eigensolution", false, 100);
+  parser.add<bool>("diag", 0, "exact diagonalization", false, 0);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -155,6 +161,7 @@ int main(int argc, char **argv) {
   int nsub(parser.get<int>("nsub"));
   int maxeig(parser.get<int>("maxeig"));
   double eigthr(parser.get<double>("eigthr"));
+  bool diag(parser.get<bool>("diag"));
 
   // Number of elements
   int Nelem0(parser.get<int>("nelem0"));
@@ -226,7 +233,7 @@ int main(int argc, char **argv) {
 
   // Get half-inverse
   timer.start();
-  arma::mat Sinvh(basis.Sinvh());
+  arma::mat Sinvh(basis.Sinvh(!diag));
   printf("Half-inverse formed in %.6f\n",timer.elapsed().wall*1e-9);
 
   // Occupied and virtual orbitals
@@ -239,26 +246,28 @@ int main(int argc, char **argv) {
   // Guess orbitals
   timer.start();
   {
-    // Initialize with Cholesky
-    Caocc=Sinvh.cols(0,nela-1);
-    Cavirt=Sinvh.cols(nela,Sinvh.n_cols-1);
-    printf("Caocc %i cols, Cavirt %i cols\n",(int) Caocc.n_cols,(int) Cavirt.n_cols);
-
     // Proceed by solving eigenvectors of core Hamiltonian with subspace iterations
-    eig_sub(Ea,Caocc,Cavirt,H0,nsub,maxeig,eigthr);
+    if(diag) {
+      arma::mat C;
+      eig_gsym(Ea,C,H0,Sinvh);
+      Caocc=C.cols(0,nela-1);
+      Cavirt=C.cols(nela,C.n_cols-1);
+    } else {
+      // Initialize with Cholesky
+      Caocc=Sinvh.cols(0,nela-1);
+      Cavirt=Sinvh.cols(nela,Sinvh.n_cols-1);
+      eig_sub(Ea,Caocc,Cavirt,H0,nsub,maxeig,eigthr);
+    }
 
     // Beta guess
     Cbocc=Caocc.cols(0,nelb-1);
-    Cbvirt.zeros(Caocc.n_rows,Cavirt.n_cols+nela-nelb);
-    if(nelb<nela)
-      Cbvirt.cols(0,nela-nelb-1)=Caocc.cols(nelb,nela-1);
-    Cbvirt.cols(nela-nelb,Cbvirt.n_cols-1)=Cavirt;
+    Cbvirt = (nelb<nela) ? arma::join_rows(Caocc.cols(nelb,nela-1),Cavirt) : Cavirt;
     Eb=Ea;
 
     Ea.subvec(0,nena-1).t().print("Alpha orbital energies");
     Eb.subvec(0,nenb-1).t().print("Beta  orbital energies");
   }
-  printf("Initial duess performed in %.6f\n",timer.elapsed().wall*1e-9);
+  printf("Initial guess performed in %.6f\n",timer.elapsed().wall*1e-9);
 
   printf("Computing two-electron integrals\n");
   fflush(stdout);
@@ -378,9 +387,20 @@ int main(int argc, char **argv) {
 
     // Diagonalize Fock matrix to get new orbitals
     timer.start();
-    eig_sub(Ea,Caocc,Cavirt,Fa,nsub,maxeig,eigthr);
-    eig_sub(Eb,Cbocc,Cbvirt,Fb,nsub,maxeig,eigthr);
-    printf("Active space diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
+    if(diag) {
+      arma::mat Ca, Cb;
+      eig_gsym(Ea,Ca,Fa,Sinvh);
+      eig_gsym(Eb,Cb,Fb,Sinvh);
+      Caocc=Ca.cols(0,nela-1);
+      Cavirt=Ca.cols(nela,Ca.n_cols-1);
+      Cbocc=Cb.cols(0,nelb-1);
+      Cbvirt=Cb.cols(nelb,Cb.n_cols-1);
+      printf("Full diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
+    } else {
+      eig_sub(Ea,Caocc,Cavirt,Fa,nsub,maxeig,eigthr);
+      eig_sub(Eb,Cbocc,Cbvirt,Fb,nsub,maxeig,eigthr);
+      printf("Active space diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
+    }
 
     if(nelb)
       printf("HOMO-LUMO gap is % .3f % .3f eV\n",(Ea(nela)-Ea(nela-1))*HARTREEINEV,(Eb(nelb)-Eb(nelb-1))*HARTREEINEV);

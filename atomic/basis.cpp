@@ -15,8 +15,6 @@
 #define OEI_QUADRATURE
 /// Use quadrature for two-electron integrals?
 #define TEI_QUADRATURE
-/// Use Cholesky for Sinvh?
-#define CHOL_SINVH
 
 namespace helfem {
   namespace basis {
@@ -534,7 +532,7 @@ namespace helfem {
       return ioff;
     }
 
-    arma::mat TwoDBasis::Sinvh() const {
+    arma::mat TwoDBasis::Sinvh(bool chol) const {
       // Form overlap matrix
       arma::mat S(overlap());
 
@@ -543,23 +541,23 @@ namespace helfem {
       // Go to normalized basis
       S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
 
-#ifdef CHOL_SINVH
       // Half-inverse is
-      return arma::diagmat(bfnormlz) * arma::inv(arma::chol(S));
-#else
-      arma::vec Sval;
-      arma::mat Svec;
-      if(!arma::eig_sym(Sval,Svec,S)) {
-        S.save("S.dat",arma::raw_ascii);
-        throw std::logic_error("Diagonalization of overlap matrix failed\n");
+      if(chol) {
+        return arma::diagmat(bfnormlz) * arma::inv(arma::chol(S));
+      } else {
+        arma::vec Sval;
+        arma::mat Svec;
+        if(!arma::eig_sym(Sval,Svec,S)) {
+          S.save("S.dat",arma::raw_ascii);
+          throw std::logic_error("Diagonalization of overlap matrix failed\n");
+        }
+        printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
+
+        arma::mat Sinvh(Svec*arma::diagmat(arma::pow(Sval,-0.5))*arma::trans(Svec));
+        Sinvh=arma::diagmat(bfnormlz)*Sinvh;
+
+        return Sinvh;
       }
-      printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
-
-      arma::mat Sinvh(Svec*arma::diagmat(arma::pow(Sval,-0.5))*arma::trans(Svec));
-      Sinvh=arma::diagmat(bfnormlz)*Sinvh;
-
-      return Sinvh;
-#endif
     }
 
     void TwoDBasis::set_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Mrad) const {

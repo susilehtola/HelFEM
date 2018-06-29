@@ -142,7 +142,7 @@ namespace helfem {
       size_t Nang() const;
 
       /// Form half-inverse overlap matrix
-      arma::mat Sinvh() const;
+      arma::mat Sinvh(bool chol) const;
       /// Form radial integral
       arma::mat radial_integral(int n) const;
       /// Form overlap matrix
