@@ -19,7 +19,7 @@ add_definitions(-DARMA_64BIT_WORD -DARMA_BLAS_LONG)
 
 add_library(helfem general/polynomial.cpp general/gaunt.cpp
 general/chebyshev.cpp general/diis.cpp general/lbfgs.cpp
-general/utils.cpp)
+general/utils.cpp general/spherical_harmonics.cpp)
 
 add_library(legendre legendre/legendre.cpp
 legendre/legendre_p_normal.cpp legendre/legendre_pq.cpp
