@@ -776,10 +776,11 @@ namespace helfem {
     }
 
     size_t TwoDBasis::mem_1el_aux() const {
-      size_t Nrad(radial.Nbf());
+      size_t Nel(radial.Nel());
+      size_t Nprim(radial.max_Nprim());
       size_t N_L(2*arma::max(lval)+1);
 
-      return N_L*Nrad*Nrad*sizeof(double);
+      return 2*N_L*Nel*Nprim*Nprim*sizeof(double);
     }
 
     size_t TwoDBasis::mem_2el_aux() const {
@@ -791,7 +792,9 @@ namespace helfem {
       size_t Nprim(radial.max_Nprim());
 
       // Memory use is thus
-      return N_L*Nel*Nel*Nprim*Nprim*Nprim*Nprim*sizeof(double);
+      //return 2*N_L*Nel*Nel*Nprim*Nprim*Nprim*Nprim*sizeof(double);
+      // No off-diagonal storage
+      return 2*N_L*Nel*Nprim*Nprim*Nprim*Nprim*sizeof(double);
     }
 
 
