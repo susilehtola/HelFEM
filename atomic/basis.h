@@ -73,6 +73,13 @@ namespace helfem {
 
       /// Compute primitive two-electron integral
       arma::mat twoe_integral(int L, size_t iel) const;
+
+      /// Evaluate basis functions at quadrature points
+      arma::mat get_bf() const;
+      /// Evaluate derivatives of basis functions at quadrature points
+      arma::mat get_df() const;
+      /// Get quadrature weights
+      arma::mat get_wrad(size_t iel) const;
     };
 
     /// Two-dimensional basis set
@@ -94,6 +101,8 @@ namespace helfem {
       /// Angular basis set: function m values
       arma::ivec mval;
 
+      /// Auxiliary integrals
+      std::vector<arma::mat> disjoint_L, disjoint_m1L;
       /// Primitive two-electron integrals: <Nel^2 * (2L+1)>
       std::vector<arma::mat> prim_tei;
       /// Primitive two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
@@ -113,8 +122,10 @@ namespace helfem {
 
       /// Expand boundary conditions
       arma::mat expand_boundaries(const arma::mat & H) const;
+      /// Expand boundary conditions
+      arma::mat expand_boundaries_C(const arma::mat & C) const;
       /// Remove boundary conditions
-      arma::mat remove_boundaries(const arma::mat & C) const;
+      arma::mat remove_boundaries(const arma::mat & H) const;
 
     public:
       TwoDBasis();
@@ -164,6 +175,13 @@ namespace helfem {
 
       /// Get primitive integrals
       std::vector<arma::mat> get_prim_tei() const;
+
+      /// Evaluate basis functions
+      arma::cx_mat eval_bf(double cth, double phi) const;
+      /// Get number of radial elements
+      size_t get_rad_Nel() const;
+      /// Get radial quadrature weights
+      arma::vec get_wrad(size_t iel) const;
     };
   }
 }
