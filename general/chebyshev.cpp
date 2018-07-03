@@ -36,5 +36,32 @@ namespace helfem {
       x=reverse(x);
       w=reverse(w);
     }
+
+    void angular_chebyshev(int l, arma::vec & cth, arma::vec & phi, arma::vec & wang) {
+      // Get input quadrature
+      arma::vec x, w;
+      chebyshev(l,x,w);
+
+      // cth quadrature is
+      arma::vec xcth(x), wcth(w);
+
+      // Phi quadrature: move from [-1, 1] to [-pi, pi]
+      arma::vec xphi(M_PI*x);
+      arma::vec wphi(M_PI*w);
+
+      // Form compound rule
+      cth.zeros(xcth.n_elem*xphi.n_elem);
+      phi.zeros(xcth.n_elem*xphi.n_elem);
+      wang.zeros(xcth.n_elem*xphi.n_elem);
+
+      for(size_t i=0;i<xcth.n_elem;i++)
+        for(size_t j=0;j<xphi.n_elem;j++) {
+          // Global index
+          size_t idx=i*xphi.n_elem+j;
+          cth(idx)=xcth(i);
+          phi(idx)=xphi(j);
+          wang(idx)=wcth(i)*wphi(j);
+        }
+    }
   }
 }
