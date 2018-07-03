@@ -120,6 +120,53 @@ std::string memory_size(size_t size) {
   return ret.str();
 }
 
+void parse_nela_nelb(int & nela, int & nelb, int & Q, int & M, int Z) {
+  if(nela==0 && nelb==0) {
+    // Use Q and M. Number of electrons is
+    int nel=Z-Q;
+    if(M<1)
+      throw std::runtime_error("Invalid value for multiplicity, which must be >=1.\n");
+    else if(nel%2==0 && M%2!=1) {
+      std::ostringstream oss;
+      oss << "Requested multiplicity " << M << " with " << nel << " electrons.\n";
+      throw std::runtime_error(oss.str());
+    } else if(nel%2==1 && M%2!=0) {
+      std::ostringstream oss;
+      oss << "Requested multiplicity " << M << " with " << nel << " electrons.\n";
+      throw std::runtime_error(oss.str());
+    }
+
+    if(nel%2==0)
+      // Even number of electrons, the amount of spin up is
+      nela=nel/2+(M-1)/2;
+    else
+      // Odd number of electrons, the amount of spin up is
+      nela=nel/2+M/2;
+    // The rest are spin down
+    nelb=nel-nela;
+
+    if(nela<0) {
+      std::ostringstream oss;
+      oss << "A multiplicity of " << M << " would mean " << nela << " alpha electrons!\n";
+      throw std::runtime_error(oss.str());
+    } else if(nelb<0) {
+      std::ostringstream oss;
+      oss << "A multiplicity of " << M << " would mean " << nelb << " beta electrons!\n";
+      throw std::runtime_error(oss.str());
+    }
+
+  } else {
+    Q=Z-nela-nelb;
+    M=1+nela-nelb;
+
+    if(M<1) {
+      std::ostringstream oss;
+      oss << "nela=" << nela << ", nelb=" << nelb << " would mean multiplicity " << M << " which is not allowed!\n";
+      throw std::runtime_error(oss.str());
+    }
+  }
+}
+
 int main(int argc, char **argv) {
   cmdline::parser parser;
 
@@ -128,8 +175,10 @@ int main(int argc, char **argv) {
   parser.add<int>("Zl", 0, "left-hand nuclear charge", false, 0);
   parser.add<int>("Zr", 0, "right-hand nuclear charge", false, 0);
   parser.add<double>("Rmid", 0, "distance of nuclei from center", false, 0.0);
-  parser.add<int>("nela", 0, "number of alpha electrons", true);
-  parser.add<int>("nelb", 0, "number of beta  electrons", true);
+  parser.add<int>("nela", 0, "number of alpha electrons", false, 0);
+  parser.add<int>("nelb", 0, "number of beta  electrons", false, 0);
+  parser.add<int>("Q", 0, "charge state", false, 0);
+  parser.add<int>("M", 0, "spin multiplicity", false, 0);
   parser.add<int>("lmax", 0, "maximum l quantum number", true);
   parser.add<int>("mmax", 0, "maximum m quantum number", true);
   parser.add<double>("Rmax", 0, "practical infinity", false, 40.0);
@@ -184,6 +233,10 @@ int main(int argc, char **argv) {
   // Number of occupied states
   int nela(parser.get<int>("nela"));
   int nelb(parser.get<int>("nelb"));
+  int Q(parser.get<int>("Q"));
+  int M(parser.get<int>("M"));
+
+  parse_nela_nelb(nela,nelb,Q,M,Z+Zl+Zr);
 
   printf("Running calculation with Rmax=%e and %i elements.\n",Rmax,Nelem);
   printf("Using %i point quadrature rule.\n",Nquad);
