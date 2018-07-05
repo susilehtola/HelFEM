@@ -30,6 +30,10 @@ add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem)
 target_link_libraries(gaunt_test gsl openblaso64)
 
+add_executable(sphtest general/sphtest.cpp)
+target_link_libraries(sphtest helfem)
+target_link_libraries(sphtest gsl openblaso64)
+
 add_executable(harmonic harmonic/main.cpp harmonic/quadrature.cpp)
 target_link_libraries(harmonic helfem)
 target_link_libraries(harmonic gsl openblaso64)
