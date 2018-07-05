@@ -2,6 +2,8 @@
 #include "../general/cmdline.h"
 #include "../general/diis.h"
 #include "basis.h"
+#include "../general/dftfuncs.h"
+#include "dftgrid.h"
 #include <boost/timer/timer.hpp>
 #include <cfloat>
 #include <SymEigsSolver.h>  // Also includes <MatOp/DenseGenMatProd.h>
@@ -61,22 +63,98 @@ void eig_sub_wrk(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma:
   Cvirt.cols(0,Nact-Cocc.n_cols-1)=C.cols(Cocc.n_cols,Nact-1);
 }
 
+void sort_eig(arma::vec & Eorb, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & Fao, size_t Nact, int maxit, double convthr) {
+  // Initialize vector
+  arma::mat C(Cocc.n_rows,Cocc.n_cols+Cvirt.n_cols);
+  C.cols(0,Cocc.n_cols-1)=Cocc;
+  C.cols(Cocc.n_cols,Cocc.n_cols+Cvirt.n_cols-1)=Cvirt;
+
+  // Compute lower bounds of eigenvalues
+  for(int it=0;it<maxit;it++) {
+    // Fock matrix
+    arma::mat Fmo(arma::trans(C)*Fao*C);
+
+    // Gerschgorin lower bound for eigenvalues
+    arma::vec Ebar(Fao.n_cols), R(Fao.n_cols);
+    for(size_t i=0;i<Fmo.n_cols;i++) {
+      double r=0.0;
+      for(size_t j=0;j<i;j++)
+	r+=std::pow(Fmo(j,i),2);
+      for(size_t j=i+1;j<Fmo.n_rows;j++)
+	r+=std::pow(Fmo(j,i),2);
+      r=sqrt(r);
+
+      Ebar(i)=Fmo(i,i);
+      R(i)=r;
+    }
+
+    // Sort by lowest possible eigenvalue
+    arma::uvec idx(arma::sort_index(Ebar-R,"ascend"));
+    printf("Orbital guess iteration %i\n",(int) it);
+    double ograd(arma::sum(arma::square(R.subvec(0,Cocc.n_cols-1))));
+    printf("Orbital gradient %e, occupied orbitals\n",ograd);
+    for(size_t i=0;i<Cocc.n_cols;i++)
+      printf("%2i %5i % e .. % e\n",(int) i, (int) idx(i), Ebar(idx(i))-R(idx(i)), Ebar(i)+R(idx(i)));
+
+    // Has sort converged?
+    bool convd=true;
+    // Check if circles overlap. Maximum occupied orbital energy is
+    double Emax=Ebar(0)+R(0);
+    for(size_t i=0;i<Cocc.n_cols;i++)
+      Emax=std::max(Emax,Ebar(i)+R(i));
+    for(size_t i=Cocc.n_cols;i<Ebar.n_elem;i++)
+      if(Ebar(i)-R(i) >= Emax)
+	// Circles overlap!
+	convd=false;
+    // Check if gradient has converged
+    if(ograd>=convthr)
+      convd=false;
+    if(convd)
+      break;
+
+    // Change orbital ordering
+    C=C.cols(idx);
+
+    // Occupy orbitals with lowest estimated eigenvalues
+    arma::mat Cocctest(C.cols(0,Cocc.n_cols-1));
+    arma::mat Cvirttest(C.cols(Cocc.n_cols,C.n_cols-1));
+
+    // Improve Gerschgorin estimate
+    eig_sub_wrk(Eorb,Cocctest,Cvirttest,Fao,Nact);
+
+    // Update C
+    C.cols(0,Cocc.n_cols-1)=Cocctest;
+    C.cols(Cocc.n_cols,C.n_cols-1)=Cvirttest;
+  }
+  
+  Cocc=C.cols(0,Cocc.n_cols-1);
+  Cvirt=C.cols(Cocc.n_cols,C.n_cols-1);
+}
+
 void eig_sub(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, size_t nsub, int maxit, double convthr) {
   if(nsub >= Cocc.n_cols+Cvirt.n_cols) {
     arma::mat Corth(arma::join_rows(Cocc,Cvirt));
 
     arma::mat C;
     eig_gsym(E,C,F,Corth);
-    Cocc=C.cols(0,Cocc.n_cols-1);
+    if(Cocc.n_cols)
+      Cocc=C.cols(0,Cocc.n_cols-1);
     Cvirt=C.cols(Cocc.n_cols,C.n_cols-1);
     return;
   }
+
+  // Initialization: make sure we're occupying the lowest eigenstates 
+  sort_eig(E, Cocc, Cvirt, F, nsub, maxit, convthr);
+  // The above already does everything
+  return;
 
   // Perform initial solution
   eig_sub_wrk(E,Cocc,Cvirt,F,nsub);
 
   // Iterative improvement
-  for(int iit=1;iit<=maxit;iit++) {
+  int iit;
+  arma::vec Eold;
+  for(iit=0;iit<maxit;iit++) {
     // New subspace solution
     eig_sub_wrk(E,Cocc,Cvirt,F,nsub);
     // Frozen subspace gradient
@@ -85,11 +163,43 @@ void eig_sub(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat
     arma::mat G(arma::trans(Cocc)*F*Cfrz);
     double ograd(arma::norm(G,"fro"));
     printf("Eigeniteration %i orbital gradient %e\n",iit,ograd);
+    arma::vec Ecur(E.subvec(0,Cocc.n_cols-1));
+    Ecur.t().print("Occupied energies");
+    if(iit>0)
+      (Ecur-Eold).t().print("Energy change");
+    Eold=Ecur;
     if(ograd<convthr)
       break;
   }
+  if(iit==maxit) throw std::runtime_error("Eigensolver did not converge!\n");
 }
 
+void eig_iter(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, const arma::mat & Sinvh, size_t nocc, size_t neig, size_t nsub, int maxit, double convthr) {
+  arma::mat Forth(Sinvh.t()*F*Sinvh);
+
+  const arma::newarp::DenseGenMatProd<double> op(Forth);
+
+  arma::newarp::SymEigsSolver< double, arma::newarp::EigsSelect::SMALLEST_ALGE, arma::newarp::DenseGenMatProd<double> > eigs(op, neig, nsub);
+  eigs.init();
+
+  arma::uword nconv = eigs.compute(maxit, convthr);
+  printf("%i eigenvalues converged in %i iterations\n",(int) nconv, (int) eigs.num_iterations());
+  E = eigs.eigenvalues();
+  if(nconv < nocc)
+    throw std::logic_error("Eigendecomposition did not convege!\n");
+
+  arma::mat eigvec;
+  // Go back to non-orthogonal basis
+  eigvec = Sinvh*eigs.eigenvectors();
+
+  Cocc=eigvec.cols(0,nocc-1);
+  if(eigvec.n_cols>nocc)
+    Cvirt=eigvec.cols(nocc,eigvec.n_cols-1);
+  else
+    Cvirt.clear();
+}
+
+  
 std::string memory_size(size_t size) {
   std::ostringstream ret;
 
@@ -196,6 +306,8 @@ int main(int argc, char **argv) {
   parser.add<double>("eigthr", 0, "convergence threshold for eigenvectors", false, 1e-9);
   parser.add<int>("maxeig", 0, "maximum number of iterations for eigensolution", false, 100);
   parser.add<bool>("diag", 0, "exact diagonalization", false, 0);
+  parser.add<std::string>("method", 0, "method to use", false, "HF");
+  parser.add<int>("ldft", 0, "angular rule for dft quadrature", false, 20);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -225,6 +337,11 @@ int main(int argc, char **argv) {
   int lmax(parser.get<int>("lmax"));
   int mmax(parser.get<int>("mmax"));
 
+  // DFT angular grid
+  int ldft(parser.get<int>("ldft"));
+  if(ldft<2*lmax)
+    throw std::logic_error("Increase ldft to guarantee accuracy of quadrature!\n");
+
   // Nuclear charge
   int Z(parser.get<int>("Z"));
   int Zl(parser.get<int>("Zl"));
@@ -235,6 +352,8 @@ int main(int argc, char **argv) {
   int nelb(parser.get<int>("nelb"));
   int Q(parser.get<int>("Q"));
   int M(parser.get<int>("M"));
+
+  std::string method(parser.get<std::string>("method"));
 
   parse_nela_nelb(nela,nelb,Q,M,Z+Zl+Zr);
 
@@ -288,7 +407,12 @@ int main(int argc, char **argv) {
   timer.start();
   arma::mat Sinvh(basis.Sinvh(!diag));
   printf("Half-inverse formed in %.6f\n",timer.elapsed().wall*1e-9);
-
+  {
+    arma::mat Smo(Sinvh.t()*S*Sinvh);
+    Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
+    printf("Orbital orthonormality deviation is %e\n",arma::norm(Smo,"fro"));
+  }
+  
   // Occupied and virtual orbitals
   arma::mat Caocc, Cbocc, Cavirt, Cbvirt;
   arma::vec Ea, Eb;
@@ -306,14 +430,24 @@ int main(int argc, char **argv) {
       Caocc=C.cols(0,nela-1);
       Cavirt=C.cols(nela,C.n_cols-1);
     } else {
+      {
+	arma::vec E;
+	arma::mat C;
+	eig_gsym(E,C,H0,Sinvh);
+	E.print("True eigenvalues");
+      }
+      
       // Initialize with Cholesky
       Caocc=Sinvh.cols(0,nela-1);
       Cavirt=Sinvh.cols(nela,Sinvh.n_cols-1);
       eig_sub(Ea,Caocc,Cavirt,H0,nsub,maxeig,eigthr);
+
+      //eig_iter(Ea,Caocc,Cavirt,H0,Sinvh,nela,nena,nsub,maxeig,eigthr);
     }
 
     // Beta guess
-    Cbocc=Caocc.cols(0,nelb-1);
+    if(nelb)
+      Cbocc=Caocc.cols(0,nelb-1);
     Cbvirt = (nelb<nela) ? arma::join_rows(Caocc.cols(nelb,nela-1),Cavirt) : Cavirt;
     Eb=Ea;
 
@@ -328,7 +462,7 @@ int main(int argc, char **argv) {
   basis.compute_tei();
   printf("Done in %.6f\n",timer.elapsed().wall*1e-9);
 
-  double Ekin, Epot, Ecoul, Exx, Efield, Etot;
+  double Ekin, Epot, Ecoul, Exx, Exc, Efield, Etot;
   double Eold=0.0;
 
   double diiseps=1e-2, diisthr=1e-3;
@@ -337,6 +471,21 @@ int main(int argc, char **argv) {
   int diisorder=5;
   uDIIS diis(S,Sinvh,usediis,diis_c1,diiseps,diisthr,useadiis,true,diisorder);
   double diiserr;
+
+  // Functional
+  int x_func, c_func;
+  ::parse_xc_func(x_func, c_func, method);
+  ::print_info(x_func, c_func);
+
+  bool dft=(x_func>0 || c_func>0);
+  if(is_range_separated(x_func))
+    throw std::logic_error("Range separated functionals are not supported.\n");
+  // Fraction of exact exchange
+  double kfrac(exact_exchange(x_func));
+
+  helfem::dftgrid::DFTGrid grid;
+  if(dft)
+    grid=helfem::dftgrid::DFTGrid(&basis,ldft);
 
   // Subspace dimension
   if(nsub==0 || nsub>(int) (Caocc.n_cols+Cavirt.n_cols))
@@ -348,13 +497,16 @@ int main(int argc, char **argv) {
     // Form density matrix
     arma::mat Pa(form_density(Caocc,nela));
     arma::mat Pb(form_density(Cbocc,nelb));
+    if(Pb.n_rows == 0)
+      Pb.zeros(Pa.n_rows,Pa.n_cols);
     arma::mat P(Pa+Pb);
 
     // Calculate <r^2>
     //printf("<r^2> is %e\n",arma::trace(basis.radial_integral(2)*Pnew));
 
     printf("Tr Pa = %f\n",arma::trace(Pa*S));
-    printf("Tr Pb = %f\n",arma::trace(Pb*S));
+    if(nelb)
+      printf("Tr Pb = %f\n",arma::trace(Pb*S));
 
     Ekin=arma::trace(P*T);
     Epot=arma::trace(P*Vnuc);
@@ -369,20 +521,44 @@ int main(int argc, char **argv) {
 
     // Form exchange matrix
     timer.start();
-    arma::mat Ka(basis.exchange(Pa));
-    arma::mat Kb;
-    if(nelb)
-      Kb=basis.exchange(Pb);
-    else
-      Kb.zeros(Cbocc.n_rows,Cbocc.n_rows);
-    double tK(timer.elapsed().wall*1e-9);
-    Exx=0.5*(arma::trace(Pa*Ka)+arma::trace(Pb*Kb));
-    printf("Exchange energy %.10e % .6f\n",Exx,tK);
+    arma::mat Ka, Kb;
+    if(kfrac!=0.0) {
+      Ka=kfrac*basis.exchange(Pa);
+      if(nelb)
+        Kb=kfrac*basis.exchange(Pb);
+      else
+        Kb.zeros(Cbocc.n_rows,Cbocc.n_rows);
+      double tK(timer.elapsed().wall*1e-9);
+      Exx=0.5*(arma::trace(Pa*Ka)+arma::trace(Pb*Kb));
+      printf("Exchange energy %.10e % .6f\n",Exx,tK);
+    } else {
+      Exx=0.0;
+    }
+
+    // Exchange-correlation
+    Exc=0.0;
+    arma::mat XCa, XCb;
+    if(dft) {
+      timer.start();
+      double nelnum;
+      grid.eval_Fxc(x_func, c_func, Pa, Pb, XCa, XCb, Exc, nelnum, nelb>0);
+      double txc(timer.elapsed().wall*1e-9);
+      printf("DFT energy %.10e % .6f\n",Exc,txc);
+      printf("Error in integrated number of electrons % e\n",nelnum-nela-nelb);
+    }
 
     // Fock matrices
-    arma::mat Fa(H0+J+Ka);
-    arma::mat Fb(H0+J+Kb);
-    Etot=Ekin+Epot+Efield+Ecoul+Exx+Enucr;
+    arma::mat Fa(H0+J);
+    arma::mat Fb(H0+J);
+    if(Ka.n_rows == Fa.n_rows) {
+      Fa+=Ka;
+      Fb+=Kb;
+    }
+    if(dft) {
+      Fa+=XCa;
+      Fb+=XCb;
+    }
+    Etot=Ekin+Epot+Efield+Ecoul+Exx+Exc+Enucr;
     double dE=Etot-Eold;
 
     printf("Total energy is % .10f\n",Etot);
@@ -452,6 +628,10 @@ int main(int argc, char **argv) {
     } else {
       eig_sub(Ea,Caocc,Cavirt,Fa,nsub,maxeig,eigthr);
       eig_sub(Eb,Cbocc,Cbvirt,Fb,nsub,maxeig,eigthr);
+      /*
+      eig_iter(Ea,Caocc,Cavirt,Fa,Sinvh,nela,nena,nsub,maxeig,eigthr);
+      eig_iter(Eb,Cbocc,Cbvirt,Fb,Sinvh,nelb,nenb,nsub,maxeig,eigthr);
+      */
       printf("Active space diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
     }
 
@@ -468,7 +648,8 @@ int main(int argc, char **argv) {
   printf("%-21s energy: % .16f\n","Nuclear attraction",Epot);
   printf("%-21s energy: % .16f\n","Nuclear repulsion",Enucr);
   printf("%-21s energy: % .16f\n","Coulomb",Ecoul);
-  printf("%-21s energy: % .16f\n","Exchange",Exx);
+  printf("%-21s energy: % .16f\n","Exact exchange",Exx);
+  printf("%-21s energy: % .16f\n","Exchange-correlation",Exc);
   printf("%-21s energy: % .16f\n","Electric field",Efield);
   printf("%-21s energy: % .16f\n","Total",Etot);
   Ea.subvec(0,nena-1).t().print("Alpha orbital energies");

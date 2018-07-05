@@ -42,9 +42,9 @@ add_executable(legendre_test legendre/legendre_test.cpp)
 target_link_libraries(legendre_test helfem legendre)
 target_link_libraries(legendre_test gsl openblaso64)
 
-add_executable(atomic atomic/main.cpp atomic/basis.cpp atomic/quadrature.cpp)
+add_executable(atomic atomic/main.cpp atomic/basis.cpp atomic/quadrature.cpp atomic/dftgrid.cpp general/dftfuncs.cpp)
 target_link_libraries(atomic helfem)
-target_link_libraries(atomic gsl openblaso64 boost_timer)
+target_link_libraries(atomic gsl openblaso64 boost_timer xc)
 
 add_executable(atomic_qtest atomic/qtest.cpp atomic/basis.cpp atomic/quadrature.cpp)
 target_link_libraries(atomic_qtest helfem)

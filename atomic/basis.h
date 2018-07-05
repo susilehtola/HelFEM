@@ -75,11 +75,13 @@ namespace helfem {
       arma::mat twoe_integral(int L, size_t iel) const;
 
       /// Evaluate basis functions at quadrature points
-      arma::mat get_bf() const;
+      arma::mat get_bf(size_t iel) const;
       /// Evaluate derivatives of basis functions at quadrature points
-      arma::mat get_df() const;
+      arma::mat get_df(size_t iel) const;
       /// Get quadrature weights
-      arma::mat get_wrad(size_t iel) const;
+      arma::vec get_wrad(size_t iel) const;
+      /// Get r values
+      arma::vec get_r(size_t iel) const;
     };
 
     /// Two-dimensional basis set
@@ -177,11 +179,18 @@ namespace helfem {
       std::vector<arma::mat> get_prim_tei() const;
 
       /// Evaluate basis functions
-      arma::cx_mat eval_bf(double cth, double phi) const;
+      arma::cx_mat eval_bf(size_t iel, double cth, double phi) const;
+      /// Evaluate basis functions derivatives
+      void eval_df(size_t iel, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const;
+      /// Get list of basis function indices in element
+      arma::uvec bf_list(size_t iel) const;
+      
       /// Get number of radial elements
       size_t get_rad_Nel() const;
       /// Get radial quadrature weights
       arma::vec get_wrad(size_t iel) const;
+      /// Get r values
+      arma::vec get_r(size_t iel) const;
     };
   }
 }

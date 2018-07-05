@@ -423,27 +423,62 @@ namespace helfem {
 #endif
     }
 
-    arma::mat RadialBasis::get_bf() const {
-      return bf;
-    }
+    arma::mat RadialBasis::get_bf(size_t iel) const {
+      // Element function values at quadrature points are
+      arma::mat val(get_basis(bf,iel));
 
-    arma::mat RadialBasis::get_df() const {
-      return df;
-    }
-
-    arma::mat RadialBasis::get_wrad(size_t iel) const {
+      // but we also need to put in the 1/r factor
       double rmin(bval(iel));
       double rmax(bval(iel+1));
+      double rmid=(rmax+rmin)/2;
+      double rlen=(rmax-rmin)/2;
+      arma::vec r(rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq);
+      for(size_t j=0;j<val.n_cols;j++)
+        for(size_t i=0;i<val.n_rows;i++)
+          val(i,j)/=r(i);
+      
+      return val;
+    }
 
-      // Midpoint is at
-      double rmid(0.5*(rmax+rmin));
-      // and half-length of interval is
-      double rlen(0.5*(rmax-rmin));
-      // r values are then
+    arma::mat RadialBasis::get_df(size_t iel) const {
+      // Element function values at quadrature points are
+      arma::mat fval(get_basis(bf,iel));
+      arma::mat dval(get_basis(df,iel));
+
+      // Calculate r values
+      double rmin(bval(iel));
+      double rmax(bval(iel+1));
+      double rmid=(rmax+rmin)/2;
+      double rlen=(rmax-rmin)/2;
       arma::vec r(rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq);
 
-      // Full radial weight is given by
-      return wq%arma::square(r);
+      // Derivative is then
+      arma::mat der(fval);
+      for(size_t j=0;j<fval.n_cols;j++)
+        for(size_t i=0;i<fval.n_rows;i++)
+          der(i,j)=(dval(i,j)-fval(i,j)/r(i))/r(i);
+
+      return der;
+    }
+
+    arma::vec RadialBasis::get_wrad(size_t iel) const {
+      // Full radial weight
+      double rmin(bval(iel));
+      double rmax(bval(iel+1));
+      double rmid=(rmax+rmin)/2;
+      double rlen=(rmax-rmin)/2;
+      arma::vec r(rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq);
+      return rlen*wq%arma::square(r);
+    }
+
+    arma::vec RadialBasis::get_r(size_t iel) const {
+      // Full radial weight
+      double rmin(bval(iel));
+      double rmax(bval(iel+1));
+      double rmid=(rmax+rmin)/2;
+      double rlen=(rmax-rmin)/2;
+
+      return rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq;
     }
 
     TwoDBasis::TwoDBasis() {
@@ -1304,14 +1339,14 @@ namespace helfem {
       return prim_tei;
     }
 
-    arma::cx_mat TwoDBasis::eval_bf(double cth, double phi) const {
+    arma::cx_mat TwoDBasis::eval_bf(size_t iel, double cth, double phi) const {
       // Evaluate spherical harmonics
       arma::cx_vec sph(lval.n_elem);
       for(size_t i=0;i<lval.n_elem;i++)
         sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
       // Evaluate radial functions
-      arma::mat rad(radial.get_bf());
+      arma::mat rad(radial.get_bf(iel));
 
       // Form supermatrix
       arma::cx_mat bf(rad.n_rows,lval.n_elem*rad.n_cols);
@@ -1321,12 +1356,76 @@ namespace helfem {
       return bf;
     }
 
+    void TwoDBasis::eval_df(size_t iel, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const {
+      // Evaluate spherical harmonics
+      arma::cx_vec sph(lval.n_elem);
+      for(size_t i=0;i<lval.n_elem;i++)
+        sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
+      
+      // Evaluate radial functions
+      arma::mat frad(radial.get_bf(iel));
+      arma::mat drad(radial.get_df(iel));
+      
+      // Form supermatrices
+      dr.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
+      dth.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
+      dphi.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
+
+      // Radial one is easy
+      for(size_t i=0;i<lval.n_elem;i++)
+        dr.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=sph(i)*drad;
+      // and so is phi
+      for(size_t i=0;i<lval.n_elem;i++)
+        dphi.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=std::complex<double>(0.0,mval(i))*sph(i)*frad;
+      // but theta is nastier
+      for(size_t i=0;i<lval.n_elem;i++) {
+        // cot th = 1/tan th = cos th / sin th
+        double cotth=cth/sqrt(1.0-cth*cth);
+
+        int l(lval(i));
+        int m(mval(i));
+
+        // Angular factor
+        std::complex<double> angfac(m*cotth*sph(i));
+        if(mval(i)<lval(i))
+          angfac+=sqrt((l-m)*(l+m+1))*std::exp(std::complex<double>(0,-phi))*::spherical_harmonics(lval(i),mval(i)+1,cth,phi);
+        
+        dth.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=angfac*frad;
+      }
+    }
+
+    arma::uvec TwoDBasis::bf_list(size_t iel) const {
+      // Radial functions in element
+      size_t ifirst, ilast;
+      radial.get_idx(iel,ifirst,ilast);
+      // Number of radial functions in element
+      size_t Nr(ilast-ifirst+1);
+      
+      // Total number of radial functions
+      size_t Nrad(radial.Nbf());
+
+      // List of functions in the element
+      arma::uvec idx(Nr*lval.n_elem);
+      for(size_t iam=0;iam<lval.n_elem;iam++)
+        for(size_t j=0;j<Nr;j++)
+          idx(iam*Nr+j)=Nrad*iam+ifirst+j;
+
+      //printf("Basis function in element %i\n",(int) iel);
+      //idx.print();
+
+      return idx;
+    }
+
     size_t TwoDBasis::get_rad_Nel() const {
       return radial.Nel();
     }
 
     arma::vec TwoDBasis::get_wrad(size_t iel) const {
       return radial.get_wrad(iel);
+    }
+
+    arma::vec TwoDBasis::get_r(size_t iel) const {
+      return radial.get_r(iel);
     }
   }
 }
