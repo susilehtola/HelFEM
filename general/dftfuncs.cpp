@@ -18,6 +18,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <cstring>
+#include <cstdio>
+#include <cstdlib>
 #include "dftfuncs.h"
 
 // LibXC
