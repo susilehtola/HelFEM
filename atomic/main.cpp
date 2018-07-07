@@ -126,7 +126,7 @@ void sort_eig(arma::vec & Eorb, arma::mat & Cocc, arma::mat & Cvirt, const arma:
     C.cols(0,Cocc.n_cols-1)=Cocctest;
     C.cols(Cocc.n_cols,C.n_cols-1)=Cvirttest;
   }
-  
+
   Cocc=C.cols(0,Cocc.n_cols-1);
   Cvirt=C.cols(Cocc.n_cols,C.n_cols-1);
 }
@@ -143,7 +143,7 @@ void eig_sub(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat
     return;
   }
 
-  // Initialization: make sure we're occupying the lowest eigenstates 
+  // Initialization: make sure we're occupying the lowest eigenstates
   sort_eig(E, Cocc, Cvirt, F, nsub, maxit, convthr);
   // The above already does everything
   return;
@@ -199,7 +199,7 @@ void eig_iter(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::ma
     Cvirt.clear();
 }
 
-  
+
 std::string memory_size(size_t size) {
   std::ostringstream ret;
 
@@ -339,8 +339,6 @@ int main(int argc, char **argv) {
 
   // DFT angular grid
   int ldft(parser.get<int>("ldft"));
-  if(ldft<2*lmax)
-    throw std::logic_error("Increase ldft to guarantee accuracy of quadrature!\n");
 
   // Nuclear charge
   int Z(parser.get<int>("Z"));
@@ -412,7 +410,7 @@ int main(int argc, char **argv) {
     Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
     printf("Orbital orthonormality deviation is %e\n",arma::norm(Smo,"fro"));
   }
-  
+
   // Occupied and virtual orbitals
   arma::mat Caocc, Cbocc, Cavirt, Cbvirt;
   arma::vec Ea, Eb;
@@ -436,7 +434,7 @@ int main(int argc, char **argv) {
 	eig_gsym(E,C,H0,Sinvh);
 	E.print("True eigenvalues");
       }
-      
+
       // Initialize with Cholesky
       Caocc=Sinvh.cols(0,nela-1);
       Cavirt=Sinvh.cols(nela,Sinvh.n_cols-1);
@@ -484,8 +482,12 @@ int main(int argc, char **argv) {
   double kfrac(exact_exchange(x_func));
 
   helfem::dftgrid::DFTGrid grid;
-  if(dft)
+  if(dft) {
+    if(ldft<2*lmax)
+      throw std::logic_error("Increase ldft to guarantee accuracy of quadrature!\n");
+
     grid=helfem::dftgrid::DFTGrid(&basis,ldft);
+  }
 
   // Subspace dimension
   if(nsub==0 || nsub>(int) (Caocc.n_cols+Cavirt.n_cols))
@@ -500,9 +502,6 @@ int main(int argc, char **argv) {
     if(Pb.n_rows == 0)
       Pb.zeros(Pa.n_rows,Pa.n_cols);
     arma::mat P(Pa+Pb);
-
-    // Calculate <r^2>
-    //printf("<r^2> is %e\n",arma::trace(basis.radial_integral(2)*Pnew));
 
     printf("Tr Pa = %f\n",arma::trace(Pa*S));
     if(nelb)
@@ -529,7 +528,9 @@ int main(int argc, char **argv) {
       else
         Kb.zeros(Cbocc.n_rows,Cbocc.n_rows);
       double tK(timer.elapsed().wall*1e-9);
-      Exx=0.5*(arma::trace(Pa*Ka)+arma::trace(Pb*Kb));
+      Exx=0.5*arma::trace(Pa*Ka);
+      if(Kb.n_rows == Pb.n_rows && Kb.n_cols == Pb.n_cols)
+        Exx+=0.5*arma::trace(Pb*Kb);
       printf("Exchange energy %.10e % .6f\n",Exx,tK);
     } else {
       Exx=0.0;
@@ -555,11 +556,15 @@ int main(int argc, char **argv) {
     arma::mat Fb(H0+J);
     if(Ka.n_rows == Fa.n_rows) {
       Fa+=Ka;
+    }
+    if(Kb.n_rows == Fb.n_rows) {
       Fb+=Kb;
     }
     if(dft) {
       Fa+=XCa;
-      Fb+=XCb;
+      if(nelb>0) {
+        Fb+=XCb;
+      }
     }
     Etot=Ekin+Epot+Efield+Ecoul+Exx+Exc+Enucr;
     double dE=Etot-Eold;
@@ -625,7 +630,8 @@ int main(int argc, char **argv) {
       eig_gsym(Eb,Cb,Fb,Sinvh);
       Caocc=Ca.cols(0,nela-1);
       Cavirt=Ca.cols(nela,Ca.n_cols-1);
-      Cbocc=Cb.cols(0,nelb-1);
+      if(nelb>0)
+        Cbocc=Cb.cols(0,nelb-1);
       Cbvirt=Cb.cols(nelb,Cb.n_cols-1);
       printf("Full diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
     } else {
@@ -655,8 +661,32 @@ int main(int argc, char **argv) {
   printf("%-21s energy: % .16f\n","Exchange-correlation",Exc);
   printf("%-21s energy: % .16f\n","Electric field",Efield);
   printf("%-21s energy: % .16f\n","Total",Etot);
+
+  // Calculate <r^2> matrix
+  arma::mat rmat(basis.radial_integral(1));
+  arma::mat rsqmat(basis.radial_integral(2));
+  // rms sizes
+  arma::vec ra(arma::sqrt(arma::diagvec(arma::trans(Caocc)*rmat*Caocc)));
+  arma::vec rmsa(arma::sqrt(arma::diagvec(arma::trans(Caocc)*rsqmat*Caocc)));
+  arma::vec rb, rmsb;
+  if(nelb) {
+    rb=arma::sqrt(arma::diagvec(arma::trans(Cbocc)*rmat*Cbocc));
+    rmsb=arma::sqrt(arma::diagvec(arma::trans(Cbocc)*rsqmat*Cbocc));
+  }
+
+  printf("\nOccupied orbital analysis:\n");
+  printf("%2s %13s %12s %12s %13s %12s %12s\n","io","energy","<r>","sqrt(<r^2>)","energy","<r>","sqrt(<r^2>)");
+  for(int io=0;io<nelb;io++) {
+    printf("%2i % e %e %e % e %e %e\n",(int) io+1, Ea(io), ra(io), rmsa(io), Eb(io), rb(io), rmsb(io));
+  }
+  for(int io=nelb;io<nela;io++) {
+    printf("%2i % e %e %e\n",(int) io+1, Ea(io), ra(io), rmsa(io));
+  }
+  printf("\n");
+
   Ea.subvec(0,nena-1).t().print("Alpha orbital energies");
   Eb.subvec(0,nenb-1).t().print("Beta  orbital energies");
+
 
   /*
   // Test orthonormality
