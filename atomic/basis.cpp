@@ -456,7 +456,8 @@ namespace helfem {
       arma::mat der(fval);
       for(size_t j=0;j<fval.n_cols;j++)
         for(size_t i=0;i<fval.n_rows;i++)
-          der(i,j)=(dval(i,j)-fval(i,j)/r(i))/r(i);
+          // Get one rlen from derivative
+          der(i,j)=(dval(i,j)/rlen-fval(i,j)/r(i))/r(i);
 
       return der;
     }
