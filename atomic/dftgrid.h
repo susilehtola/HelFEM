@@ -32,10 +32,10 @@ namespace helfem {
       /// Angular grid
       arma::vec cth, phi, wang;
       /// Total quadrature weight
-      arma::vec wtot;
+      arma::rowvec wtot;
 
       /// Scale factors
-      arma::vec scale_r, scale_theta, scale_phi;
+      arma::rowvec scale_r, scale_theta, scale_phi;
 
       /// List of basis functions in element
       arma::uvec bf_ind;
@@ -78,7 +78,7 @@ namespace helfem {
       /// Density, Nrho x Npts
       arma::mat rho;
       /// Energy density, Npts
-      arma::vec exc;
+      arma::rowvec exc;
       /// Functional derivative of energy wrt electron density, Nrho x Npts
       arma::mat vxc;
 
@@ -130,6 +130,8 @@ namespace helfem {
 
       /// Compute number of electrons
       double compute_Nel() const;
+      /// Compute kinetic energy
+      double compute_Ekin() const;
 
       /// Initialize XC arrays
       void init_xc();
@@ -169,9 +171,9 @@ namespace helfem {
       ~DFTGrid();
 
       /// Compute Fock matrix, exchange-correlation energy and integrated electron density, restricted case
-      void eval_Fxc(int x_func, int c_func, const arma::mat & P, arma::mat & H, double & Exc, double & Nel);
+      void eval_Fxc(int x_func, int c_func, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double & Ekin);
       /// Compute Fock matrix, exchange-correlation energy and integrated electron density, unrestricted case
-      void eval_Fxc(int x_func, int c_func, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, bool beta);
+      void eval_Fxc(int x_func, int c_func, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta);
     };
 
     /// BLAS routine for LDA-type quadrature
@@ -192,7 +194,7 @@ namespace helfem {
       for(size_t i=0;i<fhlp.n_rows;i++)
         for(size_t j=0;j<fhlp.n_cols;j++)
           fhlp(i,j)*=vxc(j);
-      H+=arma::real(fhlp*arma::strans(f));
+      H+=arma::real(fhlp*arma::trans(f));
     }
 
     /// BLAS routine for GGA-type quadrature
@@ -238,7 +240,7 @@ namespace helfem {
       }
 
       // Form Fock matrix
-      H+=arma::real(gamma*arma::strans(f) + f*arma::strans(gamma));
+      H+=arma::real(gamma*arma::trans(f) + f*arma::trans(gamma));
     }
   }
 }

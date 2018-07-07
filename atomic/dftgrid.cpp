@@ -71,11 +71,11 @@ namespace helfem {
         sigma.zeros(1,wtot.n_elem);
         for(size_t ip=0;ip<wtot.n_elem;ip++) {
           // Calculate values
-          double g_rad=grho(0,ip)=2.0*std::real(arma::dot(Pv.col(ip),bf_rho.col(ip)));
-          double g_th=grho(1,ip)=2.0*std::real(arma::dot(Pv.col(ip),bf_theta.col(ip)));
-          double g_phi=grho(2,ip)=2.0*std::real(arma::dot(Pv.col(ip),bf_phi.col(ip)));
+          double g_rad=grho(0,ip)=2.0*std::real(arma::dot(Pv.col(ip),bf_rho.col(ip)))/scale_r(ip);
+          double g_th=grho(1,ip)=2.0*std::real(arma::dot(Pv.col(ip),bf_theta.col(ip)))/scale_theta(ip);
+          double g_phi=grho(2,ip)=2.0*std::real(arma::dot(Pv.col(ip),bf_phi.col(ip)))/scale_phi(ip);
           // Compute sigma as well
-          sigma(0,ip)=g_rad*g_rad/scale_r(ip) + g_th*g_th/scale_theta(ip) + g_phi*g_phi/scale_phi(ip);
+          sigma(0,ip)=g_rad*g_rad + g_th*g_th + g_phi*g_phi;
         }
       }
 
@@ -92,13 +92,13 @@ namespace helfem {
         // Calculate values
         for(size_t ip=0;ip<wtot.n_elem;ip++) {
           // Gradient term
-          double gradrho(std::real(arma::dot(Pv_rho.col(ip),bf_rho.col(ip))));
-          double gradtheta(std::real(arma::dot(Pv_theta.col(ip),bf_theta.col(ip))));
-          double gradphi(std::real(arma::dot(Pv_phi.col(ip),bf_phi.col(ip))));
-          double grad(gradrho/scale_r(ip) + gradtheta/scale_theta(ip) + gradphi/scale_phi(ip));
+          double kinrho(std::real(arma::dot(Pv_rho.col(ip),bf_rho.col(ip)))/std::pow(scale_r(ip),2));
+          double kintheta(std::real(arma::dot(Pv_theta.col(ip),bf_theta.col(ip)))/std::pow(scale_theta(ip),2));
+          double kinphi(std::real(arma::dot(Pv_phi.col(ip),bf_phi.col(ip)))/std::pow(scale_phi(ip),2));
+          double kin(kinrho + kintheta + kinphi);
 
           // Store values
-          tau(0,ip)=0.5*grad;
+          tau(0,ip)=0.5*kin;
         }
       }
 
@@ -141,18 +141,18 @@ namespace helfem {
         grho.zeros(6,wtot.n_elem);
         sigma.zeros(3,wtot.n_elem);
         for(size_t ip=0;ip<wtot.n_elem;ip++) {
-          double ga_rad=grho(0,ip)=2.0*std::real(arma::dot(Pav.col(ip),bf_rho.col(ip)));
-          double ga_th=grho(1,ip)=2.0*std::real(arma::dot(Pav.col(ip),bf_theta.col(ip)));
-          double ga_phi=grho(2,ip)=2.0*std::real(arma::dot(Pav.col(ip),bf_phi.col(ip)));
+          double ga_rad=grho(0,ip)=2.0*std::real(arma::dot(Pav.col(ip),bf_rho.col(ip)))/scale_r(ip);
+          double ga_th=grho(1,ip)=2.0*std::real(arma::dot(Pav.col(ip),bf_theta.col(ip)))/scale_theta(ip);
+          double ga_phi=grho(2,ip)=2.0*std::real(arma::dot(Pav.col(ip),bf_phi.col(ip)))/scale_phi(ip);
 
-          double gb_rad=grho(3,ip)=2.0*std::real(arma::dot(Pbv.col(ip),bf_rho.col(ip)));
-          double gb_th=grho(4,ip)=2.0*std::real(arma::dot(Pbv.col(ip),bf_theta.col(ip)));
-          double gb_phi=grho(5,ip)=2.0*std::real(arma::dot(Pbv.col(ip),bf_phi.col(ip)));
+          double gb_rad=grho(3,ip)=2.0*std::real(arma::dot(Pbv.col(ip),bf_rho.col(ip)))/scale_r(ip);
+          double gb_th=grho(4,ip)=2.0*std::real(arma::dot(Pbv.col(ip),bf_theta.col(ip)))/scale_theta(ip);
+          double gb_phi=grho(5,ip)=2.0*std::real(arma::dot(Pbv.col(ip),bf_phi.col(ip)))/scale_phi(ip);
 
           // Compute sigma as well
-          sigma(0,ip)=ga_rad*ga_rad/scale_r(ip) + ga_th*ga_th/scale_theta(ip) + ga_phi*ga_phi/scale_phi(ip);
-          sigma(1,ip)=ga_rad*gb_rad/scale_r(ip) + ga_th*gb_th/scale_theta(ip) + ga_phi*gb_phi/scale_phi(ip);
-          sigma(2,ip)=gb_rad*gb_rad/scale_r(ip) + gb_th*gb_th/scale_theta(ip) + gb_phi*gb_phi/scale_phi(ip);
+          sigma(0,ip)=ga_rad*ga_rad + ga_th*ga_th + ga_phi*ga_phi;
+          sigma(1,ip)=ga_rad*gb_rad + ga_th*gb_th + ga_phi*gb_phi;
+          sigma(2,ip)=gb_rad*gb_rad + gb_th*gb_th + gb_phi*gb_phi;
         }
       }
       
@@ -173,19 +173,19 @@ namespace helfem {
         // Calculate values
         for(size_t ip=0;ip<wtot.n_elem;ip++) {
           // Gradient term
-          double gradar=std::real(arma::dot(Pav_rho.col(ip),bf_rho.col(ip)));
-          double gradath=std::real(arma::dot(Pav_theta.col(ip),bf_theta.col(ip)));
-          double gradaphi=std::real(arma::dot(Pav_phi.col(ip),bf_phi.col(ip)));
-          double grada(gradar/scale_r(ip) + gradath/scale_theta(ip) + gradaphi/scale_phi(ip));
+          double kinar=std::real(arma::dot(Pav_rho.col(ip),bf_rho.col(ip)))/std::pow(scale_r(ip),2);
+          double kinath=std::real(arma::dot(Pav_theta.col(ip),bf_theta.col(ip)))/std::pow(scale_theta(ip),2);
+          double kinaphi=std::real(arma::dot(Pav_phi.col(ip),bf_phi.col(ip)))/std::pow(scale_phi(ip),2);
+          double kina(kinar + kinath + kinaphi);
           
-          double gradbr=std::real(arma::dot(Pbv_rho.col(ip),bf_rho.col(ip)));
-          double gradbth=std::real(arma::dot(Pbv_theta.col(ip),bf_theta.col(ip)));
-          double gradbphi=std::real(arma::dot(Pbv_phi.col(ip),bf_phi.col(ip)));
-          double gradb(gradbr/scale_r(ip) + gradbth/scale_theta(ip) + gradbphi/scale_phi(ip));
+          double kinbr=std::real(arma::dot(Pbv_rho.col(ip),bf_rho.col(ip)))/std::pow(scale_r(ip),2);
+          double kinbth=std::real(arma::dot(Pbv_theta.col(ip),bf_theta.col(ip)))/std::pow(scale_theta(ip),2);
+          double kinbphi=std::real(arma::dot(Pbv_phi.col(ip),bf_phi.col(ip)))/std::pow(scale_phi(ip),2);
+          double kinb(kinbr + kinbth + kinbphi);
           
           // Store values
-          tau(0,ip)=0.5*grada;
-          tau(1,ip)=0.5*gradb;
+          tau(0,ip)=0.5*kina;
+          tau(1,ip)=0.5*kinb;
         }
         if(do_lapl)
           throw std::logic_error("Laplacian not implemented!\n");
@@ -203,6 +203,21 @@ namespace helfem {
       }
       
       return nel;
+    }
+
+    double DFTGridWorker::compute_Ekin() const {
+      double ekin=0.0;
+
+      if(do_tau) {
+        if(!polarized) {
+          for(size_t ip=0;ip<wtot.n_elem;ip++)
+            ekin+=wtot(ip)*tau(0,ip);
+        } else {
+          for(size_t ip=0;ip<wtot.n_elem;ip++)
+            ekin+=wtot(ip)*(tau(0,ip)+tau(1,ip));
+        }
+      }
+      return ekin;
     }
 
     void DFTGridWorker::init_xc() {
@@ -323,7 +338,7 @@ namespace helfem {
       const size_t N=wtot.n_elem;
 
       // Work arrays - exchange and correlation are computed separately
-      arma::vec exc_wrk;
+      arma::rowvec exc_wrk;
       arma::mat vxc_wrk;
       arma::mat vsigma_wrk;
       arma::mat vlapl_wrk;
@@ -417,14 +432,14 @@ namespace helfem {
       if(polarized)
         dens+=rho.row(1);
 
-      return arma::sum(wtot%exc%arma::trans(dens));
+      return arma::sum(wtot%exc%dens);
     }
 
     void DFTGridWorker::eval_overlap(arma::mat & So) const {
       // Calculate in subspace
       arma::mat S(bf_ind.n_elem,bf_ind.n_elem);
       S.zeros();
-      increment_lda< std::complex<double> >(S,arma::trans(wtot),bf);
+      increment_lda< std::complex<double> >(S,wtot,bf);
       // Increment
       So.submat(bf_ind,bf_ind)+=S;
     }
@@ -491,18 +506,19 @@ namespace helfem {
         // LDA potential
         arma::rowvec vrhoa(vxc.row(0));
         // Multiply weights into potential
-        vrhoa%=arma::trans(wtot);
+        vrhoa%=wtot;
         // Increment matrix
         increment_lda< std::complex<double> >(Ha,vrhoa,bf);
 
         if(beta) {
           arma::rowvec vrhob(vxc.row(1));
-          vrhob%=arma::trans(wtot);
+          vrhob%=wtot;
           increment_lda< std::complex<double> >(Hb,vrhob,bf);
         }
       }
       if(Ha.has_nan() || (beta && Hb.has_nan()))
-        throw std::logic_error("NaN encountered!\n");
+        //throw std::logic_error("NaN encountered!\n");
+        fprintf(stderr,"NaN in Hamiltonian!\n");
 
       if(do_gga) {
         // Get vsigma
@@ -683,10 +699,11 @@ namespace helfem {
     DFTGrid::~DFTGrid() {
     }
 
-    void DFTGrid::eval_Fxc(int x_func, int c_func, const arma::mat & P, arma::mat & H, double & Exc, double & Nel) {
+    void DFTGrid::eval_Fxc(int x_func, int c_func, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double & Ekin) {
       H.zeros(P.n_rows,P.n_rows);
 
       double exc=0.0;
+      double ekin=0.0;
       double nel=0.0;
 #ifdef _OPENMP
 #pragma omp parallel reduction(+:exc,nel)
@@ -708,6 +725,7 @@ namespace helfem {
             grid.compute_xc(c_func);
           exc+=grid.eval_Exc();
           nel+=grid.compute_Nel();
+          ekin+=grid.compute_Ekin();
           grid.eval_Fxc(H);
         }
 #ifdef _OPENMP
@@ -723,6 +741,7 @@ namespace helfem {
             grid.compute_xc(c_func);
           exc+=grid.eval_Exc();
           nel+=grid.compute_Nel();
+          ekin+=grid.compute_Ekin();
           grid.eval_Fxc(H);
         }
       }
@@ -732,12 +751,13 @@ namespace helfem {
       Nel=nel;
     }
 
-    void DFTGrid::eval_Fxc(int x_func, int c_func, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, bool beta) {
+    void DFTGrid::eval_Fxc(int x_func, int c_func, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta) {
       Ha.zeros(Pa.n_rows,Pa.n_rows);
       Hb.zeros(Pb.n_rows,Pb.n_rows);
 
       double exc=0.0;
       double nel=0.0;
+      double ekin=0.0;
 #ifdef _OPENMP
 #pragma omp parallel reduction(+:exc,nel)
 #endif
@@ -758,6 +778,7 @@ namespace helfem {
             grid.compute_xc(c_func);
           exc+=grid.eval_Exc();
           nel+=grid.compute_Nel();
+          ekin+=grid.compute_Ekin();
           grid.eval_Fxc(Ha,Hb,beta);
         }
 #ifdef _OPENMP
@@ -773,6 +794,7 @@ namespace helfem {
             grid.compute_xc(c_func);
           exc+=grid.eval_Exc();
           nel+=grid.compute_Nel();
+          ekin+=grid.compute_Ekin();
           grid.eval_Fxc(Ha,Hb,beta);
         }
       }
@@ -780,6 +802,7 @@ namespace helfem {
       // Save outputs
       Exc=exc;
       Nel=nel;
+      Ekin=ekin;
     }
   }
 }

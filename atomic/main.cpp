@@ -541,10 +541,13 @@ int main(int argc, char **argv) {
     if(dft) {
       timer.start();
       double nelnum;
-      grid.eval_Fxc(x_func, c_func, Pa, Pb, XCa, XCb, Exc, nelnum, nelb>0);
+      double ekin;
+      grid.eval_Fxc(x_func, c_func, Pa, Pb, XCa, XCb, Exc, nelnum, ekin, nelb>0);
       double txc(timer.elapsed().wall*1e-9);
       printf("DFT energy %.10e % .6f\n",Exc,txc);
       printf("Error in integrated number of electrons % e\n",nelnum-nela-nelb);
+      if(ekin!=0.0)
+        printf("Error in integral of kinetic energy density % e\n",ekin-Ekin);
     }
 
     // Fock matrices
