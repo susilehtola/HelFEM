@@ -4,9 +4,8 @@
 #include "basis.h"
 #include "../general/dftfuncs.h"
 #include "dftgrid.h"
-#include <boost/timer/timer.hpp>
+#include "../general/timer.h"
 #include <cfloat>
-#include <SymEigsSolver.h>  // Also includes <MatOp/DenseGenMatProd.h>
 
 //#define SPARSE
 
@@ -379,17 +378,17 @@ int main(int argc, char **argv) {
   printf("Nuclear repulsion energy is %e\n",Enucr);
   printf("Number of electrons is %i %i\n",nela,nelb);
 
-  boost::timer::cpu_timer timer;
+  Timer timer;
 
   // Form overlap matrix
   arma::mat S(basis.overlap());
   // Form nuclear attraction energy matrix
-  timer.start();
+  Timer tnuc;
   if(Zl!=0 || Zr !=0)
     printf("Computing nuclear attraction integrals\n");
   arma::mat Vnuc(basis.nuclear());
   if(Zl!=0 || Zr !=0)
-    printf("Done in %.6f\n",timer.elapsed().wall*1e-9);
+    printf("Done in %.6f\n",tnuc.get());
 
   // Form electric field coupling matrix
   arma::mat Vel(basis.electric(Ez));
@@ -399,12 +398,12 @@ int main(int argc, char **argv) {
   // Form Hamiltonian
   arma::mat H0(T+Vnuc+Vel);
 
-  printf("One-electron matrices formed in %.6f\n",timer.elapsed().wall*1e-9);
+  printf("One-electron matrices formed in %.6f\n",timer.get());
 
   // Get half-inverse
-  timer.start();
+  timer.set();
   arma::mat Sinvh(basis.Sinvh(!diag));
-  printf("Half-inverse formed in %.6f\n",timer.elapsed().wall*1e-9);
+  printf("Half-inverse formed in %.6f\n",timer.get());
   {
     arma::mat Smo(Sinvh.t()*S*Sinvh);
     Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
@@ -419,7 +418,7 @@ int main(int argc, char **argv) {
   arma::uword nenb(std::min((arma::uword) nelb+4,Sinvh.n_cols));
 
   // Guess orbitals
-  timer.start();
+  timer.set();
   {
     // Proceed by solving eigenvectors of core Hamiltonian with subspace iterations
     if(diag) {
@@ -452,13 +451,13 @@ int main(int argc, char **argv) {
     Ea.subvec(0,nena-1).t().print("Alpha orbital energies");
     Eb.subvec(0,nenb-1).t().print("Beta  orbital energies");
   }
-  printf("Initial guess performed in %.6f\n",timer.elapsed().wall*1e-9);
+  printf("Initial guess performed in %.6f\n",timer.get());
 
   printf("Computing two-electron integrals\n");
   fflush(stdout);
-  timer.start();
+  timer.set();
   basis.compute_tei();
-  printf("Done in %.6f\n",timer.elapsed().wall*1e-9);
+  printf("Done in %.6f\n",timer.get());
 
   double Ekin, Epot, Ecoul, Exx, Exc, Efield, Etot;
   double Eold=0.0;
@@ -512,14 +511,14 @@ int main(int argc, char **argv) {
     Efield=arma::trace(P*Vel);
 
     // Form Coulomb matrix
-    timer.start();
+    timer.set();
     arma::mat J(basis.coulomb(P));
-    double tJ(timer.elapsed().wall*1e-9);
+    double tJ(timer.get());
     Ecoul=0.5*arma::trace(P*J);
     printf("Coulomb energy %.10e % .6f\n",Ecoul,tJ);
 
     // Form exchange matrix
-    timer.start();
+    timer.set();
     arma::mat Ka, Kb;
     if(kfrac!=0.0) {
       Ka=kfrac*basis.exchange(Pa);
@@ -527,7 +526,7 @@ int main(int argc, char **argv) {
         Kb=kfrac*basis.exchange(Pb);
       else
         Kb.zeros(Cbocc.n_rows,Cbocc.n_rows);
-      double tK(timer.elapsed().wall*1e-9);
+      double tK(timer.get());
       Exx=0.5*arma::trace(Pa*Ka);
       if(Kb.n_rows == Pb.n_rows && Kb.n_cols == Pb.n_cols)
         Exx+=0.5*arma::trace(Pb*Kb);
@@ -540,11 +539,11 @@ int main(int argc, char **argv) {
     Exc=0.0;
     arma::mat XCa, XCb;
     if(dft) {
-      timer.start();
+      timer.set();
       double nelnum;
       double ekin;
       grid.eval_Fxc(x_func, c_func, Pa, Pb, XCa, XCb, Exc, nelnum, ekin, nelb>0);
-      double txc(timer.elapsed().wall*1e-9);
+      double txc(timer.get());
       printf("DFT energy %.10e % .6f\n",Exc,txc);
       printf("Error in integrated number of electrons % e\n",nelnum-nela-nelb);
       if(ekin!=0.0)
@@ -611,19 +610,21 @@ int main(int argc, char **argv) {
     */
 
     // Update DIIS
-    timer.start();
+    timer.set();
     diis.update(Fa,Fb,Pa,Pb,Etot,diiserr);
-    printf("Diis error is %e\n",diiserr);
+    printf("DIIS error is %e, update done in %.6f\n",diiserr,timer.get());
     fflush(stdout);
-    // Solve DIIS to get Fock update
-    diis.solve_F(Fa,Fb);
-    printf("DIIS update and solution done in %.6f\n",timer.elapsed().wall*1e-9);
 
+    // Solve DIIS to get Fock update
+    timer.set();
+    diis.solve_F(Fa,Fb);
+    printf("DIIS solution done in %.6f\n",timer.get());
+    
     // Have we converged? Note that DIIS error is still wrt full space, not active space.
     bool convd=(diiserr<convthr) && (std::abs(dE)<convthr);
 
     // Diagonalize Fock matrix to get new orbitals
-    timer.start();
+    timer.set();
     if(diag) {
       arma::mat Ca, Cb;
       eig_gsym(Ea,Ca,Fa,Sinvh);
@@ -633,7 +634,7 @@ int main(int argc, char **argv) {
       if(nelb>0)
         Cbocc=Cb.cols(0,nelb-1);
       Cbvirt=Cb.cols(nelb,Cb.n_cols-1);
-      printf("Full diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
+      printf("Full diagonalization done in %.6f\n",timer.get());
     } else {
       eig_sub(Ea,Caocc,Cavirt,Fa,nsub,maxeig,eigthr);
       eig_sub(Eb,Cbocc,Cbvirt,Fb,nsub,maxeig,eigthr);
@@ -641,7 +642,7 @@ int main(int argc, char **argv) {
       eig_iter(Ea,Caocc,Cavirt,Fa,Sinvh,nela,nena,nsub,maxeig,eigthr);
       eig_iter(Eb,Cbocc,Cbvirt,Fb,Sinvh,nelb,nenb,nsub,maxeig,eigthr);
       */
-      printf("Active space diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
+      printf("Active space diagonalization done in %.6f\n",timer.get());
     }
 
     if(nelb)

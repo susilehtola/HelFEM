@@ -1,9 +1,8 @@
 #include "../general/cmdline.h"
 #include "../general/diis.h"
 #include "basis.h"
-#include <boost/timer/timer.hpp>
+#include "../general/timer.h"
 #include <cfloat>
-#include <SymEigsSolver.h>  // Also includes <MatOp/DenseGenMatProd.h>
 
 //#define SPARSE
 
@@ -98,6 +97,7 @@ int main(int argc, char **argv) {
   parser.add<int>("der_order", 0, "level of derivative continuity");
   parser.add<int>("nquad", 0, "number of quadrature points");
   parser.add<double>("Ez", 0, "electric field");
+  parser.add<double>("damp", 0, "damping factor");
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -106,6 +106,7 @@ int main(int argc, char **argv) {
   int igrid(parser.get<int>("grid"));
   double zexp(parser.get<double>("zexp"));
   double Ez(parser.get<double>("Ez"));
+  double damp(parser.get<double>("damp"));
   // Number of elements
   int Nelem(parser.get<int>("nelem"));
   // Number of nodes
@@ -138,7 +139,7 @@ int main(int argc, char **argv) {
   printf("Nuclear charges are %i %i at %e distance\n",Z1,Z2,Rbond);
   printf("Number of electrons is %i %i\n",nela,nelb);
 
-  boost::timer::cpu_timer timer;
+  Timer timer;
 
   const double Enuc(Z1*Z2/Rbond);
   printf("Nuclear repulsion energy is %e\n",Enuc);
@@ -155,21 +156,22 @@ int main(int argc, char **argv) {
   // Form Hamiltonian
   arma::mat H0(T+Vnuc+Vel);
 
-  printf("One-electron matrices formed in %.6f\n",timer.elapsed().wall*1e-9);
+  printf("One-electron matrices formed in %.6f\n",timer.get());
 
   // Get half-inverse
-  timer.start();
+  timer.set();
   arma::mat Sinvh(basis.Sinvh());
-  printf("Half-inverse formed in %.6f\n",timer.elapsed().wall*1e-9);
+  printf("Half-inverse formed in %.6f\n",timer.get());
 
   // Number of states to find
   int nstates(std::min((arma::uword) nela+20,Sinvh.n_cols-1));
 
   // Start iteration with lmin
-  int lmin(mmax);
+  //int lmin(mmax);
+  int lmin(lmax);
 
   // Diagonalize Hamiltonian
-  timer.start();
+  timer.set();
   arma::vec Ea, Eb;
   arma::mat Ca, Cb;
   {
@@ -180,7 +182,7 @@ int main(int argc, char **argv) {
     Eb=Ea;
     Cb=Ca;
   }
-  printf("Diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
+  printf("Diagonalization done in %.6f\n",timer.get());
 
   arma::uword nena(std::min((arma::uword) nela+4,Ea.n_elem-1));
   arma::uword nenb(std::min((arma::uword) nelb+4,Eb.n_elem-1));
@@ -195,9 +197,9 @@ int main(int argc, char **argv) {
 
   printf("Computing two-electron integrals\n");
   fflush(stdout);
-  timer.start();
+  timer.set();
   basis.compute_tei();
-  printf("Done in %.6f\n",timer.elapsed().wall*1e-9);
+  printf("Done in %.6f\n",timer.get());
 
   double Ekin, Epot, Ecoul, Exx, Efield, Etot;
   double Eold=0.0;
@@ -209,11 +211,16 @@ int main(int argc, char **argv) {
   uDIIS diis(S,Sinvh,usediis,diis_c1,diiseps,diisthr,useadiis,true,diisorder);
   double diiserr;
 
-  for(int l=lmin;l<=lmax;l++) {
+  // Loop over l
+  int l=lmin;
+  while(true) {
     diis.clear();
 
     for(int i=0;i<1000;i++) {
-      printf("\n**** l=%i iteration %i ****\n\n",l,i);
+      if(l<lmax)
+        printf("\n**** l=%i iteration %i ****\n\n",l,i);
+      else
+        printf("\n**** Iteration %i ****\n\n",i);
 
       // Form density matrix
       arma::mat Pa(form_density(Ca,nela));
@@ -225,29 +232,32 @@ int main(int argc, char **argv) {
 
       printf("Tr Pa = %f\n",arma::trace(Pa*S));
       printf("Tr Pb = %f\n",arma::trace(Pb*S));
+      fflush(stdout);
 
       Ekin=arma::trace(P*T);
       Epot=arma::trace(P*Vnuc);
       Efield=arma::trace(P*Vel);
 
       // Form Coulomb matrix
-      timer.start();
+      timer.set();
       arma::mat J(basis.coulomb(P));
-      double tJ(timer.elapsed().wall*1e-9);
+      double tJ(timer.get());
       Ecoul=0.5*arma::trace(P*J);
       printf("Coulomb energy %.10e % .6f\n",Ecoul,tJ);
+      fflush(stdout);
 
       // Form exchange matrix
-      timer.start();
+      timer.set();
       arma::mat Ka(basis.exchange(Pa));
       arma::mat Kb;
       if(nelb)
         Kb=basis.exchange(Pb);
       else
         Kb.zeros(Cb.n_rows,Cb.n_rows);
-      double tK(timer.elapsed().wall*1e-9);
+      double tK(timer.get());
       Exx=0.5*(arma::trace(Pa*Ka)+arma::trace(Pb*Kb));
       printf("Exchange energy %.10e % .6f\n",Exx,tK);
+      fflush(stdout);
 
       // Fock matrices
       arma::mat Fa(H0+J+Ka);
@@ -257,6 +267,13 @@ int main(int argc, char **argv) {
       basis.set_zero(l,Fb);
 
       Etot=Ekin+Epot+Efield+Ecoul+Exx+Enuc;
+
+      printf("%-21s energy: % .16f\n","Kinetic",Ekin);
+      printf("%-21s energy: % .16f\n","Nuclear attraction",Epot);
+      printf("%-21s energy: % .16f\n","Coulomb",Ecoul);
+      printf("%-21s energy: % .16f\n","Exchange",Exx);
+      printf("%-21s energy: % .16f\n","Electric field",Efield);
+      printf("%-21s energy: % .16f\n","Total",Etot);
 
       if(i>0)
         printf("Energy changed by %e\n",Etot-Eold);
@@ -299,23 +316,42 @@ int main(int argc, char **argv) {
       */
 
       // Update DIIS
-      timer.start();
+      timer.set();
       diis.update(Fa,Fb,Pa,Pb,Etot,diiserr);
       printf("Diis error is %e\n",diiserr);
       fflush(stdout);
       // Solve DIIS to get Fock update
-      diis.solve_F(Fa,Fb);
-      printf("DIIS update and solution done in %.6f\n",timer.elapsed().wall*1e-9);
+      if(l==lmin && (i+1)*damp<1.0) {
+        // Damp update: only put in a small amount of repulsion to avoid pushing electrons to infinity
+        double fac=(i+1)*damp;
+        Fa=fac*Fa+(1.0-fac)*H0;
+        Fb=fac*Fb+(1.0-fac)*H0;
+        basis.set_zero(l,Fa);
+        basis.set_zero(l,Fb);
+        printf("DIIS update and damping by %e done in %.6f\n",fac,timer.get());
+        fflush(stdout);
+      } else {
+        diis.solve_F(Fa,Fb);
+        printf("DIIS update and solution done in %.6f\n",timer.get());
+        fflush(stdout);
+      }
 
       // Diagonalize Fock matrix to get new orbitals
-      timer.start();
+      timer.set();
       eig_gsym(Ea,Ca,Fa,Sinvh,nstates);
       eig_gsym(Eb,Cb,Fb,Sinvh,nstates);
-      printf("Diagonalization done in %.6f\n",timer.elapsed().wall*1e-9);
+      printf("Diagonalization done in %.6f\n",timer.get());
+      fflush(stdout);
 
       double convthr(1e-8);
       if(i>0 && diiserr<convthr && std::abs(Etot-Eold)<convthr)
         break;
+    }
+
+    if(l==lmax)
+      break;
+    else {
+      l++;
     }
   }
 
