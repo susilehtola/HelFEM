@@ -307,6 +307,7 @@ int main(int argc, char **argv) {
   parser.add<bool>("diag", 0, "exact diagonalization", false, 0);
   parser.add<std::string>("method", 0, "method to use", false, "HF");
   parser.add<int>("ldft", 0, "angular rule for dft quadrature", false, 20);
+  parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -338,6 +339,7 @@ int main(int argc, char **argv) {
 
   // DFT angular grid
   int ldft(parser.get<int>("ldft"));
+  double dftthr(parser.get<double>("dftthr"));
 
   // Nuclear charge
   int Z(parser.get<int>("Z"));
@@ -377,6 +379,25 @@ int main(int argc, char **argv) {
   printf("Left- and right-hand nuclear charges are %i and %i at distance % .3f from center\n",Zl,Zr,Rhalf);
   printf("Nuclear repulsion energy is %e\n",Enucr);
   printf("Number of electrons is %i %i\n",nela,nelb);
+
+  // Functional
+  int x_func, c_func;
+  ::parse_xc_func(x_func, c_func, method);
+  ::print_info(x_func, c_func);
+
+  bool dft=(x_func>0 || c_func>0);
+  if(is_range_separated(x_func))
+    throw std::logic_error("Range separated functionals are not supported.\n");
+  // Fraction of exact exchange
+  double kfrac(exact_exchange(x_func));
+
+  helfem::dftgrid::DFTGrid grid;
+  if(dft) {
+    if(ldft<2*lmax)
+      throw std::logic_error("Increase ldft to guarantee accuracy of quadrature!\n");
+
+    grid=helfem::dftgrid::DFTGrid(&basis,ldft);
+  }
 
   Timer timer;
 
@@ -469,25 +490,6 @@ int main(int argc, char **argv) {
   uDIIS diis(S,Sinvh,usediis,diis_c1,diiseps,diisthr,useadiis,true,diisorder);
   double diiserr;
 
-  // Functional
-  int x_func, c_func;
-  ::parse_xc_func(x_func, c_func, method);
-  ::print_info(x_func, c_func);
-
-  bool dft=(x_func>0 || c_func>0);
-  if(is_range_separated(x_func))
-    throw std::logic_error("Range separated functionals are not supported.\n");
-  // Fraction of exact exchange
-  double kfrac(exact_exchange(x_func));
-
-  helfem::dftgrid::DFTGrid grid;
-  if(dft) {
-    if(ldft<2*lmax)
-      throw std::logic_error("Increase ldft to guarantee accuracy of quadrature!\n");
-
-    grid=helfem::dftgrid::DFTGrid(&basis,ldft);
-  }
-
   // Subspace dimension
   if(nsub==0 || nsub>(int) (Caocc.n_cols+Cavirt.n_cols))
     nsub=(Caocc.n_cols+Cavirt.n_cols);
@@ -542,7 +544,7 @@ int main(int argc, char **argv) {
       timer.set();
       double nelnum;
       double ekin;
-      grid.eval_Fxc(x_func, c_func, Pa, Pb, XCa, XCb, Exc, nelnum, ekin, nelb>0);
+      grid.eval_Fxc(x_func, c_func, Pa, Pb, XCa, XCb, Exc, nelnum, ekin, nelb>0, dftthr);
       double txc(timer.get());
       printf("DFT energy %.10e % .6f\n",Exc,txc);
       printf("Error in integrated number of electrons % e\n",nelnum-nela-nelb);

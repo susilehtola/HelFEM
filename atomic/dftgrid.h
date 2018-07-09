@@ -127,6 +127,8 @@ namespace helfem {
       void update_density(const arma::mat & P);
       /// Update values of density, unrestricted calculation
       void update_density(const arma::mat & Pa, const arma::mat & Pb);
+      /// Screen out small densities
+      void screen_density(double thr);
 
       /// Compute number of electrons
       double compute_Nel() const;
@@ -171,9 +173,9 @@ namespace helfem {
       ~DFTGrid();
 
       /// Compute Fock matrix, exchange-correlation energy and integrated electron density, restricted case
-      void eval_Fxc(int x_func, int c_func, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double & Ekin);
+      void eval_Fxc(int x_func, int c_func, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double & Ekin, double thr);
       /// Compute Fock matrix, exchange-correlation energy and integrated electron density, unrestricted case
-      void eval_Fxc(int x_func, int c_func, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta);
+      void eval_Fxc(int x_func, int c_func, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr);
     };
 
     /// BLAS routine for LDA-type quadrature

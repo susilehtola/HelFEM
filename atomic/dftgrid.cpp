@@ -136,7 +136,7 @@ namespace helfem {
       }
 
       // Calculate gradient
-      
+
       if(do_grad) {
         grho.zeros(6,wtot.n_elem);
         sigma.zeros(3,wtot.n_elem);
@@ -155,7 +155,7 @@ namespace helfem {
           sigma(2,ip)=gb_rad*gb_rad + gb_th*gb_th + gb_phi*gb_phi;
         }
       }
-      
+
       // Calculate kinetic energy density
       if(do_tau) {
         // Adjust size of grid
@@ -177,18 +177,52 @@ namespace helfem {
           double kinath=std::real(arma::dot(Pav_theta.col(ip),bf_theta.col(ip)))/std::pow(scale_theta(ip),2);
           double kinaphi=std::real(arma::dot(Pav_phi.col(ip),bf_phi.col(ip)))/std::pow(scale_phi(ip),2);
           double kina(kinar + kinath + kinaphi);
-          
+
           double kinbr=std::real(arma::dot(Pbv_rho.col(ip),bf_rho.col(ip)))/std::pow(scale_r(ip),2);
           double kinbth=std::real(arma::dot(Pbv_theta.col(ip),bf_theta.col(ip)))/std::pow(scale_theta(ip),2);
           double kinbphi=std::real(arma::dot(Pbv_phi.col(ip),bf_phi.col(ip)))/std::pow(scale_phi(ip),2);
           double kinb(kinbr + kinbth + kinbphi);
-          
+
           // Store values
           tau(0,ip)=0.5*kina;
           tau(1,ip)=0.5*kinb;
         }
         if(do_lapl)
           throw std::logic_error("Laplacian not implemented!\n");
+      }
+    }
+
+    void DFTGridWorker::screen_density(double thr) {
+      if(polarized) {
+        for(size_t ip=0;ip<wtot.n_elem;ip++) {
+          if(rho(0,ip)+rho(1,ip) <= thr) {
+            rho(0,ip)=0.0;
+            rho(1,ip)=0.0;
+
+            if(do_grad) {
+              sigma(0,ip)=0.0;
+              sigma(1,ip)=0.0;
+              sigma(2,ip)=0.0;
+            }
+
+            if(do_tau) {
+              tau(0,ip)=0.0;
+              tau(1,ip)=0.0;
+            }
+          }
+        }
+      } else {
+        for(size_t ip=0;ip<wtot.n_elem;ip++) {
+          if(rho(0,ip) <= thr) {
+            rho(0,ip)=0.0;
+            if(do_grad) {
+              sigma(0,ip)=0.0;
+            }
+            if(do_tau) {
+              tau(0,ip)=0.0;
+            }
+          }
+        }
       }
     }
 
@@ -201,7 +235,7 @@ namespace helfem {
         for(size_t ip=0;ip<wtot.n_elem;ip++)
           nel+=wtot(ip)*(rho(0,ip)+rho(1,ip));
       }
-      
+
       return nel;
     }
 
@@ -477,7 +511,7 @@ namespace helfem {
         // Increment matrix
         increment_gga< std::complex<double> >(H,gr,bf,bf_rho,bf_theta,bf_phi);
       }
-      
+
       if(do_mgga_t) {
         arma::rowvec vt(vtau.row(0));
         vt%=0.5*wtot;
@@ -488,7 +522,7 @@ namespace helfem {
       }
       if(do_mgga_l)
         throw std::logic_error("Laplacian not implemented!\n");
-      
+
       Ho(bf_ind,bf_ind)+=H;
     }
 
@@ -553,7 +587,7 @@ namespace helfem {
         }
       }
 
-      
+
       if(do_mgga_t) {
         arma::rowvec vt_a(vtau.row(0));
         vt_a%=0.5*wtot;
@@ -573,7 +607,7 @@ namespace helfem {
       if(do_mgga_l) {
         throw std::logic_error("Laplacian not implemented!\n");
       }
-      
+
       Hao(bf_ind,bf_ind)+=Ha;
       if(beta)
         Hbo(bf_ind,bf_ind)+=Hb;
@@ -640,12 +674,12 @@ namespace helfem {
       for(size_t ia=0;ia<wang.n_elem;ia++)
         for(size_t ir=0;ir<wrad.n_elem;ir++)
           scale_theta(ia*wrad.n_elem+ir)=r(ir);
-      // and so is phi      
+      // and so is phi
       scale_phi.resize(wtot.n_elem);
       for(size_t ia=0;ia<wang.n_elem;ia++)
         for(size_t ir=0;ir<wrad.n_elem;ir++)
           scale_phi(ia*wrad.n_elem+ir)=r(ir)*sth(ia);
-    
+
       // Compute basis function values
       bf.zeros(bf_ind.n_elem,wtot.n_elem);
       // Loop over angular grid
@@ -666,7 +700,7 @@ namespace helfem {
         bf_theta.zeros(bf_ind.n_elem,wtot.n_elem);
         bf_phi.zeros(bf_ind.n_elem,wtot.n_elem);
         arma::cx_mat dr, dth, dphi;
-        
+
         for(size_t ia=0;ia<cth.n_elem;ia++) {
           // Evaluate radial functions at angular point
           basp->eval_df(iel, cth(ia), phi(ia), dr, dth, dphi);
@@ -699,7 +733,7 @@ namespace helfem {
     DFTGrid::~DFTGrid() {
     }
 
-    void DFTGrid::eval_Fxc(int x_func, int c_func, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double & Ekin) {
+    void DFTGrid::eval_Fxc(int x_func, int c_func, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double & Ekin, double thr) {
       H.zeros(P.n_rows,P.n_rows);
 
       double exc=0.0;
@@ -711,21 +745,25 @@ namespace helfem {
       {
         DFTGridWorker grid(basp,lang);
         grid.check_grad_tau_lapl(x_func,c_func);
-        
+
 #ifdef _OPENMP
 #pragma omp for
 #endif
         for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
           grid.compute_bf(iel);
           grid.update_density(P);
+          nel+=grid.compute_Nel();
+          ekin+=grid.compute_Ekin();
+
           grid.init_xc();
+          if(thr>0.0)
+            grid.screen_density(thr);
           if(x_func>0)
             grid.compute_xc(x_func);
           if(c_func>0)
             grid.compute_xc(c_func);
+
           exc+=grid.eval_Exc();
-          nel+=grid.compute_Nel();
-          ekin+=grid.compute_Ekin();
           grid.eval_Fxc(H);
         }
 #ifdef _OPENMP
@@ -734,14 +772,18 @@ namespace helfem {
         for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
           grid.compute_bf(iel);
           grid.update_density(P);
+          nel+=grid.compute_Nel();
+          ekin+=grid.compute_Ekin();
+
           grid.init_xc();
+          if(thr>0.0)
+            grid.screen_density(thr);
           if(x_func>0)
             grid.compute_xc(x_func);
           if(c_func>0)
             grid.compute_xc(c_func);
+
           exc+=grid.eval_Exc();
-          nel+=grid.compute_Nel();
-          ekin+=grid.compute_Ekin();
           grid.eval_Fxc(H);
         }
       }
@@ -751,7 +793,7 @@ namespace helfem {
       Nel=nel;
     }
 
-    void DFTGrid::eval_Fxc(int x_func, int c_func, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta) {
+    void DFTGrid::eval_Fxc(int x_func, int c_func, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr) {
       Ha.zeros(Pa.n_rows,Pa.n_rows);
       Hb.zeros(Pb.n_rows,Pb.n_rows);
 
@@ -764,21 +806,25 @@ namespace helfem {
       {
         DFTGridWorker grid(basp,lang);
         grid.check_grad_tau_lapl(x_func,c_func);
-        
+
 #ifdef _OPENMP
 #pragma omp for
 #endif
         for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
           grid.compute_bf(iel);
           grid.update_density(Pa,Pb);
+          nel+=grid.compute_Nel();
+          ekin+=grid.compute_Ekin();
+
           grid.init_xc();
+          if(thr>0.0)
+            grid.screen_density(thr);
           if(x_func>0)
             grid.compute_xc(x_func);
           if(c_func>0)
             grid.compute_xc(c_func);
+
           exc+=grid.eval_Exc();
-          nel+=grid.compute_Nel();
-          ekin+=grid.compute_Ekin();
           grid.eval_Fxc(Ha,Hb,beta);
         }
 #ifdef _OPENMP
@@ -787,14 +833,18 @@ namespace helfem {
         for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
           grid.compute_bf(iel);
           grid.update_density(Pa,Pb);
+          nel+=grid.compute_Nel();
+          ekin+=grid.compute_Ekin();
+
           grid.init_xc();
+          if(thr>0.0)
+            grid.screen_density(thr);
           if(x_func>0)
             grid.compute_xc(x_func);
           if(c_func>0)
             grid.compute_xc(c_func);
+
           exc+=grid.eval_Exc();
-          nel+=grid.compute_Nel();
-          ekin+=grid.compute_Ekin();
           grid.eval_Fxc(Ha,Hb,beta);
         }
       }
