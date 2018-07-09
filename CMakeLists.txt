@@ -13,6 +13,8 @@ if(USE_OPENMP)
 endif()
 
 INCLUDE_DIRECTORIES("/home/work/armadillo/include/")
+INCLUDE_DIRECTORIES("/home/work/libxc/trunk/install/include/")
+LINK_DIRECTORIES("/home/work/libxc/trunk/install/lib/")
 # Large matrix support
 add_definitions(-DARMA_64BIT_WORD -DARMA_BLAS_LONG)
 
