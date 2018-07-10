@@ -665,6 +665,10 @@ int main(int argc, char **argv) {
   printf("%-21s energy: % .16f\n","Electric field",Efield);
   printf("%-21s energy: % .16f\n","Total",Etot);
 
+  if(Ez!=0.0 && (Zl==Zr)) {
+    printf("\nPolarizability %e\n",-Efield/(Ez*Ez));
+  }
+
   // Calculate <r^2> matrix
   arma::mat rmat(basis.radial_integral(1));
   arma::mat rsqmat(basis.radial_integral(2));
