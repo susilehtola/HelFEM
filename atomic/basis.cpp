@@ -892,7 +892,7 @@ namespace helfem {
       // Form two-electron integrals
       prim_tei.resize(Nel*Nel*N_L);
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for collapse(2)
 #endif
       for(size_t L=0;L<N_L;L++) {
         for(size_t iel=0;iel<Nel;iel++) {
