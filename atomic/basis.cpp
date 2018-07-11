@@ -436,7 +436,7 @@ namespace helfem {
       for(size_t j=0;j<val.n_cols;j++)
         for(size_t i=0;i<val.n_rows;i++)
           val(i,j)/=r(i);
-      
+
       return val;
     }
 
@@ -765,7 +765,7 @@ namespace helfem {
       return remove_boundaries(V);
     }
 
-    arma::mat TwoDBasis::electric(double Ez) const {
+    arma::mat TwoDBasis::dipole_z() const {
       // Build radial elements
       size_t Nrad(radial.Nbf());
       arma::mat Orad(Nrad,Nrad);
@@ -775,31 +775,72 @@ namespace helfem {
       arma::mat V(Nbf(),Nbf());
       V.zeros();
 
-      if(Ez!=0.0) {
-        // Loop over elements
-        for(size_t iel=0;iel<radial.Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
-          Orad.submat(ifirst,ifirst,ilast,ilast)+=Ez*radial.radial_integral(1,iel);
+      // Loop over elements
+      for(size_t iel=0;iel<radial.Nel();iel++) {
+        // Where are we in the matrix?
+        size_t ifirst, ilast;
+        radial.get_idx(iel,ifirst,ilast);
+        Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(1,iel);
+      }
+
+      int gmax(std::max(arma::max(lval),arma::max(mval)));
+      gaunt::Gaunt gaunt(gmax,1,gmax);
+
+      // Fill elements
+      for(size_t iang=0;iang<lval.n_elem;iang++) {
+        int li(lval(iang));
+        int mi(mval(iang));
+
+        for(size_t jang=0;jang<lval.n_elem;jang++) {
+          int lj(lval(jang));
+          int mj(mval(jang));
+
+          // Calculate coupling
+          double cpl(gaunt.cosine_coupling(lj,mj,li,mi));
+          if(cpl!=0.0)
+            set_sub(V,iang,jang,Orad*cpl);
         }
+      }
 
-        int gmax(std::max(arma::max(lval),arma::max(mval)));
-        gaunt::Gaunt gaunt(gmax,1,gmax);
+      return remove_boundaries(V);
+    }
 
-        // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
-          int li(lval(iang));
-          int mi(mval(iang));
+    arma::mat TwoDBasis::quadrupole_zz() const {
+      // Build radial elements
+      size_t Nrad(radial.Nbf());
+      arma::mat Orad(Nrad,Nrad);
+      Orad.zeros();
 
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
-            int lj(lval(jang));
-            int mj(mval(jang));
+      // Full electric couplings
+      arma::mat V(Nbf(),Nbf());
+      V.zeros();
 
-            // Calculate coupling
-            double cpl(gaunt.cosine_coupling(lj,mj,li,mi));
-            if(cpl!=0.0)
-              set_sub(V,iang,jang,Orad*cpl);
+      // Loop over elements
+      for(size_t iel=0;iel<radial.Nel();iel++) {
+        // Where are we in the matrix?
+        size_t ifirst, ilast;
+        radial.get_idx(iel,ifirst,ilast);
+        Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(2,iel);
+      }
+
+      int gmax(std::max(arma::max(lval),arma::max(mval)));
+      gaunt::Gaunt gaunt(gmax,2,gmax);
+
+      // Fill elements
+      for(size_t iang=0;iang<lval.n_elem;iang++) {
+        int li(lval(iang));
+        int mi(mval(iang));
+
+        for(size_t jang=0;jang<lval.n_elem;jang++) {
+          int lj(lval(jang));
+          int mj(mval(jang));
+
+          // Calculate coupling
+          double cpl(gaunt.coeff(lj,mj,2,0,li,mi));
+          if(cpl!=0.0) {
+            const double c0(2.0/5.0*sqrt(5.0*M_PI));
+            cpl*=c0;
+            set_sub(V,iang,jang,Orad*cpl);
           }
         }
       }
@@ -1362,11 +1403,11 @@ namespace helfem {
       arma::cx_vec sph(lval.n_elem);
       for(size_t i=0;i<lval.n_elem;i++)
         sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
-      
+
       // Evaluate radial functions
       arma::mat frad(radial.get_bf(iel));
       arma::mat drad(radial.get_df(iel));
-      
+
       // Form supermatrices
       dr.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
       dth.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
@@ -1390,7 +1431,7 @@ namespace helfem {
         std::complex<double> angfac(m*cotth*sph(i));
         if(mval(i)<lval(i))
           angfac+=sqrt((l-m)*(l+m+1))*std::exp(std::complex<double>(0,-phi))*::spherical_harmonics(lval(i),mval(i)+1,cth,phi);
-        
+
         dth.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=angfac*frad;
       }
     }
@@ -1401,7 +1442,7 @@ namespace helfem {
       radial.get_idx(iel,ifirst,ilast);
       // Number of radial functions in element
       size_t Nr(ilast-ifirst+1);
-      
+
       // Total number of radial functions
       size_t Nrad(radial.Nbf());
 

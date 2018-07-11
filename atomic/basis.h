@@ -164,8 +164,10 @@ namespace helfem {
       arma::mat kinetic() const;
       /// Form nuclear attraction matrix
       arma::mat nuclear() const;
-      /// Form electric field coupling matrix
-      arma::mat electric(double Ez) const;
+      /// Form dipole coupling matrix
+      arma::mat dipole_z() const;
+      /// Form quadrupole coupling matrix
+      arma::mat quadrupole_zz() const;
 
       /// Form density matrix
       arma::mat form_density(const arma::mat & C, size_t nocc) const;
@@ -184,7 +186,7 @@ namespace helfem {
       void eval_df(size_t iel, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const;
       /// Get list of basis function indices in element
       arma::uvec bf_list(size_t iel) const;
-      
+
       /// Get number of radial elements
       size_t get_rad_Nel() const;
       /// Get radial quadrature weights

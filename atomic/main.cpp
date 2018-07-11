@@ -293,18 +293,19 @@ int main(int argc, char **argv) {
   parser.add<double>("Rmax", 0, "practical infinity", false, 40.0);
   parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for logarithmic", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
-  parser.add<int>("nelem0", 0, "number of elements between center and off-center nuclei", true);
+  parser.add<int>("nelem0", 0, "number of elements between center and off-center nuclei", false, 0);
   parser.add<int>("nelem", 0, "number of elements", true);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 6);
   parser.add<int>("der_order", 0, "level of derivative continuity", false, 0);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 10);
   parser.add<int>("maxit", 0, "maximum number of iterations", false, 50);
   parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
-  parser.add<double>("Ez", 0, "electric field", false, 0.0);
+  parser.add<double>("Ez", 0, "electric dipole field", false, 0.0);
+  parser.add<double>("Qzz", 0, "electric quadrupole field", false, 0.0);
   parser.add<int>("nsub", 0, "dimension of active subspace", false, 1000);
   parser.add<double>("eigthr", 0, "convergence threshold for eigenvectors", false, 1e-9);
   parser.add<int>("maxeig", 0, "maximum number of iterations for eigensolution", false, 100);
-  parser.add<bool>("diag", 0, "exact diagonalization", false, 0);
+  parser.add<bool>("diag", 0, "exact diagonalization", false, 1);
   parser.add<std::string>("method", 0, "method to use", false, "HF");
   parser.add<int>("ldft", 0, "angular rule for dft quadrature", false, 20);
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
@@ -315,6 +316,7 @@ int main(int argc, char **argv) {
   int igrid(parser.get<int>("grid"));
   double zexp(parser.get<double>("zexp"));
   double Ez(parser.get<double>("Ez"));
+  double Qzz(parser.get<double>("Qzz"));
 
   int maxit(parser.get<int>("maxit"));
   double convthr(parser.get<double>("convthr"));
@@ -411,8 +413,13 @@ int main(int argc, char **argv) {
   if(Zl!=0 || Zr !=0)
     printf("Done in %.6f\n",tnuc.get());
 
-  // Form electric field coupling matrix
-  arma::mat Vel(basis.electric(Ez));
+  // Dipole coupling
+  arma::mat dip(basis.dipole_z());
+  // Quadrupole coupling
+  arma::mat quad(basis.quadrupole_zz());
+
+  // Electric field coupling
+  arma::mat Vel(Ez*dip + Qzz*quad/3.0);
   // Form kinetic energy matrix
   arma::mat T(basis.kinetic());
 
@@ -494,15 +501,18 @@ int main(int argc, char **argv) {
   if(nsub==0 || nsub>(int) (Caocc.n_cols+Cavirt.n_cols))
     nsub=(Caocc.n_cols+Cavirt.n_cols);
 
+  // Density matrices
+  arma::mat P, Pa, Pb;
+
   for(int i=1;i<=maxit;i++) {
     printf("\n**** Iteration %i ****\n\n",i);
 
     // Form density matrix
-    arma::mat Pa(form_density(Caocc,nela));
-    arma::mat Pb(form_density(Cbocc,nelb));
+    Pa=form_density(Caocc,nela);
+    Pb=form_density(Cbocc,nelb);
     if(Pb.n_rows == 0)
       Pb.zeros(Pa.n_rows,Pa.n_cols);
-    arma::mat P(Pa+Pb);
+    P=Pa+Pb;
 
     printf("Tr Pa = %f\n",arma::trace(Pa*S));
     if(nelb)
@@ -621,7 +631,7 @@ int main(int argc, char **argv) {
     timer.set();
     diis.solve_F(Fa,Fb);
     printf("DIIS solution done in %.6f\n",timer.get());
-    
+
     // Have we converged? Note that DIIS error is still wrt full space, not active space.
     bool convd=(diiserr<convthr) && (std::abs(dE)<convthr);
 
@@ -665,9 +675,9 @@ int main(int argc, char **argv) {
   printf("%-21s energy: % .16f\n","Electric field",Efield);
   printf("%-21s energy: % .16f\n","Total",Etot);
 
-  if(Ez!=0.0 && (Zl==Zr)) {
-    printf("\nPolarizability %e\n",-Efield/(Ez*Ez));
-  }
+  printf("\n");
+  printf("Dipole     moment % .16e\n",arma::trace(dip*P));
+  printf("Quadrupole moment % .16e\n",arma::trace(quad*P));
 
   // Calculate <r^2> matrix
   arma::mat rmat(basis.radial_integral(1));
