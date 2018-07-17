@@ -1,11 +1,41 @@
 #include "quadrature.h"
 #include "../general/chebyshev.h"
 #include "../general/polynomial.h"
-#include "../legendre/legendre.h"
+#include "../legendre/Legendre_Wrapper.h"
 
 namespace helfem {
   namespace diatomic {
     namespace quadrature {
+      static arma::vec calc_Plm(int L, int M, const arma::vec & chmu) {
+        arma::vec res(chmu.n_elem);
+#ifdef _OPENMP
+#pragma omp critical
+#endif
+        for(arma::uword i=0;i<chmu.n_elem;i++) {
+          res(i)=::calc_Plm_val(L,M,chmu(i));
+          if(!std::isnormal(res(i))) {
+            printf("Plm(%i,%i,%e)=%e\n",L,M,chmu(i),res(i));
+            res(i)=0.0;
+          }
+        }
+        return res;
+      }
+
+      static arma::vec calc_Qlm(int L, int M, const arma::vec & chmu) {
+        arma::vec res(chmu.n_elem);
+#ifdef _OPENMP
+#pragma omp critical
+#endif
+        for(arma::uword i=0;i<chmu.n_elem;i++) {
+          res(i)=::calc_Qlm_val(L,M,chmu(i));
+          if(!std::isnormal(res(i))) {
+            printf("Qlm(%i,%i,%e)=%e\n",L,M,chmu(i),res(i));
+            res(i)=0.0;
+          }
+        }
+        return res;
+      }
+
       arma::mat radial_integral(double mumin, double mumax, int m, int n, const arma::vec & x, const arma::vec & wx, const arma::mat & bf) {
 #ifndef ARMA_NO_DEBUG
         if(x.n_elem != wx.n_elem) {
@@ -70,7 +100,7 @@ namespace helfem {
         wp%=arma::sinh(mu);
         if(k!=0)
           wp%=arma::pow(chmu,k);
-        wp%=legendre::legendreP_prolate(L,M,chmu);
+        wp%=calc_Plm(L,M,chmu);
 
         // Put in weight
         arma::mat wbf(bf);
@@ -109,7 +139,7 @@ namespace helfem {
           // cosh term
           wp%=arma::pow(chmu,l);
         // Legendre polynomial
-        wp%=legendre::legendreQ_prolate(L,M,chmu);
+        wp%=calc_Qlm(L,M,chmu);
 
         // Put in weight
         arma::mat wbf(bf);
@@ -141,7 +171,7 @@ namespace helfem {
           // cosh term
           wp%=arma::pow(chmu,l);
         // Legendre polynomial
-        wp%=legendre::legendreP_prolate(L,M,chmu);
+        wp%=calc_Plm(L,M,chmu);
 
         // Calculate x values the polynomials should be evaluated at
         arma::vec xpoly((mu-mumid0*arma::ones<arma::vec>(x.n_elem))/mulen0);
@@ -209,7 +239,7 @@ namespace helfem {
         wp%=arma::sinh(mu);
         if(k!=0)
           wp%=arma::pow(chmu,k);
-        wp%=legendre::legendreQ_prolate(L,M,chmu);
+        wp%=calc_Qlm(L,M,chmu);
 
         for(size_t i=0;i<bfprod.n_cols;i++)
           bfprod.col(i)%=wp;

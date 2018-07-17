@@ -508,6 +508,7 @@ namespace helfem {
             if(!lm_map.size())
               lm_map.push_back(p);
             else
+              // Insert at lower bound
               lm_map.insert(lm_map.begin()+lmind(L,M,false),p);
           }
 
@@ -743,14 +744,7 @@ namespace helfem {
 
                         // Contract integrals
                         const size_t idx(Nel*Nel*ilm + iel*Nel + jel);
-                        if(cpl00!=0.0)
-                          Jsub+=cpl00*(prim_tei00[idx]*Psub);
-                        if(cpl02!=0.0)
-                          Jsub+=cpl02*(prim_tei02[idx]*Psub);
-                        if(cpl20!=0.0)
-                          Jsub+=cpl20*(prim_tei20[idx]*Psub);
-                        if(cpl22!=0.0)
-			  Jsub+=cpl22*(prim_tei22[idx]*Psub);
+                        Jsub+=(cpl00*prim_tei00[idx] + cpl02*prim_tei02[idx] + cpl20*prim_tei20[idx] + cpl22*prim_tei22[idx])*Psub;
 
                         // Increment global Coulomb matrix
                         J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=arma::reshape(Jsub,Ni,Ni);
@@ -868,15 +862,8 @@ namespace helfem {
 
                         // Contract integrals
                         const size_t idx(Nel*Nel*ilm + iel*Nel + jel);
-                        if(cpl00!=0.0)
-                          Ksub+=cpl00*(prim_ktei00[idx]*Psub);
-                        if(cpl02!=0.0)
-                          Ksub+=cpl02*(prim_ktei02[idx]*Psub);
-                        if(cpl20!=0.0)
-                          Ksub+=cpl20*(prim_ktei20[idx]*Psub);
-                        if(cpl22!=0.0)
-                          Ksub+=cpl22*(prim_ktei22[idx]*Psub);
-
+                        Ksub+=(cpl00*prim_ktei00[idx] + cpl02*prim_ktei02[idx] + cpl20*prim_ktei20[idx] + cpl22*prim_ktei22[idx])*Psub;
+                        
                         // Increment global exchange matrix
                         K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=arma::reshape(Ksub,Ni,Nj);
                       }
