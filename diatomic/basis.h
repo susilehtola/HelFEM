@@ -3,6 +3,7 @@
 
 #include <armadillo>
 #include "../general/gaunt.h"
+#include "../general/legendretable.h"
 
 namespace helfem {
   namespace diatomic {
@@ -66,11 +67,14 @@ namespace helfem {
         arma::mat kinetic() const;
 
         /// Compute Plm integral
-        arma::mat Plm_integral(int beta, size_t iel, int L, int M) const;
+        arma::mat Plm_integral(int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
         /// Compute Qlm integral
-        arma::mat Qlm_integral(int alpha, size_t iel, int L, int M) const;
+        arma::mat Qlm_integral(int alpha, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
         /// Compute primitive two-electron integral
-        arma::mat twoe_integral(int alpha, int beta, size_t iel, int L, int M) const;
+        arma::mat twoe_integral(int alpha, int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
+
+        /// Get quadrature points
+        arma::vec get_chmu_quad() const;
       };
 
       /// L, |M| index type
@@ -96,6 +100,8 @@ namespace helfem {
 
         /// Gaunt coefficient table
         gaunt::Gaunt gaunt;
+        /// Legendre function table
+        legendretable::LegendreTable legtab;
 
         /// L, |M| map
         std::vector<lmidx_t> lm_map;
@@ -125,13 +131,15 @@ namespace helfem {
         size_t lmind(int L, int M, bool check=true) const;
         /// Get L_max
         int L_max() const;
+        /// Get M_max
+        int M_max() const;
 
         /// Number of dummy basis functions
         size_t Ndummy() const;
 
       public:
         /// Constructor
-        TwoDBasis(int Z1, int Z2, double Rbond, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp);
+        TwoDBasis(int Z1, int Z2, double Rbond, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int lpad);
         /// Destructor
         ~TwoDBasis();
 

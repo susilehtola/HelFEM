@@ -146,20 +146,20 @@ namespace helfem {
         return R;
       }
 
-      arma::mat RadialBasis::Plm_integral(int k, size_t iel, int L, int M) const {
+      arma::mat RadialBasis::Plm_integral(int k, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
         double mumin(bval(iel));
         double mumax(bval(iel+1));
 
         // Integral by quadrature
-        return diatomic::quadrature::Plm_radial_integral(mumin,mumax,k,xq,wq,get_basis(bf,iel),L,M);
+        return diatomic::quadrature::Plm_radial_integral(mumin,mumax,k,xq,wq,get_basis(bf,iel),L,M,legtab);
       }
 
-      arma::mat RadialBasis::Qlm_integral(int k, size_t iel, int L, int M) const {
+      arma::mat RadialBasis::Qlm_integral(int k, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
         double mumin(bval(iel));
         double mumax(bval(iel+1));
 
         // Integral by quadrature
-        return diatomic::quadrature::Qlm_radial_integral(mumin,mumax,k,xq,wq,get_basis(bf,iel),L,M);
+        return diatomic::quadrature::Qlm_radial_integral(mumin,mumax,k,xq,wq,get_basis(bf,iel),L,M,legtab);
       }
 
       arma::mat RadialBasis::kinetic(size_t iel) const {
@@ -185,15 +185,52 @@ namespace helfem {
         return T;
       }
 
-      arma::mat RadialBasis::twoe_integral(int alpha, int beta, size_t iel, int L, int M) const {
+      arma::mat RadialBasis::twoe_integral(int alpha, int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
         double mumin(bval(iel));
         double mumax(bval(iel+1));
 
         // Integral by quadrature
-        return quadrature::twoe_integral(mumin,mumax,alpha,beta,xq,wq,get_basis(bf_C,iel),L,M);
+        return quadrature::twoe_integral(mumin,mumax,alpha,beta,xq,wq,get_basis(bf_C,iel),L,M,legtab);
       }
 
-      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rbond, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp) {
+      arma::vec RadialBasis::get_chmu_quad() const {
+        // Quadrature points for normal integrals
+        arma::vec muq((bval.n_elem-1)*xq.n_elem*(xq.n_elem+1));
+        size_t ioff=0;
+
+        for(size_t iel=0;iel<bval.n_elem-1;iel++) {
+          // Element ranges from
+          double mumin0=bval(iel);
+          double mumax0=bval(iel+1);
+
+          // Midpoint is at
+          double mumid0(0.5*(mumax0+mumin0));
+          // and half-length of interval is
+          double mulen0(0.5*(mumax0-mumin0));
+          // mu values are then
+          arma::vec mu0(mumid0*arma::ones<arma::vec>(xq.n_elem)+mulen0*xq);
+
+          // Store values
+          muq.subvec(ioff,ioff+mu0.n_elem-1)=mu0;
+          ioff+=mu0.n_elem;
+
+          // Subintervals for in-element two-electron integrals
+          for(size_t isub=0;isub<xq.n_elem;isub++) {
+            double mumin = (isub==0) ? mumin0 : mu0(isub-1);
+            double mumax = mu0(isub);
+
+            double mumid(0.5*(mumax+mumin));
+            double mulen(0.5*(mumax-mumin));
+            arma::vec mu(mumid*arma::ones<arma::vec>(xq.n_elem)+mulen*xq);
+            muq.subvec(ioff,ioff+mu.n_elem-1)=mu;
+            ioff+=mu.n_elem;
+          }
+        }
+
+        return arma::cosh(arma::sort(muq,"ascend"));
+      }
+
+      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rbond, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int lpad) {
         // Nuclear charge
         Z1=Z1_;
         Z2=Z2_;
@@ -247,6 +284,13 @@ namespace helfem {
         int lrval(std::max(Lmax+2,gmax));
         int mval(std::max(Lmax,3));
         gaunt=gaunt::Gaunt(lrval,mval,lrval);
+
+        // Legendre function values
+        legtab=legendretable::LegendreTable(L_max()+lpad,L_max(),M_max());
+        // Fill table with necessary values
+        arma::vec chmu(radial.get_chmu_quad());
+        for(size_t i=0;i<chmu.n_elem;i++)
+          legtab.compute(chmu(i));
       }
 
       TwoDBasis::~TwoDBasis() {
@@ -493,6 +537,11 @@ namespace helfem {
         return 2*arma::max(lval)+2;
       }
 
+      int TwoDBasis::M_max() const {
+        // Maximum M value is
+        return arma::max(mval)-arma::min(mval);
+      }
+
       void TwoDBasis::compute_tei() {
         // Maximum m value is
         int mmax=arma::max(mval);
@@ -500,7 +549,7 @@ namespace helfem {
         // Form lm map
         lm_map.clear();
         for(int L=0;L<=L_max();L++)
-          for(int M=0;M<=std::min(2*mmax,L);M++) { // m=-mmax and M=2*mmax can still couple to m'=mmax
+          for(int M=0;M<=std::min(M_max(),L);M++) { // m=-mmax and M=2*mmax can still couple to m'=mmax
             lmidx_t p;
             p.first=L;
             p.second=M;
@@ -527,10 +576,10 @@ namespace helfem {
           int L(lm_map[ilm].first);
           int M(lm_map[ilm].second);
           for(size_t iel=0;iel<Nel;iel++) {
-            disjoint_P0[ilm*Nel+iel]=radial.Plm_integral(0,iel,L,M);
-            disjoint_P2[ilm*Nel+iel]=radial.Plm_integral(2,iel,L,M);
-            disjoint_Q0[ilm*Nel+iel]=radial.Qlm_integral(0,iel,L,M);
-            disjoint_Q2[ilm*Nel+iel]=radial.Qlm_integral(2,iel,L,M);
+            disjoint_P0[ilm*Nel+iel]=radial.Plm_integral(0,iel,L,M,legtab);
+            disjoint_P2[ilm*Nel+iel]=radial.Plm_integral(2,iel,L,M,legtab);
+            disjoint_Q0[ilm*Nel+iel]=radial.Qlm_integral(0,iel,L,M,legtab);
+            disjoint_Q2[ilm*Nel+iel]=radial.Qlm_integral(2,iel,L,M,legtab);
           }
         }
 
@@ -552,10 +601,10 @@ namespace helfem {
 
               if(iel==jel) {
                 // In-element integrals
-                prim_tei00[idx]=radial.twoe_integral(0,0,iel,L,M)*LMfac;
-                prim_tei02[idx]=radial.twoe_integral(0,2,iel,L,M)*LMfac;
-                prim_tei20[idx]=radial.twoe_integral(2,0,iel,L,M)*LMfac;
-                prim_tei22[idx]=radial.twoe_integral(2,2,iel,L,M)*LMfac;
+                prim_tei00[idx]=radial.twoe_integral(0,0,iel,L,M,legtab)*LMfac;
+                prim_tei02[idx]=radial.twoe_integral(0,2,iel,L,M,legtab)*LMfac;
+                prim_tei20[idx]=radial.twoe_integral(2,0,iel,L,M,legtab)*LMfac;
+                prim_tei22[idx]=radial.twoe_integral(2,2,iel,L,M,legtab)*LMfac;
 
               } else {
 		// Index in disjoint array
@@ -863,7 +912,7 @@ namespace helfem {
                         // Contract integrals
                         const size_t idx(Nel*Nel*ilm + iel*Nel + jel);
                         Ksub+=(cpl00*prim_ktei00[idx] + cpl02*prim_ktei02[idx] + cpl20*prim_ktei20[idx] + cpl22*prim_ktei22[idx])*Psub;
-                        
+
                         // Increment global exchange matrix
                         K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=arma::reshape(Ksub,Ni,Nj);
                       }

@@ -1,41 +1,10 @@
 #include "quadrature.h"
 #include "../general/chebyshev.h"
 #include "../general/polynomial.h"
-#include "../legendre/Legendre_Wrapper.h"
 
 namespace helfem {
   namespace diatomic {
     namespace quadrature {
-      static arma::vec calc_Plm(int L, int M, const arma::vec & chmu) {
-        arma::vec res(chmu.n_elem);
-#ifdef _OPENMP
-#pragma omp critical
-#endif
-        for(arma::uword i=0;i<chmu.n_elem;i++) {
-          res(i)=::calc_Plm_val(L,M,chmu(i));
-          if(!std::isnormal(res(i))) {
-            printf("Plm(%i,%i,%e)=%e\n",L,M,chmu(i),res(i));
-            res(i)=0.0;
-          }
-        }
-        return res;
-      }
-
-      static arma::vec calc_Qlm(int L, int M, const arma::vec & chmu) {
-        arma::vec res(chmu.n_elem);
-#ifdef _OPENMP
-#pragma omp critical
-#endif
-        for(arma::uword i=0;i<chmu.n_elem;i++) {
-          res(i)=::calc_Qlm_val(L,M,chmu(i));
-          if(!std::isnormal(res(i))) {
-            printf("Qlm(%i,%i,%e)=%e\n",L,M,chmu(i),res(i));
-            res(i)=0.0;
-          }
-        }
-        return res;
-      }
-
       arma::mat radial_integral(double mumin, double mumax, int m, int n, const arma::vec & x, const arma::vec & wx, const arma::mat & bf) {
 #ifndef ARMA_NO_DEBUG
         if(x.n_elem != wx.n_elem) {
@@ -73,7 +42,7 @@ namespace helfem {
         return arma::trans(wbf)*bf;
       }
 
-      arma::mat Plm_radial_integral(double mumin, double mumax, int k, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int L, int M) {
+      arma::mat Plm_radial_integral(double mumin, double mumax, int k, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int L, int M, const legendretable::LegendreTable & tab) {
 #ifndef ARMA_NO_DEBUG
         if(x.n_elem != wx.n_elem) {
           std::ostringstream oss;
@@ -100,7 +69,7 @@ namespace helfem {
         wp%=arma::sinh(mu);
         if(k!=0)
           wp%=arma::pow(chmu,k);
-        wp%=calc_Plm(L,M,chmu);
+        wp%=tab.get_Plm(L,M,chmu);
 
         // Put in weight
         arma::mat wbf(bf);
@@ -111,7 +80,7 @@ namespace helfem {
         return arma::trans(wbf)*bf;
       }
 
-      arma::mat Qlm_radial_integral(double mumin, double mumax, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int L, int M) {
+      arma::mat Qlm_radial_integral(double mumin, double mumax, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int L, int M, const legendretable::LegendreTable & tab) {
 #ifndef ARMA_NO_DEBUG
         if(x.n_elem != wx.n_elem) {
           std::ostringstream oss;
@@ -139,7 +108,7 @@ namespace helfem {
           // cosh term
           wp%=arma::pow(chmu,l);
         // Legendre polynomial
-        wp%=calc_Qlm(L,M,chmu);
+        wp%=tab.get_Qlm(L,M,chmu);
 
         // Put in weight
         arma::mat wbf(bf);
@@ -150,7 +119,7 @@ namespace helfem {
         return arma::trans(wbf)*bf;
       }
 
-      static arma::vec twoe_inner_integral_wrk(double mumin, double mumax, double mumin0, double mumax0, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M) {
+      static arma::vec twoe_inner_integral_wrk(double mumin, double mumax, double mumin0, double mumax0, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M, const legendretable::LegendreTable & tab) {
         // Midpoint is at
         double mumid(0.5*(mumax+mumin));
         // and half-length of interval is
@@ -171,7 +140,7 @@ namespace helfem {
           // cosh term
           wp%=arma::pow(chmu,l);
         // Legendre polynomial
-        wp%=calc_Plm(L,M,chmu);
+        wp%=tab.get_Plm(L,M,chmu);
 
         // Calculate x values the polynomials should be evaluated at
         arma::vec xpoly((mu-mumid0*arma::ones<arma::vec>(x.n_elem))/mulen0);
@@ -189,7 +158,7 @@ namespace helfem {
         return inner;
       }
 
-      arma::mat twoe_inner_integral(double mumin, double mumax, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M) {
+      arma::mat twoe_inner_integral(double mumin, double mumax, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M, const legendretable::LegendreTable & tab) {
         // Midpoint is at
         double mumid(0.5*(mumax+mumin));
         // and half-length of interval is
@@ -199,15 +168,15 @@ namespace helfem {
 
         // Compute the "inner" integrals as function of r.
         arma::mat inner(x.n_elem,bf_C.n_cols*bf_C.n_cols);
-        inner.row(0)=arma::trans(twoe_inner_integral_wrk(mumin, mu(0), mumin, mumax, l, x, wx, bf_C, L, M));
+        inner.row(0)=arma::trans(twoe_inner_integral_wrk(mumin, mu(0), mumin, mumax, l, x, wx, bf_C, L, M, tab));
         // Every subinterval uses a fresh nquad points!
         for(size_t ip=1;ip<x.n_elem;ip++)
-          inner.row(ip)=inner.row(ip-1)+arma::trans(twoe_inner_integral_wrk(mu(ip-1), mu(ip), mumin, mumax, l, x, wx, bf_C, L, M));
+          inner.row(ip)=inner.row(ip-1)+arma::trans(twoe_inner_integral_wrk(mu(ip-1), mu(ip), mumin, mumax, l, x, wx, bf_C, L, M, tab));
 
         return inner;
       }
 
-      static arma::mat twoe_integral_wrk(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M) {
+      static arma::mat twoe_integral_wrk(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M, const legendretable::LegendreTable & tab) {
 #ifndef ARMA_NO_DEBUG
         if(x.n_elem != wx.n_elem) {
           std::ostringstream oss;
@@ -224,7 +193,7 @@ namespace helfem {
         arma::vec chmu(arma::cosh(mu));
 
         // Compute the inner integrals
-        arma::mat inner(twoe_inner_integral(mumin, mumax, l, x, wx, bf_C, L, M));
+        arma::mat inner(twoe_inner_integral(mumin, mumax, l, x, wx, bf_C, L, M, tab));
 
         // Evaluate basis functions at quadrature points
         arma::mat bf(polynomial::polyval(bf_C,x));
@@ -239,7 +208,7 @@ namespace helfem {
         wp%=arma::sinh(mu);
         if(k!=0)
           wp%=arma::pow(chmu,k);
-        wp%=calc_Qlm(L,M,chmu);
+        wp%=tab.get_Qlm(L,M,chmu);
 
         for(size_t i=0;i<bfprod.n_cols;i++)
           bfprod.col(i)%=wp;
@@ -250,8 +219,8 @@ namespace helfem {
         return ints;
       }
 
-      arma::mat twoe_integral(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M) {
-        return twoe_integral_wrk(mumin,mumax,k,l,x,wx,bf_C,L,M) + arma::trans(twoe_integral_wrk(mumin,mumax,l,k,x,wx,bf_C,L,M));
+      arma::mat twoe_integral(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M, const legendretable::LegendreTable & tab) {
+        return twoe_integral_wrk(mumin,mumax,k,l,x,wx,bf_C,L,M,tab) + arma::trans(twoe_integral_wrk(mumin,mumax,l,k,x,wx,bf_C,L,M,tab));
       }
     }
   }

@@ -88,6 +88,7 @@ int main(int argc, char **argv) {
   parser.add<int>("nela", 0, "number of alpha electrons");
   parser.add<int>("nelb", 0, "number of beta  electrons");
   parser.add<int>("lmax", 0, "maximum l quantum number");
+  parser.add<int>("lpad", 0, "padding in Legendre table");
   parser.add<int>("mmax", 0, "maximum m quantum number");
   parser.add<double>("Rmax", 0, "practical infinity");
   parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for logarithmic");
@@ -117,6 +118,7 @@ int main(int argc, char **argv) {
   int Nquad(parser.get<int>("nquad"));
   // Angular grid
   int lmax(parser.get<int>("lmax"));
+  int lpad(parser.get<int>("lpad"));
   int mmax(parser.get<int>("mmax"));
 
   // Nuclear charge
@@ -133,7 +135,7 @@ int main(int argc, char **argv) {
 
   printf("Angular grid spanning from l=0..%i, m=%i..%i.\n",lmax,-mmax,mmax);
 
-  diatomic::basis::TwoDBasis basis(Z1, Z2, Rbond, Nnodes, der_order, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
+  diatomic::basis::TwoDBasis basis(Z1, Z2, Rbond, Nnodes, der_order, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp, lpad);
   printf("Basis set contains %i functions\n",(int) basis.Nbf());
 
   printf("Nuclear charges are %i %i at %e distance\n",Z1,Z2,Rbond);
