@@ -127,15 +127,17 @@ MODULE Associated_Legendre_Functions
 !----------------------------------------------------------------------c
 !
 !         Set print labels
-!
-  ALLOCATE(col_label(int_zero:m_max))
-  DO i=int_zero,m_max
-     col_label(i) = 'm = '//itoc(i)
-  END DO
-  ALLOCATE(row_label(int_zero:l_max))
-  DO i=int_zero,l_max
-     row_label(i) = 'l = '//itoc(i)
-  END DO
+      !
+      IF(Print_Functions) THEN
+         ALLOCATE(col_label(int_zero:m_max))
+         DO i=int_zero,m_max
+            col_label(i) = 'm = '//itoc(i)
+         END DO
+         ALLOCATE(row_label(int_zero:l_max))
+         DO i=int_zero,l_max
+            row_label(i) = 'l = '//itoc(i)
+         END DO
+      END IF
 !
   ALLOCATE(y(int_one:int_twenty))
   ALLOCATE(nrmlm(0:m_max))   
@@ -252,8 +254,10 @@ MODULE Associated_Legendre_Functions
   END DO     
   DEALLOCATE(nrmlm)   
   DEALLOCATE( y )
-  DEALLOCATE(col_label)
-  DEALLOCATE(row_label)
+  IF(Print_Functions) THEN
+     DEALLOCATE(col_label)
+     DEALLOCATE(row_label)
+  END IF
 1 Format(/,25x,'Argument = ',f15.8)
 2 Format(/,25x,a48)
 3 Format(/,25x,'Cannot Compute Irregular Function for Argument One')
