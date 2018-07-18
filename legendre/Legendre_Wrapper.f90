@@ -109,9 +109,9 @@ contains
     allocate(Plm(0:lmax,0:mmax))
     call calculate_Plm_array(Plm,xi)
 
-    do ll=0,lmax
-       do mm=0,mmax
-          R(ll*(mmax+1)+mm+1)=Plm(ll,mm)
+    do mm=0,mmax
+       do ll=0,lmax
+          R(mm*(lmax+1)+ll+1)=Plm(ll,mm)
        end do
     end do
     deallocate(Plm)
@@ -128,9 +128,9 @@ contains
     allocate(Qlm(0:lmax,0:mmax))
     call calculate_Qlm_array(Qlm,xi)
 
-    do ll=0,lmax
-       do mm=0,mmax
-          I(ll*(mmax+1)+mm+1)=Qlm(ll,mm)
+    do mm=0,mmax
+       do ll=0,lmax
+          I(mm*(lmax+1)+ll+1)=Qlm(ll,mm)
        end do
     end do
     deallocate(Qlm)
