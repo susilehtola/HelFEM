@@ -24,19 +24,16 @@ add_library(helfem general/polynomial.cpp general/gaunt.cpp
 general/chebyshev.cpp general/diis.cpp general/lbfgs.cpp
 general/utils.cpp general/spherical_harmonics.cpp general/timer.cpp)
 
-add_library(legendre
-  legendre/accuracy.f90
-  legendre/input_output.f90
-  legendre/itoc.f90
-  legendre/Matrix_Print.f90
-  legendre/Data_Module.f90
-  legendre/Special_Functions.f90
-  legendre/Auxilliary_Subroutines.f90
-  legendre/Prolate_Functions.f90
-  legendre/Lentz_Thompson.f90
-  legendre/Associated_Legendre_Functions.f90
-  legendre/Ass_Leg_Poly.f90
-  legendre/Legendre_Wrapper.f90)
+add_library(legendre legendre/accuracy.f90 legendre/input_output.f90
+  legendre/itoc.f90 legendre/Matrix_Print.f90 legendre/Data_Module.f90
+  legendre/Special_Functions.f90 legendre/Auxilliary_Subroutines.f90
+  legendre/Prolate_Functions.f90 legendre/Lentz_Thompson.f90
+  legendre/Associated_Legendre_Functions.f90 legendre/Ass_Leg_Poly.f90
+  legendre/Legendre_Wrapper.f90 general/legendretable.cpp)
+
+add_executable(legendre_test legendre/legendre_test.cpp)
+target_link_libraries(legendre_test helfem legendre)
+target_link_libraries(legendre_test gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
 
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem)
