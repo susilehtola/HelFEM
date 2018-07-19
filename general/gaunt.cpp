@@ -14,6 +14,13 @@ namespace helfem {
   namespace gaunt {
 
     double gaunt_coefficient(int L, int M, int l, int m, int lp, int mp) {
+      if(M != m+mp)
+        // Coefficient vanishes if l values don't match
+        return 0.0;
+      if(L < abs(l-lp) || L > l+lp)
+        // Can't couple
+        return 0.0;
+
       // First, compute square root factor
       double res=sqrt((2*L+1)*(2*l+1)*(2*lp+1)/(4.0*M_PI));
       // Plug in (l1 l2 l3 | 0 0 0), GSL uses half units
@@ -49,15 +56,16 @@ namespace helfem {
       table=arma::cube(lmind(Lmax,Lmax)+1,lmind(lmax,lmax)+1,lmind(lpmax,lpmax)+1);
 
       // Compute coefficients
+#ifdef _OPENMP
+#pragma omp parallel for collapse(3)
+#endif
       for(int L=0;L<=Lmax;L++)
-	for(int M=-L;M<=L;M++)
-
 	  for(int l=0;l<=lmax;l++)
-	    for(int m=-l;m<=l;m++)
-
-	      for(int lp=0;lp<=lpmax;lp++)
-		for(int mp=-lp;mp<=lp;mp++)
-		  table(lmind(L,M),lmind(l,m),lmind(lp,mp))=gaunt_coefficient(L,M,l,m,lp,mp);
+            for(int lp=0;lp<=lpmax;lp++)
+              for(int M=-L;M<=L;M++)
+                for(int m=-l;m<=l;m++)
+                  for(int mp=-lp;mp<=lp;mp++)
+                    table(lmind(L,M),lmind(l,m),lmind(lp,mp))=gaunt_coefficient(L,M,l,m,lp,mp);
     }
 
     Gaunt::~Gaunt() {
