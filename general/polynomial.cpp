@@ -25,9 +25,15 @@ namespace helfem {
     }
 
     double factorial_ratio(int pmax, int pmin) {
+      // Check consistency of arguments
+      if(pmax < pmin)
+        return 1.0/factorial_ratio(pmin, pmax);
+
+      // Calculate ratio
       double r=1.0;
       for(int p=pmax;p>pmin;p--)
         r*=p;
+
       return r;
     }
 
