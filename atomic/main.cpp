@@ -418,7 +418,7 @@ int main(int argc, char **argv) {
   // Quadrupole coupling
   arma::mat quad(basis.quadrupole_zz());
 
-  // Electric field coupling
+  // Electric field coupling (minus sign cancels one from charge)
   arma::mat Vel(Ez*dip + Qzz*quad/3.0);
   // Form kinetic energy matrix
   arma::mat T(basis.kinetic());
@@ -676,8 +676,8 @@ int main(int argc, char **argv) {
   printf("%-21s energy: % .16f\n","Total",Etot);
 
   printf("\n");
-  printf("Dipole     moment % .16e\n",arma::trace(dip*P));
-  printf("Quadrupole moment % .16e\n",arma::trace(quad*P));
+  printf("Electronic dipole     moment % .16e\n",arma::trace(dip*P));
+  printf("Electronic quadrupole moment % .16e\n",arma::trace(quad*P));
 
   // Calculate <r^2> matrix
   arma::mat rmat(basis.radial_integral(1));
