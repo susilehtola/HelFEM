@@ -46,6 +46,8 @@ namespace helfem {
         size_t Nbf() const;
         /// Number of primitive functions in element
         size_t Nprim(size_t iel) const;
+        /// Number of primitive functions in element
+        size_t max_Nprim() const;
 
         /// Number of elements
         size_t Nel() const;
@@ -105,6 +107,10 @@ namespace helfem {
 
         /// L, |M| map
         std::vector<lmidx_t> lm_map;
+        /// Auxiliary integrals, Plm
+        std::vector<arma::mat> disjoint_P0, disjoint_P2;
+        /// Auxiliary integrals, Qlm
+        std::vector<arma::mat> disjoint_Q0, disjoint_Q2;
         /// Primitive two-electron integrals: <Nel^2 * N_L>
         std::vector<arma::mat> prim_tei00, prim_tei02, prim_tei20, prim_tei22;
         /// Primitive two-electron integrals: <Nel^2 * N_L> sorted for exchange
