@@ -147,14 +147,25 @@ namespace helfem {
         /// Destructor
         ~TwoDBasis();
 
+        /// Memory for one-electron integral matrix
+        size_t mem_1el() const;
+        /// Memory for auxiliary one-electron integrals (off-center nuclei)
+        size_t mem_1el_aux() const;
+        /// Memory for auxiliary two-electron integrals
+        size_t mem_2el_aux() const;
+
         /// Compute two-electron integrals
         void compute_tei();
 
         /// Number of basis functions
         size_t Nbf() const;
+        /// Number of radial functions
+        size_t Nrad() const;
+        /// Number of angular shells
+        size_t Nang() const;
 
         /// Form half-inverse overlap matrix
-        arma::mat Sinvh() const;
+        arma::mat Sinvh(bool chol) const;
         /// Form radial integral
         arma::mat radial_integral(int n) const;
         /// Form overlap matrix
@@ -163,8 +174,10 @@ namespace helfem {
         arma::mat kinetic() const;
         /// Form nuclear attraction matrix
         arma::mat nuclear() const;
-        /// Form electric field coupling matrix
-        arma::mat electric(double Ez) const;
+        /// Form dipole coupling matrix
+        arma::mat dipole_z() const;
+        /// Form dipole coupling matrix
+        arma::mat quadrupole_zz() const;
 
         /// Form density matrix
         arma::mat form_density(const arma::mat & C, size_t nocc) const;

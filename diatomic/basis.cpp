@@ -9,9 +9,6 @@
 #include <cassert>
 #include <cfloat>
 
-/// Use Cholesky for Sinvh?
-//#define CHOL_SINVH
-
 namespace helfem {
   namespace diatomic {
     namespace basis {
@@ -308,6 +305,21 @@ namespace helfem {
           legtab.compute(chmu(i));
         printf("done (% .3f s)\n",t.get());
         fflush(stdout);
+
+        // Form lm map
+        lm_map.clear();
+        for(int L=0;L<=L_max();L++)
+          for(int M=0;M<=std::min(M_max(),L);M++) { // m=-mmax and M=2*mmax can still couple to m'=mmax
+            lmidx_t p;
+            p.first=L;
+            p.second=M;
+
+            if(!lm_map.size())
+              lm_map.push_back(p);
+            else
+              // Insert at lower bound
+              lm_map.insert(lm_map.begin()+lmind(L,M,false),p);
+          }
       }
 
       TwoDBasis::~TwoDBasis() {
@@ -328,6 +340,14 @@ namespace helfem {
         }
 
         return nbf;
+      }
+
+      size_t TwoDBasis::Nrad() const {
+        return radial.Nbf();
+      }
+
+      size_t TwoDBasis::Nang() const {
+        return lval.n_elem;
       }
 
       arma::uvec TwoDBasis::pure_indices() const {
@@ -382,7 +402,7 @@ namespace helfem {
         return idx;
       }
 
-      arma::mat TwoDBasis::Sinvh() const {
+      arma::mat TwoDBasis::Sinvh(bool chol) const {
         // Form overlap matrix
         arma::mat S(overlap());
 
@@ -392,23 +412,24 @@ namespace helfem {
         // Go to normalized basis
         S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
 
-#ifdef CHOL_SINVH
-        // Half-inverse is
-        return arma::diagmat(bfnormlz) * arma::inv(arma::chol(S));
-#else
-        arma::vec Sval;
-        arma::mat Svec;
-        if(!arma::eig_sym(Sval,Svec,S)) {
-          S.save("S.dat",arma::raw_ascii);
+        if(chol) {
+          // Half-inverse is
+          return arma::diagmat(bfnormlz) * arma::inv(arma::chol(S));
+
+        } else {
+          arma::vec Sval;
+          arma::mat Svec;
+          if(!arma::eig_sym(Sval,Svec,S)) {
+            S.save("S.dat",arma::raw_ascii);
           throw std::logic_error("Diagonalization of overlap matrix failed\n");
+          }
+          printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
+
+          arma::mat Sinvh(Svec*arma::diagmat(arma::pow(Sval,-0.5))*arma::trans(Svec));
+          Sinvh=arma::diagmat(bfnormlz)*Sinvh;
+
+          return Sinvh;
         }
-        printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
-
-        arma::mat Sinvh(Svec*arma::diagmat(arma::pow(Sval,-0.5))*arma::trans(Svec));
-        Sinvh=arma::diagmat(bfnormlz)*Sinvh;
-
-        return Sinvh;
-#endif
       }
 
       void TwoDBasis::set_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Mrad) const {
@@ -536,45 +557,47 @@ namespace helfem {
         return remove_boundaries(V);
       }
 
-      arma::mat TwoDBasis::electric(double Ez) const {
+      arma::mat TwoDBasis::dipole_z() const {
         // Full electric couplings
         arma::mat V(Ndummy(),Ndummy());
         V.zeros();
 
-        if(Ez!=0.0) {
-          // Build radial matrix elements
-          arma::mat I11(radial.radial_integral(1,1));
-          arma::mat I13(radial.radial_integral(1,3));
+        // Build radial matrix elements
+        arma::mat I11(radial.radial_integral(1,1));
+        arma::mat I13(radial.radial_integral(1,3));
 
-          // Fill elements
-          for(size_t iang=0;iang<lval.n_elem;iang++) {
-            int li(lval(iang));
-            int mi(mval(iang));
+        // Fill elements
+        for(size_t iang=0;iang<lval.n_elem;iang++) {
+          int li(lval(iang));
+          int mi(mval(iang));
 
-            for(size_t jang=0;jang<lval.n_elem;jang++) {
-              int lj(lval(jang));
-              int mj(mval(jang));
+          for(size_t jang=0;jang<lval.n_elem;jang++) {
+            int lj(lval(jang));
+            int mj(mval(jang));
 
-              // Calculate coupling
-              if(mi==mj) {
-                // Coupling through the cos term
-                double cpl1(gaunt.cosine_coupling(lj,mj,li,mi));
-                if(cpl1!=0.0)
-                  add_sub(V,iang,jang,cpl1*I13);
+            // Calculate coupling
+            if(mi==mj) {
+              // Coupling through the cos term
+              double cpl1(gaunt.cosine_coupling(lj,mj,li,mi));
+              if(cpl1!=0.0)
+                add_sub(V,iang,jang,cpl1*I13);
 
-                // We can also couple through the cos^3 term
-                double cpl3(gaunt.cosine3_coupling(lj,mj,li,mi));
-		if(cpl3!=0.0)
-                  add_sub(V,iang,jang,-cpl3*I11);
-              }
+              // We can also couple through the cos^3 term
+              double cpl3(gaunt.cosine3_coupling(lj,mj,li,mi));
+              if(cpl3!=0.0)
+                add_sub(V,iang,jang,-cpl3*I11);
             }
           }
-
-          // Plug in prefactors
-          V*=Ez*std::pow(Rhalf,4);
         }
 
+        // Plug in prefactors
+        V*=std::pow(Rhalf,4);
+
         return remove_boundaries(V);
+      }
+
+      arma::mat TwoDBasis::quadrupole_zz() const {
+        return arma::zeros<arma::mat>(Nbf(),Nbf());
       }
 
       bool operator<(const lmidx_t & lh, const lmidx_t & rh) {
@@ -605,22 +628,32 @@ namespace helfem {
         return arma::max(mval)-arma::min(mval);
       }
 
+      size_t TwoDBasis::mem_1el() const {
+        return Nbf()*Nbf()*sizeof(double);
+      }
+
+      size_t TwoDBasis::mem_1el_aux() const {
+        size_t Nel(radial.Nel());
+        size_t Nprim(radial.max_Nprim());
+        size_t N_LM(lm_map.size());
+
+        return 4*N_LM*Nel*Nprim*Nprim*sizeof(double);
+      }
+
+      size_t TwoDBasis::mem_2el_aux() const {
+        // Auxiliary integrals required up to
+        size_t N_LM(lm_map.size());
+        // Number of elements
+        size_t Nel(radial.Nel());
+        // Number of primitive functions per element
+        size_t Nprim(radial.max_Nprim());
+
+        // No off-diagonal storage
+        return 4*N_LM*Nel*Nprim*Nprim*Nprim*Nprim*sizeof(double);
+      }
+
+
       void TwoDBasis::compute_tei() {
-        // Form lm map
-        lm_map.clear();
-        for(int L=0;L<=L_max();L++)
-          for(int M=0;M<=std::min(M_max(),L);M++) { // m=-mmax and M=2*mmax can still couple to m'=mmax
-            lmidx_t p;
-            p.first=L;
-            p.second=M;
-
-            if(!lm_map.size())
-              lm_map.push_back(p);
-            else
-              // Insert at lower bound
-              lm_map.insert(lm_map.begin()+lmind(L,M,false),p);
-          }
-
         // Number of distinct L values is
         size_t Nel(radial.Nel());
 
