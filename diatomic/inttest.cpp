@@ -87,6 +87,7 @@ void run(double Rhalf, double mumax, int n_quad) {
   arma::eig_sym (Hval, Hvec, Horth);
   Hval.print("Eigenvalues");
 
+#if 0
   arma::mat teiq00(diatomic::quadrature::twoe_integral(mumin,mumax,0,0,xq,wq,bf_C,0,0));
 
   arma::mat tei00(4,4);
@@ -233,6 +234,7 @@ void run(double Rhalf, double mumax, int n_quad) {
   cteiq00.print("Quadrature 00");
   cteiq00-=ctei00;
   cteiq00.print("Difference 00");
+#endif
 }
 
 int main(int argc, char **argv) {
