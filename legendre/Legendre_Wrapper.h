@@ -36,11 +36,22 @@ extern "C"
  */
 double calc_Plm_val(int l, int m, double xi);
 /**
+ * Calculates a value of the normalized regular Legendre function.
+ */
+double calc_norm_Plm_val(int l, int m, double xi);
+
+/**
  * Calculates the regular Legendre functions. Plm should be an array
  * of size (lmax+1)*(mmax+1). The values are stored in Fortran order
  * i.e. column-major.
  */
 void calc_Plm_arr(double *Plm, int lmax, int mmax, double xi);
+/**
+ * Calculates the normalized regular Legendre functions. Plm should be
+ * an array of size (lmax+1)*(mmax+1). The values are stored in
+ * Fortran order i.e. column-major.
+ */
+void calc_norm_Plm_arr(double *Plm, int lmax, int mmax, double xi);
 
 /**
  * Calculates a value of the irregular Legendre function.

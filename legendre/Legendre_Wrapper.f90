@@ -48,6 +48,27 @@ contains
     deallocate(x)
   end subroutine calculate_Plm_array
 
+  subroutine calculate_normalized_Plm_array(Plm,xi)
+    double precision, dimension(:,:), intent(out) :: Plm
+    double precision, intent(in) :: xi
+
+    allocate(x(1))
+    x(1)=xi
+
+    directive   = 'regular'
+    Leg%D%A%Dir = 'Miller'
+    l_max = size(Plm,1)-1
+    m_min = 0
+    m_max = size(Plm,2)-1
+    if(m_max > l_max) l_max=m_max
+
+    allocate(Leg%R_LM%F(0:l_max,0:m_max))
+    call Legendre( R_LM=Leg%R_LM, normalized=.true. )
+    Plm(1:size(Plm,1),:) = Leg%R_LM%F(0:size(Plm,1)-1,:)
+    deallocate(Leg%R_LM%F)
+    deallocate(x)
+  end subroutine calculate_normalized_Plm_array
+
   subroutine calculate_Qlm_array(Qlm,xi)
     double precision, dimension(:,:), intent(out) :: Qlm
     double precision, intent(in) :: xi
@@ -84,6 +105,19 @@ contains
     deallocate(Plm)
   end function calculate_Plm
 
+  function calculate_normalized_Plm(l,m,xi) result(R)
+    integer, intent(in) :: l
+    integer, intent(in) :: m
+    double precision, intent(in) :: xi
+    double precision :: R
+    double precision, dimension(:,:), allocatable :: Plm
+
+    allocate(Plm(0:l,0:m))
+    call calculate_normalized_Plm_array(Plm,xi)
+    R=Plm(l,m)
+    deallocate(Plm)
+  end function calculate_normalized_Plm
+
   function calculate_Qlm(l,m,xi) result(I)
     integer, intent(in) :: l
     integer, intent(in) :: m
@@ -117,6 +151,25 @@ contains
     deallocate(Plm)
   end subroutine calc_Plm_arr
 
+  subroutine calc_norm_Plm_arr(R,lmax,mmax,xi) bind(C,name='calc_norm_Plm_arr')
+    real(kind=c_double) :: R((lmax+1)*(mmax+1))
+    integer(kind=c_int), value :: lmax
+    integer(kind=c_int), value :: mmax
+    real(kind=c_double), value :: xi
+
+    double precision, dimension(:,:), allocatable :: Plm
+    integer :: ll, mm
+    allocate(Plm(0:lmax,0:mmax))
+    call calculate_normalized_Plm_array(Plm,xi)
+
+    do mm=0,mmax
+       do ll=0,lmax
+          R(mm*(lmax+1)+ll+1)=Plm(ll,mm)
+       end do
+    end do
+    deallocate(Plm)
+  end subroutine calc_norm_Plm_arr
+
   subroutine calc_Qlm_arr(I,lmax,mmax,xi) bind(C,name='calc_Qlm_arr')
     real(kind=c_double) :: I((lmax+1)*(mmax+1))
     integer(kind=c_int), value :: lmax
@@ -145,6 +198,15 @@ contains
 
     R=calculate_Plm(l,m,xi)
   end function calc_Plm_val
+
+  function calc_norm_Plm_val(l,m,xi) result(R) bind(C,name='calc_norm_Plm_val')
+    integer(kind=c_int), value :: l
+    integer(kind=c_int), value :: m
+    real(kind=c_double), value :: xi
+    real(kind=c_double) :: R
+
+    R=calculate_normalized_Plm(l,m,xi)
+  end function calc_norm_Plm_val
 
   function calc_Qlm_val(l,m,xi) result(I) bind(C,name='calc_Qlm_val')
     integer(kind=c_int), value :: l
