@@ -932,9 +932,12 @@ namespace helfem {
 #endif
       for(size_t L=0;L<N_L;L++)
         for(size_t iel=0;iel<Nel;iel++) {
+          // Diagonal integrals
 	  size_t Ni(radial.Nprim(iel));
 	  prim_ktei[Nel*Nel*L + iel*Nel + iel]=utils::exchange_tei(prim_tei[Nel*Nel*L + iel*Nel + iel],Ni,Ni,Ni,Ni);
 
+          // Off-diagonal integrals (not used since faster to contract
+          // the integrals in factorized form)
 	  /*
 	    for(size_t jel=0;jel<iel;jel++) {
 	      size_t Nj(radial.Nprim(jel));
