@@ -49,9 +49,6 @@ namespace helfem {
       {
         legendre_table_t entry;
 
-        printf("Thread %i computing values for xi = % .20e\n",omp_get_thread_num(),xi);
-        fflush(stdout);
-
         // Allocate memory
         entry.xi=xi;
         entry.Plm.zeros(Lpad+1,Lpad+1);
