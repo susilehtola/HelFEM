@@ -36,27 +36,27 @@ target_link_libraries(legendre_test helfem legendre)
 target_link_libraries(legendre_test gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
 
 add_executable(gaunt_test general/gaunt_test.cpp)
-target_link_libraries(gaunt_test helfem)
+target_link_libraries(gaunt_test helfem legendre)
 target_link_libraries(gaunt_test gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
 
 add_executable(sphtest general/sphtest.cpp)
-target_link_libraries(sphtest helfem)
+target_link_libraries(sphtest helfem legendre)
 target_link_libraries(sphtest gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
 
 add_executable(harmonic harmonic/main.cpp harmonic/quadrature.cpp)
-target_link_libraries(harmonic helfem)
+target_link_libraries(harmonic helfem legendre)
 target_link_libraries(harmonic gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
 
 add_executable(atomic atomic/main.cpp atomic/basis.cpp atomic/quadrature.cpp atomic/dftgrid.cpp general/dftfuncs.cpp)
-target_link_libraries(atomic helfem)
+target_link_libraries(atomic helfem legendre)
 target_link_libraries(atomic gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl xc)
 
 add_executable(atomic_qtest atomic/qtest.cpp atomic/basis.cpp atomic/quadrature.cpp)
-target_link_libraries(atomic_qtest helfem)
+target_link_libraries(atomic_qtest helfem legendre)
 target_link_libraries(atomic_qtest gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
 
 add_executable(atomic_itest atomic/inttest.cpp atomic/basis.cpp atomic/quadrature.cpp)
-target_link_libraries(atomic_itest helfem)
+target_link_libraries(atomic_itest helfem legendre)
 target_link_libraries(atomic_itest gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
 
 add_executable(diatomic diatomic/main.cpp diatomic/basis.cpp diatomic/quadrature.cpp)

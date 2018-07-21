@@ -17,10 +17,7 @@
 #include "spherical_harmonics.h"
 #include <cmath>
 #include <cfloat>
-extern "C" {
-// Legendre polynomials
-#include <gsl/gsl_sf_legendre.h>
-}
+#include "../legendre/Legendre_Wrapper.h"
 
 std::complex<double> spherical_harmonics(int l, int m, double cth, double phi) {
   /* Calculate value of spherical harmonic Y_{lm} = N_{lm} P_{lm} (\cos \theta) e^{i m \phi} */
@@ -35,7 +32,7 @@ std::complex<double> spherical_harmonics(int l, int m, double cth, double phi) {
   // and then plug in the normalized associated Legendre polynomial,
   // which already seems to take into account the Condon-Shortley
   // phase factor.
-  ylm*=gsl_sf_legendre_sphPlm(l,m,cth);
+  ylm*=calc_norm_Plm_val(l,m,cth)/sqrt(2.0*M_PI);
 
   return ylm;
 }
