@@ -26,29 +26,11 @@ int main(void) {
   int Lmax=50;
 
   double thr=1e-10;
-  double xi=3.0;
   double eps;
 
-  /*
-  arma::mat Plm(get_Plm(Lmax,Mmax,xi));
-  for(int L=Lmax;L<=100;L++) {
-    arma::mat newPlm(get_Plm(L,Mmax,xi));
-    double err=arma::norm(Plm-newPlm.submat(0,0,Lmax,Mmax),"fro");
-    printf("L=%i Plm change %e\n",L,err);
-    Plm=newPlm.submat(0,0,Lmax,Mmax);
-  }
-  arma::mat Qlm(get_Qlm(Lmax,Mmax,xi));
-  for(int L=Lmax;L<=100;L++) {
-    arma::mat newQlm(get_Qlm(L,Mmax,xi));
-    double err=arma::norm(Qlm-newQlm.submat(0,0,Lmax,Mmax),"fro");
-    printf("L=%i Qlm change %e\n",L,err);
-    Qlm=newQlm.submat(0,0,Lmax,Mmax);
-  }
-  */
+  double Rh=0.2;
 
-  double Rh=1.4;
-
-  double deta=0.2;
+  double deta=0.3;
   double eta1=deta*M_PI;
   double eta2=(1.0-deta)*M_PI;
 
@@ -57,7 +39,7 @@ int main(void) {
   double phi2=(2.0-dphi)*M_PI;
 
   double mu1=0.1;
-  double mu2=4.0;
+  double mu2=2.4;
 
   double x1, y1, z1;
   get_coord(Rh, mu1, eta1, phi1, x1, y1, z1);
@@ -80,33 +62,26 @@ int main(void) {
   // Neumann expansion
   std::complex<double> Eneu(0.0,0.0);
 
-  arma::mat Plm(get_Plm(Lmax,Lmax,cosh(mumin)));
-  arma::mat Qlm(get_Qlm(Lmax,Lmax,cosh(mumax)));
+  int lpad=0;
+  arma::mat Plm(get_Plm(Lmax+lpad,Lmax+lpad,cosh(mumin)));
+  arma::mat Qlm(get_Qlm(Lmax+lpad,Lmax+lpad,cosh(mumax)));
 
-  /*
-  printf("Plm test, arg %e\n",cosh(mumin));
-  for(int L=0;L<=Lmax;L++) {
-    for(int M=0;M<=Lmax;M++) {
-      printf("%i %i % e\n",L,M,calc_Plm_val(L, std::abs(M), cosh(mumin)));
-    }
-  }
-  printf("Qlm test, arg %e\n",cosh(mumax));
-  for(int L=0;L<=Lmax;L++) {
-    for(int M=0;M<=Lmax;M++) {
-      printf("%i %i % e\n",L,M,calc_Qlm_val(L, std::abs(M), cosh(mumax)));
-    }
-  }
-  */
-  
   printf("%21s % .16f\n","Exact energy",Eex);
   for(int L=0;L<=Lmax;L++) {
     for(int M=-L;M<=L;M++) {
-      //Eneu += std::pow(-1.0,M) / helfem::polynomial::factorial_ratio(L+M,L-M) * calc_Plm_val(L, std::abs(M), cosh(mumin)) * calc_Qlm_val(L, std::abs(M), cosh(mumax)) * spherical_harmonics(L, M, cos(eta1), phi1) * std::conj(spherical_harmonics(L, M, cos(eta2), phi2)) * (4*M_PI/Rh);
-      Eneu += std::pow(-1.0,M) / helfem::polynomial::factorial_ratio(L+M,L-M) * Plm(L, std::abs(M)) * Qlm(L, std::abs(M)) * spherical_harmonics(L, M, cos(eta1), phi1) * std::conj(spherical_harmonics(L, M, cos(eta2), phi2)) * (4*M_PI/Rh);
+      double leg = Plm(L, std::abs(M)) * Qlm(L, std::abs(M));
+      std::complex<double> sph = spherical_harmonics(L, M, cos(eta1), phi1) * std::conj(spherical_harmonics(L, M, cos(eta2), phi2) / helfem::polynomial::factorial_ratio(L+std::abs(M),L-std::abs(M)));
+      Eneu += std::pow(-1.0,M) * leg * sph * (4.0*M_PI/Rh);
+
+#if 0
+      printf("Legendre % e\n",leg);
+      printf("Spherical harmonic % e\n",sph);
+      printf("Partial sum % e\n",std::real(Eneu));
+#endif
     }
     printf("%15s L=%3i % .16f\n","Neumann expn",L,std::real(Eneu));
   }
+  printf("%21s % .16f\n","Exact energy",Eex);
 
   return 0.0;
 }
-
