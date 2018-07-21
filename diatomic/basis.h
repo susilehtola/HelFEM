@@ -110,10 +110,8 @@ namespace helfem {
         /// Primitive two-electron integrals: <Nel^2 * N_L> sorted for exchange
         std::vector<arma::mat> prim_ktei00, prim_ktei02, prim_ktei20, prim_ktei22;
 
-        /// Number of basis functions in angular block
-        size_t angular_nbf(size_t amind) const;
-        /// Offset for angular block
-        size_t angular_offset(size_t amind) const;
+        /// Get indices of real basis functions
+        arma::uvec pure_indices() const;
 
         /// Add to radial submatrix
         void add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
@@ -125,7 +123,7 @@ namespace helfem {
         /// Expand boundary conditions
         arma::mat expand_boundaries(const arma::mat & H) const;
         /// Remove boundary conditions
-        arma::mat remove_boundaries(const arma::mat & C) const;
+        arma::mat remove_boundaries(const arma::mat & H) const;
 
         /// Find index in (L,|M|) table
         size_t lmind(int L, int M, bool check=true) const;
@@ -175,6 +173,13 @@ namespace helfem {
 
         /// Set elements to zero
         void set_zero(int lmax, arma::mat & M) const;
+
+        /// Get l values
+        arma::ivec get_l() const;
+        /// Get m values
+        arma::ivec get_m() const;
+        /// Get indices of basis functions with wanted m quantum number
+        arma::uvec m_indices(int m) const;
       };
     }
   }

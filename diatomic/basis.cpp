@@ -4,6 +4,7 @@
 #include "../general/chebyshev.h"
 #include "../general/gaunt.h"
 #include "../general/utils.h"
+#include "../general/timer.h"
 #include <algorithm>
 #include <cassert>
 #include <cfloat>
@@ -283,14 +284,26 @@ namespace helfem {
         // Two-electron matrices need Lmax+2,Lmax,Lmax+2
         int lrval(std::max(Lmax+2,gmax));
         int mval(std::max(Lmax,3));
+
+        Timer t;
+        printf("Computing Gaunt coefficients ... ");
+        fflush(stdout);
         gaunt=gaunt::Gaunt(lrval,mval,lrval);
+        printf("done (% .3f s)\n",t.get());
+        fflush(stdout);
 
         // Legendre function values
-        legtab=legendretable::LegendreTable(L_max()+lpad,L_max(),M_max());
+        t.set();
+        printf("Computing Legendre function values ... ");
+        fflush(stdout);
+
         // Fill table with necessary values
+        legtab=legendretable::LegendreTable(L_max()+lpad,L_max(),M_max());
         arma::vec chmu(radial.get_chmu_quad());
         for(size_t i=0;i<chmu.n_elem;i++)
           legtab.compute(chmu(i));
+        printf("done (% .3f s)\n",t.get());
+        fflush(stdout);
       }
 
       TwoDBasis::~TwoDBasis() {
@@ -301,22 +314,68 @@ namespace helfem {
       }
 
       size_t TwoDBasis::Nbf() const {
-	return angular_offset(lval.n_elem);
+        // Count total number of basis functions
+        size_t nbf=0;
+        for(size_t i=0;i<mval.n_elem;i++) {
+          nbf+=radial.Nbf();
+          if(mval(i)!=0)
+            // Remove first noverlap functions
+            nbf-=radial.get_noverlap();
+        }
+
+        return nbf;
       }
 
-      size_t TwoDBasis::angular_nbf(size_t iam) const {
-        if(mval(iam)==0)
-          return radial.Nbf();
-        else
-          // Boundary condition with m>0: remove first noverlap functions!
-          return radial.Nbf()-radial.get_noverlap();
-      }
+      arma::uvec TwoDBasis::pure_indices() const {
+        // Indices of the pure functions
+        arma::uvec idx(Nbf());
 
-      size_t TwoDBasis::angular_offset(size_t iam) const {
         size_t ioff=0;
-        for(size_t i=0;i<iam;i++)
-          ioff+=angular_nbf(i);
-        return ioff;
+        for(size_t i=0;i<mval.n_elem;i++) {
+          if(mval(i)==0) {
+            idx.subvec(ioff,ioff+radial.Nbf()-1)=arma::linspace<arma::uvec>(i*radial.Nbf(),(i+1)*radial.Nbf()-1,radial.Nbf());
+            ioff+=radial.Nbf();
+          } else {
+            idx.subvec(ioff,ioff+radial.Nbf()-radial.get_noverlap()-1)=arma::linspace<arma::uvec>(i*radial.Nbf()+radial.get_noverlap(),(i+1)*radial.Nbf()-1,radial.Nbf()-radial.get_noverlap());
+            ioff+=radial.Nbf()-radial.get_noverlap();
+          }
+        }
+
+        return idx;
+      }
+
+      arma::ivec TwoDBasis::get_l() const {
+        return lval;
+      }
+
+      arma::ivec TwoDBasis::get_m() const {
+        return mval;
+      }
+
+      arma::uvec TwoDBasis::m_indices(int m) const {
+        // Count how many functions
+        size_t nm=0;
+        for(size_t i=0;i<mval.n_elem;i++) {
+          if(mval(i)==m) {
+            nm += (m==0) ? radial.Nbf() : radial.Nbf()-radial.get_noverlap();
+          }
+        }
+
+        // Collect functions
+        arma::uvec idx(nm);
+        size_t ioff=0;
+        size_t ibf=0;
+        for(size_t i=0;i<mval.n_elem;i++) {
+          // Number of functions on shell is
+          size_t nsh=(mval(i)==0) ? radial.Nbf() : radial.Nbf()-radial.get_noverlap();
+          if(mval(i)==m) {
+            idx.subvec(ioff,ioff+nsh-1)=arma::linspace<arma::uvec>(ibf,ibf+nsh-1,nsh);
+            ioff+=nsh;
+          }
+          ibf+=nsh;
+        }
+
+        return idx;
       }
 
       arma::mat TwoDBasis::Sinvh() const {
@@ -418,11 +477,11 @@ namespace helfem {
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++) {
           set_sub(T,iang,iang,Trad);
-          if(lval(iang)>0) {
+          if(lval(iang)!=0) {
             // We also get the l(l+1) term
             add_sub(T,iang,iang,lval(iang)*(lval(iang)+1)*Ip1);
           }
-          if(mval(iang)>0) {
+          if(mval(iang)!=0) {
             // We also get the m^2 term
             add_sub(T,iang,iang,mval(iang)*mval(iang)*Im1);
           }
@@ -543,9 +602,6 @@ namespace helfem {
       }
 
       void TwoDBasis::compute_tei() {
-        // Maximum m value is
-        int mmax=arma::max(mval);
-
         // Form lm map
         lm_map.clear();
         for(int L=0;L<=L_max();L++)
@@ -592,7 +648,7 @@ namespace helfem {
         for(size_t ilm=0;ilm<lm_map.size();ilm++) {
           int L(lm_map[ilm].first);
           int M(lm_map[ilm].second);
-	  const double LMfac(std::pow(-1.0,M)/polynomial::factorial_ratio(L+M,L-M));
+	  const double LMfac(std::pow(-1.0,M)/polynomial::factorial_ratio(L+std::abs(M),L-std::abs(M)));
 
           for(size_t iel=0;iel<Nel;iel++) {
             for(size_t jel=0;jel<Nel;jel++) {
@@ -930,37 +986,17 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::remove_boundaries(const arma::mat & Fnob) const {
-        // Determine how many functions we need
-        size_t Npure=angular_offset(lval.n_elem);
-        // Number of functions in radial basis
-        size_t Nrad=radial.Nbf();
-        if(Fnob.n_rows != Nrad*lval.n_elem || Fnob.n_cols != Nrad*lval.n_elem) {
+        if(Fnob.n_rows != Ndummy() || Fnob.n_cols != Ndummy()) {
           std::ostringstream oss;
-          oss << "Matrix does not have expected size! Got " << Fnob.n_rows << " x " << Fnob.n_cols << ", expected " << Nrad*lval.n_elem << " x " << Nrad*lval.n_elem << "!\n";
+          oss << "Matrix does not have expected size! Got " << Fnob.n_rows << " x " << Fnob.n_cols << ", expected " << Ndummy() << " x " << Ndummy() << "!\n";
           throw std::logic_error(oss.str());
         }
 
+        // Get indices
+        arma::uvec idx(pure_indices());
+
         // Matrix with the boundary conditions removed
-        arma::mat Fpure(Npure,Npure);
-        Fpure.zeros();
-
-        // Fill matrix
-        for(size_t iang=0;iang<lval.n_elem;iang++)
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
-            // Offset
-            size_t ioff=angular_offset(iang);
-            size_t joff=angular_offset(jang);
-
-            // Number of radial functions on the shells
-            size_t ni=angular_nbf(iang);
-            size_t nj=angular_nbf(jang);
-
-            // Sanity check for trivial case
-            if(!ni) continue;
-            if(!nj) continue;
-
-            Fpure.submat(ioff,joff,ioff+ni-1,joff+nj-1)=Fnob.submat((iang+1)*Nrad-ni,(jang+1)*Nrad-nj,(iang+1)*Nrad-1,(jang+1)*Nrad-1);
-          }
+        arma::mat Fpure(Fnob(idx,idx));
 
         //Fnob.print("Input: w/o built-in boundaries");
         //Fpure.print("Output: w built-in boundaries");
@@ -969,38 +1005,19 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::expand_boundaries(const arma::mat & Ppure) const {
-        // Determine how many functions we need
-        size_t Npure=angular_offset(lval.n_elem);
-        // Number of functions in radial basis
-        size_t Nrad=radial.Nbf();
-
-        if(Ppure.n_rows != Npure || Ppure.n_cols != Npure) {
+        if(Ppure.n_rows != Nbf() || Ppure.n_cols != Nbf()) {
           std::ostringstream oss;
-          oss << "Matrix does not have expected size! Got " << Ppure.n_rows << " x " << Ppure.n_cols << ", expected " << Npure << " x " << Npure << "!\n";
+          oss << "Matrix does not have expected size! Got " << Ppure.n_rows << " x " << Ppure.n_cols << ", expected " << Nbf() << " x " << Nbf() << "!\n";
           throw std::logic_error(oss.str());
         }
 
+        // Get indices
+        arma::uvec idx(pure_indices());
+
         // Matrix with the boundary conditions removed
-        arma::mat Pnob(Nrad*lval.n_elem,Nrad*lval.n_elem);
+        arma::mat Pnob(Ndummy(),Ndummy());
         Pnob.zeros();
-
-        // Fill matrix
-        for(size_t iang=0;iang<lval.n_elem;iang++)
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
-            // Offset
-            size_t ioff=angular_offset(iang);
-            size_t joff=angular_offset(jang);
-
-            // Number of radial functions on the shells
-            size_t ni=angular_nbf(iang);
-            size_t nj=angular_nbf(jang);
-
-            // Sanity check for trivial case
-            if(!ni) continue;
-            if(!nj) continue;
-
-            Pnob.submat((iang+1)*Nrad-ni,(jang+1)*Nrad-nj,(iang+1)*Nrad-1,(jang+1)*Nrad-1)=Ppure.submat(ioff,joff,ioff+ni-1,joff+nj-1);
-          }
+        Pnob(idx,idx)=Ppure;
 
         //Ppure.print("Input: w built-in boundaries");
         //Pnob.print("Output: w/o built-in boundaries");
@@ -1014,6 +1031,7 @@ namespace helfem {
         if(M.n_cols != Nbf())
           throw std::logic_error("Matrix has incorrect size!\n");
         M=expand_boundaries(M);
+
         // Number of functions in radial basis
         size_t Nrad=radial.Nbf();
 
