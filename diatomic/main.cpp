@@ -543,6 +543,7 @@ int main(int argc, char **argv) {
     }
 
     // Exchange-correlation
+    Exc=0.0;
     /*
     Exc=0.0;
     arma::mat XCa, XCb;
