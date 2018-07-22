@@ -335,7 +335,7 @@ int main(int argc, char **argv) {
   int lmax(parser.get<int>("lmax"));
   int mmax(parser.get<int>("mmax"));
   int lpad(parser.get<int>("lpad"));
-  
+
   // DFT angular grid
   //int ldft(parser.get<int>("ldft"));
   //double dftthr(parser.get<double>("dftthr"));
@@ -678,6 +678,7 @@ int main(int argc, char **argv) {
   printf("Electronic dipole     moment % .16e\n",arma::trace(dip*P));
   printf("Electronic quadrupole moment % .16e\n",arma::trace(quad*P));
 
+  /*
   // Calculate <r^2> matrix
   arma::mat rmat(basis.radial_integral(1));
   arma::mat rsqmat(basis.radial_integral(2));
@@ -699,6 +700,7 @@ int main(int argc, char **argv) {
     printf("%2i % e %e %e\n",(int) io+1, Ea(io), ra(io), rmsa(io));
   }
   printf("\n");
+  */
 
   Ea.subvec(0,nena-1).t().print("Alpha orbital energies");
   Eb.subvec(0,nenb-1).t().print("Beta  orbital energies");
