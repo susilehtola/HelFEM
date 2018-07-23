@@ -8,7 +8,11 @@ extern "C" {
 }
 
 /// Index of (l,m) in tables: l^2 + l + m
-#define lmind(l,m) ( ((size_t) (l))*(size_t (l)) + (size_t) (l) + (size_t) (m))
+#define genind(l,m) ( ((size_t) (l))*(size_t (l)) + (size_t) (l) + (size_t) (m))
+/// Index of (l,m) in m limited table
+#define LMind(L,M) ( ((size_t) (L))*(size_t (2*Mmax+1)) + (size_t) (Mmax) + (size_t) (M))
+#define lmind(L,M) ( ((size_t) (L))*(size_t (2*mmax+1)) + (size_t) (mmax) + (size_t) (M))
+#define lpmpind(L,M) ( ((size_t) (L))*(size_t (2*mpmax+1)) + (size_t) (mpmax) + (size_t) (M))
 
 namespace helfem {
   namespace gaunt {
@@ -53,7 +57,8 @@ namespace helfem {
 
     Gaunt::Gaunt(int Lmax, int lmax, int lpmax) {
       // Allocate storage
-      table=arma::cube(lmind(Lmax,Lmax)+1,lmind(lmax,lmax)+1,lmind(lpmax,lpmax)+1);
+      mlimit=false;
+      table=arma::cube(genind(Lmax,Lmax)+1,genind(lmax,lmax)+1,genind(lpmax,lpmax)+1);
 
       // Compute coefficients
 #ifdef _OPENMP
@@ -65,7 +70,25 @@ namespace helfem {
               for(int M=-L;M<=L;M++)
                 for(int m=-l;m<=l;m++)
                   for(int mp=-lp;mp<=lp;mp++)
-                    table(lmind(L,M),lmind(l,m),lmind(lp,mp))=gaunt_coefficient(L,M,l,m,lp,mp);
+                    table(genind(L,M),genind(l,m),genind(lp,mp))=gaunt_coefficient(L,M,l,m,lp,mp);
+    }
+
+    Gaunt::Gaunt(int Lmax, int Mmax_, int lmax, int mmax_, int lpmax, int mpmax_) : Mmax(Mmax_), mmax(mmax_), mpmax(mpmax_) {
+      // Allocate storage
+      mlimit=true;
+      table=arma::cube(LMind(Lmax,Mmax)+1,lmind(lmax,mmax)+1,lpmpind(lpmax,mpmax)+1);
+
+      // Compute coefficients
+#ifdef _OPENMP
+#pragma omp parallel for collapse(3)
+#endif
+      for(int L=0;L<=Lmax;L++)
+	  for(int l=0;l<=lmax;l++)
+            for(int lp=0;lp<=lpmax;lp++)
+              for(int M=-Mmax;M<=Mmax;M++)
+                for(int m=-mmax;m<=mmax;m++)
+                  for(int mp=-mpmax;mp<=mpmax;mp++)
+                    table(LMind(L,M),lmind(l,m),lpmpind(lp,mp))=gaunt_coefficient(L,M,l,m,lp,mp);
     }
 
     Gaunt::~Gaunt() {
@@ -76,9 +99,17 @@ namespace helfem {
       if(std::abs(m)>l) return 0.0;
       if(std::abs(mp)>lp) return 0.0;
 
-      size_t irow(lmind(L,M));
-      size_t icol(lmind(l,m));
-      size_t islice(lmind(lp,mp));
+      size_t irow, icol, islice;
+      if(mlimit) {
+        irow=LMind(L,M);
+        icol=lmind(l,m);
+        islice=lpmpind(lp,mp);
+      } else {
+        irow=genind(L,M);
+        icol=genind(l,m);
+        islice=genind(lp,mp);
+      }
+
 #ifndef ARMA_NO_DEBUG
       if(irow>table.n_rows) {
         std::ostringstream oss;

@@ -18,11 +18,18 @@ namespace helfem {
     class Gaunt {
       /// Table of coefficients
       arma::cube table;
+      /// Limited m set
+      bool mlimit;
+      /// Maximum m values
+      int Mmax, mmax, mpmax;
+
     public:
       /// Dummy constructor
       Gaunt();
       /// Constructor
       Gaunt(int Lmax, int lmax, int lpmax);
+      /// Fine grained constructor
+      Gaunt(int Lmax, int Mmax, int lmax, int mmax, int lpmax, int mpmax);
       /// Destructor
       ~Gaunt();
 
