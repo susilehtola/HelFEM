@@ -280,6 +280,7 @@ namespace helfem {
         // Gaunt coefficients
         int gmax(std::max(lmax,mmax));
         int Lmax(L_max());
+        int Mmax(M_max());
 
         // One-electron matrices need gmax,3,gmax
         // Two-electron matrices need Lmax+2,Lmax,Lmax+2
@@ -289,7 +290,7 @@ namespace helfem {
         Timer t;
         printf("Computing Gaunt coefficients ... ");
         fflush(stdout);
-        gaunt=gaunt::Gaunt(lrval,mval,lrval);
+        gaunt=gaunt::Gaunt(lrval,Mmax,mval,Mmax,lrval,Mmax);
         printf("done (% .3f s)\n",t.get());
         fflush(stdout);
 
