@@ -1,8 +1,9 @@
 #define HARTREEINEV 27.211386
 #include "../general/cmdline.h"
 #include "../general/diis.h"
-#include "basis.h"
 #include "../general/timer.h"
+#include "../general/elements.h"
+#include "basis.h"
 #include <cfloat>
 
 //#define SPARSE
@@ -278,9 +279,9 @@ int main(int argc, char **argv) {
   cmdline::parser parser;
 
   // full option name, no short option, description, argument required
-  parser.add<int>("Z1", 0, "first nuclear charge", false, 0);
-  parser.add<int>("Z2", 0, "second nuclear charge", false, 0);
-  parser.add<double>("Rbond", 0, "internuclear distance", false, 0.0);
+  parser.add<std::string>("Z1", 0, "first nuclear charge", true);
+  parser.add<std::string>("Z2", 0, "second nuclear charge", true);
+  parser.add<double>("Rbond", 0, "internuclear distance", true);
   parser.add<int>("nela", 0, "number of alpha electrons", false, 0);
   parser.add<int>("nelb", 0, "number of beta  electrons", false, 0);
   parser.add<int>("Q", 0, "charge state", false, 0);
@@ -341,8 +342,8 @@ int main(int argc, char **argv) {
   //double dftthr(parser.get<double>("dftthr"));
 
   // Nuclear charge
-  int Z1(parser.get<int>("Z1"));
-  int Z2(parser.get<int>("Z2"));
+  int Z1(get_Z(parser.get<std::string>("Z1")));
+  int Z2(get_Z(parser.get<std::string>("Z2")));
   double Rbond(parser.get<double>("Rbond"));
   // Number of occupied states
   int nela(parser.get<int>("nela"));
@@ -371,11 +372,6 @@ int main(int argc, char **argv) {
   double Enucr=Z1*Z2/Rbond;
   printf("Left- and right-hand nuclear charges are %i and %i at distance % .3f\n",Z1,Z2,Rbond);
   printf("Nuclear repulsion energy is %e\n",Enucr);
-  printf("Number of electrons is %i %i\n",nela,nelb);
-
-  printf("Basis set contains %i functions\n",(int) basis.Nbf());
-
-  printf("Nuclear charges are %i %i at %e distance\n",Z1,Z2,Rbond);
   printf("Number of electrons is %i %i\n",nela,nelb);
 
   double kfrac(1.0);
@@ -512,6 +508,7 @@ int main(int argc, char **argv) {
     printf("Tr Pa = %f\n",arma::trace(Pa*S));
     if(nelb)
       printf("Tr Pb = %f\n",arma::trace(Pb*S));
+    fflush(stdout);
 
     Ekin=arma::trace(P*T);
     Epot=arma::trace(P*Vnuc);
@@ -523,6 +520,7 @@ int main(int argc, char **argv) {
     double tJ(timer.get());
     Ecoul=0.5*arma::trace(P*J);
     printf("Coulomb energy %.10e % .6f\n",Ecoul,tJ);
+    fflush(stdout);
 
     // Form exchange matrix
     timer.set();
@@ -541,6 +539,7 @@ int main(int argc, char **argv) {
     } else {
       Exx=0.0;
     }
+    fflush(stdout);
 
     // Exchange-correlation
     Exc=0.0;
@@ -558,6 +557,7 @@ int main(int argc, char **argv) {
       if(ekin!=0.0)
         printf("Error in integral of kinetic energy density % e\n",ekin-Ekin);
     }
+    fflush(stdout);
     */
 
     // Fock matrices
@@ -584,6 +584,7 @@ int main(int argc, char **argv) {
     if(i>1)
       printf("Energy changed by %e\n",dE);
     Eold=Etot;
+    fflush(stdout);
 
     /*
       S.print("S");
@@ -631,6 +632,7 @@ int main(int argc, char **argv) {
     timer.set();
     diis.solve_F(Fa,Fb);
     printf("DIIS solution done in %.6f\n",timer.get());
+    fflush(stdout);
 
     // Have we converged? Note that DIIS error is still wrt full space, not active space.
     bool convd=(diiserr<convthr) && (std::abs(dE)<convthr);
@@ -661,6 +663,7 @@ int main(int argc, char **argv) {
       printf("HOMO-LUMO gap is % .3f % .3f eV\n",(Ea(nela)-Ea(nela-1))*HARTREEINEV,(Eb(nelb)-Eb(nelb-1))*HARTREEINEV);
     else
       printf("HOMO-LUMO gap is % .3f eV\n",(Ea(nela)-Ea(nela-1))*HARTREEINEV);
+    fflush(stdout);
 
     if(convd)
       break;

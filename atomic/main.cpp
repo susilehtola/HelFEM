@@ -1,10 +1,11 @@
 #define HARTREEINEV 27.211386
 #include "../general/cmdline.h"
 #include "../general/diis.h"
-#include "basis.h"
 #include "../general/dftfuncs.h"
-#include "dftgrid.h"
+#include "../general/elements.h"
 #include "../general/timer.h"
+#include "basis.h"
+#include "dftgrid.h"
 #include <cfloat>
 
 //#define SPARSE
@@ -280,9 +281,9 @@ int main(int argc, char **argv) {
   cmdline::parser parser;
 
   // full option name, no short option, description, argument required
-  parser.add<int>("Z", 0, "nuclear charge", false, 0);
-  parser.add<int>("Zl", 0, "left-hand nuclear charge", false, 0);
-  parser.add<int>("Zr", 0, "right-hand nuclear charge", false, 0);
+  parser.add<std::string>("Z", 0, "nuclear charge", true);
+  parser.add<std::string>("Zl", 0, "left-hand nuclear charge", false, "");
+  parser.add<std::string>("Zr", 0, "right-hand nuclear charge", false, "");
   parser.add<double>("Rmid", 0, "distance of nuclei from center", false, 0.0);
   parser.add<int>("nela", 0, "number of alpha electrons", false, 0);
   parser.add<int>("nelb", 0, "number of beta  electrons", false, 0);
@@ -344,9 +345,9 @@ int main(int argc, char **argv) {
   double dftthr(parser.get<double>("dftthr"));
 
   // Nuclear charge
-  int Z(parser.get<int>("Z"));
-  int Zl(parser.get<int>("Zl"));
-  int Zr(parser.get<int>("Zr"));
+  int Z(get_Z(parser.get<std::string>("Z")));
+  int Zl(get_Z(parser.get<std::string>("Zl")));
+  int Zr(get_Z(parser.get<std::string>("Zr")));
   double Rhalf(parser.get<double>("Rmid"));
   // Number of occupied states
   int nela(parser.get<int>("nela"));
@@ -517,6 +518,7 @@ int main(int argc, char **argv) {
     printf("Tr Pa = %f\n",arma::trace(Pa*S));
     if(nelb)
       printf("Tr Pb = %f\n",arma::trace(Pb*S));
+    fflush(stdout);
 
     Ekin=arma::trace(P*T);
     Epot=arma::trace(P*Vnuc);
@@ -528,6 +530,7 @@ int main(int argc, char **argv) {
     double tJ(timer.get());
     Ecoul=0.5*arma::trace(P*J);
     printf("Coulomb energy %.10e % .6f\n",Ecoul,tJ);
+    fflush(stdout);
 
     // Form exchange matrix
     timer.set();
@@ -546,6 +549,7 @@ int main(int argc, char **argv) {
     } else {
       Exx=0.0;
     }
+    fflush(stdout);
 
     // Exchange-correlation
     Exc=0.0;
@@ -561,6 +565,7 @@ int main(int argc, char **argv) {
       if(ekin!=0.0)
         printf("Error in integral of kinetic energy density % e\n",ekin-Ekin);
     }
+    fflush(stdout);
 
     // Fock matrices
     arma::mat Fa(H0+J);
@@ -584,6 +589,7 @@ int main(int argc, char **argv) {
     if(i>1)
       printf("Energy changed by %e\n",dE);
     Eold=Etot;
+    fflush(stdout);
 
     /*
       S.print("S");
@@ -631,6 +637,7 @@ int main(int argc, char **argv) {
     timer.set();
     diis.solve_F(Fa,Fb);
     printf("DIIS solution done in %.6f\n",timer.get());
+    fflush(stdout);
 
     // Have we converged? Note that DIIS error is still wrt full space, not active space.
     bool convd=(diiserr<convthr) && (std::abs(dE)<convthr);
@@ -661,6 +668,7 @@ int main(int argc, char **argv) {
       printf("HOMO-LUMO gap is % .3f % .3f eV\n",(Ea(nela)-Ea(nela-1))*HARTREEINEV,(Eb(nelb)-Eb(nelb-1))*HARTREEINEV);
     else
       printf("HOMO-LUMO gap is % .3f eV\n",(Ea(nela)-Ea(nela-1))*HARTREEINEV);
+    fflush(stdout);
 
     if(convd)
       break;
