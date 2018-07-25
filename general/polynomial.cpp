@@ -17,6 +17,44 @@ namespace helfem {
       return fv;
     }
 
+    static double logprod(const arma::vec & x0, double xv, int & sign) {
+      double f=0.0;
+      for(size_t ip=1;ip<x0.n_elem;ip++) {
+        double dx=xv-x0(ip);
+        if(dx<0.0) {
+          sign*=-1;
+          dx=-dx;
+        }
+        f+=log(dx);
+      }
+      return f;
+    }
+
+    double lipval(const arma::vec & x0, double x) {
+      /*
+        Assume we're evaluating the polynomial for x=x0(0). Evaluate
+        products using logarithms and exponentials to avoid under- and
+        overflows.
+      */
+
+      // Overall sign
+      int sign=1.0;
+      // Compute numerator
+      double num(logprod(x0,x,sign));
+      // Compute denominator
+      double denom(logprod(x0,x0(0),sign));
+
+      return sign*exp(num-denom);
+    }
+
+    arma::mat lipval(const arma::mat & x0, const arma::vec & xv) {
+      arma::mat fv(xv.n_elem,x0.n_cols);
+      for(size_t ic=0;ic<x0.n_cols;ic++)
+	for(size_t ix=0;ix<xv.n_elem;ix++)
+	  fv(ix,ic)=lipval(x0.col(ic),xv(ix));
+      return fv;
+    }
+
     double factorial(int m) {
       double r=1.0;
       for(int p=m;p>0;p--)

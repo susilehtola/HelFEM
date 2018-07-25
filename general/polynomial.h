@@ -19,6 +19,18 @@ namespace helfem {
     arma::mat polyval(const arma::mat & c, const arma::vec & x);
 
     /**
+     * Evaluates the Lagrange interpolating polynomial
+     *   f(x)  = \prod_{k=1}^{n-1} \frac {x - x_k} {x_0 - x_k}
+     * at a given point x.
+     */
+    double lipval(const arma::vec & x0, double x);
+    /**
+     * Evaluates Lagrange interpolating polynomials at wanted points
+     * x.
+     */
+    arma::mat lipval(const arma::mat & x0, const arma::vec & x);
+
+    /**
      * Calculate factorial n! = n*(n-1)*...*2*1
      */
     double factorial(int n);
