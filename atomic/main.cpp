@@ -1,5 +1,5 @@
-#define HARTREEINEV 27.211386
 #include "../general/cmdline.h"
+#include "../general/constants.h"
 #include "../general/diis.h"
 #include "../general/dftfuncs.h"
 #include "../general/elements.h"
@@ -285,13 +285,14 @@ int main(int argc, char **argv) {
   parser.add<std::string>("Zl", 0, "left-hand nuclear charge", false, "");
   parser.add<std::string>("Zr", 0, "right-hand nuclear charge", false, "");
   parser.add<double>("Rmid", 0, "distance of nuclei from center", false, 0.0);
+  parser.add<bool>("angstrom", 0, "input distances in angstrom", false, false);
   parser.add<int>("nela", 0, "number of alpha electrons", false, 0);
   parser.add<int>("nelb", 0, "number of beta  electrons", false, 0);
   parser.add<int>("Q", 0, "charge state", false, 0);
   parser.add<int>("M", 0, "spin multiplicity", false, 0);
   parser.add<int>("lmax", 0, "maximum l quantum number", true);
   parser.add<int>("mmax", 0, "maximum m quantum number", true);
-  parser.add<double>("Rmax", 0, "practical infinity", false, 40.0);
+  parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
   parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for logarithmic", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
   parser.add<int>("nelem0", 0, "number of elements between center and off-center nuclei", false, 0);
@@ -356,6 +357,11 @@ int main(int argc, char **argv) {
   int M(parser.get<int>("M"));
 
   std::string method(parser.get<std::string>("method"));
+
+  if(parser.get<bool>("angstrom")) {
+    // Convert to atomic units
+    Rhalf*=ANGSTROMINBOHR;
+  }
 
   parse_nela_nelb(nela,nelb,Q,M,Z+Zl+Zr);
 
