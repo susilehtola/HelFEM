@@ -9,6 +9,10 @@
 #include <cassert>
 #include <cfloat>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 namespace helfem {
   namespace diatomic {
     namespace basis {
