@@ -35,7 +35,7 @@ namespace helfem {
     DFTGridWorker::DFTGridWorker() {
     }
 
-    DFTGridWorker::DFTGridWorker(const helfem::basis::TwoDBasis * basp_, int lang) : basp(basp_) {
+    DFTGridWorker::DFTGridWorker(const helfem::atomic::basis::TwoDBasis * basp_, int lang) : basp(basp_) {
       do_grad=false;
       do_tau=false;
       do_lapl=false;
@@ -724,7 +724,7 @@ namespace helfem {
     DFTGrid::DFTGrid() {
     }
 
-    DFTGrid::DFTGrid(const helfem::basis::TwoDBasis * basp_, int lang_) : basp(basp_), lang(lang_) {
+    DFTGrid::DFTGrid(const helfem::atomic::basis::TwoDBasis * basp_, int lang_) : basp(basp_), lang(lang_) {
       arma::vec cth, phi, wang;
       helfem::chebyshev::angular_chebyshev(lang,cth,phi,wang);
       printf("DFT angular grid of order l=%i has %i points\n",lang,(int) wang.n_elem);

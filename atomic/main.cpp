@@ -372,11 +372,11 @@ int main(int argc, char **argv) {
 
   printf("Angular grid spanning from l=0..%i, m=%i..%i.\n",lmax,-mmax,mmax);
 
-  basis::TwoDBasis basis;
+  atomic::basis::TwoDBasis basis;
   if(Rhalf!=0.0)
-    basis=basis::TwoDBasis(Z, Nnodes, der_order, Nquad, Nelem0, Nelem, Rmax, lmax, mmax, igrid, zexp, Zl, Zr, Rhalf);
+    basis=atomic::basis::TwoDBasis(Z, Nnodes, der_order, Nquad, Nelem0, Nelem, Rmax, lmax, mmax, igrid, zexp, Zl, Zr, Rhalf);
   else
-    basis=basis::TwoDBasis(Z, Nnodes, der_order, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
+    basis=atomic::basis::TwoDBasis(Z, Nnodes, der_order, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
 
   printf("One-electron matrix requires %s\n",memory_size(basis.mem_1el()).c_str());

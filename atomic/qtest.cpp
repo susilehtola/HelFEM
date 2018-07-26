@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
   std::vector<arma::mat> pteiold;
 
   for(int nquad=10;nquad<=1e5;nquad*=2) {  
-    basis::TwoDBasis basis(Z, Nnodes, der_order, nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
+    atomic::basis::TwoDBasis basis(Z, Nnodes, der_order, nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
 
     // Form overlap matrix
     arma::mat S(basis.overlap());

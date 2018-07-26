@@ -27,7 +27,7 @@ namespace helfem {
     class DFTGridWorker {
     protected:
       /// Basis set
-      const helfem::basis::TwoDBasis *basp;
+      const helfem::atomic::basis::TwoDBasis *basp;
       
       /// Angular grid
       arma::vec cth, phi, wang;
@@ -107,7 +107,7 @@ namespace helfem {
       /// Dummy constructor
       DFTGridWorker();
       /// Constructor
-      DFTGridWorker(const helfem::basis::TwoDBasis * basp, int lang);
+      DFTGridWorker(const helfem::atomic::basis::TwoDBasis * basp, int lang);
       /// Destructor
       ~DFTGridWorker();
 
@@ -160,7 +160,7 @@ namespace helfem {
     class DFTGrid {
     private:
       /// Pointer to basis set
-      const helfem::basis::TwoDBasis * basp;
+      const helfem::atomic::basis::TwoDBasis * basp;
       /// Angular rule
       int lang;
 
@@ -168,7 +168,7 @@ namespace helfem {
       /// Dummy constructor
       DFTGrid();
       /// Constructor
-      DFTGrid(const helfem::basis::TwoDBasis * basp, int lang);
+      DFTGrid(const helfem::atomic::basis::TwoDBasis * basp, int lang);
       /// Destructor
       ~DFTGrid();
 

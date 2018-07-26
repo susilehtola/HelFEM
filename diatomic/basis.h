@@ -107,6 +107,7 @@ namespace helfem {
 
         /// L, |M| map
         std::vector<lmidx_t> lm_map;
+        std::vector<lmidx_t> LM_map;
         /// Auxiliary integrals, Plm
         std::vector<arma::mat> disjoint_P0, disjoint_P2;
         /// Auxiliary integrals, Qlm
@@ -133,6 +134,8 @@ namespace helfem {
 
         /// Find index in (L,|M|) table
         size_t lmind(int L, int M, bool check=true) const;
+        /// Find index in (L,M) table
+        size_t LMind(int L, int M, bool check=true) const;
         /// Get L_max
         int L_max() const;
         /// Get M_max
