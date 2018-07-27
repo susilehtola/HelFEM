@@ -146,7 +146,7 @@ namespace helfem {
         size_t mem_2el_aux() const;
 
         /// Compute two-electron integrals
-        void compute_tei();
+        void compute_tei(bool exchange);
 
         /// Number of basis functions
         size_t Nbf() const;

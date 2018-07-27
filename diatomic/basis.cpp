@@ -2,6 +2,7 @@
 #include "quadrature.h"
 #include "../general/polynomial.h"
 #include "../general/chebyshev.h"
+#include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
 #include "../general/utils.h"
 #include "../general/timer.h"
@@ -236,6 +237,45 @@ namespace helfem {
         return arma::cosh(arma::sort(muq,"ascend"));
       }
 
+      arma::mat RadialBasis::get_bf(size_t iel) const {
+        // Element function values at quadrature points are
+        arma::mat val(get_basis(bf,iel));
+
+        return val;
+      }
+
+      arma::mat RadialBasis::get_df(size_t iel) const {
+        // Element function values at quadrature points are
+        arma::mat dval(get_basis(df,iel));
+        // Interval length
+        double rmin(bval(iel));
+        double rmax(bval(iel+1));
+        double rlen=(rmax-rmin)/2;
+
+        // Derivative is then
+        return dval/rlen;
+      }
+
+      arma::vec RadialBasis::get_wrad(size_t iel) const {
+        // Full radial weight
+        double rmin(bval(iel));
+        double rmax(bval(iel+1));
+        double rlen=(rmax-rmin)/2;
+
+        // This is just the radial rule, no r^2 factor included here
+        return rlen*wq;
+      }
+
+      arma::vec RadialBasis::get_r(size_t iel) const {
+        // Full radial weight
+        double rmin(bval(iel));
+        double rmax(bval(iel+1));
+        double rmid=(rmax+rmin)/2;
+        double rlen=(rmax-rmin)/2;
+
+        return rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq;
+      }
+
       TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rbond, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int lpad) {
         // Nuclear charge
         Z1=Z1_;
@@ -333,7 +373,7 @@ namespace helfem {
             lmidx_t p;
             p.first=L;
             p.second=M;
-            
+
             if(!LM_map.size())
               LM_map.push_back(p);
             else
@@ -420,6 +460,10 @@ namespace helfem {
         }
 
         return idx;
+      }
+
+      double TwoDBasis::get_Rhalf() const {
+        return Rhalf;
       }
 
       arma::mat TwoDBasis::Sinvh(bool chol) const {
@@ -673,7 +717,7 @@ namespace helfem {
       }
 
 
-      void TwoDBasis::compute_tei() {
+      void TwoDBasis::compute_tei(bool exchange) {
         // Number of distinct L values is
         size_t Nel(radial.Nel());
 
@@ -769,46 +813,48 @@ namespace helfem {
           K(jk) = (jk;il) P(il)
           so we don't have to reform the permutations in the exchange routine.
         */
-        prim_ktei00.resize(prim_tei00.size());
-        prim_ktei02.resize(prim_tei02.size());
-        prim_ktei20.resize(prim_tei20.size());
-        prim_ktei22.resize(prim_tei22.size());
-        for(size_t ilm=0;ilm<lm_map.size();ilm++)
-          for(size_t iel=0;iel<Nel;iel++) {
-            // Diagonal integrals
-            {
-              size_t idx=Nel*Nel*ilm + iel*Nel + iel;
-              size_t Ni(radial.Nprim(iel));
-              size_t Nj(radial.Nprim(iel));
-              prim_ktei00[idx]=utils::exchange_tei(prim_tei00[idx],Ni,Ni,Nj,Nj);
-              prim_ktei02[idx]=utils::exchange_tei(prim_tei02[idx],Ni,Ni,Nj,Nj);
-              prim_ktei20[idx]=utils::exchange_tei(prim_tei20[idx],Ni,Ni,Nj,Nj);
-              prim_ktei22[idx]=utils::exchange_tei(prim_tei22[idx],Ni,Ni,Nj,Nj);
-            }
+        if(exchange) {
+          prim_ktei00.resize(prim_tei00.size());
+          prim_ktei02.resize(prim_tei02.size());
+          prim_ktei20.resize(prim_tei20.size());
+          prim_ktei22.resize(prim_tei22.size());
+          for(size_t ilm=0;ilm<lm_map.size();ilm++)
+            for(size_t iel=0;iel<Nel;iel++) {
+              // Diagonal integrals
+              {
+                size_t idx=Nel*Nel*ilm + iel*Nel + iel;
+                size_t Ni(radial.Nprim(iel));
+                size_t Nj(radial.Nprim(iel));
+                prim_ktei00[idx]=utils::exchange_tei(prim_tei00[idx],Ni,Ni,Nj,Nj);
+                prim_ktei02[idx]=utils::exchange_tei(prim_tei02[idx],Ni,Ni,Nj,Nj);
+                prim_ktei20[idx]=utils::exchange_tei(prim_tei20[idx],Ni,Ni,Nj,Nj);
+                prim_ktei22[idx]=utils::exchange_tei(prim_tei22[idx],Ni,Ni,Nj,Nj);
+              }
 
-            // Off-diagonal integrals (not used since faster to
-            // contract the integrals in factorized form)
-            /*
-            for(size_t jel=0;jel<iel;jel++) {
-              size_t idx=Nel*Nel*ilm + iel*Nel + jel;
-              size_t Ni(radial.Nprim(iel));
-              size_t Nj(radial.Nprim(jel));
-              prim_ktei00[idx]=utils::exchange_tei(prim_tei00[idx],Ni,Ni,Nj,Nj);
-              prim_ktei02[idx]=utils::exchange_tei(prim_tei02[idx],Ni,Ni,Nj,Nj);
-              prim_ktei20[idx]=utils::exchange_tei(prim_tei20[idx],Ni,Ni,Nj,Nj);
-              prim_ktei22[idx]=utils::exchange_tei(prim_tei22[idx],Ni,Ni,Nj,Nj);
+              // Off-diagonal integrals (not used since faster to
+              // contract the integrals in factorized form)
+              /*
+                for(size_t jel=0;jel<iel;jel++) {
+                size_t idx=Nel*Nel*ilm + iel*Nel + jel;
+                size_t Ni(radial.Nprim(iel));
+                size_t Nj(radial.Nprim(jel));
+                prim_ktei00[idx]=utils::exchange_tei(prim_tei00[idx],Ni,Ni,Nj,Nj);
+                prim_ktei02[idx]=utils::exchange_tei(prim_tei02[idx],Ni,Ni,Nj,Nj);
+                prim_ktei20[idx]=utils::exchange_tei(prim_tei20[idx],Ni,Ni,Nj,Nj);
+                prim_ktei22[idx]=utils::exchange_tei(prim_tei22[idx],Ni,Ni,Nj,Nj);
+                }
+                for(size_t jel=iel+1;jel<Nel;jel++) {
+                size_t idx=Nel*Nel*ilm + iel*Nel + jel;
+                size_t Ni(radial.Nprim(iel));
+                size_t Nj(radial.Nprim(jel));
+                prim_ktei00[idx]=utils::exchange_tei(prim_tei00[idx],Ni,Ni,Nj,Nj);
+                prim_ktei02[idx]=utils::exchange_tei(prim_tei02[idx],Ni,Ni,Nj,Nj);
+                prim_ktei20[idx]=utils::exchange_tei(prim_tei20[idx],Ni,Ni,Nj,Nj);
+                prim_ktei22[idx]=utils::exchange_tei(prim_tei22[idx],Ni,Ni,Nj,Nj);
+                }
+              */
             }
-            for(size_t jel=iel+1;jel<Nel;jel++) {
-              size_t idx=Nel*Nel*ilm + iel*Nel + jel;
-              size_t Ni(radial.Nprim(iel));
-              size_t Nj(radial.Nprim(jel));
-              prim_ktei00[idx]=utils::exchange_tei(prim_tei00[idx],Ni,Ni,Nj,Nj);
-              prim_ktei02[idx]=utils::exchange_tei(prim_tei02[idx],Ni,Ni,Nj,Nj);
-              prim_ktei20[idx]=utils::exchange_tei(prim_tei20[idx],Ni,Ni,Nj,Nj);
-              prim_ktei22[idx]=utils::exchange_tei(prim_tei22[idx],Ni,Ni,Nj,Nj);
-            }
-            */
-          }
+        }
       }
 
       size_t TwoDBasis::lmind(int L, int M, bool check) const {
@@ -940,7 +986,7 @@ namespace helfem {
               int mj(mval(jang));
               // LH m value
               int M(mj-mi);
-              
+
               int Lmin=std::max(std::abs(lj-li)-2,abs(M));
               int Lmax=lj+li+2;
               for(int L=Lmin;L<=Lmax;L++) {
@@ -951,20 +997,20 @@ namespace helfem {
                 // Couplings
                 double cpl0(gaunt.mod_coeff(lj,mj,L,M,li,mi));
                 double cpl2(gaunt.coeff(lj,mj,L,M,li,mi));
-                
+
                 if(cpl0!=0.0 || cpl2!=0.0) {
                   // Loop over input elements
                   for(size_t jel=0;jel<Nel;jel++) {
                     size_t jfirst, jlast;
                     radial.get_idx(jel,jfirst,jlast);
                     size_t Nj(jlast-jfirst+1);
-                    
+
                     // Get density submatrices
                     arma::mat Psub0(mem_Psub0[ith].memptr(),Nj,Nj,false,true);
                     Psub0=Paux0[iLM].submat(jfirst,jfirst,jlast,jlast);
                     arma::mat Psub2(mem_Psub2[ith].memptr(),Nj,Nj,false,true);
                     Psub2=Paux2[iLM].submat(jfirst,jfirst,jlast,jlast);
-                    
+
                     // Contract integrals
                     double jsmall0=0.0, jsmall2=0.0, jbig0=0.0, jbig2=0.0;
                     if(cpl0!=0.0 || cpl2!=0.0) {
@@ -1287,6 +1333,95 @@ namespace helfem {
               M.submat(iang*Nrad,jang*Nrad,(iang+1)*Nrad-1,(jang+1)*Nrad-1).zeros();
 
         M=remove_boundaries(M);
+      }
+
+      arma::cx_mat TwoDBasis::eval_bf(size_t iel, double cth, double phi) const {
+        // Evaluate spherical harmonics
+        arma::cx_vec sph(lval.n_elem);
+        for(size_t i=0;i<lval.n_elem;i++)
+          sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
+
+        // Evaluate radial functions
+        arma::mat rad(radial.get_bf(iel));
+
+        // Form supermatrix
+        arma::cx_mat bf(rad.n_rows,lval.n_elem*rad.n_cols);
+        for(size_t i=0;i<lval.n_elem;i++)
+          bf.cols(i*rad.n_cols,(i+1)*rad.n_cols-1)=sph(i)*rad;
+
+        return bf;
+      }
+
+      void TwoDBasis::eval_df(size_t iel, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const {
+        // Evaluate spherical harmonics
+        arma::cx_vec sph(lval.n_elem);
+        for(size_t i=0;i<lval.n_elem;i++)
+          sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
+
+        // Evaluate radial functions
+        arma::mat frad(radial.get_bf(iel));
+        arma::mat drad(radial.get_df(iel));
+
+        // Form supermatrices
+        dr.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
+        dth.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
+        dphi.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
+
+        // Radial one is easy
+        for(size_t i=0;i<lval.n_elem;i++)
+          dr.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=sph(i)*drad;
+        // and so is phi
+        for(size_t i=0;i<lval.n_elem;i++)
+          dphi.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=std::complex<double>(0.0,mval(i))*sph(i)*frad;
+        // but theta is nastier
+        for(size_t i=0;i<lval.n_elem;i++) {
+          // cot th = 1/tan th = cos th / sin th
+          double cotth=cth/sqrt(1.0-cth*cth);
+
+          int l(lval(i));
+          int m(mval(i));
+
+          // Angular factor
+          std::complex<double> angfac(m*cotth*sph(i));
+          if(mval(i)<lval(i))
+            angfac+=sqrt((l-m)*(l+m+1))*std::exp(std::complex<double>(0,-phi))*::spherical_harmonics(lval(i),mval(i)+1,cth,phi);
+
+          dth.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=angfac*frad;
+        }
+      }
+
+      arma::uvec TwoDBasis::bf_list(size_t iel) const {
+        // Radial functions in element
+        size_t ifirst, ilast;
+        radial.get_idx(iel,ifirst,ilast);
+        // Number of radial functions in element
+        size_t Nr(ilast-ifirst+1);
+
+        // Total number of radial functions
+        size_t Nrad(radial.Nbf());
+
+        // List of functions in the element
+        arma::uvec idx(Nr*lval.n_elem);
+        for(size_t iam=0;iam<lval.n_elem;iam++)
+          for(size_t j=0;j<Nr;j++)
+            idx(iam*Nr+j)=Nrad*iam+ifirst+j;
+
+        //printf("Basis function in element %i\n",(int) iel);
+        //idx.print();
+
+        return idx;
+      }
+
+      size_t TwoDBasis::get_rad_Nel() const {
+        return radial.Nel();
+      }
+
+      arma::vec TwoDBasis::get_wrad(size_t iel) const {
+        return radial.get_wrad(iel);
+      }
+
+      arma::vec TwoDBasis::get_r(size_t iel) const {
+        return radial.get_r(iel);
       }
     }
   }

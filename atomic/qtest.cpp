@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
     // Form kinetic energy matrix
     arma::mat T(basis.kinetic());
 
-    basis.compute_tei();
+    basis.compute_tei(false);
     std::vector<arma::mat> ptei(basis.get_prim_tei());
 
     for(int iel=0;iel<Nelem;iel++) {

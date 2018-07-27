@@ -23,7 +23,7 @@ add_definitions(-DMKL_ILP64)
 add_library(helfem general/polynomial.cpp general/gaunt.cpp
 general/chebyshev.cpp general/diis.cpp general/lbfgs.cpp
 general/utils.cpp general/spherical_harmonics.cpp general/timer.cpp
-general/elements.cpp general/lobatto.cpp)
+general/elements.cpp general/lobatto.cpp general/angular.cpp)
 
 add_library(legendre legendre/accuracy.f90 legendre/input_output.f90
   legendre/itoc.f90 legendre/Matrix_Print.f90 legendre/Data_Module.f90
@@ -60,9 +60,9 @@ add_executable(atomic_itest atomic/inttest.cpp atomic/basis.cpp atomic/quadratur
 target_link_libraries(atomic_itest helfem legendre)
 target_link_libraries(atomic_itest gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
 
-add_executable(diatomic diatomic/main.cpp diatomic/basis.cpp diatomic/quadrature.cpp)
+add_executable(diatomic diatomic/main.cpp diatomic/basis.cpp diatomic/quadrature.cpp diatomic/dftgrid.cpp general/dftfuncs.cpp)
 target_link_libraries(diatomic helfem legendre)
-target_link_libraries(diatomic gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
+target_link_libraries(diatomic gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl xc)
 
 add_executable(diatomic_itest diatomic/inttest.cpp diatomic/basis.cpp diatomic/quadrature.cpp)
 target_link_libraries(diatomic_itest helfem legendre)

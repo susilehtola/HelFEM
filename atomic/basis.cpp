@@ -467,10 +467,10 @@ namespace helfem {
         // Full radial weight
         double rmin(bval(iel));
         double rmax(bval(iel+1));
-        double rmid=(rmax+rmin)/2;
         double rlen=(rmax-rmin)/2;
-        arma::vec r(rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq);
-        return rlen*wq%arma::square(r);
+
+        // This is just the radial rule, no r^2 factor included here
+        return rlen*wq;
       }
 
       arma::vec RadialBasis::get_r(size_t iel) const {
@@ -876,7 +876,7 @@ namespace helfem {
       }
 
 
-      void TwoDBasis::compute_tei() {
+      void TwoDBasis::compute_tei(bool exchange) {
         // Number of distinct L values is
         size_t N_L(2*arma::max(lval)+1);
         size_t Nel(radial.Nel());
@@ -927,29 +927,31 @@ namespace helfem {
           K(jk) = (jk;il) P(il)
           so we don't have to reform the permutations in the exchange routine.
         */
-        prim_ktei.resize(Nel*Nel*N_L);
+        if(exchange) {
+          prim_ktei.resize(Nel*Nel*N_L);
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
-        for(size_t L=0;L<N_L;L++)
-          for(size_t iel=0;iel<Nel;iel++) {
-            // Diagonal integrals
-            size_t Ni(radial.Nprim(iel));
-            prim_ktei[Nel*Nel*L + iel*Nel + iel]=utils::exchange_tei(prim_tei[Nel*Nel*L + iel*Nel + iel],Ni,Ni,Ni,Ni);
+          for(size_t L=0;L<N_L;L++)
+            for(size_t iel=0;iel<Nel;iel++) {
+              // Diagonal integrals
+              size_t Ni(radial.Nprim(iel));
+              prim_ktei[Nel*Nel*L + iel*Nel + iel]=utils::exchange_tei(prim_tei[Nel*Nel*L + iel*Nel + iel],Ni,Ni,Ni,Ni);
 
-            // Off-diagonal integrals (not used since faster to contract
-            // the integrals in factorized form)
-            /*
-              for(size_t jel=0;jel<iel;jel++) {
-	      size_t Nj(radial.Nprim(jel));
-	      prim_ktei[Nel*Nel*L + iel*Nel + jel]=utils::exchange_tei(prim_tei[Nel*Nel*L + iel*Nel + jel],Ni,Ni,Nj,Nj);
-              }
-              for(size_t jel=iel+1;jel<Nel;jel++) {
-	      size_t Nj(radial.Nprim(jel));
-	      prim_ktei[Nel*Nel*L + iel*Nel + jel]=utils::exchange_tei(prim_tei[Nel*Nel*L + iel*Nel + jel],Ni,Ni,Nj,Nj);
-              }
-            */
-          }
+              // Off-diagonal integrals (not used since faster to contract
+              // the integrals in factorized form)
+              /*
+                for(size_t jel=0;jel<iel;jel++) {
+                size_t Nj(radial.Nprim(jel));
+                prim_ktei[Nel*Nel*L + iel*Nel + jel]=utils::exchange_tei(prim_tei[Nel*Nel*L + iel*Nel + jel],Ni,Ni,Nj,Nj);
+                }
+                for(size_t jel=iel+1;jel<Nel;jel++) {
+                size_t Nj(radial.Nprim(jel));
+                prim_ktei[Nel*Nel*L + iel*Nel + jel]=utils::exchange_tei(prim_tei[Nel*Nel*L + iel*Nel + jel],Ni,Ni,Nj,Nj);
+                }
+              */
+            }
+        }
       }
 
       arma::mat TwoDBasis::coulomb(const arma::mat & P0) const {

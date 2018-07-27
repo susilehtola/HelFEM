@@ -1,33 +1,7 @@
-/*
- *                This source code is part of
- *
- *                     E  R  K  A  L  E
- *                             -
- *                       DFT from Hel
- *
- * Written by Susi Lehtola, 2011
- * Copyright (c) 2011, Susi Lehtola
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This file contains the Lobatto quadrature routine ported from quadrule.
- * The original license was LGPL, this version is relicensed to GPLv2+.
- */
-
-
+#include <armadillo>
 #include <cfloat>
-#include <cmath>
-#include <cstdio>
-#include <sstream>
-#include <stdexcept>
-#include <algorithm>
 
-#include "lobatto.h"
-
-void lobatto_set(int order, std::vector<double> & xtab, std::vector<double> & weight)
+void lobatto_set(int order, arma::vec & xtab, arma::vec & weight)
 
 /******************************************************************************/
 /*
@@ -596,7 +570,7 @@ void lobatto_set(int order, std::vector<double> & xtab, std::vector<double> & we
 }
 
 
-void lobatto_compute (int n, std::vector<double> & x, std::vector<double> & w)
+void lobatto_compute (int n, arma::vec & x, arma::vec & w)
 
 /******************************************************************************/
 /*
@@ -744,7 +718,7 @@ void lobatto_compute (int n, std::vector<double> & x, std::vector<double> & w)
   } while ( tolerance < error );
 
   // Reverse order of x
-  std::reverse(x.begin(),x.end());
+  x = arma::reverse(x);
 
   for ( i = 0; i < n; i++ )
   {

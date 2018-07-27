@@ -77,6 +77,14 @@ namespace helfem {
 
         /// Get quadrature points
         arma::vec get_chmu_quad() const;
+        /// Evaluate basis functions at quadrature points
+        arma::mat get_bf(size_t iel) const;
+        /// Evaluate derivatives of basis functions at quadrature points
+        arma::mat get_df(size_t iel) const;
+        /// Get quadrature weights
+        arma::vec get_wrad(size_t iel) const;
+        /// Get r values
+        arma::vec get_r(size_t iel) const;
       };
 
       /// L, |M| index type
@@ -127,11 +135,6 @@ namespace helfem {
         /// Get radial submatrix
         arma::mat get_sub(const arma::mat & M, size_t iang, size_t jang) const;
 
-        /// Expand boundary conditions
-        arma::mat expand_boundaries(const arma::mat & H) const;
-        /// Remove boundary conditions
-        arma::mat remove_boundaries(const arma::mat & H) const;
-
         /// Find index in (L,|M|) table
         size_t lmind(int L, int M, bool check=true) const;
         /// Find index in (L,M) table
@@ -141,14 +144,16 @@ namespace helfem {
         /// Get M_max
         int M_max() const;
 
-        /// Number of dummy basis functions
-        size_t Ndummy() const;
-
       public:
         /// Constructor
         TwoDBasis(int Z1, int Z2, double Rbond, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int lpad);
         /// Destructor
         ~TwoDBasis();
+
+        /// Expand boundary conditions
+        arma::mat expand_boundaries(const arma::mat & H) const;
+        /// Remove boundary conditions
+        arma::mat remove_boundaries(const arma::mat & H) const;
 
         /// Memory for one-electron integral matrix
         size_t mem_1el() const;
@@ -158,10 +163,13 @@ namespace helfem {
         size_t mem_2el_aux() const;
 
         /// Compute two-electron integrals
-        void compute_tei();
+        void compute_tei(bool exchange);
 
         /// Number of basis functions
         size_t Nbf() const;
+        /// Number of dummy basis functions
+        size_t Ndummy() const;
+
         /// Number of radial functions
         size_t Nrad() const;
         /// Number of angular shells
@@ -202,6 +210,23 @@ namespace helfem {
         arma::ivec get_m() const;
         /// Get indices of basis functions with wanted m quantum number
         arma::uvec m_indices(int m) const;
+
+        /// Get Rhalf
+        double get_Rhalf() const;
+
+        /// Evaluate basis functions
+        arma::cx_mat eval_bf(size_t iel, double cth, double phi) const;
+        /// Evaluate basis functions derivatives
+        void eval_df(size_t iel, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const;
+        /// Get list of basis function indices in element
+        arma::uvec bf_list(size_t iel) const;
+
+        /// Get number of radial elements
+        size_t get_rad_Nel() const;
+        /// Get radial quadrature weights
+        arma::vec get_wrad(size_t iel) const;
+        /// Get r values
+        arma::vec get_r(size_t iel) const;
       };
     }
   }

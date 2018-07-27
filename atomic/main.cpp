@@ -309,7 +309,8 @@ int main(int argc, char **argv) {
   parser.add<int>("maxeig", 0, "maximum number of iterations for eigensolution", false, 100);
   parser.add<bool>("diag", 0, "exact diagonalization", false, 1);
   parser.add<std::string>("method", 0, "method to use", false, "HF");
-  parser.add<int>("ldft", 0, "angular rule for dft quadrature", false, 20);
+  parser.add<int>("ldft", 0, "theta rule for dft quadrature (0 for auto)", false, 0);
+  parser.add<int>("mdft", 0, "phi rule for dft quadrature (0 for auto)", false, 0);
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.parse_check(argc, argv);
 
@@ -343,6 +344,7 @@ int main(int argc, char **argv) {
 
   // DFT angular grid
   int ldft(parser.get<int>("ldft"));
+  int mdft(parser.get<int>("mdft"));
   double dftthr(parser.get<double>("dftthr"));
 
   // Nuclear charge
@@ -402,16 +404,51 @@ int main(int argc, char **argv) {
 
   helfem::dftgrid::DFTGrid grid;
   if(dft) {
+    // These would appear to give reasonably converged values
+    if(ldft==0)
+      // Default value: we have 2*lmax from the bra and ket and 2 from
+      // the volume element, and allow for 2*lmax from the
+      // density/potential. Add in 3 more for a bit more accuracy.
+      ldft=4*lmax+3;
     if(ldft<2*lmax)
       throw std::logic_error("Increase ldft to guarantee accuracy of quadrature!\n");
+    
+    if(mdft==0)
+      // Default value: we have 2*mmax from the bra and ket, and allow
+      // for 2*mmax from the density/potential. Add in 3 to make
+      // sure quadrature is still accurate for mmax=0
+      mdft=4*mmax+3;
+    if(mdft<2*mmax)
+      throw std::logic_error("Increase mdft to guarantee accuracy of quadrature!\n");
 
-    grid=helfem::dftgrid::DFTGrid(&basis,ldft);
+    grid=helfem::dftgrid::DFTGrid(&basis,ldft,mdft);
   }
 
   Timer timer;
 
   // Form overlap matrix
   arma::mat S(basis.overlap());
+  // Get half-inverse
+  timer.set();
+  arma::mat Sinvh(basis.Sinvh(!diag));
+  printf("Half-inverse formed in %.6f\n",timer.get());
+  {
+    arma::mat Smo(Sinvh.t()*S*Sinvh);
+    Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
+    printf("Orbital orthonormality deviation is %e\n",arma::norm(Smo,"fro"));
+  }
+
+  if(dft) {
+    arma::mat Snum(grid.eval_overlap());
+    // Convert to orthonormalized basis since norms of basis functions vary over a huge scale
+    Snum=arma::trans(Sinvh)*(Snum-S)*Sinvh;
+    double Serr(arma::norm(Snum,"fro"));
+    printf("Error in overlap matrix evaluated through xc grid is %e\n",Serr);
+    fflush(stdout);
+    if(Serr>=1e-10)
+      throw std::logic_error("Increase size of DFT grid!\n");
+  }
+  
   // Form nuclear attraction energy matrix
   Timer tnuc;
   if(Zl!=0 || Zr !=0)
@@ -435,16 +472,6 @@ int main(int argc, char **argv) {
 
   printf("One-electron matrices formed in %.6f\n",timer.get());
 
-  // Get half-inverse
-  timer.set();
-  arma::mat Sinvh(basis.Sinvh(!diag));
-  printf("Half-inverse formed in %.6f\n",timer.get());
-  {
-    arma::mat Smo(Sinvh.t()*S*Sinvh);
-    Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
-    printf("Orbital orthonormality deviation is %e\n",arma::norm(Smo,"fro"));
-  }
-
   // Occupied and virtual orbitals
   arma::mat Caocc, Cbocc, Cavirt, Cbvirt;
   arma::vec Ea, Eb;
@@ -460,7 +487,8 @@ int main(int argc, char **argv) {
       arma::mat C;
       eig_gsym(Ea,C,H0,Sinvh);
       Caocc=C.cols(0,nela-1);
-      Cavirt=C.cols(nela,C.n_cols-1);
+      if(C.n_cols>Caocc.n_cols)
+        Cavirt=C.cols(nela,C.n_cols-1);
     } else {
       {
 	arma::vec E;
@@ -471,7 +499,8 @@ int main(int argc, char **argv) {
 
       // Initialize with Cholesky
       Caocc=Sinvh.cols(0,nela-1);
-      Cavirt=Sinvh.cols(nela,Sinvh.n_cols-1);
+      if(Sinvh.n_cols>nela)
+        Cavirt=Sinvh.cols(nela,Sinvh.n_cols-1);
       eig_sub(Ea,Caocc,Cavirt,H0,nsub,maxeig,eigthr);
 
       //eig_iter(Ea,Caocc,Cavirt,H0,Sinvh,nela,nena,nsub,maxeig,eigthr);
@@ -491,7 +520,7 @@ int main(int argc, char **argv) {
   printf("Computing two-electron integrals\n");
   fflush(stdout);
   timer.set();
-  basis.compute_tei();
+  basis.compute_tei(kfrac!=0.0);
   printf("Done in %.6f\n",timer.get());
 
   double Ekin, Epot, Ecoul, Exx, Exc, Efield, Etot;
@@ -655,10 +684,12 @@ int main(int argc, char **argv) {
       eig_gsym(Ea,Ca,Fa,Sinvh);
       eig_gsym(Eb,Cb,Fb,Sinvh);
       Caocc=Ca.cols(0,nela-1);
-      Cavirt=Ca.cols(nela,Ca.n_cols-1);
+      if(Ca.n_cols>(size_t) nela)
+        Cavirt=Ca.cols(nela,Ca.n_cols-1);
       if(nelb>0)
         Cbocc=Cb.cols(0,nelb-1);
-      Cbvirt=Cb.cols(nelb,Cb.n_cols-1);
+      if(Cb.n_cols>(size_t) nelb)
+        Cbvirt=Cb.cols(nelb,Cb.n_cols-1);
       printf("Full diagonalization done in %.6f\n",timer.get());
     } else {
       eig_sub(Ea,Caocc,Cavirt,Fa,nsub,maxeig,eigthr);
@@ -670,10 +701,10 @@ int main(int argc, char **argv) {
       printf("Active space diagonalization done in %.6f\n",timer.get());
     }
 
-    if(nelb)
-      printf("HOMO-LUMO gap is % .3f % .3f eV\n",(Ea(nela)-Ea(nela-1))*HARTREEINEV,(Eb(nelb)-Eb(nelb-1))*HARTREEINEV);
-    else
-      printf("HOMO-LUMO gap is % .3f eV\n",(Ea(nela)-Ea(nela-1))*HARTREEINEV);
+    if(Ea.n_elem>(size_t) nela)
+      printf("Alpha HOMO-LUMO gap is % .3f eV\n",(Ea(nela)-Ea(nela-1))*HARTREEINEV);
+    if(nelb && Eb.n_elem>(size_t) nelb)
+      printf("Beta  HOMO-LUMO gap is % .3f eV\n",(Eb(nelb)-Eb(nelb-1))*HARTREEINEV);
     fflush(stdout);
 
     if(convd)

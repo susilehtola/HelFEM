@@ -35,7 +35,7 @@ namespace helfem {
     DFTGridWorker::DFTGridWorker() {
     }
 
-    DFTGridWorker::DFTGridWorker(const helfem::atomic::basis::TwoDBasis * basp_, int lang, int mang) : basp(basp_) {
+    DFTGridWorker::DFTGridWorker(const helfem::diatomic::basis::TwoDBasis * basp_, int lang, int mang) : basp(basp_) {
       do_grad=false;
       do_tau=false;
       do_lapl=false;
@@ -52,7 +52,7 @@ namespace helfem {
       if(!P0.n_elem) {
         throw std::runtime_error("Error - density matrix is empty!\n");
       }
-      arma::mat P(P0(bf_ind,bf_ind));
+      arma::mat P(basp->expand_boundaries(P0)(bf_ind,bf_ind));
 
       // Non-polarized calculation.
       polarized=false;
@@ -115,8 +115,8 @@ namespace helfem {
       polarized=true;
 
       // Update density vector
-      arma::mat Pa(Pa0.submat(bf_ind,bf_ind));
-      arma::mat Pb(Pb0.submat(bf_ind,bf_ind));
+      arma::mat Pa(basp->expand_boundaries(Pa0)(bf_ind,bf_ind));
+      arma::mat Pb(basp->expand_boundaries(Pb0)(bf_ind,bf_ind));
 
       Pav=Pa*arma::conj(bf);
       Pbv=Pb*arma::conj(bf);
@@ -652,35 +652,38 @@ namespace helfem {
       // Update function list
       bf_ind=basp->bf_list(iel);
 
-      // Get radii and radial weights
-      arma::vec r(basp->get_r(iel));
+      // Get radial weights
       arma::vec wrad(basp->get_wrad(iel));
+      double Rhalf(basp->get_Rhalf());
 
-      // Calculate scale factors
+      // Calculate helpers
+      arma::vec r(basp->get_r(iel));
+      arma::vec shmu(arma::sinh(r));
+      
       arma::vec sth(cth.n_elem);
       for(size_t ia=0;ia<cth.n_elem;ia++)
         sth(ia)=sqrt(1.0 - cth(ia)*cth(ia));
-
-      // Radial is simple
-      scale_r.ones(wrad.n_elem*wang.n_elem);
-      // Theta is a bit more complicated
-      scale_theta.resize(wrad.n_elem*wang.n_elem);
+      
+      // Radial is
+      scale_r.resize(wrad.n_elem*wang.n_elem);
       for(size_t ia=0;ia<wang.n_elem;ia++)
         for(size_t ir=0;ir<wrad.n_elem;ir++)
-          scale_theta(ia*wrad.n_elem+ir)=r(ir);
-      // and so is phi
+          // h_mu = R_{h}\sqrt{\sinh^{2}\mu+\sin^{2}\nu}
+          scale_r(ia*wrad.n_elem+ir)=Rhalf*sqrt(std::pow(shmu(ir),2) + std::pow(sth(ia),2));
+      // Theta is same as radial
+      scale_theta=scale_r;
+      // phi is simple
       scale_phi.resize(wrad.n_elem*wang.n_elem);
       for(size_t ia=0;ia<wang.n_elem;ia++)
         for(size_t ir=0;ir<wrad.n_elem;ir++)
-          scale_phi(ia*wrad.n_elem+ir)=r(ir)*sth(ia);
-
+          scale_phi(ia*wrad.n_elem+ir)=Rhalf*shmu(ir)*sth(ia);
       // Update total weights
       wtot.zeros(wrad.n_elem*wang.n_elem);
       for(size_t ia=0;ia<wang.n_elem;ia++)
         for(size_t ir=0;ir<wrad.n_elem;ir++) {
           size_t idx=ia*wrad.n_elem+ir;
           // sin(th) is already contained within wang, but we don't want to divide by it since it may be zero.
-          wtot(idx)=wang(ia)*wrad(ir)*std::pow(r(ir),2);
+          wtot(idx)=wang(ia)*wrad(ir)*std::pow(Rhalf,3)*shmu(ir)*(std::pow(shmu(ir),2)+std::pow(sth(ia),2));
         }
 
       // Compute basis function values
@@ -727,7 +730,7 @@ namespace helfem {
     DFTGrid::DFTGrid() {
     }
 
-    DFTGrid::DFTGrid(const helfem::atomic::basis::TwoDBasis * basp_, int lang_, int mang_) : basp(basp_), lang(lang_), mang(mang_) {
+    DFTGrid::DFTGrid(const helfem::diatomic::basis::TwoDBasis * basp_, int lang_, int mang_) : basp(basp_), lang(lang_), mang(mang_) {
       arma::vec cth, phi, wang;
       helfem::angular::angular_lobatto(lang,mang,cth,phi,wang);
       printf("DFT angular grid of order l=%i m=%i has %i points\n",lang,mang,(int) wang.n_elem);
@@ -737,7 +740,7 @@ namespace helfem {
     }
 
     void DFTGrid::eval_Fxc(int x_func, int c_func, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double & Ekin, double thr) {
-      H.zeros(P.n_rows,P.n_rows);
+      H.zeros(basp->Ndummy(),basp->Ndummy());
 
       double exc=0.0;
       double ekin=0.0;
@@ -794,11 +797,13 @@ namespace helfem {
       // Save outputs
       Exc=exc;
       Nel=nel;
+
+      H=basp->remove_boundaries(H);
     }
 
     void DFTGrid::eval_Fxc(int x_func, int c_func, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr) {
-      Ha.zeros(Pa.n_rows,Pa.n_rows);
-      Hb.zeros(Pb.n_rows,Pb.n_rows);
+      Ha.zeros(basp->Ndummy(),basp->Ndummy());
+      Hb.zeros(basp->Ndummy(),basp->Ndummy());
 
       double exc=0.0;
       double nel=0.0;
@@ -856,10 +861,14 @@ namespace helfem {
       Exc=exc;
       Nel=nel;
       Ekin=ekin;
+
+      // Clean up matrices
+      Ha=basp->remove_boundaries(Ha);
+      Hb=basp->remove_boundaries(Hb);
     }
 
     arma::mat DFTGrid::eval_overlap() {
-      arma::mat S(basp->Nbf(),basp->Nbf());
+      arma::mat S(basp->Ndummy(),basp->Ndummy());
       S.zeros();
 
 #ifdef _OPENMP
@@ -885,7 +894,8 @@ namespace helfem {
         }
       }
 
-      return S;
+      // Clean up matrices
+      return basp->remove_boundaries(S);
     }
   }
 }

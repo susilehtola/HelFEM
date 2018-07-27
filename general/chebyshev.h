@@ -10,11 +10,6 @@ namespace helfem {
        \f$ \int_{-1}^{1} f(x) dx \f$
     */
     void chebyshev(int n, arma::vec & x, arma::vec & w);
-
-    /// Angular quadrature rule of order l
-    void angular_chebyshev(int l, arma::vec & cth, arma::vec & phi, arma::vec & w);
-    /// Angular quadrature rule of order (l,m)
-    void angular_chebyshev(int l, int m, arma::vec & cth, arma::vec & phi, arma::vec & w);
   }
 }
 
