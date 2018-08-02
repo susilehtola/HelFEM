@@ -111,10 +111,8 @@ namespace helfem {
         /// Primitive two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
         std::vector<arma::mat> prim_ktei;
 
-        /// Number of basis functions in angular block
-        size_t angular_nbf(size_t amind) const;
-        /// Offset for angular block
-        size_t angular_offset(size_t amind) const;
+        /// Get indices of real basis functions
+        arma::uvec pure_indices() const;
 
         /// Add to radial submatrix
         void add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
@@ -123,13 +121,6 @@ namespace helfem {
         /// Get radial submatrix
         arma::mat get_sub(const arma::mat & M, size_t iang, size_t jang) const;
 
-        /// Expand boundary conditions
-        arma::mat expand_boundaries(const arma::mat & H) const;
-        /// Expand boundary conditions
-        arma::mat expand_boundaries_C(const arma::mat & C) const;
-        /// Remove boundary conditions
-        arma::mat remove_boundaries(const arma::mat & H) const;
-
       public:
         TwoDBasis();
         /// Constructor
@@ -137,6 +128,11 @@ namespace helfem {
         TwoDBasis(int Z, int n_nodes, int der_order, int n_quad, int num_el0, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int Zl, int Zr, double Rhalf);
         /// Destructor
         ~TwoDBasis();
+
+        /// Expand boundary conditions
+        arma::mat expand_boundaries(const arma::mat & H) const;
+        /// Remove boundary conditions
+        arma::mat remove_boundaries(const arma::mat & H) const;
 
         /// Memory for one-electron integral matrix
         size_t mem_1el() const;
@@ -150,6 +146,9 @@ namespace helfem {
 
         /// Number of basis functions
         size_t Nbf() const;
+        /// Number of dummy basis functions
+        size_t Ndummy() const;
+
         /// Number of radial functions
         size_t Nrad() const;
         /// Number of angular shells
@@ -194,6 +193,9 @@ namespace helfem {
         arma::vec get_wrad(size_t iel) const;
         /// Get r values
         arma::vec get_r(size_t iel) const;
+
+        /// Electron density at nuclei
+        arma::vec nuclear_density(const arma::mat & P) const;
       };
     }
   }

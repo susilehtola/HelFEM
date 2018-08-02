@@ -12,11 +12,6 @@
 #include <omp.h>
 #endif
 
-/// Use quadrature for one-electron integrals?
-#define OEI_QUADRATURE
-/// Use quadrature for two-electron integrals?
-#define TEI_QUADRATURE
-
 namespace helfem {
   namespace atomic {
     namespace basis {
@@ -94,17 +89,6 @@ namespace helfem {
         bval=get_grid(rmax,num_el,igrid,zexp);
 
         //bval.print("Element boundaries");
-
-#ifdef OEI_QUADRATURE
-        printf("One-electron integrals evaluated using quadrature.\n");
-#else
-        printf("One-electron integrals evaluated analytically.\n");
-#endif
-#ifdef TEI_QUADRATURE
-        printf("Two-electron integrals evaluated using quadrature.\n");
-#else
-        printf("Two-electron integrals evaluated analytically.\n");
-#endif
       }
 
       static arma::vec concatenate_grid(const arma::vec & left, const arma::vec & right) {
@@ -190,17 +174,6 @@ namespace helfem {
           bval=bval2;
         }
         bval.print("Element boundaries");
-
-#ifdef OEI_QUADRATURE
-        printf("One-electron integrals evaluated using quadrature.\n");
-#else
-        printf("One-electron integrals evaluated analytically.\n");
-#endif
-#ifdef TEI_QUADRATURE
-        printf("Two-electron integrals evaluated using quadrature.\n");
-#else
-        printf("Two-electron integrals evaluated analytically.\n");
-#endif
       }
 
       RadialBasis::~RadialBasis() {
@@ -271,53 +244,12 @@ namespace helfem {
         return radial_integral(bf_C,Rexp,iel);
       }
 
-#ifndef OEI_QUADRATURE
-      static double primrad_int(int n, double Rmin, double Rmax) {
-        if(n==-1)
-          return log(Rmax)-log(Rmin);
-        else
-          return (std::pow(Rmax,n+1)-std::pow(Rmin,n+1))/(n+1);
-      }
-#endif
-
       arma::mat RadialBasis::radial_integral(const arma::mat & bf_cexp, int Rexp, size_t iel) const {
         double Rmin(bval(iel));
         double Rmax(bval(iel+1));
 
-#ifdef OEI_QUADRATURE
         // Integral by quadrature
         return quadrature::radial_integral(Rmin,Rmax,Rexp,xq,wq,get_basis(polynomial::polyval(bf_cexp,xq),iel));
-#else
-        // Coefficients
-        arma::mat C(polynomial::convert_coeffs(get_basis(bf_cexp,iel),Rmin,Rmax));
-        size_t Nx(C.n_rows);
-
-        // Primitive integrals
-        arma::mat primint(Nx,Nx);
-        for(size_t i=0;i<Nx;i++)
-          for(size_t j=0;j<Nx;j++)
-            primint(i,j)=primrad_int(i+j+Rexp,Rmin,Rmax);
-
-        primint.print("primitive integrals");
-
-        // Set any diverging integrals to zero
-        for(size_t i=0;i<Nx;i++)
-          for(size_t j=0;j<Nx;j++)
-            if(!std::isnormal(primint(i,j)))
-              primint(i,j)=0.0;
-
-        // Analytical integrals
-        arma::mat anal(C.t()*primint*C);
-        anal.print("analytical");
-
-        arma::mat quad(quadrature::radial_integral(Rmin,Rmax,Rexp,xq,wq,get_basis(polynomial::polyval(bf_cexp,xq),iel)));
-        quad.print("quadrature");
-
-        arma::mat diff(quad-anal);
-        printf("Error in analytical integral for Rexp=%i in element %i is %e\n",Rexp,(int) iel,arma::norm(diff,"fro"));
-
-        return (anal+anal.t())/2.0;
-#endif
       }
 
       arma::mat RadialBasis::kinetic(size_t iel) const {
@@ -344,84 +276,12 @@ namespace helfem {
           throw std::logic_error("Nucleus placed within element!\n");
       }
 
-#ifndef TEI_QUADRATURE
-      // Two-electron primitive integral
-      static double primitive_tei(double rmin, double rmax, int k, int l) {
-        assert(l!=-1);
-        if(k==-1)
-          return 1.0/(l+1)*( 1.0/(l+1)*(std::pow(rmax,l+1)-std::pow(rmin,l+1)) - std::pow(rmin,l+1)*log(rmax/rmin));
-        else {
-          assert(k+l+1!=-1);
-          return 1.0/(l+1)*( 1.0/(k+l+2)*(std::pow(rmax,k+l+2)-std::pow(rmin,k+l+2)) - 1.0/(k+1)*std::pow(rmin,l+1)*(std::pow(rmax,k+1)-std::pow(rmin,k+1)));
-        }
-      }
-#endif
-
       arma::mat RadialBasis::twoe_integral(int L, size_t iel) const {
         double Rmin(bval(iel));
         double Rmax(bval(iel+1));
 
-#ifdef TEI_QUADRATURE
         // Integral by quadrature
         return quadrature::twoe_integral(Rmin,Rmax,xq,wq,get_basis(bf_C,iel),L);
-#else
-        arma::mat quad(quadrature::twoe_integral(Rmin,Rmax,xq,wq,get_basis(bf_C,iel),L));
-
-        // Coefficients
-        arma::mat C(polynomial::convert_coeffs(get_basis(bf_C,iel),Rmin,Rmax));
-        size_t Nx(C.n_rows);
-        size_t N(C.n_cols);
-
-        // Primitive integrals
-        arma::mat primint(2*Nx,2*Nx);
-        for(size_t ij=0;ij<2*Nx;ij++)
-          for(size_t kl=0;kl<2*Nx;kl++)
-            primint(ij,kl)=primitive_tei(Rmin,Rmax,ij-L-1,kl+L);
-
-        // Set any diverging primitive integrals to zero
-        for(size_t ij=0;ij<2*Nx;ij++)
-          for(size_t kl=0;kl<2*Nx;kl++)
-            if(!std::isnormal(primint(ij,kl)))
-              primint(ij,kl)=0.0;
-
-        // and the factor
-        primint*=4.0*M_PI/(2*L+1);
-
-        // Half-transformed eris
-        arma::mat heri(N*N,2*Nx);
-        for(size_t fi=0;fi<N;fi++)
-          for(size_t fj=0;fj<N;fj++)
-            for(size_t kl=0;kl<2*Nx;kl++)
-              {
-                double el=0.0;
-                for(size_t pi=0;pi<Nx;pi++)
-                  for(size_t pj=0;pj<Nx;pj++)
-                    el+=primint(pi+pj,kl)*C(pi,fi)*C(pj,fj);
-                heri(fj*N+fi,kl)=el;
-              }
-
-        // Full transform
-        arma::mat eri(N*N,N*N);
-        for(size_t fk=0;fk<N;fk++)
-          for(size_t fl=0;fl<N;fl++)
-            for(size_t fi=0;fi<N;fi++)
-              for(size_t fj=0;fj<N;fj++)
-                {
-                  double el=0.0;
-                  for(size_t pk=0;pk<Nx;pk++)
-                    for(size_t pl=0;pl<Nx;pl++)
-                      el+=heri(fj*N+fi,pk+pl)*C(pk,fk)*C(pl,fl);
-                  eri(fj*N+fi,fl*N+fk)=el;
-                }
-
-        // Add in other half
-        eri+=eri.t();
-
-        eri.print("Analytical integrals");
-        quad.print("Quadrature integrals");
-
-        return eri;
-#endif
       }
 
       arma::mat RadialBasis::get_bf(size_t iel) const {
@@ -563,8 +423,12 @@ namespace helfem {
       TwoDBasis::~TwoDBasis() {
       }
 
-      size_t TwoDBasis::Nbf() const {
+      size_t TwoDBasis::Ndummy() const {
         return lval.n_elem*radial.Nbf();
+      }
+
+      size_t TwoDBasis::Nbf() const {
+        return Ndummy();
       }
 
       size_t TwoDBasis::Nrad() const {
@@ -575,22 +439,8 @@ namespace helfem {
         return lval.n_elem;
       }
 
-      size_t TwoDBasis::angular_nbf(size_t iam) const {
-        /*
-          if(lval(iam)==0)
-          return radial.Nbf();
-          else
-          // Boundary condition with l>0: remove first noverlap functions!
-          return radial.Nbf()-radial.get_noverlap();
-        */
-        return radial.Nbf();
-      }
-
-      size_t TwoDBasis::angular_offset(size_t iam) const {
-        size_t ioff=0;
-        for(size_t i=0;i<iam;i++)
-          ioff+=angular_nbf(i);
-        return ioff;
+      arma::uvec TwoDBasis::pure_indices() const {
+        return arma::linspace<arma::uvec>(0,Nbf()-1,Nbf());
       }
 
       arma::mat TwoDBasis::Sinvh(bool chol) const {
@@ -648,7 +498,7 @@ namespace helfem {
         }
 
         // Full overlap matrix
-        arma::mat O(Nbf(),Nbf());
+        arma::mat O(Ndummy(),Ndummy());
         O.zeros();
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++)
@@ -679,7 +529,7 @@ namespace helfem {
         }
 
         // Full kinetic energy matrix
-        arma::mat T(Nbf(),Nbf());
+        arma::mat T(Ndummy(),Ndummy());
         T.zeros();
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++) {
@@ -695,7 +545,7 @@ namespace helfem {
 
       arma::mat TwoDBasis::nuclear() const {
         // Full nuclear attraction matrix
-        arma::mat V(Nbf(),Nbf());
+        arma::mat V(Ndummy(),Ndummy());
         V.zeros();
 
         if(Z!=0.0) {
@@ -773,7 +623,7 @@ namespace helfem {
         Orad.zeros();
 
         // Full electric couplings
-        arma::mat V(Nbf(),Nbf());
+        arma::mat V(Ndummy(),Ndummy());
         V.zeros();
 
         // Loop over elements
@@ -813,7 +663,7 @@ namespace helfem {
         Orad.zeros();
 
         // Full electric couplings
-        arma::mat V(Nbf(),Nbf());
+        arma::mat V(Ndummy(),Ndummy());
         V.zeros();
 
         // Loop over elements
@@ -887,7 +737,7 @@ namespace helfem {
         for(size_t L=0;L<N_L;L++)
           for(size_t iel=0;iel<Nel;iel++) {
             disjoint_L[L*Nel+iel]=radial.radial_integral(L,iel);
-            disjoint_m1L[L*Nel+iel]=radial.radial_integral(-1-L,iel);
+            disjoint_m1L[L*Nel+iel]=radial.radial_integral(-L-1,iel);
           }
 
         // Form two-electron integrals
@@ -998,7 +848,7 @@ namespace helfem {
         }
 
         // Full Coulomb matrix
-        arma::mat J(Nbf(),Nbf());
+        arma::mat J(Ndummy(),Ndummy());
         J.zeros();
 
         // Helper memory
@@ -1114,11 +964,6 @@ namespace helfem {
         // Extend to boundaries
         arma::mat P(expand_boundaries(P0));
 
-        if(P.n_rows != Nbf())
-          throw std::logic_error("Density matrix has incorrect size!\n");
-        if(P.n_cols != Nbf())
-          throw std::logic_error("Density matrix has incorrect size!\n");
-
         // Gaunt coefficient table
         int gmax(std::max(arma::max(lval),arma::max(mval)));
         gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
@@ -1129,7 +974,7 @@ namespace helfem {
         size_t Nrad(radial.Nbf());
 
         // Full exchange matrix
-        arma::mat K(Nbf(),Nbf());
+        arma::mat K(Ndummy(),Ndummy());
         K.zeros();
 
         // Helper memory
@@ -1274,37 +1119,17 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::remove_boundaries(const arma::mat & Fnob) const {
-        // Determine how many functions we need
-        size_t Npure=angular_offset(lval.n_elem);
-        // Number of functions in radial basis
-        size_t Nrad=radial.Nbf();
-        if(Fnob.n_rows != Nrad*lval.n_elem || Fnob.n_cols != Nrad*lval.n_elem) {
+        if(Fnob.n_rows != Ndummy() || Fnob.n_cols != Ndummy()) {
           std::ostringstream oss;
-          oss << "Matrix does not have expected size! Got " << Fnob.n_rows << " x " << Fnob.n_cols << ", expected " << Nrad*lval.n_elem << " x " << Nrad*lval.n_elem << "!\n";
+          oss << "Matrix does not have expected size! Got " << Fnob.n_rows << " x " << Fnob.n_cols << ", expected " << Ndummy() << " x " << Ndummy() << "!\n";
           throw std::logic_error(oss.str());
         }
 
+        // Get indices
+        arma::uvec idx(pure_indices());
+
         // Matrix with the boundary conditions removed
-        arma::mat Fpure(Npure,Npure);
-        Fpure.zeros();
-
-        // Fill matrix
-        for(size_t iang=0;iang<lval.n_elem;iang++)
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
-            // Offset
-            size_t ioff=angular_offset(iang);
-            size_t joff=angular_offset(jang);
-
-            // Number of radial functions on the shells
-            size_t ni=angular_nbf(iang);
-            size_t nj=angular_nbf(jang);
-
-            // Sanity check for trivial case
-            if(!ni) continue;
-            if(!nj) continue;
-
-            Fpure.submat(ioff,joff,ioff+ni-1,joff+nj-1)=Fnob.submat((iang+1)*Nrad-ni,(jang+1)*Nrad-nj,(iang+1)*Nrad-1,(jang+1)*Nrad-1);
-          }
+        arma::mat Fpure(Fnob(idx,idx));
 
         //Fnob.print("Input: w/o built-in boundaries");
         //Fpure.print("Output: w built-in boundaries");
@@ -1313,74 +1138,24 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::expand_boundaries(const arma::mat & Ppure) const {
-        // Determine how many functions we need
-        size_t Npure=angular_offset(lval.n_elem);
-        // Number of functions in radial basis
-        size_t Nrad=radial.Nbf();
-
-        if(Ppure.n_rows != Npure || Ppure.n_cols != Npure) {
+        if(Ppure.n_rows != Nbf() || Ppure.n_cols != Nbf()) {
           std::ostringstream oss;
-          oss << "Matrix does not have expected size! Got " << Ppure.n_rows << " x " << Ppure.n_cols << ", expected " << Npure << " x " << Npure << "!\n";
+          oss << "Matrix does not have expected size! Got " << Ppure.n_rows << " x " << Ppure.n_cols << ", expected " << Nbf() << " x " << Nbf() << "!\n";
           throw std::logic_error(oss.str());
         }
 
+        // Get indices
+        arma::uvec idx(pure_indices());
+
         // Matrix with the boundary conditions removed
-        arma::mat Pnob(Nrad*lval.n_elem,Nrad*lval.n_elem);
+        arma::mat Pnob(Ndummy(),Ndummy());
         Pnob.zeros();
-
-        // Fill matrix
-        for(size_t iang=0;iang<lval.n_elem;iang++)
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
-            // Offset
-            size_t ioff=angular_offset(iang);
-            size_t joff=angular_offset(jang);
-
-            // Number of radial functions on the shells
-            size_t ni=angular_nbf(iang);
-            size_t nj=angular_nbf(jang);
-
-            // Sanity check for trivial case
-            if(!ni) continue;
-            if(!nj) continue;
-
-            Pnob.submat((iang+1)*Nrad-ni,(jang+1)*Nrad-nj,(iang+1)*Nrad-1,(jang+1)*Nrad-1)=Ppure.submat(ioff,joff,ioff+ni-1,joff+nj-1);
-          }
+        Pnob(idx,idx)=Ppure;
 
         //Ppure.print("Input: w built-in boundaries");
         //Pnob.print("Output: w/o built-in boundaries");
 
         return Pnob;
-      }
-
-      arma::mat TwoDBasis::expand_boundaries_C(const arma::mat & Cpure) const {
-        // Determine how many functions we need
-        size_t Npure=angular_offset(lval.n_elem);
-        // Number of functions in radial basis
-        size_t Nrad=radial.Nbf();
-
-        if(Cpure.n_rows != Npure) {
-          std::ostringstream oss;
-          oss << "Matrix does not have expected size! Got " << Cpure.n_rows << " rows, expeted " << Npure << " rows!\n";
-          throw std::logic_error(oss.str());
-        }
-
-        // Matrix with the boundary conditions removed
-        arma::mat Cnob(Nrad*lval.n_elem,Cpure.n_cols);
-        Cnob.zeros();
-
-        // Fill matrix
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
-	  // Offset
-	  size_t ioff=angular_offset(iang);
-	  // Number of radial functions on the shell
-	  size_t ni=angular_nbf(iang);
-	  // Sanity check for trivial case
-	  if(!ni) continue;
-
-	  Cnob.rows((iang+1)*Nrad-ni,(iang+1)*Nrad-1)=Cpure.rows(ioff,ioff+ni-1);
-	}
-
-        return Cnob;
       }
 
       std::vector<arma::mat> TwoDBasis::get_prim_tei() const {
@@ -1474,6 +1249,26 @@ namespace helfem {
 
       arma::vec TwoDBasis::get_r(size_t iel) const {
         return radial.get_r(iel);
+      }
+
+      arma::vec TwoDBasis::nuclear_density(const arma::mat & P0) const {
+        // List of functions in the first element
+        arma::uvec fidx(bf_list(0));
+
+        // Expand density matrix to boundary conditions
+        arma::mat P(expand_boundaries(P0));
+        // and grab the contribution from the first element
+        P=P(fidx,fidx);
+
+        // Evaluate basis functions in first element at both nuclei
+        arma::cx_mat bf(eval_bf(0,0.0,0.0));
+        // Only take the first function i.e. the value at the nucleus
+        bf=bf.row(0);
+
+        arma::vec den(1);
+        den(0)=arma::as_scalar(arma::real(arma::trans(bf)*P*bf));
+
+        return den;
       }
     }
   }

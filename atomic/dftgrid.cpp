@@ -52,7 +52,7 @@ namespace helfem {
       if(!P0.n_elem) {
         throw std::runtime_error("Error - density matrix is empty!\n");
       }
-      arma::mat P(P0(bf_ind,bf_ind));
+      arma::mat P(basp->expand_boundaries(P0)(bf_ind,bf_ind));
 
       // Non-polarized calculation.
       polarized=false;
@@ -115,8 +115,8 @@ namespace helfem {
       polarized=true;
 
       // Update density vector
-      arma::mat Pa(Pa0.submat(bf_ind,bf_ind));
-      arma::mat Pb(Pb0.submat(bf_ind,bf_ind));
+      arma::mat Pa(basp->expand_boundaries(Pa0)(bf_ind,bf_ind));
+      arma::mat Pb(basp->expand_boundaries(Pb0)(bf_ind,bf_ind));
 
       Pav=Pa*arma::conj(bf);
       Pbv=Pb*arma::conj(bf);
