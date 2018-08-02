@@ -711,6 +711,13 @@ int main(int argc, char **argv) {
   printf("Electronic dipole     moment % .16e\n",arma::trace(dip*P));
   printf("Electronic quadrupole moment % .16e\n",arma::trace(quad*P));
 
+  printf("\n");
+  printf("Nuclear electron densities\n");
+  arma::vec nucdena(basis.nuclear_density(Pa));
+  arma::vec nucdenb(basis.nuclear_density(Pb));
+  for(size_t i=0;i<nucdena.size();i++)
+    printf(" % .10e % .10e % .10e\n",nucdena(i),nucdenb(i),nucdena(i)+nucdenb(i));
+
   /*
   // Calculate <r^2> matrix
   arma::mat rmat(basis.radial_integral(1));
