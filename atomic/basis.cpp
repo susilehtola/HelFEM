@@ -343,6 +343,22 @@ namespace helfem {
         return rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq;
       }
 
+      double RadialBasis::nuclear_density(const arma::mat & P) const {
+        // Nuclear coordinate
+        arma::vec x(1);
+        // Remember that the primitive basis polynomials belong to [-1,1]
+        x(0)=-1.0;
+
+        // Evaluate derivative at nucleus
+        double rlen((bval(1)-bval(0))/2);
+        arma::mat d(get_basis(polynomial::polyval(df_C,x),0)/rlen);
+
+        // P_uv B_u'(0) B_v'(0)
+        double den(arma::as_scalar(d*P*arma::trans(d)));
+
+        return den;
+      }
+
       TwoDBasis::TwoDBasis() {
       }
 
@@ -1252,21 +1268,32 @@ namespace helfem {
       }
 
       arma::vec TwoDBasis::nuclear_density(const arma::mat & P0) const {
-        // List of functions in the first element
-        arma::uvec fidx(bf_list(0));
+        // Radial functions in first element
+        size_t ifirst, ilast;
+        radial.get_idx(0,ifirst,ilast);
+        // Total number of radial functions
+        size_t Nrad(radial.Nbf());
 
         // Expand density matrix to boundary conditions
         arma::mat P(expand_boundaries(P0));
-        // and grab the contribution from the first element
-        P=P(fidx,fidx);
 
-        // Evaluate basis functions in first element at both nuclei
-        arma::cx_mat bf(eval_bf(0,0.0,0.0));
-        // Only take the first function i.e. the value at the nucleus
-        bf=bf.row(0);
+        // Gaunt coefficients
+        gaunt::Gaunt gaunt(arma::max(arma::abs(lval)),0,arma::max(arma::abs(lval)));
+
+        // Loop over angular momentum
+        double nucden=0.0;
+        for(size_t iam=0;iam<lval.n_elem;iam++)
+          for(size_t jam=0;jam<lval.n_elem;jam++) {
+            // Coupling
+            double cpl(gaunt.coeff(lval(iam),mval(iam),0,0,lval(jam),mval(jam)));
+            if(cpl==0.0)
+              continue;
+
+            nucden+=cpl/sqrt(4.0*M_PI)*radial.nuclear_density(P.submat(Nrad*iam,Nrad*jam,Nrad*iam+ilast,Nrad*jam+ilast));
+          }
 
         arma::vec den(1);
-        den(0)=arma::as_scalar(arma::real(arma::trans(bf)*P*bf));
+        den(0)=nucden;
 
         return den;
       }

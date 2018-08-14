@@ -83,6 +83,9 @@ namespace helfem {
         arma::vec get_wrad(size_t iel) const;
         /// Get r values
         arma::vec get_r(size_t iel) const;
+
+        /// Evaluate nuclear density
+        double nuclear_density(const arma::mat & P) const;
       };
 
       /// Two-dimensional basis set

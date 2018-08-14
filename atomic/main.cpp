@@ -724,6 +724,11 @@ int main(int argc, char **argv) {
   printf("Electronic dipole     moment % .16e\n",arma::trace(dip*P));
   printf("Electronic quadrupole moment % .16e\n",arma::trace(quad*P));
 
+  // Electron density at nucleus
+  if(Z!=0) {
+    printf("Electron density at nucleus % .10e % .10e % .10e\n",basis.nuclear_density(Pa)(0),basis.nuclear_density(Pb)(0),basis.nuclear_density(P)(0));
+  }
+
   // Calculate <r^2> matrix
   arma::mat rmat(basis.radial_integral(1));
   arma::mat rsqmat(basis.radial_integral(2));
