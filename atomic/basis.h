@@ -157,6 +157,8 @@ namespace helfem {
         /// Number of angular shells
         size_t Nang() const;
 
+        /// Form half-overlap matrix
+        arma::mat Shalf(bool chol) const;
         /// Form half-inverse overlap matrix
         arma::mat Sinvh(bool chol) const;
         /// Form radial integral

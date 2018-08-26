@@ -459,6 +459,37 @@ namespace helfem {
         return arma::linspace<arma::uvec>(0,Nbf()-1,Nbf());
       }
 
+      arma::mat TwoDBasis::Shalf(bool chol) const {
+        // Form overlap matrix
+        arma::mat S(overlap());
+
+        // Get the basis function norms
+        arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
+        arma::vec bfinvnormlz(arma::pow(arma::diagvec(S),0.5));
+	printf("Smallest normalization constant % e, largest % e\n",arma::min(bfnormlz),arma::max(bfnormlz));
+        // Go to normalized basis
+        S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
+
+        if(chol) {
+          // Half-inverse is
+          return arma::diagmat(bfinvnormlz) * arma::chol(S);
+
+        } else {
+          arma::vec Sval;
+          arma::mat Svec;
+          if(!arma::eig_sym(Sval,Svec,S)) {
+            S.save("S.dat",arma::raw_ascii);
+	    throw std::logic_error("Diagonalization of overlap matrix failed\n");
+          }
+          printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
+
+          arma::mat Shalf(Svec*arma::diagmat(arma::pow(Sval,0.5))*arma::trans(Svec));
+          Shalf=arma::diagmat(bfinvnormlz)*Shalf;
+
+          return Shalf;
+        }
+      }
+
       arma::mat TwoDBasis::Sinvh(bool chol) const {
         // Form overlap matrix
         arma::mat S(overlap());
