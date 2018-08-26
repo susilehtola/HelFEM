@@ -661,7 +661,47 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::quadrupole_zz() const {
-        return arma::zeros<arma::mat>(Nbf(),Nbf());
+        // Full electric couplings
+        arma::mat V(Ndummy(),Ndummy());
+        V.zeros();
+
+        // Build radial matrix elements
+        arma::mat I10(radial.radial_integral(1,0));
+        arma::mat I12(radial.radial_integral(1,2));
+        arma::mat I14(radial.radial_integral(1,4));
+
+        // Fill elements
+        for(size_t iang=0;iang<lval.n_elem;iang++) {
+          int li(lval(iang));
+          int mi(mval(iang));
+
+          for(size_t jang=0;jang<lval.n_elem;jang++) {
+            int lj(lval(jang));
+            int mj(mval(jang));
+
+            // Calculate coupling
+            if(mi==mj) {
+              // Coupling through the cos^4 term
+              double cpl4(gaunt.cosine4_coupling(lj,mj,li,mi));
+              if(cpl4!=0.0)
+                add_sub(V,iang,jang,cpl4*(I10-3.0*I12));
+
+              // We can also couple through the cos^2 term
+              double cpl2(gaunt.cosine2_coupling(lj,mj,li,mi));
+              if(cpl2!=0.0)
+                add_sub(V,iang,jang,cpl2*(3.0*I14-I10));
+
+              // or the delta term
+              if(li==lj)
+                add_sub(V,iang,jang,I12-I14);
+            }
+          }
+        }
+
+        // Plug in prefactors
+        V*=std::pow(Rhalf,5)/2;
+
+        return remove_boundaries(V);
       }
 
       bool operator<(const lmidx_t & lh, const lmidx_t & rh) {
