@@ -156,6 +156,10 @@ int main(int argc, char **argv) {
 
   // Symmetry indices
   std::vector<arma::uvec> dsym;
+  if(symm==2 && Ez!=0.0) {
+    printf("Warning - asked for full orbital symmetry in presence of electric field. Relaxing restriction.\n");
+    symm=1;
+  }
   if(symm)
     dsym=basis.get_sym_idx(symm);
 
