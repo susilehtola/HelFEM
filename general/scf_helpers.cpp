@@ -23,6 +23,75 @@ namespace helfem {
       C=Sinvh*C;
     }
 
+    void eig_gsym_sub(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh, const std::vector<arma::uvec> & m_idx) {
+      E.zeros(F.n_rows);
+      C.zeros(F.n_rows,F.n_rows);
+
+      size_t iidx=0;
+      // Loop over symmetries
+      for(size_t i=0;i<m_idx.size();i++) {
+        // Find basis vectors that belong to this symmetry
+        arma::mat Scmp(Sinvh.rows(m_idx[i]));
+
+        arma::vec Snrm(Scmp.n_cols);
+        for(size_t i=0;i<Snrm.n_elem;i++)
+          Snrm(i)=arma::norm(Scmp.col(i),"fro");
+
+        // Column indices of Sinvh that have non-zero elements
+        arma::uvec Sind(arma::find(Snrm));
+
+        // Solve subproblem
+        arma::vec Esub;
+        arma::mat Csub;
+        eig_gsym(Esub,Csub,F,Sinvh.cols(Sind));
+
+        // Store solutions
+        E.subvec(iidx,iidx+Esub.n_elem-1)=Esub;
+        C.cols(iidx,iidx+Esub.n_elem-1)=Csub;
+        iidx+=Esub.n_elem;
+      }
+      if(iidx!=F.n_rows) {
+        std::ostringstream oss;
+        oss << "Symmetry mismatch: expected " << F.n_rows << " vectors but got " << iidx << "!\n";
+        throw std::logic_error(oss.str());
+      }
+
+      // Sort energies
+      arma::uvec Eord=arma::sort_index(E,"ascend");
+      E=E(Eord);
+      C=C.cols(Eord);
+    }
+
+    void eig_sym_sub(arma::vec & E, arma::mat & C, const arma::mat & F, const std::vector<arma::uvec> & m_idx) {
+      E.zeros(F.n_rows);
+      C.zeros(F.n_rows,F.n_rows);
+
+      size_t iidx=0;
+      // Loop over symmetries
+      for(size_t i=0;i<m_idx.size();i++) {
+        // Solve subproblem
+        arma::vec Esub;
+        arma::mat Csub;
+        arma::eig_sym(Esub,Csub,F(m_idx[i],m_idx[i]));
+
+        // Store solutions
+        arma::uvec cidx(arma::linspace<arma::uvec>(iidx,iidx+Esub.n_elem-1,Esub.n_elem));
+        E(cidx)=Esub;
+        C(m_idx[i],cidx)=Csub;
+        iidx+=Esub.n_elem;
+      }
+      if(iidx!=F.n_rows) {
+        std::ostringstream oss;
+        oss << "Symmetry mismatch: expected " << F.n_rows << " vectors but got " << iidx << "!\n";
+        throw std::logic_error(oss.str());
+      }
+
+      // Sort energies
+      arma::uvec Eord=arma::sort_index(E,"ascend");
+      E=E(Eord);
+      C=C.cols(Eord);
+    }
+
     void eig_sub_wrk(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, size_t Nact) {
       // Form orbital gradient
       arma::mat Forth(Cocc.t()*F*Cvirt);
@@ -359,4 +428,3 @@ namespace helfem {
 
   }
 }
-

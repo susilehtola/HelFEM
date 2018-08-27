@@ -158,9 +158,9 @@ namespace helfem {
         size_t Nang() const;
 
         /// Form half-overlap matrix
-        arma::mat Shalf(bool chol) const;
+        arma::mat Shalf(bool chol, int sym) const;
         /// Form half-inverse overlap matrix
-        arma::mat Sinvh(bool chol) const;
+        arma::mat Sinvh(bool chol, int sym) const;
         /// Form radial integral
         arma::mat radial_integral(int n) const;
         /// Form overlap matrix
@@ -184,6 +184,17 @@ namespace helfem {
 
         /// Get primitive integrals
         std::vector<arma::mat> get_prim_tei() const;
+
+        /// Get l values
+        arma::ivec get_l() const;
+        /// Get m values
+        arma::ivec get_m() const;
+        /// Get indices of basis functions with wanted m quantum number
+        arma::uvec m_indices(int m) const;
+        /// Get indices of basis functions with wanted l and m quantum numbers
+        arma::uvec lm_indices(int l, int m) const;
+        /// Get indices for wanted symmetry
+        std::vector<arma::uvec> get_sym_idx(int isym) const;
 
         /// Evaluate basis functions
         arma::cx_mat eval_bf(size_t iel, double cth, double phi) const;

@@ -13,6 +13,27 @@
 
 using namespace helfem;
 
+void classify_orbitals(const arma::mat & C, const arma::ivec & lvals, const arma::ivec & mvals, const std::vector<arma::uvec> & lmidx) {
+  for(size_t io=0;io<C.n_cols;io++) {
+    arma::vec orb(C.col(io));
+
+    arma::vec ochar(mvals.n_elem);
+    for(size_t c=0;c<mvals.n_elem;c++) {
+      ochar(c)=arma::norm(orb(lmidx[c]),"fro");
+    }
+    ochar/=arma::sum(ochar);
+
+    // Orbital symmetry is then
+    arma::uword oidx;
+    ochar.max(oidx);
+
+    // Classification
+    std::ostringstream cl;
+
+    printf("Orbital %2i: l=%1i m=%+1i %6.2f %%\n",(int) (io+1),(int) lvals(oidx),(int) mvals(oidx),100.0*ochar(oidx));
+  }
+}
+
 int main(int argc, char **argv) {
   cmdline::parser parser;
 
@@ -46,6 +67,7 @@ int main(int argc, char **argv) {
   parser.add<int>("mdft", 0, "phi rule for dft quadrature (0 for auto)", false, 0);
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
+  parser.add<int>("symmetry", 0, "force orbital symmetry", false, 1);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -60,6 +82,7 @@ int main(int argc, char **argv) {
 
   bool diag(parser.get<bool>("diag"));
   int restr(parser.get<int>("restricted"));
+  int symm(parser.get<int>("symmetry"));
 
   // Number of elements
   int Nelem0(parser.get<int>("nelem0"));
@@ -131,6 +154,18 @@ int main(int argc, char **argv) {
   printf("Nuclear repulsion energy is %e\n",Enucr);
   printf("Number of electrons is %i %i\n",nela,nelb);
 
+  // Symmetry indices
+  std::vector<arma::uvec> dsym;
+  if(symm)
+    dsym=basis.get_sym_idx(symm);
+
+  arma::ivec lvals, mvals;
+  lvals=basis.get_l();
+  mvals=basis.get_m();
+  std::vector<arma::uvec> lmidx(lvals.n_elem);
+  for(size_t i=0;i<lmidx.size();i++)
+    lmidx[i]=basis.lm_indices(lvals(i),mvals(i));
+
   // Functional
   int x_func, c_func;
   ::parse_xc_func(x_func, c_func, method);
@@ -170,14 +205,14 @@ int main(int argc, char **argv) {
   arma::mat S(basis.overlap());
   // Get half-inverse
   timer.set();
-  arma::mat Sinvh(basis.Sinvh(!diag));
+  arma::mat Sinvh(basis.Sinvh(!diag,symm));
   printf("Half-inverse formed in %.6f\n",timer.get());
   {
     arma::mat Smo(Sinvh.t()*S*Sinvh);
     Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
     printf("Orbital orthonormality deviation is %e\n",arma::norm(Smo,"fro"));
   }
-  arma::mat Sh(basis.Shalf(!diag));
+  arma::mat Sh(basis.Shalf(!diag,symm));
   printf("Half-overlap formed in %.6f\n",timer.get());
   {
     arma::mat Smo(Sh.t()*Sinvh);
@@ -231,7 +266,10 @@ int main(int argc, char **argv) {
   {
     // Proceed by solving eigenvectors of core Hamiltonian with subspace iterations
     arma::mat C;
-    scf::eig_gsym(Ea,C,H0,Sinvh);
+    if(symm)
+      scf::eig_gsym_sub(Ea,C,H0,Sinvh,dsym);
+    else
+      scf::eig_gsym(Ea,C,H0,Sinvh);
     Caocc=C.cols(0,nela-1);
     if(C.n_cols>Caocc.n_cols)
       Cavirt=C.cols(nela,C.n_cols-1);
@@ -244,6 +282,16 @@ int main(int argc, char **argv) {
 
     Ea.subvec(0,nena-1).t().print("Alpha orbital energies");
     Eb.subvec(0,nenb-1).t().print("Beta  orbital energies");
+
+    printf("\n");
+    printf("Alpha orbital symmetries\n");
+    classify_orbitals(Caocc,lvals,mvals,lmidx);
+    if(nelb>0) {
+      printf("\n");
+      printf("Beta orbital symmetries\n");
+      classify_orbitals(Cbocc,lvals,mvals,lmidx);
+    }
+    printf("\n");
   }
   printf("Initial guess performed in %.6f\n",timer.get());
 
@@ -420,12 +468,18 @@ int main(int argc, char **argv) {
     // Diagonalize Fock matrix to get new orbitals
     timer.set();
     arma::mat Ca, Cb;
-    scf::eig_gsym(Ea,Ca,Fa,Sinvh);
+    if(symm)
+      scf::eig_gsym_sub(Ea,Ca,Fa,Sinvh,dsym);
+    else
+      scf::eig_gsym(Ea,Ca,Fa,Sinvh);
     if(restr && nela==nelb) {
       Eb=Ea;
       Cb=Ca;
     } else {
-      scf::eig_gsym(Eb,Cb,Fb,Sinvh);
+      if(symm)
+        scf::eig_gsym_sub(Eb,Cb,Fb,Sinvh,dsym);
+      else
+        scf::eig_gsym(Eb,Cb,Fb,Sinvh);
     }
     Caocc=Ca.cols(0,nela-1);
     if(Ca.n_cols>(size_t) nela)
@@ -441,6 +495,16 @@ int main(int argc, char **argv) {
     if(nelb && Eb.n_elem>(size_t) nelb)
       printf("Beta  HOMO-LUMO gap is % .3f eV\n",(Eb(nelb)-Eb(nelb-1))*HARTREEINEV);
     fflush(stdout);
+
+    printf("\n");
+    printf("Alpha orbital symmetries\n");
+    classify_orbitals(Caocc,lvals,mvals,lmidx);
+    if(nelb>0) {
+      printf("\n");
+      printf("Beta orbital symmetries\n");
+      classify_orbitals(Cbocc,lvals,mvals,lmidx);
+    }
+    printf("\n");
 
     if(convd)
       break;

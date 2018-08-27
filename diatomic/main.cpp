@@ -42,17 +42,17 @@ void classify_orbitals(const arma::mat & C, const arma::ivec & mvals, const std:
     std::ostringstream cl;
 
     if(stot>=thr) {
-      cl << "m=" << mvals(oidx);
-
+      // Orbital symmetry
+      char sym=' ';
       if(opchar(oidx)>=thr)
-        cl << " g";
+        sym='g';
       else if(onchar(oidx)>=thr)
-        cl << " u";
-    } else {
-      cl << "unknown";
-    }
+        sym='u';
 
-    printf("Orbital %2i: %s\n",(int) io+1,cl.str().c_str());
+      printf("Orbital %2i: m=%+i %c\n",(int) io+1,(int) mvals(oidx),sym);
+    } else {
+      printf("Orbital %2i: unknown\n",(int) io+1);
+    }
   }
 }
 
@@ -86,8 +86,9 @@ int main(int argc, char **argv) {
   parser.add<std::string>("method", 0, "method to use", false, "HF");
   parser.add<int>("ldft", 0, "theta rule for dft quadrature (0 for auto)", false, 0);
   parser.add<int>("mdft", 0, "phi rule for dft quadrature (0 for auto)", false, 0);
-  parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
+  parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
+  parser.add<int>("symmetry", 0, "force orbital symmetry", false, 1);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -102,6 +103,7 @@ int main(int argc, char **argv) {
 
   bool diag(parser.get<bool>("diag"));
   int restr(parser.get<int>("restricted"));
+  int symm(parser.get<int>("symmetry"));
 
   // Number of elements
   int Nelem(parser.get<int>("nelem"));
@@ -176,6 +178,11 @@ int main(int argc, char **argv) {
     mnegidx[i]=basis.m_indices(mvals(i),true);
   }
 
+  // Symmetry indices
+  std::vector<arma::uvec> dsym;
+  if(symm)
+    dsym=basis.get_sym_idx(symm);
+
   // Functional
   int x_func, c_func;
   ::parse_xc_func(x_func, c_func, method);
@@ -214,14 +221,14 @@ int main(int argc, char **argv) {
   arma::mat S(basis.overlap());
   // Get half-inverse
   timer.set();
-  arma::mat Sinvh(basis.Sinvh(!diag));
+  arma::mat Sinvh(basis.Sinvh(!diag,symm));
   printf("Half-inverse formed in %.6f\n",timer.get());
   {
     arma::mat Smo(Sinvh.t()*S*Sinvh);
     Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
     printf("Orbital orthonormality deviation is %e\n",arma::norm(Smo,"fro"));
   }
-  arma::mat Sh(basis.Shalf(!diag));
+  arma::mat Sh(basis.Shalf(!diag,symm));
   printf("Half-overlap formed in %.6f\n",timer.get());
   {
     arma::mat Smo(Sh.t()*Sinvh);
@@ -271,7 +278,10 @@ int main(int argc, char **argv) {
   {
     // Use core guess
     arma::mat C;
-    scf::eig_gsym(Ea,C,H0,Sinvh);
+    if(symm)
+      scf::eig_gsym_sub(Ea,C,H0,Sinvh,dsym);
+    else
+      scf::eig_gsym(Ea,C,H0,Sinvh);
     Caocc=C.cols(0,nela-1);
     if(C.n_cols>(size_t) nela)
       Cavirt=C.cols(nela,C.n_cols-1);
@@ -471,12 +481,18 @@ int main(int argc, char **argv) {
     // Diagonalize Fock matrix to get new orbitals
     timer.set();
     arma::mat Ca, Cb;
-    scf::eig_gsym(Ea,Ca,Fa,Sinvh);
+    if(symm)
+      scf::eig_gsym_sub(Ea,Ca,Fa,Sinvh,dsym);
+    else
+      scf::eig_gsym(Ea,Ca,Fa,Sinvh);
     if(restr && nela==nelb) {
       Eb=Ea;
       Cb=Ca;
     } else {
-      scf::eig_gsym(Eb,Cb,Fb,Sinvh);
+      if(symm)
+        scf::eig_gsym_sub(Eb,Cb,Fb,Sinvh,dsym);
+      else
+        scf::eig_gsym(Eb,Cb,Fb,Sinvh);
     }
     Caocc=Ca.cols(0,nela-1);
     if(Ca.n_cols>(size_t) nela)
@@ -485,7 +501,10 @@ int main(int argc, char **argv) {
       Cbocc=Cb.cols(0,nelb-1);
     if(Cb.n_cols>(size_t) nelb)
       Cbvirt=Cb.cols(nelb,Cb.n_cols-1);
-    printf("Full diagonalization done in %.6f\n",timer.get());
+    if(symm)
+      printf("Subspace diagonalization done in %.6f\n",timer.get());
+    else
+      printf("Full diagonalization done in %.6f\n",timer.get());
 
     if(Ea.n_elem>(size_t)nela)
       printf("Alpha HOMO-LUMO gap is % .3f eV\n",(Ea(nela)-Ea(nela-1))*HARTREEINEV);

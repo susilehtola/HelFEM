@@ -6,6 +6,7 @@
 #include "../general/gaunt.h"
 #include "../general/utils.h"
 #include "../general/timer.h"
+#include "../general/scf_helpers.h"
 #include <algorithm>
 #include <cassert>
 #include <cfloat>
@@ -488,11 +489,40 @@ namespace helfem {
         return idx;
       }
 
+      std::vector<arma::uvec> TwoDBasis::get_sym_idx(int symm) const {
+        std::vector<arma::uvec> idx;
+        if(symm==0) {
+          idx.resize(1);
+          idx[0]=arma::linspace<arma::uvec>(0,Nbf()-1,Nbf());
+        } else if(symm==1) {
+          // Find unique m values
+          arma::uvec muni(arma::find_unique(mval));
+          arma::ivec mv(mval(muni));
+
+          idx.resize(mv.n_elem);
+          for(size_t i=0;i<mv.n_elem;i++)
+            idx[i]=m_indices(mv(i));
+        } else if(symm==2) {
+          // Find unique m values
+          arma::uvec muni(arma::find_unique(mval));
+          arma::ivec mv(mval(muni));
+
+          idx.resize(2*mv.n_elem);
+          for(size_t i=0;i<mv.n_elem;i++) {
+            idx[2*i]=m_indices(mv(i),false);
+            idx[2*i+1]=m_indices(mv(i),true);
+          }
+        } else
+          throw std::logic_error("Unknown symmetry\n");
+
+        return idx;
+      }
+
       double TwoDBasis::get_Rhalf() const {
         return Rhalf;
       }
 
-      arma::mat TwoDBasis::Shalf(bool chol) const {
+      arma::mat TwoDBasis::Shalf(bool chol, int sym) const {
         // Form overlap matrix
         arma::mat S(overlap());
 
@@ -503,16 +533,22 @@ namespace helfem {
         // Go to normalized basis
         S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
 
-        if(chol) {
+        if(chol && sym==0) {
           // Half-inverse is
           return arma::diagmat(bfinvnormlz) * arma::chol(S);
 
         } else {
           arma::vec Sval;
           arma::mat Svec;
-          if(!arma::eig_sym(Sval,Svec,S)) {
-            S.save("S.dat",arma::raw_ascii);
-	    throw std::logic_error("Diagonalization of overlap matrix failed\n");
+          if(sym) {
+            // Symmetries
+            std::vector<arma::uvec> midx(get_sym_idx(sym));
+            scf::eig_sym_sub(Sval,Svec,S,midx);
+          } else {
+            if(!arma::eig_sym(Sval,Svec,S)) {
+              S.save("S.dat",arma::raw_ascii);
+              throw std::logic_error("Diagonalization of overlap matrix failed\n");
+            }
           }
           printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
 
@@ -523,7 +559,7 @@ namespace helfem {
         }
       }
 
-      arma::mat TwoDBasis::Sinvh(bool chol) const {
+      arma::mat TwoDBasis::Sinvh(bool chol, int sym) const {
         // Form overlap matrix
         arma::mat S(overlap());
 
@@ -533,16 +569,22 @@ namespace helfem {
         // Go to normalized basis
         S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
 
-        if(chol) {
+        if(chol && sym==0) {
           // Half-inverse is
           return arma::diagmat(bfnormlz) * arma::inv(arma::chol(S));
 
         } else {
           arma::vec Sval;
           arma::mat Svec;
-          if(!arma::eig_sym(Sval,Svec,S)) {
-            S.save("S.dat",arma::raw_ascii);
-          throw std::logic_error("Diagonalization of overlap matrix failed\n");
+          if(sym) {
+            // Symmetries
+            std::vector<arma::uvec> midx(get_sym_idx(sym));
+            scf::eig_sym_sub(Sval,Svec,S,midx);
+          } else {
+            if(!arma::eig_sym(Sval,Svec,S)) {
+              S.save("S.dat",arma::raw_ascii);
+              throw std::logic_error("Diagonalization of overlap matrix failed\n");
+            }
           }
           printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
 
