@@ -13,6 +13,49 @@
 
 using namespace helfem;
 
+void classify_orbitals(const arma::mat & C, const arma::ivec & mvals, const std::vector<arma::uvec> & mposidx, const std::vector<arma::uvec> & mnegidx) {
+  for(size_t io=0;io<C.n_cols;io++) {
+    arma::vec orb(C.col(io));
+
+    arma::vec opchar(mvals.n_elem), onchar(mvals.n_elem);
+    for(size_t c=0;c<mvals.n_elem;c++) {
+      opchar(c)=arma::norm(orb(mposidx[c]),"fro");
+      onchar(c)=arma::norm(orb(mnegidx[c]),"fro");
+    }
+
+    // Total character is
+    arma::vec ochar(opchar+onchar);
+
+    // Normalize
+    opchar/=arma::sum(ochar);
+    onchar/=arma::sum(ochar);
+    ochar/=arma::sum(ochar);
+
+    // Orbital symmetry is then
+    arma::uword oidx;
+    double stot=ochar.max(oidx);
+
+    // Symmetry threshold
+    double thr=0.999;
+
+    // Classification
+    std::ostringstream cl;
+
+    if(stot>=thr) {
+      cl << "m=" << mvals(oidx);
+
+      if(opchar(oidx)>=thr)
+        cl << " g";
+      else if(onchar(oidx)>=thr)
+        cl << " u";
+    } else {
+      cl << "unknown";
+    }
+
+    printf("Orbital %2i: %s\n",(int) io+1,cl.str().c_str());
+  }
+}
+
 int main(int argc, char **argv) {
   cmdline::parser parser;
 
@@ -39,6 +82,7 @@ int main(int argc, char **argv) {
   parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
   parser.add<double>("Ez", 0, "electric dipole field", false, 0.0);
   parser.add<double>("Qzz", 0, "electric quadrupole field", false, 0.0);
+  parser.add<bool>("diag", 0, "exact diagonalization", false, 1);
   parser.add<std::string>("method", 0, "method to use", false, "HF");
   parser.add<int>("ldft", 0, "theta rule for dft quadrature (0 for auto)", false, 0);
   parser.add<int>("mdft", 0, "phi rule for dft quadrature (0 for auto)", false, 0);
@@ -122,6 +166,15 @@ int main(int argc, char **argv) {
   printf("Left- and right-hand nuclear charges are %i and %i at distance % .3f\n",Z1,Z2,Rbond);
   printf("Nuclear repulsion energy is %e\n",Enucr);
   printf("Number of electrons is %i %i\n",nela,nelb);
+
+  // Collect basis function indices
+  arma::ivec mvals(arma::linspace<arma::ivec>(-mmax,mmax,2*mmax+1));
+  std::vector<arma::uvec> midx(mvals.n_elem), mposidx(mvals.n_elem), mnegidx(mvals.n_elem);
+  for(size_t i=0;i<midx.size();i++) {
+    midx[i]=basis.m_indices(mvals(i));
+    mposidx[i]=basis.m_indices(mvals(i),false);
+    mnegidx[i]=basis.m_indices(mvals(i),true);
+  }
 
   // Functional
   int x_func, c_func;
@@ -231,6 +284,16 @@ int main(int argc, char **argv) {
 
     Ea.subvec(0,nena-1).t().print("Alpha orbital energies");
     Eb.subvec(0,nenb-1).t().print("Beta  orbital energies");
+
+    printf("\n");
+    printf("Alpha orbital symmetries\n");
+    classify_orbitals(Caocc,mvals,mposidx,mnegidx);
+    if(nelb>0) {
+      printf("\n");
+      printf("Beta orbital symmetries\n");
+      classify_orbitals(Cbocc,mvals,mposidx,mnegidx);
+    }
+    printf("\n");
   }
   printf("Initial guess performed in %.6f\n",timer.get());
 
@@ -430,6 +493,16 @@ int main(int argc, char **argv) {
       printf("Beta  HOMO-LUMO gap is % .3f eV\n",(Eb(nelb)-Eb(nelb-1))*HARTREEINEV);
     fflush(stdout);
 
+    printf("\n");
+    printf("Alpha orbital symmetries\n");
+    classify_orbitals(Caocc,mvals,mposidx,mnegidx);
+    if(nelb>0) {
+      printf("\n");
+      printf("Beta orbital symmetries\n");
+      classify_orbitals(Cbocc,mvals,mposidx,mnegidx);
+    }
+    printf("\n");
+
     if(convd)
       break;
   }
@@ -447,7 +520,7 @@ int main(int argc, char **argv) {
   double eldip=arma::trace(dip*P);
   double nucdip=(-Z1+Z2)*Rbond/2.0;
   double elquad=arma::trace(quad*P);
-  double nucquad=(-Z1+Z2)*Rbond*Rbond/4.0;
+  double nucquad=(Z1+Z2)*Rbond*Rbond/4.0;
 
   printf("\n");
   printf("Electronic dipole     moment % .16e\n",-eldip);

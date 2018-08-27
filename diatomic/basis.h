@@ -212,6 +212,8 @@ namespace helfem {
         arma::ivec get_m() const;
         /// Get indices of basis functions with wanted m quantum number
         arma::uvec m_indices(int m) const;
+        /// Get indices of basis functions with wanted m quantum number and parity
+        arma::uvec m_indices(int m, bool odd) const;
 
         /// Get Rhalf
         double get_Rhalf() const;

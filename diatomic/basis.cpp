@@ -462,6 +462,32 @@ namespace helfem {
         return idx;
       }
 
+      arma::uvec TwoDBasis::m_indices(int m, bool odd) const {
+        // Count how many functions
+        size_t nm=0;
+        for(size_t i=0;i<mval.n_elem;i++) {
+          if(mval(i)==m && lval(i)%2==odd) {
+            nm += (m==0) ? radial.Nbf() : radial.Nbf()-radial.get_noverlap();
+          }
+        }
+
+        // Collect functions
+        arma::uvec idx(nm);
+        size_t ioff=0;
+        size_t ibf=0;
+        for(size_t i=0;i<mval.n_elem;i++) {
+          // Number of functions on shell is
+          size_t nsh=(mval(i)==0) ? radial.Nbf() : radial.Nbf()-radial.get_noverlap();
+          if(mval(i)==m && lval(i)%2==odd) {
+            idx.subvec(ioff,ioff+nsh-1)=arma::linspace<arma::uvec>(ibf,ibf+nsh-1,nsh);
+            ioff+=nsh;
+          }
+          ibf+=nsh;
+        }
+
+        return idx;
+      }
+
       double TwoDBasis::get_Rhalf() const {
         return Rhalf;
       }
