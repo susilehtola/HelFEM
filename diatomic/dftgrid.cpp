@@ -796,6 +796,7 @@ namespace helfem {
 
       // Save outputs
       Exc=exc;
+      Ekin=ekin;
       Nel=nel;
 
       H=basp->remove_boundaries(H);
@@ -859,8 +860,8 @@ namespace helfem {
 
       // Save outputs
       Exc=exc;
-      Nel=nel;
       Ekin=ekin;
+      Nel=nel;
 
       // Clean up matrices
       Ha=basp->remove_boundaries(Ha);

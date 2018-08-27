@@ -793,6 +793,7 @@ namespace helfem {
 
       // Save outputs
       Exc=exc;
+      Ekin=ekin;
       Nel=nel;
     }
 
@@ -854,8 +855,8 @@ namespace helfem {
 
       // Save outputs
       Exc=exc;
-      Nel=nel;
       Ekin=ekin;
+      Nel=nel;
     }
 
     arma::mat DFTGrid::eval_overlap() {
