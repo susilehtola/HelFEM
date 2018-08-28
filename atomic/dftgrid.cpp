@@ -41,7 +41,7 @@ namespace helfem {
       do_lapl=false;
 
       // Get angular grid
-      helfem::angular::angular_lobatto(lang,mang,cth,phi,wang);
+      helfem::angular::angular_chebyshev(lang,mang,cth,phi,wang);
     }
 
     DFTGridWorker::~DFTGridWorker() {
@@ -478,6 +478,17 @@ namespace helfem {
       So.submat(bf_ind,bf_ind)+=S;
     }
 
+    void DFTGridWorker::eval_kinetic(arma::mat & To) const {
+      // Calculate in subspace
+      arma::mat T(bf_ind.n_elem,bf_ind.n_elem);
+      T.zeros();
+      increment_lda< std::complex<double> >(T,wtot/(scale_r%scale_r),bf_rho);
+      increment_lda< std::complex<double> >(T,wtot/(scale_theta%scale_theta),bf_theta);
+      increment_lda< std::complex<double> >(T,wtot/(scale_phi%scale_phi),bf_phi);
+      // Increment
+      To.submat(bf_ind,bf_ind)+=0.5*T;
+    }
+
     void DFTGridWorker::eval_Fxc(arma::mat & Ho) const {
       if(polarized) {
         throw std::runtime_error("Refusing to compute restricted Fock matrix with unrestricted density.\n");
@@ -729,7 +740,7 @@ namespace helfem {
 
     DFTGrid::DFTGrid(const helfem::atomic::basis::TwoDBasis * basp_, int lang_, int mang_) : basp(basp_), lang(lang_), mang(mang_) {
       arma::vec cth, phi, wang;
-      helfem::angular::angular_lobatto(lang,mang,cth,phi,wang);
+      helfem::angular::angular_chebyshev(lang,mang,cth,phi,wang);
       printf("DFT angular grid of order l=%i m=%i has %i points\n",lang,mang,(int) wang.n_elem);
     }
 
@@ -887,6 +898,37 @@ namespace helfem {
       }
 
       return S;
+    }
+
+    arma::mat DFTGrid::eval_kinetic() {
+      arma::mat T(basp->Nbf(),basp->Nbf());
+      T.zeros();
+
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+      {
+        DFTGridWorker grid(basp,lang,mang);
+        grid.set_grad_tau_lapl(true,false,false);
+
+#ifdef _OPENMP
+#pragma omp for
+#endif
+        for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
+          grid.compute_bf(iel);
+          grid.eval_kinetic(T);
+        }
+#ifdef _OPENMP
+#pragma omp for
+#endif
+        for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
+          grid.compute_bf(iel);
+          grid.eval_kinetic(T);
+        }
+      }
+
+      // Clean up matrices
+      return T;
     }
   }
 }

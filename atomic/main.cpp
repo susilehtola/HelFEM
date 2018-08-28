@@ -34,6 +34,14 @@ void classify_orbitals(const arma::mat & C, const arma::ivec & lvals, const arma
   }
 }
 
+void normalize_matrix(arma::mat & M, const arma::vec & norm) {
+  if(M.n_rows != norm.n_elem) throw std::logic_error("Incompatible dimensions!\n");
+  if(M.n_cols != norm.n_elem) throw std::logic_error("Incompatible dimensions!\n");
+  for(size_t i=0;i<M.n_rows;i++)
+    for(size_t j=0;j<M.n_cols;j++)
+      M(i,j)*=norm(i)*norm(j);
+}
+
 int main(int argc, char **argv) {
   cmdline::parser parser;
 
@@ -223,16 +231,37 @@ int main(int argc, char **argv) {
     Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
     printf("Half-overlap error is %e\n",arma::norm(Smo,"fro"));
   }
+  // Form kinetic energy matrix
+  arma::mat T(basis.kinetic());
 
+  // Check grid
   if(dft) {
-    arma::mat Snum(grid.eval_overlap());
-    // Convert to orthonormalized basis since norms of basis functions vary over a huge scale
-    Snum=arma::trans(Sinvh)*(Snum-S)*Sinvh;
-    double Serr(arma::norm(Snum,"fro"));
-    printf("Error in overlap matrix evaluated through xc grid is %e\n",Serr);
-    fflush(stdout);
-    if(Serr>=1e-10)
-      throw std::logic_error("Increase size of DFT grid!\n");
+    // Basis function norms
+    arma::vec bfnorm(arma::pow(arma::diagvec(S),-0.5));
+
+    double thr=1e-10;
+    {
+      arma::mat Sdft(grid.eval_overlap());
+      Sdft-=S;
+      normalize_matrix(Sdft,bfnorm);
+
+      double Serr(arma::norm(Sdft,"fro"));
+      printf("Error in overlap matrix evaluated through xc grid is %e\n",Serr);
+      fflush(stdout);
+      if(Serr>=thr)
+        throw std::logic_error("Increase size of DFT grid!\n");
+    }
+    {
+      arma::mat Tdft(grid.eval_kinetic());
+      Tdft-=T;
+      normalize_matrix(Tdft,bfnorm);
+
+      double Terr(arma::norm(Tdft,"fro"));
+      printf("Error in kinetic matrix evaluated through xc grid is %e\n",Terr);
+      fflush(stdout);
+      if(Terr>=thr)
+        throw std::logic_error("Increase size of DFT grid!\n");
+    }
   }
 
   // Form nuclear attraction energy matrix
@@ -250,8 +279,6 @@ int main(int argc, char **argv) {
 
   // Electric field coupling (minus sign cancels one from charge)
   arma::mat Vel(Ez*dip + Qzz*quad/3.0);
-  // Form kinetic energy matrix
-  arma::mat T(basis.kinetic());
 
   // Form Hamiltonian
   arma::mat H0(T+Vnuc+Vel);

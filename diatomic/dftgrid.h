@@ -149,6 +149,8 @@ namespace helfem {
 
       /// Evaluate overlap matrix
       void eval_overlap(arma::mat & S) const;
+      /// Evaluate kinetic energy matrix
+      void eval_kinetic(arma::mat & T) const;
 
       /// Evaluate Fock matrix, restricted calculation
       void eval_Fxc(arma::mat & H) const;
@@ -179,6 +181,8 @@ namespace helfem {
 
       /// Evaluate overlap
       arma::mat eval_overlap();
+      /// Evaluate kinetic energy matrix
+      arma::mat eval_kinetic();
     };
 
     /// BLAS routine for LDA-type quadrature
