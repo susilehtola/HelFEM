@@ -29,6 +29,7 @@ namespace helfem {
 
       size_t iidx=0;
       // Loop over symmetries
+      double res=0.0;
       for(size_t i=0;i<m_idx.size();i++) {
         // Find basis vectors that belong to this symmetry
         arma::mat Scmp(Sinvh.rows(m_idx[i]));
@@ -48,6 +49,14 @@ namespace helfem {
         // Store solutions
         E.subvec(iidx,iidx+Esub.n_elem-1)=Esub;
         C.cols(iidx,iidx+Esub.n_elem-1)=Csub;
+
+        // Check residual
+        if(iidx>0) {
+          arma::mat Foff(C.cols(0,iidx-1).t()*F*Csub);
+          res+=arma::norm(Foff,"fro");
+        }
+
+        // Increment offset
         iidx+=Esub.n_elem;
       }
       if(iidx!=F.n_rows) {
@@ -55,6 +64,8 @@ namespace helfem {
         oss << "Symmetry mismatch: expected " << F.n_rows << " vectors but got " << iidx << "!\n";
         throw std::logic_error(oss.str());
       }
+
+      printf("Cross-symmetry residual %e\n",res);
 
       // Sort energies
       arma::uvec Eord=arma::sort_index(E,"ascend");
