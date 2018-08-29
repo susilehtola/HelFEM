@@ -1,4 +1,5 @@
 #include "../general/polynomial.h"
+#include "../general/polynomial_basis.h"
 #include "../general/chebyshev.h"
 #include "quadrature.h"
 
@@ -11,7 +12,7 @@ size_t get_Nbf(const arma::vec & r, const arma::mat & bf, int noverlap) {
   size_t Nbf=bf.n_cols*Nelem;
   // .. minus the number of functions that overlap between elements
   Nbf-=(Nelem-1)*noverlap;
-  
+
   return Nbf;
 }
 
@@ -55,7 +56,7 @@ arma::mat l2n2_element_potential(double xmin, double h) {
 }
 */
 
-arma::mat overlap(const arma::vec & r, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int noverlap) {  
+arma::mat overlap(const arma::vec & r, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int noverlap) {
   // Build overlap matrix
   size_t Nbf(get_Nbf(r,bf,noverlap));
   arma::mat S(Nbf,Nbf);
@@ -123,8 +124,8 @@ arma::mat remove_edges(const arma::mat & M, int noverlap) {
 }
 
 int main(int argc, char **argv) {
-  if(argc!=6) {
-    printf("Usage: %s xmax Nel Nnode Nder Nquad\n",argv[0]);
+  if(argc!=7) {
+    printf("Usage: %s xmax Nel Nnode Nder Nquad legendre\n",argv[0]);
     return 1;
   }
 
@@ -137,17 +138,25 @@ int main(int argc, char **argv) {
   int Nnodes=atoi(argv[3]);
   // Derivative order
   int der_order=atoi(argv[4]);
-  // which means the number of overlapping functions is
-  int noverlap=der_order+1;
-
   // Order of quadrature rule
   int Nquad=atoi(argv[5]);
+  // Legendre basis?
+  int legendre=atoi(argv[6]);
 
   printf("Running calculation with xmax=%e and %i elements.\n",xmax,Nelem);
+
+  polynomial_basis::PolynomialBasis * p;
+  if(legendre) {
+    p=new polynomial_basis::LegendreBasis(Nnodes-1);
+    printf("Using spectral %i-node elements.\n",Nnodes);
+  } else {
+    // which means the number of overlapping functions is
+    printf("Basis set composed of %i nodes with %i:th derivative continuity.\n",Nnodes,der_order);
+    printf("This means using primitive polynomials of order %i.\n",Nnodes*(der_order+1)-1);
+  }
+  int noverlap=p->get_noverlap();
+
   printf("Using %i point quadrature rule.\n",Nquad);
-  printf("Basis set composed of %i nodes with %i:th derivative continuity.\n",Nnodes,der_order);
-  printf("This means using primitive polynomials of order %i.\n",Nnodes*(der_order+1)-1);
-  
   // Radial grid
   arma::vec r(arma::linspace<arma::vec>(-xmax,xmax,Nelem+1));
 
@@ -202,7 +211,7 @@ int main(int argc, char **argv) {
   //Sval.print("S eigenvalues");
   printf("Smallest value of overlap matrix is % e, condition number is %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
   printf("Smallest and largest bf norms are %e and %e\n",arma::min(arma::abs(arma::diagvec(S))),arma::max(arma::abs(arma::diagvec(S))));
-  
+
   // Form half-inverse
   arma::mat Sinvh(Svec * arma::diagmat(arma::pow(Sval, -0.5)) * arma::trans(Svec));
 
@@ -225,6 +234,6 @@ int main(int argc, char **argv) {
   arma::mat Smo(C.t()*S*C);
   Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
   printf("Orbital orthonormality devation is %e\n",arma::norm(Smo,"fro"));
-  
+
   return 0;
 }

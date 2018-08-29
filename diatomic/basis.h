@@ -4,6 +4,7 @@
 #include <armadillo>
 #include "../general/gaunt.h"
 #include "../general/legendretable.h"
+#include "../general/polynomial_basis.h"
 
 namespace helfem {
   namespace diatomic {
@@ -15,28 +16,26 @@ namespace helfem {
         /// Quadrature weights
         arma::vec wq;
 
-        /// Primitive polynomial basis, polynomial expansion
-        arma::mat bf_C;
-        /// Primitive polynomial basis
+        /// Polynomial basis
+        const polynomial_basis::PolynomialBasis * poly;
+        /// Primitive polynomial basis functions evaluated on the quadrature grid
         arma::mat bf;
-        /// .. and its derivatives, polynomial expansion
-        arma::mat df_C;
-        /// evaluated on the quadrature grid
+        /// Primitive polynomial basis function derivatives evaluated on the quadrature grid
         arma::mat df;
 
-        /// Number of overlapping functions (= der_order+1)
-        size_t noverlap;
         /// Element boundary values
         arma::vec bval;
 
         /// Get basis functions in element
         arma::mat get_basis(const arma::mat & b, size_t iel) const;
+        /// Get basis functions in element
+        polynomial_basis::PolynomialBasis * get_basis(const polynomial_basis::PolynomialBasis * poly, size_t iel) const;
 
       public:
         /// Dummy constructor
         RadialBasis();
         /// Construct radial basis
-        RadialBasis(int n_nodes, int der_order, int n_quad, int num_el, double rmax, int igrid, double zexp);
+        RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int igrid, double zexp);
         /// Destructor
         ~RadialBasis();
 
@@ -146,7 +145,7 @@ namespace helfem {
 
       public:
         /// Constructor
-        TwoDBasis(int Z1, int Z2, double Rbond, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int lpad);
+        TwoDBasis(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int lpad);
         /// Destructor
         ~TwoDBasis();
 

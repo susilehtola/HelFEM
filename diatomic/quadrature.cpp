@@ -119,7 +119,7 @@ namespace helfem {
         return arma::trans(wbf)*bf;
       }
 
-      static arma::vec twoe_inner_integral_wrk(double mumin, double mumax, double mumin0, double mumax0, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M, const legendretable::LegendreTable & tab) {
+      static arma::vec twoe_inner_integral_wrk(double mumin, double mumax, double mumin0, double mumax0, int l, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, int M, const legendretable::LegendreTable & tab) {
         // Midpoint is at
         double mumid(0.5*(mumax+mumin));
         // and half-length of interval is
@@ -145,7 +145,7 @@ namespace helfem {
         // Calculate x values the polynomials should be evaluated at
         arma::vec xpoly((mu-mumid0*arma::ones<arma::vec>(x.n_elem))/mulen0);
         // Evaluate the polynomials at these points
-        arma::mat bf(polynomial::polyval(bf_C,xpoly));
+        arma::mat bf(poly->eval(xpoly));
 
         // Put in weight
         arma::mat wbf(bf);
@@ -158,7 +158,7 @@ namespace helfem {
         return inner;
       }
 
-      arma::mat twoe_inner_integral(double mumin, double mumax, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M, const legendretable::LegendreTable & tab) {
+      arma::mat twoe_inner_integral(double mumin, double mumax, int l, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, int M, const legendretable::LegendreTable & tab) {
         // Midpoint is at
         double mumid(0.5*(mumax+mumin));
         // and half-length of interval is
@@ -167,16 +167,16 @@ namespace helfem {
         arma::vec mu(mumid*arma::ones<arma::vec>(x.n_elem)+mulen*x);
 
         // Compute the "inner" integrals as function of r.
-        arma::mat inner(x.n_elem,bf_C.n_cols*bf_C.n_cols);
-        inner.row(0)=arma::trans(twoe_inner_integral_wrk(mumin, mu(0), mumin, mumax, l, x, wx, bf_C, L, M, tab));
+        arma::mat inner(x.n_elem,std::pow(poly->get_nbf(),2));
+        inner.row(0)=arma::trans(twoe_inner_integral_wrk(mumin, mu(0), mumin, mumax, l, x, wx, poly, L, M, tab));
         // Every subinterval uses a fresh nquad points!
         for(size_t ip=1;ip<x.n_elem;ip++)
-          inner.row(ip)=inner.row(ip-1)+arma::trans(twoe_inner_integral_wrk(mu(ip-1), mu(ip), mumin, mumax, l, x, wx, bf_C, L, M, tab));
+          inner.row(ip)=inner.row(ip-1)+arma::trans(twoe_inner_integral_wrk(mu(ip-1), mu(ip), mumin, mumax, l, x, wx, poly, L, M, tab));
 
         return inner;
       }
 
-      static arma::mat twoe_integral_wrk(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M, const legendretable::LegendreTable & tab) {
+      static arma::mat twoe_integral_wrk(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, int M, const legendretable::LegendreTable & tab) {
 #ifndef ARMA_NO_DEBUG
         if(x.n_elem != wx.n_elem) {
           std::ostringstream oss;
@@ -193,10 +193,10 @@ namespace helfem {
         arma::vec chmu(arma::cosh(mu));
 
         // Compute the inner integrals
-        arma::mat inner(twoe_inner_integral(mumin, mumax, l, x, wx, bf_C, L, M, tab));
+        arma::mat inner(twoe_inner_integral(mumin, mumax, l, x, wx, poly, L, M, tab));
 
         // Evaluate basis functions at quadrature points
-        arma::mat bf(polynomial::polyval(bf_C,x));
+        arma::mat bf(poly->eval(x));
 
         // Product functions
         arma::mat bfprod(bf.n_rows,bf.n_cols*bf.n_cols);
@@ -219,8 +219,8 @@ namespace helfem {
         return ints;
       }
 
-      arma::mat twoe_integral(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M, const legendretable::LegendreTable & tab) {
-        return twoe_integral_wrk(mumin,mumax,k,l,x,wx,bf_C,L,M,tab) + arma::trans(twoe_integral_wrk(mumin,mumax,l,k,x,wx,bf_C,L,M,tab));
+      arma::mat twoe_integral(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, int M, const legendretable::LegendreTable & tab) {
+        return twoe_integral_wrk(mumin,mumax,k,l,x,wx,poly,L,M,tab) + arma::trans(twoe_integral_wrk(mumin,mumax,l,k,x,wx,poly,L,M,tab));
       }
     }
   }

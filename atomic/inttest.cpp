@@ -1,4 +1,5 @@
 #include "quadrature.h"
+#include "../general/polynomial_basis.h"
 #include "../general/polynomial.h"
 #include "../general/chebyshev.h"
 
@@ -8,14 +9,14 @@ void run(double R, int n_quad) {
   // Basis functions on [0, R]: x/R, (R-x)/R.
 
   // Get primitive polynomial representation for LIP
-  arma::mat bf_C=polynomial::hermite_coeffs(2, 0);
+  polynomial_basis::HermiteBasis pbas(2,0);
 
   // Get quadrature rule
   arma::vec xq, wq;
   chebyshev::chebyshev(n_quad,xq,wq);
 
   // Get inner integral by quadrature
-  arma::mat teiinner(quadrature::twoe_inner_integral(0,R,xq,wq,bf_C,0));
+  arma::mat teiinner(quadrature::twoe_inner_integral(0,R,xq,wq,&pbas,0));
 
   // Test against analytical integrals. r values are
   arma::vec r(0.5*R*arma::ones<arma::vec>(xq.n_elem)+0.5*R*xq);
@@ -34,7 +35,7 @@ void run(double R, int n_quad) {
   teiishould-=teiinner;
   printf("Error in inner integral is %e\n",arma::norm(teiishould,"fro"));
 
-  arma::mat teiq(quadrature::twoe_integral(0,R,xq,wq,bf_C,0));
+  arma::mat teiq(quadrature::twoe_integral(0,R,xq,wq,&pbas,0));
 
   arma::mat tei(4,4);
   // Maple gives the following integrals for L=0, in units of R

@@ -2,6 +2,7 @@
 #define INTEGRALS_H
 
 #include <armadillo>
+#include "../general/polynomial_basis.h"
 
 namespace helfem {
   namespace quadrature {
@@ -27,14 +28,14 @@ namespace helfem {
      * Computes the inner in-element two-electron integral:
      * \f$ \phi(r) = \frac 1 r^{L+1} \int_0^r dr' r'^{L} B_k(r') B_l(r') \f$
      */
-    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L);
+    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L);
 
     /**
      * Computes a primitive two-electron in-element integral.
      * Cross-element integrals reduce to products of radial integrals.
      * Note that the routine needs the polynomial representation.
      */
-    arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L);
+    arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L);
   }
 }
 

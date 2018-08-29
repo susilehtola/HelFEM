@@ -21,10 +21,9 @@ namespace helfem {
       RadialBasis::RadialBasis() {
       }
 
-      RadialBasis::RadialBasis(int n_nodes, int der_order, int n_quad, int num_el, double rmax, int igrid, double zexp) {
-        // Get primitive polynomial representation
-        bf_C=polynomial::hermite_coeffs(n_nodes, der_order);
-        df_C=polynomial::derivative_coeffs(bf_C, 1);
+      RadialBasis::RadialBasis(const polynomial_basis::PolynomialBasis * poly_, int n_quad, int num_el, double rmax, int igrid, double zexp) {
+        // Polynomial basis
+        poly=poly_;
 
         // Get quadrature rule
         chebyshev::chebyshev(n_quad,xq,wq);
@@ -36,11 +35,7 @@ namespace helfem {
         }
 
         // Evaluate polynomials at quadrature points
-        bf=polynomial::polyval(bf_C,xq);
-        df=polynomial::polyval(df_C,xq);
-
-        // Number of overlapping functions is
-        noverlap=der_order+1;
+        poly->eval(xq,bf,df);
 
         // Get boundary values
         switch(igrid) {
@@ -85,13 +80,23 @@ namespace helfem {
       arma::mat RadialBasis::get_basis(const arma::mat & bas, size_t iel) const {
         if(iel==bval.n_elem-2)
           // Boundary condition at r=infinity
-          return bas.cols(0,bf.n_cols-1-noverlap);
+          return bas.cols(0,bf.n_cols-1-get_noverlap());
         else
           return bas;
       }
 
+      polynomial_basis::PolynomialBasis * RadialBasis::get_basis(const polynomial_basis::PolynomialBasis * poly, size_t iel) const {
+        polynomial_basis::PolynomialBasis *p(poly->copy());
+        if(iel==bval.n_elem-2) {
+          // Boundary condition at infinity
+          p->drop_last();
+        }
+
+        return p;
+      }
+
       size_t RadialBasis::get_noverlap() const {
-        return noverlap;
+        return poly->get_noverlap();
       }
 
       size_t RadialBasis::Nel() const {
@@ -102,12 +107,12 @@ namespace helfem {
       size_t RadialBasis::Nbf() const {
         // The number of basis functions is Nbf*Nel - (Nel-1)*Noverlap
         // - Noverlap or just
-        return Nel()*(bf.n_cols-noverlap);
+        return Nel()*(bf.n_cols-get_noverlap());
       }
 
       size_t RadialBasis::Nprim(size_t iel) const {
         if(iel==bval.n_elem-2)
-          return bf.n_cols-noverlap;
+          return bf.n_cols-get_noverlap();
         else
           return bf.n_cols;
       }
@@ -118,12 +123,12 @@ namespace helfem {
 
       void RadialBasis::get_idx(size_t iel, size_t & ifirst, size_t & ilast) const {
         // The first function in the element will be
-        ifirst=iel*(bf.n_cols-noverlap);
+        ifirst=iel*(bf.n_cols-get_noverlap());
         // and the last one will be
         ilast=ifirst+bf.n_cols-1;
         // Last element does not have trailing functions
         if(iel==bval.n_elem-2)
-          ilast-=noverlap;
+          ilast-=get_noverlap();
       }
 
       arma::mat RadialBasis::radial_integral(int m, int n, size_t iel) const {
@@ -198,7 +203,11 @@ namespace helfem {
         double mumax(bval(iel+1));
 
         // Integral by quadrature
-        return quadrature::twoe_integral(mumin,mumax,alpha,beta,xq,wq,get_basis(bf_C,iel),L,M,legtab);
+        polynomial_basis::PolynomialBasis *p(get_basis(poly,iel));
+        arma::mat tei(quadrature::twoe_integral(mumin,mumax,alpha,beta,xq,wq,p,L,M,legtab));
+        delete p;
+
+        return tei;
       }
 
       arma::vec RadialBasis::get_chmu_quad() const {
@@ -277,7 +286,7 @@ namespace helfem {
         return rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq;
       }
 
-      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rbond, int n_nodes, int der_order, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int lpad) {
+      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rbond, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int lpad) {
         // Nuclear charge
         Z1=Z1_;
         Z2=Z2_;
@@ -289,7 +298,7 @@ namespace helfem {
         printf("rmax = %e yields mumax = %e\n",rmax,mumax);
 
         // Construct radial basis
-        radial=RadialBasis(n_nodes, der_order, n_quad, num_el, mumax, igrid, zexp);
+        radial=RadialBasis(poly, n_quad, num_el, mumax, igrid, zexp);
 
         // Construct angular basis
         size_t nang=0;

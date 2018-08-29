@@ -13,18 +13,18 @@ if(USE_OPENMP)
 endif()
 
 INCLUDE_DIRECTORIES("/home/work/armadillo/include/")
-INCLUDE_DIRECTORIES("/home/work/libxc/trunk/install/include/")
-LINK_DIRECTORIES("/home/work/libxc/trunk/install/lib/")
+#INCLUDE_DIRECTORIES("/home/work/libxc/trunk/install/include/")
+#LINK_DIRECTORIES("/home/work/libxc/trunk/install/lib/")
 LINK_DIRECTORIES("/opt/intel/compilers_and_libraries_2018.0.128/linux/mkl/lib/intel64_lin")
 # Large matrix support
 add_definitions(-DARMA_64BIT_WORD -DARMA_BLAS_LONG)
 add_definitions(-DMKL_ILP64)
 
-add_library(helfem general/polynomial.cpp general/gaunt.cpp
-general/chebyshev.cpp general/diis.cpp general/lbfgs.cpp
-general/utils.cpp general/spherical_harmonics.cpp general/timer.cpp
-general/elements.cpp general/lobatto.cpp general/angular.cpp
-general/scf_helpers.cpp)
+add_library(helfem general/polynomial.cpp general/polynomial_basis.cpp
+general/gaunt.cpp general/chebyshev.cpp general/diis.cpp
+general/lbfgs.cpp general/utils.cpp general/spherical_harmonics.cpp
+general/timer.cpp general/elements.cpp general/lobatto.cpp
+general/angular.cpp general/scf_helpers.cpp)
 
 add_library(legendre legendre/accuracy.f90 legendre/input_output.f90
   legendre/itoc.f90 legendre/Matrix_Print.f90 legendre/Data_Module.f90
@@ -52,10 +52,6 @@ target_link_libraries(harmonic gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp 
 add_executable(atomic atomic/main.cpp atomic/basis.cpp atomic/quadrature.cpp atomic/dftgrid.cpp general/dftfuncs.cpp)
 target_link_libraries(atomic helfem legendre)
 target_link_libraries(atomic gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl xc)
-
-add_executable(atomic_qtest atomic/qtest.cpp atomic/basis.cpp atomic/quadrature.cpp)
-target_link_libraries(atomic_qtest helfem legendre)
-target_link_libraries(atomic_qtest gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
 
 add_executable(atomic_itest atomic/inttest.cpp atomic/basis.cpp atomic/quadrature.cpp)
 target_link_libraries(atomic_itest helfem legendre)

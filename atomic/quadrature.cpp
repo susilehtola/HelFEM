@@ -66,7 +66,7 @@ namespace helfem {
       return arma::trans(wdbf)*dbf;
     }
 
-    static arma::vec twoe_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L) {
+    static arma::vec twoe_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is
@@ -85,7 +85,7 @@ namespace helfem {
       // Calculate x values the polynomials should be evaluated at
       arma::vec xpoly((r-rmid0*arma::ones<arma::vec>(x.n_elem))/rlen0);
       // Evaluate the polynomials at these points
-      arma::mat bf(polynomial::polyval(bf_C,xpoly));
+      arma::mat bf(poly->eval(xpoly));
 
       // Put in weight
       arma::mat wbf(bf);
@@ -98,7 +98,7 @@ namespace helfem {
       return inner;
     }
 
-    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L) {
+    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is
@@ -107,11 +107,11 @@ namespace helfem {
       arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
 
       // Compute the "inner" integrals as function of r.
-      arma::mat inner(x.n_elem,bf_C.n_cols*bf_C.n_cols);
-      inner.row(0)=arma::trans(twoe_inner_integral_wrk(rmin, r(0), rmin, rmax, x, wx, bf_C, L));
+      arma::mat inner(x.n_elem,std::pow(poly->get_nbf(),2));
+      inner.row(0)=arma::trans(twoe_inner_integral_wrk(rmin, r(0), rmin, rmax, x, wx, poly, L));
       // Every subinterval uses a fresh nquad points!
       for(size_t ip=1;ip<x.n_elem;ip++)
-        inner.row(ip)=inner.row(ip-1)+arma::trans(twoe_inner_integral_wrk(r(ip-1), r(ip), rmin, rmax, x, wx, bf_C, L));
+        inner.row(ip)=inner.row(ip-1)+arma::trans(twoe_inner_integral_wrk(r(ip-1), r(ip), rmin, rmax, x, wx, poly, L));
 
       // Put in the 1/r^(L+1) factors now that the integrals have been computed
       arma::vec rpopl(arma::pow(r,L+1));
@@ -121,7 +121,7 @@ namespace helfem {
       return inner;
     }
 
-    arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L) {
+    arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L) {
 #ifndef ARMA_NO_DEBUG
       if(x.n_elem != wx.n_elem) {
         std::ostringstream oss;
@@ -133,10 +133,10 @@ namespace helfem {
       double rlen(0.5*(rmax-rmin));
 
       // Compute the inner integrals
-      arma::mat inner(twoe_inner_integral(rmin, rmax, x, wx, bf_C, L));
+      arma::mat inner(twoe_inner_integral(rmin, rmax, x, wx, poly, L));
 
       // Evaluate basis functions at quadrature points
-      arma::mat bf(polynomial::polyval(bf_C,x));
+      arma::mat bf(poly->eval(x));
 
       // Product functions
       arma::mat bfprod(bf.n_rows,bf.n_cols*bf.n_cols);

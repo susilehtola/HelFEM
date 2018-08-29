@@ -5,6 +5,7 @@
 #include "../general/elements.h"
 #include "../general/timer.h"
 #include "../general/scf_helpers.h"
+#include "../general/polynomial_basis.h"
 #include "basis.h"
 #include "dftgrid.h"
 #include <cfloat>
@@ -76,6 +77,7 @@ int main(int argc, char **argv) {
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
   parser.add<int>("symmetry", 0, "force orbital symmetry", false, 1);
+  parser.add<bool>("primbas", 0, "primitive element basis", false, false);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -92,6 +94,7 @@ int main(int argc, char **argv) {
   int restr(parser.get<int>("restricted"));
   int symm(parser.get<int>("symmetry"));
 
+  bool primbas(parser.get<bool>("primbas"));
   // Number of elements
   int Nelem0(parser.get<int>("nelem0"));
   int Nelem(parser.get<int>("nelem"));
@@ -139,17 +142,25 @@ int main(int argc, char **argv) {
   rcalc[1]="restricted";
 
   printf("Running %s %s calculation with Rmax=%e and %i elements.\n",rcalc[restr].c_str(),method.c_str(),Rmax,Nelem);
-  printf("Using %i point quadrature rule.\n",Nquad);
-  printf("Basis set composed of %i nodes with %i:th derivative continuity.\n",Nnodes,der_order);
-  printf("This means using primitive polynomials of order %i.\n",Nnodes*(der_order+1)-1);
 
+  // Primitive basis
+  polynomial_basis::PolynomialBasis * poly;
+  if(primbas) {
+    poly=new polynomial_basis::HermiteBasis(Nnodes,der_order);
+    printf("Basis set composed of %i nodes with %i:th derivative continuity.\n",Nnodes,der_order);
+    printf("This means using primitive polynomials of order %i.\n",Nnodes*(der_order+1)-1);
+  } else {
+    poly=new polynomial_basis::LegendreBasis(Nnodes-1);
+    printf("Basis set composed of %i-node spectral elements.\n",Nnodes);
+  }
+  printf("Using %i point quadrature rule.\n",Nquad);
   printf("Angular grid spanning from l=0..%i, m=%i..%i.\n",lmax,-mmax,mmax);
 
   atomic::basis::TwoDBasis basis;
   if(Rhalf!=0.0)
-    basis=atomic::basis::TwoDBasis(Z, Nnodes, der_order, Nquad, Nelem0, Nelem, Rmax, lmax, mmax, igrid, zexp, Zl, Zr, Rhalf);
+    basis=atomic::basis::TwoDBasis(Z, poly, Nquad, Nelem0, Nelem, Rmax, lmax, mmax, igrid, zexp, Zl, Zr, Rhalf);
   else
-    basis=atomic::basis::TwoDBasis(Z, Nnodes, der_order, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
+    basis=atomic::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
 
   printf("One-electron matrix requires %s\n",scf::memory_size(basis.mem_1el()).c_str());
@@ -557,7 +568,7 @@ int main(int argc, char **argv) {
   printf("%-21s energy: % .16f\n","Exchange-correlation",Exc);
   printf("%-21s energy: % .16f\n","Electric field",Efield);
   printf("%-21s energy: % .16f\n","Total",Etot);
-  printf("%-21s energy: % .16f\n","Virial ratio",Etot/Ekin);
+  printf("%-21s energy: % .16f\n","Virial ratio",-Etot/Ekin);
 
   printf("\n");
   printf("Electronic dipole     moment % .16e\n",arma::trace(dip*P));

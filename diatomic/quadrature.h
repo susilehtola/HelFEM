@@ -3,6 +3,7 @@
 
 #include <armadillo>
 #include "../general/legendretable.h"
+#include "../general/polynomial_basis.h"
 
 namespace helfem {
   namespace diatomic {
@@ -47,14 +48,14 @@ namespace helfem {
        * Computes the inner in-element two-electron integral:
        * \f$ \phi^{l,LM}(\mu) = \int_{0}^{\mu}d\mu'\cosh^{l}\mu'\sinh\mu'B_{\gamma}(\mu')B_{\delta}(\mu')P_{L,|M|}(\cosh\mu') \f$
        */
-      arma::mat twoe_inner_integral(double mumin, double mumax, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M, const legendretable::LegendreTable & tab);
+      arma::mat twoe_inner_integral(double mumin, double mumax, int l, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, int M, const legendretable::LegendreTable & tab);
 
       /**
        * Computes a primitive two-electron in-element integral.
        * Cross-element integrals reduce to products of radial integrals.
        * Note that the routine needs the polynomial representation.
        */
-      arma::mat twoe_integral(double rmin, double rmax, int k, int l, const arma::vec & x, const arma::vec & wx, const arma::mat & bf_C, int L, int M, const legendretable::LegendreTable & tab);
+      arma::mat twoe_integral(double rmin, double rmax, int k, int l, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, int M, const legendretable::LegendreTable & tab);
     }
   }
 }
