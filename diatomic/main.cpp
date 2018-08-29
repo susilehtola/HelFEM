@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
   parser.add<int>("nelem", 0, "number of elements", true);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 6);
   parser.add<int>("der_order", 0, "level of derivative continuity", false, 0);
-  parser.add<int>("nquad", 0, "number of quadrature points", false, 50);
+  parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
   parser.add<int>("maxit", 0, "maximum number of iterations", false, 50);
   parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
   parser.add<double>("Ez", 0, "electric dipole field", false, 0.0);
@@ -172,6 +172,13 @@ int main(int argc, char **argv) {
     poly=new polynomial_basis::LegendreBasis(Nnodes-1);
     printf("Basis set composed of %i-node spectral elements.\n",Nnodes);
   }
+
+  if(Nquad==0)
+    // Set default value
+    Nquad=5*Nnodes;
+  else if(Nquad<2*Nnodes)
+    throw std::logic_error("Insufficient radial quadrature.\n");
+
   printf("Using %i point quadrature rule.\n",Nquad);
   printf("Angular grid spanning from l=0..%i, m=%i..%i.\n",lmax,-mmax,mmax);
 
