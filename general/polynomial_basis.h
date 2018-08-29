@@ -5,6 +5,7 @@
 
 namespace helfem {
   namespace polynomial_basis {
+    /// Template for a primitive basis
     class PolynomialBasis {
     protected:
       /// Number of basis functions
@@ -35,6 +36,10 @@ namespace helfem {
       virtual void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const=0;
     };
 
+    /// Get the wanted basis
+    PolynomialBasis * get_basis(int primbas, int Nnodes);
+
+    /// Primitive polynomials with Hermite
     class HermiteBasis: public PolynomialBasis {
       /// Primitive polynomial basis expansion
       arma::mat bf_C;
@@ -59,6 +64,7 @@ namespace helfem {
       void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const;
     };
 
+    /// Legendre functions
     class LegendreBasis: public PolynomialBasis {
       /// Maximum order
       int lmax;
@@ -71,6 +77,31 @@ namespace helfem {
       ~LegendreBasis();
       /// Get a copy
       LegendreBasis * copy() const;
+
+      /// Drop first function
+      void drop_first();
+      /// Drop last function
+      void drop_last();
+
+      /// Evaluate polynomials at given points
+      arma::mat eval(const arma::vec & x) const;
+      /// Evaluate polynomials and derivatives at given points
+      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const;
+    };
+
+    /// Lagrange interpolating polynomials with Lobatto nodes
+    class LobattoBasis: public PolynomialBasis {
+      /// Control nodes
+      arma::vec x0;
+      /// Indices of enabled functions
+      arma::uvec enabled;
+    public:
+      /// Constructor
+      LobattoBasis(int nnodes);
+      /// Destructor
+      ~LobattoBasis();
+      /// Get a copy
+      LobattoBasis * copy() const;
 
       /// Drop first function
       void drop_first();

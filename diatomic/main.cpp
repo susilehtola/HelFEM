@@ -84,7 +84,6 @@ int main(int argc, char **argv) {
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
   parser.add<int>("nelem", 0, "number of elements", true);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 6);
-  parser.add<int>("der_order", 0, "level of derivative continuity", false, 0);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
   parser.add<int>("maxit", 0, "maximum number of iterations", false, 50);
   parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
@@ -97,7 +96,7 @@ int main(int argc, char **argv) {
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
   parser.add<int>("symmetry", 0, "force orbital symmetry", false, 1);
-  parser.add<bool>("primbas", 0, "primitive element basis", false, false);
+  parser.add<int>("primbas", 0, "primitive radial basis", false, 3);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -114,13 +113,11 @@ int main(int argc, char **argv) {
   int restr(parser.get<int>("restricted"));
   int symm(parser.get<int>("symmetry"));
 
-  bool primbas(parser.get<bool>("primbas"));
+  int primbas(parser.get<int>("primbas"));
   // Number of elements
   int Nelem(parser.get<int>("nelem"));
   // Number of nodes
   int Nnodes(parser.get<int>("nnodes"));
-  // Derivative order
-  int der_order(parser.get<int>("der_order"));
   // Order of quadrature rule
   int Nquad(parser.get<int>("nquad"));
   // Angular grid
@@ -162,16 +159,8 @@ int main(int argc, char **argv) {
 
   printf("Running %s %s calculation with Rmax=%e and %i elements.\n",rcalc[restr].c_str(),method.c_str(),Rmax,Nelem);
 
-  // Primitive basis
-  polynomial_basis::PolynomialBasis * poly;
-  if(primbas) {
-    poly=new polynomial_basis::HermiteBasis(Nnodes,der_order);
-    printf("Basis set composed of %i nodes with %i:th derivative continuity.\n",Nnodes,der_order);
-    printf("This means using primitive polynomials of order %i.\n",Nnodes*(der_order+1)-1);
-  } else {
-    poly=new polynomial_basis::LegendreBasis(Nnodes-1);
-    printf("Basis set composed of %i-node spectral elements.\n",Nnodes);
-  }
+  // Get primitive basis
+  polynomial_basis::PolynomialBasis *poly(polynomial_basis::get_basis(primbas,Nnodes));
 
   if(Nquad==0)
     // Set default value

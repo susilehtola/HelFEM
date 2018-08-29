@@ -1,3 +1,4 @@
+#include "../general/lobatto.h"
 #include "polynomial_basis.h"
 #include "polynomial.h"
 
@@ -8,6 +9,35 @@ extern "C" {
 
 namespace helfem {
   namespace polynomial_basis {
+    PolynomialBasis * get_basis(int primbas, int Nnodes) {
+      // Primitive basis
+      polynomial_basis::PolynomialBasis * poly;
+      switch(primbas) {
+      case(0):
+      case(1):
+      case(2):
+        poly=new polynomial_basis::HermiteBasis(Nnodes,primbas);
+      printf("Basis set composed of %i nodes with %i:th derivative continuity.\n",Nnodes,primbas);
+      printf("This means using primitive polynomials of order %i.\n",Nnodes*(primbas+1)-1);
+      break;
+
+      case(3):
+        poly=new polynomial_basis::LegendreBasis(Nnodes-1);
+        printf("Basis set composed of %i-node spectral elements.\n",Nnodes);
+        break;
+
+      case(4):
+        poly=new polynomial_basis::LobattoBasis(Nnodes);
+        printf("Basis set composed of %i-node LIPs with Lobatto nodes.\n",Nnodes);
+        break;
+
+      default:
+        throw std::logic_error("Unsupported primitive basis.\n");
+      }
+
+      return poly;
+    }
+
     PolynomialBasis::PolynomialBasis() {
     }
 
@@ -129,6 +159,94 @@ namespace helfem {
     void LegendreBasis::drop_last() {
       T=T.cols(0,T.n_cols-2);
       nbf=T.n_cols;
+    }
+
+    LobattoBasis::LobattoBasis(int nnodes) {
+      arma::vec w;
+      ::lobatto_compute(nnodes,x0,w);
+
+      // Make sure nodes are in order
+      x0=arma::sort(x0,"ascend");
+      // and that the number matches
+      if(x0.n_elem != (arma::uword) nnodes)
+        throw std::logic_error("Wrong number of functions!\n");
+
+      noverlap=1;
+      nbf=x0.n_elem;
+      // All functions are enabled
+      enabled=arma::linspace<arma::uvec>(0,nnodes-1,nnodes);
+    }
+
+    LobattoBasis::~LobattoBasis() {
+    }
+
+    LobattoBasis * LobattoBasis::copy() const {
+      return new LobattoBasis(*this);
+    }
+
+    arma::mat LobattoBasis::eval(const arma::vec & x) const {
+      // Memory for values
+      arma::mat bf(x.n_elem,x0.n_elem);
+
+      // Fill in array
+      for(size_t ix=0;ix<x.n_elem;ix++) {
+        for(size_t fi=0;fi<x0.n_elem;fi++) {
+          // Evaluate
+          double fval=1.0;
+          for(size_t fj=0;fj<x0.n_elem;fj++) {
+            // Term not included
+            if(fi==fj)
+              continue;
+            // Compute ratio
+            fval *= (x(ix)-x0(fj))/(x0(fi)-x0(fj));
+          }
+          bf(ix,fi)=fval;
+        }
+      }
+      bf=bf.cols(enabled);
+
+      return bf;
+    }
+
+    void LobattoBasis::eval(const arma::vec & x, arma::mat & f, arma::mat & df) const {
+      // Function values
+      f=eval(x);
+
+      // Derivative
+      df.zeros(x.n_elem,x0.n_elem);
+      for(size_t ix=0;ix<x.n_elem;ix++) {
+        for(size_t fi=0;fi<x0.n_elem;fi++) {
+          // Evaluate
+          for(size_t fj=0;fj<x0.n_elem;fj++) {
+            if(fi==fj)
+              continue;
+
+            double fval=1.0;
+            for(size_t fk=0;fk<x0.n_elem;fk++) {
+              // Term not included
+              if(fi==fk)
+                continue;
+              if(fj==fk)
+                continue;
+              // Compute ratio
+              fval *= (x(ix)-x0(fk))/(x0(fi)-x0(fk));
+            }
+            // Increment derivative
+            df(ix,fi)+=fval/(x0(fi)-x0(fj));
+          }
+        }
+      }
+      df=df.cols(enabled);
+    }
+
+    void LobattoBasis::drop_first() {
+      enabled=enabled.subvec(1,enabled.n_elem-1);
+      nbf=enabled.n_elem;
+    }
+
+    void LobattoBasis::drop_last() {
+      enabled=enabled.subvec(0,enabled.n_elem-2);
+      nbf=enabled.n_elem;
     }
   }
 }

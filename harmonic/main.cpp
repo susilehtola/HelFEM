@@ -124,8 +124,8 @@ arma::mat remove_edges(const arma::mat & M, int noverlap) {
 }
 
 int main(int argc, char **argv) {
-  if(argc!=7) {
-    printf("Usage: %s xmax Nel Nnode Nder Nquad legendre\n",argv[0]);
+  if(argc!=6) {
+    printf("Usage: %s xmax Nel Nnode primbas Nquad\n",argv[0]);
     return 1;
   }
 
@@ -137,24 +137,15 @@ int main(int argc, char **argv) {
   // Number of nodes
   int Nnodes=atoi(argv[3]);
   // Derivative order
-  int der_order=atoi(argv[4]);
+  int primbas=atoi(argv[4]);
   // Order of quadrature rule
   int Nquad=atoi(argv[5]);
-  // Legendre basis?
-  int legendre=atoi(argv[6]);
 
   printf("Running calculation with xmax=%e and %i elements.\n",xmax,Nelem);
 
-  polynomial_basis::PolynomialBasis * p;
-  if(legendre) {
-    p=new polynomial_basis::LegendreBasis(Nnodes-1);
-    printf("Using spectral %i-node elements.\n",Nnodes);
-  } else {
-    // which means the number of overlapping functions is
-    printf("Basis set composed of %i nodes with %i:th derivative continuity.\n",Nnodes,der_order);
-    printf("This means using primitive polynomials of order %i.\n",Nnodes*(der_order+1)-1);
-  }
-  int noverlap=p->get_noverlap();
+  // Get primitive basis
+  polynomial_basis::PolynomialBasis *poly(polynomial_basis::get_basis(primbas,Nnodes));
+  int noverlap=poly->get_noverlap();
 
   printf("Using %i point quadrature rule.\n",Nquad);
   // Radial grid
@@ -164,16 +155,9 @@ int main(int argc, char **argv) {
   arma::vec x, wx;
   chebyshev::chebyshev(Nquad,x,wx);
 
-  // Basis polynomials
-  arma::mat bf_c(polynomial::hermite_coeffs(Nnodes,der_order));
-  // First and second derivative
-  arma::mat dbf_c(polynomial::derivative_coeffs(bf_c,1));
-  //bf_c.print("Basis");
-  //dbf_c.print("Basis derivative");
-
   // Evaluate polynomials at quadrature points
-  arma::mat bf(polynomial::polyval(bf_c,x));
-  arma::mat dbf(polynomial::polyval(dbf_c,x));
+  arma::mat bf, dbf;
+  poly->eval(x,bf,dbf);
 
   x.save("x.dat",arma::raw_ascii);
   bf.save("bf.dat",arma::raw_ascii);
