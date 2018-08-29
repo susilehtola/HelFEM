@@ -12,13 +12,8 @@ if(USE_OPENMP)
  endif()
 endif()
 
-INCLUDE_DIRECTORIES("/home/work/armadillo/include/")
-#INCLUDE_DIRECTORIES("/home/work/libxc/trunk/install/include/")
-#LINK_DIRECTORIES("/home/work/libxc/trunk/install/lib/")
-LINK_DIRECTORIES("/opt/intel/compilers_and_libraries_2018.0.128/linux/mkl/lib/intel64_lin")
-# Large matrix support
-add_definitions(-DARMA_64BIT_WORD -DARMA_BLAS_LONG)
-add_definitions(-DMKL_ILP64)
+# System specific definitions
+include(CMake.system)
 
 add_library(helfem general/polynomial.cpp general/polynomial_basis.cpp
 general/gaunt.cpp general/chebyshev.cpp general/diis.cpp
@@ -35,32 +30,32 @@ add_library(legendre legendre/accuracy.f90 legendre/input_output.f90
 
 add_executable(legendre_test legendre/legendre_test.cpp)
 target_link_libraries(legendre_test helfem legendre)
-target_link_libraries(legendre_test gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
+target_link_libraries(legendre_test gsl ${LAPACK_LIBRARY} rt)
 
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem legendre)
-target_link_libraries(gaunt_test gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
+target_link_libraries(gaunt_test gsl ${LAPACK_LIBRARY} rt)
 
 add_executable(sphtest general/sphtest.cpp)
 target_link_libraries(sphtest helfem legendre)
-target_link_libraries(sphtest gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
+target_link_libraries(sphtest gsl ${LAPACK_LIBRARY} rt)
 
 add_executable(harmonic harmonic/main.cpp harmonic/quadrature.cpp)
 target_link_libraries(harmonic helfem legendre)
-target_link_libraries(harmonic gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
+target_link_libraries(harmonic gsl ${LAPACK_LIBRARY} rt)
 
 add_executable(atomic atomic/main.cpp atomic/basis.cpp atomic/quadrature.cpp atomic/dftgrid.cpp general/dftfuncs.cpp)
 target_link_libraries(atomic helfem legendre)
-target_link_libraries(atomic gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl xc)
+target_link_libraries(atomic gsl ${LAPACK_LIBRARY} rt xc)
 
 add_executable(atomic_itest atomic/inttest.cpp atomic/basis.cpp atomic/quadrature.cpp)
 target_link_libraries(atomic_itest helfem legendre)
-target_link_libraries(atomic_itest gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
+target_link_libraries(atomic_itest gsl ${LAPACK_LIBRARY} rt)
 
 add_executable(diatomic diatomic/main.cpp diatomic/basis.cpp diatomic/quadrature.cpp diatomic/dftgrid.cpp general/dftfuncs.cpp)
 target_link_libraries(diatomic helfem legendre)
-target_link_libraries(diatomic gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl xc)
+target_link_libraries(diatomic gsl ${LAPACK_LIBRARY} rt xc)
 
 add_executable(diatomic_itest diatomic/inttest.cpp diatomic/basis.cpp diatomic/quadrature.cpp)
 target_link_libraries(diatomic_itest helfem legendre)
-target_link_libraries(diatomic_itest gsl mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
+target_link_libraries(diatomic_itest gsl ${LAPACK_LIBRARY} rt)

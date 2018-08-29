@@ -1,0 +1,10 @@
+INCLUDE_DIRECTORIES("/home/work/armadillo/include/")
+#INCLUDE_DIRECTORIES("/home/work/libxc/trunk/install/include/")
+#LINK_DIRECTORIES("/home/work/libxc/trunk/install/lib/")
+LINK_DIRECTORIES("/opt/intel/compilers_and_libraries_2018.0.128/linux/mkl/lib/intel64_lin")
+# Large matrix support
+add_definitions(-DARMA_64BIT_WORD -DARMA_BLAS_LONG)
+add_definitions(-DMKL_ILP64)
+
+# Lapack libraries
+set(LAPACK_LIBRARY mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
