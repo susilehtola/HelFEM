@@ -210,31 +210,69 @@ int main(int argc, char **argv) {
   // Fraction of exact exchange
   double kfrac(exact_exchange(x_func));
 
+  Timer timer;
+
+  // Form overlap matrix
+  arma::mat S(basis.overlap());
+  // Form kinetic energy matrix
+  arma::mat T(basis.kinetic());
+
   helfem::dftgrid::DFTGrid grid;
   if(dft) {
     if(ldft==0)
       // Default value: we have 2*lmax from the bra and ket and 2 from
       // the volume element, and allow for 2*lmax from the
-      // density/potential. Add in 3 more for a bit more accuracy.
-      ldft=4*lmax+5;
+      // density/potential. Add in 10 more for a bit more accuracy.
+      ldft=4*lmax+12;
     if(ldft<2*lmax+2)
       throw std::logic_error("Increase ldft to guarantee accuracy of quadrature!\n");
 
     if(mdft==0)
       // Default value: we have 2*mmax from the bra and ket, and allow
-      // for 2*mmax from the density/potential. Add in a 3 to make
+      // for 2*mmax from the density/potential. Add in 5 to make
       // sure quadrature is still accurate for mmax=0
-      mdft=4*mmax+3;
+      mdft=4*mmax+5;
     if(mdft<2*mmax)
       throw std::logic_error("Increase mdft to guarantee accuracy of quadrature!\n");
 
+    // Form grid
     grid=helfem::dftgrid::DFTGrid(&basis,ldft,mdft);
+
+    // Basis function norms
+    arma::vec bfnorm(arma::pow(arma::diagvec(S),-0.5));
+
+    // Check accuracy of grid
+    double Sthr=1e-10;
+    double Tthr=1e-8;
+    bool inacc=false;
+    {
+      arma::mat Sdft(grid.eval_overlap());
+      Sdft-=S;
+      normalize_matrix(Sdft,bfnorm);
+
+      double Serr(arma::norm(Sdft,"fro"));
+      printf("Error in overlap matrix evaluated through xc grid is %e\n",Serr);
+      fflush(stdout);
+      if(Serr>=Sthr)
+        inacc=true;
+    }
+    {
+      arma::mat Tdft(grid.eval_kinetic());
+      // Compute relative error
+      for(size_t j=0;j<Tdft.n_cols;j++)
+        for(size_t i=0;i<Tdft.n_rows;i++)
+          Tdft(i,j)=std::abs(Tdft(i,j)-T(i,j))/(1+std::abs(T(i,j)));
+
+      double Terr(arma::norm(Tdft,"fro"));
+      printf("Relative error in kinetic matrix evaluated through xc grid is %e\n",Terr);
+      fflush(stdout);
+      if(Terr>=Tthr)
+        inacc=true;
+    }
+    if(inacc)
+      printf("Warning - possibly inaccurate quadrature!\n");
   }
 
-  Timer timer;
-
-  // Form overlap matrix
-  arma::mat S(basis.overlap());
   // Get half-inverse
   timer.set();
   arma::mat Sinvh(basis.Sinvh(!diag,symm));
@@ -250,38 +288,6 @@ int main(int argc, char **argv) {
     arma::mat Smo(Sh.t()*Sinvh);
     Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
     printf("Half-overlap error is %e\n",arma::norm(Smo,"fro"));
-  }
-  // Form kinetic energy matrix
-  arma::mat T(basis.kinetic());
-
-  // Check grid
-  if(dft) {
-    // Basis function norms
-    arma::vec bfnorm(arma::pow(arma::diagvec(S),-0.5));
-
-    double thr=1e-10;
-    {
-      arma::mat Sdft(grid.eval_overlap());
-      Sdft-=S;
-      normalize_matrix(Sdft,bfnorm);
-
-      double Serr(arma::norm(Sdft,"fro"));
-      printf("Error in overlap matrix evaluated through xc grid is %e\n",Serr);
-      fflush(stdout);
-      if(Serr>=thr)
-        throw std::logic_error("Increase size of DFT grid!\n");
-    }
-    {
-      arma::mat Tdft(grid.eval_kinetic());
-      Tdft-=T;
-      normalize_matrix(Tdft,bfnorm);
-
-      double Terr(arma::norm(Tdft,"fro"));
-      printf("Error in kinetic matrix evaluated through xc grid is %e\n",Terr);
-      fflush(stdout);
-      if(Terr>=thr)
-        throw std::logic_error("Increase size of DFT grid!\n");
-    }
   }
 
   // Form nuclear attraction energy matrix
