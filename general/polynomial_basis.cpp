@@ -1,6 +1,7 @@
 #include "../general/lobatto.h"
 #include "polynomial_basis.h"
 #include "polynomial.h"
+#include <cfloat>
 
 // Legendre polynomials
 extern "C" {
@@ -27,9 +28,13 @@ namespace helfem {
         break;
 
       case(4):
-        poly=new polynomial_basis::LobattoBasis(Nnodes);
-        printf("Basis set composed of %i-node LIPs with Lobatto nodes.\n",Nnodes);
-        break;
+        {
+          arma::vec x, w;
+          ::lobatto_compute(Nnodes,x,w);
+          poly=new polynomial_basis::LIPBasis(x);
+          printf("Basis set composed of %i-node LIPs with Gauss-Lobatto nodes.\n",Nnodes);
+          break;
+        }
 
       default:
         throw std::logic_error("Unsupported primitive basis.\n");
@@ -161,30 +166,31 @@ namespace helfem {
       nbf=T.n_cols;
     }
 
-    LobattoBasis::LobattoBasis(int nnodes) {
-      arma::vec w;
-      ::lobatto_compute(nnodes,x0,w);
-
+    LIPBasis::LIPBasis(const arma::vec & x) {
       // Make sure nodes are in order
-      x0=arma::sort(x0,"ascend");
-      // and that the number matches
-      if(x0.n_elem != (arma::uword) nnodes)
-        throw std::logic_error("Wrong number of functions!\n");
+      x0=arma::sort(x,"ascend");
 
+      // Sanity check
+      if(std::abs(x(0)+1)>=sqrt(DBL_EPSILON))
+        throw std::logic_error("LIP leftmost node is not at -1!\n");
+      if(std::abs(x(x.n_elem-1)-1)>=sqrt(DBL_EPSILON))
+        throw std::logic_error("LIP rightmost node is not at -1!\n");
+
+      // One overlapping function
       noverlap=1;
       nbf=x0.n_elem;
       // All functions are enabled
-      enabled=arma::linspace<arma::uvec>(0,nnodes-1,nnodes);
+      enabled=arma::linspace<arma::uvec>(0,x0.n_elem-1,x0.n_elem);
     }
 
-    LobattoBasis::~LobattoBasis() {
+    LIPBasis::~LIPBasis() {
     }
 
-    LobattoBasis * LobattoBasis::copy() const {
-      return new LobattoBasis(*this);
+    LIPBasis * LIPBasis::copy() const {
+      return new LIPBasis(*this);
     }
 
-    arma::mat LobattoBasis::eval(const arma::vec & x) const {
+    arma::mat LIPBasis::eval(const arma::vec & x) const {
       // Memory for values
       arma::mat bf(x.n_elem,x0.n_elem);
 
@@ -208,7 +214,7 @@ namespace helfem {
       return bf;
     }
 
-    void LobattoBasis::eval(const arma::vec & x, arma::mat & f, arma::mat & df) const {
+    void LIPBasis::eval(const arma::vec & x, arma::mat & f, arma::mat & df) const {
       // Function values
       f=eval(x);
 
@@ -239,12 +245,12 @@ namespace helfem {
       df=df.cols(enabled);
     }
 
-    void LobattoBasis::drop_first() {
+    void LIPBasis::drop_first() {
       enabled=enabled.subvec(1,enabled.n_elem-1);
       nbf=enabled.n_elem;
     }
 
-    void LobattoBasis::drop_last() {
+    void LIPBasis::drop_last() {
       enabled=enabled.subvec(0,enabled.n_elem-2);
       nbf=enabled.n_elem;
     }

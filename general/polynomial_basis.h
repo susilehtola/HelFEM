@@ -89,19 +89,19 @@ namespace helfem {
       void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const;
     };
 
-    /// Lagrange interpolating polynomials with Lobatto nodes
-    class LobattoBasis: public PolynomialBasis {
+    /// Lagrange interpolating polynomials
+    class LIPBasis: public PolynomialBasis {
       /// Control nodes
       arma::vec x0;
       /// Indices of enabled functions
       arma::uvec enabled;
     public:
       /// Constructor
-      LobattoBasis(int nnodes);
+      LIPBasis(const arma::vec & x0);
       /// Destructor
-      ~LobattoBasis();
+      ~LIPBasis();
       /// Get a copy
-      LobattoBasis * copy() const;
+      LIPBasis * copy() const;
 
       /// Drop first function
       void drop_first();
