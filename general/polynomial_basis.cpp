@@ -40,6 +40,9 @@ namespace helfem {
         throw std::logic_error("Unsupported primitive basis.\n");
       }
 
+      // Print out
+      poly->print();
+
       return poly;
     }
 
@@ -55,6 +58,18 @@ namespace helfem {
 
     int PolynomialBasis::get_noverlap() const {
       return noverlap;
+    }
+
+    void PolynomialBasis::print() const {
+      arma::vec x(arma::linspace<arma::vec>(-1.0,1.0,1000));
+      arma::mat bf, df;
+      eval(x,bf,df);
+
+      bf.insert_cols(0,x);
+      df.insert_cols(0,x);
+
+      bf.save("bf.dat",arma::raw_ascii);
+      df.save("df.dat",arma::raw_ascii);
     }
 
     HermiteBasis::HermiteBasis(int n_nodes, int der_order) {
@@ -209,6 +224,7 @@ namespace helfem {
           bf(ix,fi)=fval;
         }
       }
+
       bf=bf.cols(enabled);
 
       return bf;

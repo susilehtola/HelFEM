@@ -34,8 +34,10 @@ namespace helfem {
       virtual arma::mat eval(const arma::vec & x) const=0;
       /// Evaluate polynomials and derivatives at given points
       virtual void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const=0;
-    };
 
+      /// Print out the basis functions
+      void print() const;
+    };
     /// Get the wanted basis
     PolynomialBasis * get_basis(int primbas, int Nnodes);
 
