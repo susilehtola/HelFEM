@@ -580,11 +580,11 @@ int main(int argc, char **argv) {
   arma::mat rmat(basis.radial_integral(1));
   arma::mat rsqmat(basis.radial_integral(2));
   // rms sizes
-  arma::vec ra(arma::sqrt(arma::diagvec(arma::trans(Caocc)*rmat*Caocc)));
+  arma::vec ra(arma::diagvec(arma::trans(Caocc)*rmat*Caocc));
   arma::vec rmsa(arma::sqrt(arma::diagvec(arma::trans(Caocc)*rsqmat*Caocc)));
   arma::vec rb, rmsb;
   if(nelb) {
-    rb=arma::sqrt(arma::diagvec(arma::trans(Cbocc)*rmat*Cbocc));
+    rb=arma::diagvec(arma::trans(Cbocc)*rmat*Cbocc);
     rmsb=arma::sqrt(arma::diagvec(arma::trans(Cbocc)*rsqmat*Cbocc));
   }
 
