@@ -361,10 +361,13 @@ namespace helfem {
 
         // Evaluate derivative at nucleus
         double rlen((bval(1)-bval(0))/2);
-        arma::mat d(get_basis(poly->eval(x),0)/rlen);
+
+        arma::mat bf, df;
+        poly->eval(x,bf,df);
+        df=(get_basis(df,0)/rlen);
 
         // P_uv B_u'(0) B_v'(0)
-        double den(arma::as_scalar(d*P*arma::trans(d)));
+        double den(arma::as_scalar(df*P*arma::trans(df)));
 
         return den;
       }
@@ -1414,15 +1417,13 @@ namespace helfem {
 
         // Loop over angular momentum
         double nucden=0.0;
-        for(size_t iam=0;iam<lval.n_elem;iam++)
-          for(size_t jam=0;jam<lval.n_elem;jam++) {
-            // Coupling
-            double cpl(gaunt.coeff(lval(iam),mval(iam),0,0,lval(jam),mval(jam)));
-            if(cpl==0.0)
-              continue;
-
-            nucden+=cpl/sqrt(4.0*M_PI)*radial.nuclear_density(P.submat(Nrad*iam,Nrad*jam,Nrad*iam+ilast,Nrad*jam+ilast));
-          }
+#ifdef _OPENMP
+#pragma omp parallel for reduction(+:nucden)
+#endif
+        for(size_t iam=0;iam<lval.n_elem;iam++) {
+          // Integration over angles yields extra factor 4 pi that must be removed
+          nucden+=radial.nuclear_density(P.submat(Nrad*iam,Nrad*iam,Nrad*iam+ilast,Nrad*iam+ilast))/(4.0*M_PI);
+        }
 
         arma::vec den(1);
         den(0)=nucden;
