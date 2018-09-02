@@ -683,16 +683,19 @@ namespace helfem {
       do_lapl=lap_;
     }
 
-    void DFTGridWorker::compute_bf(size_t iel) {
+    void DFTGridWorker::compute_bf(size_t iel, size_t irad) {
       // Update function list
       bf_ind=basp->bf_list(iel);
 
-      // Get radial weights
-      arma::vec wrad(basp->get_wrad(iel));
+      // Get radial weights. Only do one radial quadrature point at a
+      // time, since this is an easy way to save a lot of memory.
+      arma::vec wrad(1), r(1);
+      wrad(0)=basp->get_wrad(iel)(irad);
+      r(0)=basp->get_r(iel)(irad);
+
       double Rhalf(basp->get_Rhalf());
 
       // Calculate helpers
-      arma::vec r(basp->get_r(iel));
       arma::vec shmu(arma::sinh(r));
 
       arma::vec sth(cth.n_elem);
@@ -729,7 +732,7 @@ namespace helfem {
 #endif
       for(size_t ia=0;ia<cth.n_elem;ia++) {
         // Evaluate radial functions at angular point
-        arma::cx_mat abf(basp->eval_bf(iel, cth(ia), phi(ia)));
+        arma::cx_mat abf(basp->eval_bf(iel, irad, cth(ia), phi(ia)));
         if(abf.n_cols != bf_ind.n_elem) {
           std::ostringstream oss;
           oss << "Mismatch! Have " << bf_ind.n_elem << " basis function indices but " << abf.n_cols << " basis functions!\n";
@@ -750,7 +753,7 @@ namespace helfem {
         for(size_t ia=0;ia<cth.n_elem;ia++) {
           // Evaluate radial functions at angular point
           arma::cx_mat dr, dth, dphi;
-          basp->eval_df(iel, cth(ia), phi(ia), dr, dth, dphi);
+          basp->eval_df(iel, irad, cth(ia), phi(ia), dr, dth, dphi);
           if(dr.n_cols != bf_ind.n_elem) {
             std::ostringstream oss;
             oss << "Mismatch! Have " << bf_ind.n_elem << " basis function indices but " << dr.n_cols << " basis functions!\n";
@@ -791,21 +794,23 @@ namespace helfem {
         grid.check_grad_tau_lapl(x_func,c_func);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-          grid.compute_bf(iel);
-          grid.update_density(P);
-          nel+=grid.compute_Nel();
-          ekin+=grid.compute_Ekin();
+          for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
+            grid.compute_bf(iel,irad);
+            grid.update_density(P);
+            nel+=grid.compute_Nel();
+            ekin+=grid.compute_Ekin();
 
-          grid.init_xc();
-          if(thr>0.0)
-            grid.screen_density(thr);
-          if(x_func>0)
-            grid.compute_xc(x_func);
-          if(c_func>0)
-            grid.compute_xc(c_func);
+            grid.init_xc();
+            if(thr>0.0)
+              grid.screen_density(thr);
+            if(x_func>0)
+              grid.compute_xc(x_func);
+            if(c_func>0)
+              grid.compute_xc(c_func);
 
-          exc+=grid.eval_Exc();
-          grid.eval_Fxc(H);
+            exc+=grid.eval_Exc();
+            grid.eval_Fxc(H);
+          }
         }
       }
 
@@ -829,21 +834,23 @@ namespace helfem {
         grid.check_grad_tau_lapl(x_func,c_func);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-          grid.compute_bf(iel);
-          grid.update_density(Pa,Pb);
-          nel+=grid.compute_Nel();
-          ekin+=grid.compute_Ekin();
+          for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
+            grid.compute_bf(iel,irad);
+            grid.update_density(Pa,Pb);
+            nel+=grid.compute_Nel();
+            ekin+=grid.compute_Ekin();
 
-          grid.init_xc();
-          if(thr>0.0)
-            grid.screen_density(thr);
-          if(x_func>0)
-            grid.compute_xc(x_func);
-          if(c_func>0)
-            grid.compute_xc(c_func);
+            grid.init_xc();
+            if(thr>0.0)
+              grid.screen_density(thr);
+            if(x_func>0)
+              grid.compute_xc(x_func);
+            if(c_func>0)
+              grid.compute_xc(c_func);
 
-          exc+=grid.eval_Exc();
-          grid.eval_Fxc(Ha,Hb,beta);
+            exc+=grid.eval_Exc();
+            grid.eval_Fxc(Ha,Hb,beta);
+          }
         }
       }
 
@@ -866,8 +873,10 @@ namespace helfem {
         grid.set_grad_tau_lapl(false,false,false);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-          grid.compute_bf(iel);
-          grid.eval_overlap(S);
+          for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
+            grid.compute_bf(iel,irad);
+            grid.eval_overlap(S);
+          }
         }
       }
 
@@ -884,8 +893,10 @@ namespace helfem {
         grid.set_grad_tau_lapl(true,false,false);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-          grid.compute_bf(iel);
-          grid.eval_kinetic(T);
+          for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
+            grid.compute_bf(iel,irad);
+            grid.eval_kinetic(T);
+          }
         }
       }
 

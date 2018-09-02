@@ -78,6 +78,8 @@ namespace helfem {
         arma::vec get_chmu_quad() const;
         /// Evaluate basis functions at quadrature points
         arma::mat get_bf(size_t iel) const;
+        /// Evaluate basis functions at wanted point in [-1,1]
+        arma::mat get_bf(size_t iel, const arma::vec & x) const;
         /// Evaluate derivatives of basis functions at quadrature points
         arma::mat get_df(size_t iel) const;
         /// Get quadrature weights
@@ -221,10 +223,12 @@ namespace helfem {
         /// Get Rhalf
         double get_Rhalf() const;
 
-        /// Evaluate basis functions
-        arma::cx_mat eval_bf(size_t iel, double cth, double phi) const;
-        /// Evaluate basis functions derivatives
-        void eval_df(size_t iel, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const;
+        /// Evaluate basis functions at quadrature points
+        arma::cx_mat eval_bf(size_t iel, size_t irad, double cth, double phi) const;
+        /// Evaluate basis functions at wanted x value
+        arma::cx_mat eval_bf(size_t iel, const arma::vec & x, double cth, double phi) const;
+        /// Evaluate basis functions derivatives at quadrature points
+        void eval_df(size_t iel, size_t irad, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const;
         /// Get list of basis function indices in element
         arma::uvec bf_list(size_t iel) const;
 

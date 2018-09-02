@@ -119,7 +119,7 @@ namespace helfem {
       void set_grad_tau_lapl(bool grad, bool tau, bool lapl);
 
       /// Compute basis functions on grid points
-      void compute_bf(size_t iel);
+      void compute_bf(size_t iel, size_t irad);
       /// Free memory
       void free();
 

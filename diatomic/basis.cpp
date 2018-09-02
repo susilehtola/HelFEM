@@ -254,6 +254,13 @@ namespace helfem {
         return val;
       }
 
+      arma::mat RadialBasis::get_bf(size_t iel, const arma::vec & x) const {
+        arma::mat val(poly->eval(x));
+        val=get_basis(val,iel);
+
+        return val;
+      }
+
       arma::mat RadialBasis::get_df(size_t iel) const {
         // Element function values at quadrature points are
         arma::mat dval(get_basis(df,iel));
@@ -1651,7 +1658,7 @@ namespace helfem {
         M=remove_boundaries(M);
       }
 
-      arma::cx_mat TwoDBasis::eval_bf(size_t iel, double cth, double phi) const {
+      arma::cx_mat TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, double phi) const {
         // Evaluate spherical harmonics
         arma::cx_vec sph(lval.n_elem);
         for(size_t i=0;i<lval.n_elem;i++)
@@ -1659,6 +1666,7 @@ namespace helfem {
 
         // Evaluate radial functions
         arma::mat rad(radial.get_bf(iel));
+        rad=rad.rows(irad,irad);
 
         // Form supermatrix
         arma::cx_mat bf(rad.n_rows,lval.n_elem*rad.n_cols);
@@ -1668,7 +1676,24 @@ namespace helfem {
         return bf;
       }
 
-      void TwoDBasis::eval_df(size_t iel, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const {
+      arma::cx_mat TwoDBasis::eval_bf(size_t iel, const arma::vec & x, double cth, double phi) const {
+        // Evaluate spherical harmonics
+        arma::cx_vec sph(lval.n_elem);
+        for(size_t i=0;i<lval.n_elem;i++)
+          sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
+
+        // Evaluate radial functions
+        arma::mat rad(radial.get_bf(iel,x));
+
+        // Form supermatrix
+        arma::cx_mat bf(rad.n_rows,lval.n_elem*rad.n_cols);
+        for(size_t i=0;i<lval.n_elem;i++)
+          bf.cols(i*rad.n_cols,(i+1)*rad.n_cols-1)=sph(i)*rad;
+
+        return bf;
+      }
+
+      void TwoDBasis::eval_df(size_t iel, size_t irad, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const {
         // Evaluate spherical harmonics
         arma::cx_vec sph(lval.n_elem);
         for(size_t i=0;i<lval.n_elem;i++)
@@ -1677,6 +1702,8 @@ namespace helfem {
         // Evaluate radial functions
         arma::mat frad(radial.get_bf(iel));
         arma::mat drad(radial.get_df(iel));
+        frad=frad.rows(irad,irad);
+        drad=drad.rows(irad,irad);
 
         // Form supermatrices
         dr.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
@@ -1749,13 +1776,12 @@ namespace helfem {
         // and grab the contribution from the first element
         P=P(fidx,fidx);
 
-        // Evaluate basis functions in first element at both nuclei
-        arma::cx_mat bf_one(eval_bf(0,1.0,0.0));
-        arma::cx_mat bf_none(eval_bf(0,-1.0,0.0));
-
-        // Only take the first function i.e. the value at the nucleus
-        bf_one=bf_one.row(0);
-        bf_none=bf_none.row(0);
+        // Nucleus is at -1 on the primitive polynomial interval [-1,1]
+        arma::vec x(1);
+        x(0)=-1.0;
+        // Evaluate first basis functions in first element at both nuclei
+        arma::cx_mat bf_one(eval_bf(0,x,1.0,0.0));
+        arma::cx_mat bf_none(eval_bf(0,x,-1.0,0.0));
 
         arma::vec den(2);
         den(0)=arma::as_scalar(arma::real(bf_none*P*arma::trans(bf_none)));
