@@ -46,6 +46,8 @@ namespace helfem {
       double cosine3_coupling(int lj, int mj, int li, int mi) const;
       /// Get cosine^4 type coupling
       double cosine4_coupling(int lj, int mj, int li, int mi) const;
+      /// Get cosine^5 type coupling
+      double cosine5_coupling(int lj, int mj, int li, int mi) const;
     };
   }
 }

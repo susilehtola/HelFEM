@@ -178,5 +178,13 @@ namespace helfem {
       static const double const4(16.0/105.0*sqrt(M_PI));
       return const0*coeff(lj,mj,0,0,li,mi) + const2*coeff(lj,mj,2,0,li,mi) + const4*coeff(lj,mj,4,0,li,mi);
     }
+
+    double Gaunt::cosine5_coupling(int lj, int mj, int li, int mi) const {
+      // cos^5 th = const1 * Y_1^0 + const3 * Y_3^0 + const5 * Y_5^0
+      static const double const1(2.0/7.0*sqrt(3.0*M_PI));
+      static const double const3(8.0/63.0*sqrt(7.0*M_PI));
+      static const double const5(16.0/693.0*sqrt(11.0*M_PI));
+      return const1*coeff(lj,mj,1,0,li,mi) + const3*coeff(lj,mj,3,0,li,mi) + const5*coeff(lj,mj,5,0,li,mi);
+    }
   }
 }
