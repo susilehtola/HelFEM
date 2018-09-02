@@ -56,7 +56,7 @@ namespace helfem {
         /// Form density matrix
         arma::mat form_density(const arma::mat & Cl, const arma::mat & Cr, size_t nocc) const;
 
-        /// Compute radial matrix elements \f$ B_1(\mu) B_2(\mu) \sinh^m (\mu) \cosh^m (\mu) d\mu \f$
+        /// Compute radial matrix elements \f$ B_1(\mu) B_2(\mu) \sinh^m (\mu) \cosh^n (\mu) d\mu \f$
         arma::mat radial_integral(const arma::mat & bf, int m, int n, size_t iel) const;
         /// Compute radial matrix elements in element
         arma::mat radial_integral(int m, int n, size_t iel) const;
@@ -190,6 +190,8 @@ namespace helfem {
         arma::mat dipole_z() const;
         /// Form dipole coupling matrix
         arma::mat quadrupole_zz() const;
+        /// <r^2> matrix
+        arma::mat radial_moments(const arma::mat & P) const;
 
         /// Form density matrix
         arma::mat form_density(const arma::mat & C, size_t nocc) const;

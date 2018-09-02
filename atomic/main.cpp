@@ -577,30 +577,34 @@ int main(int argc, char **argv) {
   }
 
   // Calculate <r^2> matrix
+  arma::mat rinvmat(basis.radial_integral(-1));
   arma::mat rmat(basis.radial_integral(1));
   arma::mat rsqmat(basis.radial_integral(2));
+  arma::mat rcbmat(basis.radial_integral(3));
   // rms sizes
+  arma::vec rinva(arma::ones<arma::vec>(Caocc.n_cols)/arma::diagvec(arma::trans(Caocc)*rinvmat*Caocc));
   arma::vec ra(arma::diagvec(arma::trans(Caocc)*rmat*Caocc));
   arma::vec rmsa(arma::sqrt(arma::diagvec(arma::trans(Caocc)*rsqmat*Caocc)));
-  arma::vec rb, rmsb;
+  arma::vec rcba(arma::pow(arma::diagvec(arma::trans(Caocc)*rcbmat*Caocc),1.0/3.0));
+
+  arma::vec rinvb, rb, rmsb, rcbb;
   if(nelb) {
+    rinvb=arma::ones<arma::vec>(Cbocc.n_cols)/arma::diagvec(arma::trans(Cbocc)*rinvmat*Cbocc);
     rb=arma::diagvec(arma::trans(Cbocc)*rmat*Cbocc);
     rmsb=arma::sqrt(arma::diagvec(arma::trans(Cbocc)*rsqmat*Cbocc));
+    rcbb=arma::pow(arma::diagvec(arma::trans(Cbocc)*rcbmat*Cbocc),1.0/3.0);
   }
 
   printf("\nOccupied orbital analysis:\n");
-  printf("%2s %13s %12s %12s %13s %12s %12s\n","io","energy","<r>","sqrt(<r^2>)","energy","<r>","sqrt(<r^2>)");
+  printf("Alpha orbitals\n");
+  printf("%2s %13s %12s %12s %12s %12s\n","io","energy","1/<r>","<r>","sqrt(<r^2>)","cbrt(<r^3>)");
+  for(int io=0;io<nela;io++) {
+    printf("%2i % e %e %e %e %e\n",(int) io+1, Ea(io), rinva(io), ra(io), rmsa(io), rcba(io));
+  }
+  printf("Beta orbitals\n");
   for(int io=0;io<nelb;io++) {
-    printf("%2i % e %e %e % e %e %e\n",(int) io+1, Ea(io), ra(io), rmsa(io), Eb(io), rb(io), rmsb(io));
+    printf("%2i % e %e %e %e %e\n",(int) io+1, Eb(io), rinvb(io), rb(io), rmsb(io), rcbb(io));
   }
-  for(int io=nelb;io<nela;io++) {
-    printf("%2i % e %e %e\n",(int) io+1, Ea(io), ra(io), rmsa(io));
-  }
-  printf("\n");
-
-  Ea.subvec(0,nena-1).t().print("Alpha orbital energies");
-  Eb.subvec(0,nenb-1).t().print("Beta  orbital energies");
-
 
   /*
   // Test orthonormality

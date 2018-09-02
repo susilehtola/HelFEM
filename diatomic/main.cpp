@@ -583,18 +583,18 @@ int main(int argc, char **argv) {
   printf("%-21s energy: % .16f\n","Total",Etot);
   printf("%-21s energy: % .16f\n","Virial ratio",-Etot/Ekin);
 
-  double eldip=arma::trace(dip*P);
-  double nucdip=(-Z1+Z2)*Rbond/2.0;
-  double elquad=arma::trace(quad*P);
+  double eldip=-arma::trace(dip*P);
+  double nucdip=(Z2-Z1)*Rbond/2.0;
+  double elquad=-arma::trace(quad*P);
   double nucquad=(Z1+Z2)*Rbond*Rbond/4.0;
 
   printf("\n");
-  printf("Electronic dipole     moment % .16e\n",-eldip);
+  printf("Electronic dipole     moment % .16e\n",eldip);
   printf("Nuclear    dipole     moment % .16e\n",nucdip);
-  printf("Total      dipole     moment % .16e\n",-eldip+nucdip);
-  printf("Electronic quadrupole moment % .16e\n",-elquad);
+  printf("Total      dipole     moment % .16e\n",eldip+nucdip);
+  printf("Electronic quadrupole moment % .16e\n",elquad);
   printf("Nuclear    quadrupole moment % .16e\n",nucquad);
-  printf("Total      quadrupole moment % .16e\n",-elquad+nucquad);
+  printf("Total      quadrupole moment % .16e\n",elquad+nucquad);
 
   printf("\n");
   printf("Nuclear electron densities\n");
@@ -603,33 +603,58 @@ int main(int argc, char **argv) {
   for(size_t i=0;i<nucdena.size();i++)
     printf(" % .10e % .10e % .10e\n",nucdena(i),nucdenb(i),nucdena(i)+nucdenb(i));
 
-  /*
-  // Calculate <r^2> matrix
-  arma::mat rmat(basis.radial_integral(1));
-  arma::mat rsqmat(basis.radial_integral(2));
   // rms sizes
-  arma::vec ra(arma::sqrt(arma::diagvec(arma::trans(Caocc)*rmat*Caocc)));
-  arma::vec rmsa(arma::sqrt(arma::diagvec(arma::trans(Caocc)*rsqmat*Caocc)));
-  arma::vec rb, rmsb;
-  if(nelb) {
-    rb=arma::sqrt(arma::diagvec(arma::trans(Cbocc)*rmat*Cbocc));
-    rmsb=arma::sqrt(arma::diagvec(arma::trans(Cbocc)*rsqmat*Cbocc));
-  }
+  std::vector<arma::mat> orba, orbb;
+  for(int io=0;io<nela;io++)
+    orba.push_back(basis.radial_moments(Caocc.col(io)*arma::trans(Caocc.col(io))));
+  for(int io=0;io<nelb;io++)
+    orbb.push_back(basis.radial_moments(Cbocc.col(io)*arma::trans(Cbocc.col(io))));
 
-  printf("\nOccupied orbital analysis:\n");
-  printf("%2s %13s %12s %12s %13s %12s %12s\n","io","energy","<r>","sqrt(<r^2>)","energy","<r>","sqrt(<r^2>)");
-  for(int io=0;io<nelb;io++) {
-    printf("%2i % e %e %e % e %e %e\n",(int) io+1, Ea(io), ra(io), rmsa(io), Eb(io), rb(io), rmsb(io));
-  }
-  for(int io=nelb;io<nela;io++) {
-    printf("%2i % e %e %e\n",(int) io+1, Ea(io), ra(io), rmsa(io));
-  }
-  printf("\n");
-  */
+  for(int ic=0;ic<3;ic++) {
+    // Lh analysis only if lh atom exists
+    if(ic==0 && Z1==0)
+      continue;
+    // Middle analysis only if both atoms exist
+    if(ic==1 && (Z1==0 || Z2==0))
+      continue;
+    // Rh analysis only if rh atom exists
+    if(ic==2 && Z2==0)
+      continue;
 
-  Ea.subvec(0,nena-1).t().print("Alpha orbital energies");
-  Eb.subvec(0,nenb-1).t().print("Beta  orbital energies");
+    if(ic==0)
+      printf("\nOccupied orbital analysis wrt left atom:\n");
+    else if(ic==1)
+      printf("\nOccupied orbital analysis wrt geometrical center:\n");
+    else
+      printf("\nOccupied orbital analysis wrt right atom:\n");
 
+    enum moment {mone,
+                 one,
+                 two,
+                 three};
+
+    if(ic==1) {
+      printf("Alpha orbitals\n");
+      printf("%2s %13s %12s\n","io","energy","sqrt(<r^2>)");
+      for(int io=0;io<nela;io++) {
+        printf("%2i % e %e\n",(int) io+1, Ea(io), sqrt(orba[io](two,ic)));
+      }
+      printf("Beta orbitals\n");
+      for(int io=0;io<nelb;io++) {
+        printf("%2i % e %e\n",(int) io+1, Eb(io), sqrt(orbb[io](two,ic)));
+      }
+    } else {
+      printf("Alpha orbitals\n");
+      printf("%2s %13s %12s %12s %12s %12s\n","io","energy","1/<r>","<r>","sqrt(<r^2>)","cbrt(<r^3>)");
+      for(int io=0;io<nela;io++) {
+        printf("%2i % e %e %e %e %e\n",(int) io+1, Ea(io), 1.0/orba[io](mone,ic), orba[io](one,ic), sqrt(orba[io](two,ic)), cbrt(orba[io](three,ic)));
+      }
+      printf("Beta orbitals\n");
+      for(int io=0;io<nelb;io++) {
+        printf("%2i % e %e %e %e %e\n",(int) io+1, Eb(io), 1.0/orbb[io](mone,ic), orbb[io](one,ic), sqrt(orbb[io](two,ic)), cbrt(orbb[io](three,ic)));
+      }
+    }
+  }
 
   /*
   // Test orthonormality

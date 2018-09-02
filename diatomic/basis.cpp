@@ -812,6 +812,174 @@ namespace helfem {
         return remove_boundaries(V);
       }
 
+      arma::mat TwoDBasis::radial_moments(const arma::mat & P0) const {
+        // Returned matrix elements
+        arma::mat Rmat(4,3); // -1, 1, 2, 3 and lh, cen, rh
+        Rmat.zeros();
+
+        enum moment {mone,
+                     one,
+                     two,
+                     three};
+
+        enum center {left,
+                     middle,
+                     right};
+
+        // Extend to boundaries
+        arma::mat P(expand_boundaries(P0));
+
+        // Build radial matrix elements
+        arma::mat I10(radial.radial_integral(1,0));
+        arma::mat I11(radial.radial_integral(1,1));
+        arma::mat I12(radial.radial_integral(1,2));
+        arma::mat I13(radial.radial_integral(1,3));
+        arma::mat I14(radial.radial_integral(1,4));
+        arma::mat I15(radial.radial_integral(1,5));
+
+        // Fill elements
+        for(size_t iang=0;iang<lval.n_elem;iang++) {
+          int li(lval(iang));
+          int mi(mval(iang));
+
+          for(size_t jang=0;jang<lval.n_elem;jang++) {
+            int lj(lval(jang));
+            int mj(mval(jang));
+
+            // Calculate coupling
+            if(mi==mj) {
+              // Radial submatrix
+              arma::mat Psub(P.submat(iang*radial.Nbf(),jang*radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*radial.Nbf()-1));
+
+              // <r^2> wrt center
+              {
+                // Coupling through the cos^2 term
+                double cpl2(gaunt.cosine2_coupling(lj,mj,li,mi));
+                // Coupling through the cos^4 term
+                double cpl4(gaunt.cosine4_coupling(lj,mj,li,mi));
+                double cpl24(cpl2-cpl4);
+                if(cpl24!=0.0)
+                  Rmat(two,middle)+=std::pow(Rhalf,5)*cpl24*arma::trace(Psub*I10);
+
+                // or the delta term
+                if(li==lj)
+                  Rmat(two,middle)+=std::pow(Rhalf,5)*arma::trace(Psub*(I14-I12));
+              }
+
+              // <r^-1>
+              {
+                if(li==lj) {
+                  double tr(arma::trace(Psub*I11));
+                  Rmat(mone,left)+=std::pow(Rhalf,2)*tr;
+                  Rmat(mone,right)+=std::pow(Rhalf,2)*tr;
+                }
+                double cpl(gaunt.cosine_coupling(lj,mj,li,mi));
+                if(cpl!=0.0) {
+                  double tr(arma::trace(Psub*I10));
+                  Rmat(mone,left)-=std::pow(Rhalf,2)*cpl*tr;
+                  Rmat(mone,right)+=std::pow(Rhalf,2)*cpl*tr;
+                }
+              }
+
+              // <r>
+              {
+                if(li==lj) {
+                  double tr(arma::trace(Psub*I13));
+                  Rmat(one,left)+=std::pow(Rhalf,4)*tr;
+                  Rmat(one,right)+=std::pow(Rhalf,4)*tr;
+                }
+                double cpl(gaunt.cosine_coupling(lj,mj,li,mi));
+                if(cpl!=0.0) {
+                  double tr(arma::trace(Psub*I12));
+                  Rmat(one,left)+=std::pow(Rhalf,4)*cpl*tr;
+                  Rmat(one,right)-=std::pow(Rhalf,4)*cpl*tr;
+                }
+                double cpl2(gaunt.cosine2_coupling(lj,mj,li,mi));
+                if(cpl2!=0.0) {
+                  double tr(arma::trace(Psub*I11));
+                  Rmat(one,left)-=std::pow(Rhalf,4)*cpl2*tr;
+                  Rmat(one,right)-=std::pow(Rhalf,4)*cpl2*tr;
+                }
+                double cpl3(gaunt.cosine3_coupling(lj,mj,li,mi));
+                if(cpl3!=0.0) {
+                  double tr(arma::trace(Psub*I10));
+                  Rmat(one,left)-=std::pow(Rhalf,4)*cpl3*tr;
+                  Rmat(one,right)+=std::pow(Rhalf,4)*cpl3*tr;
+                }
+              }
+
+              // <r^2>
+              {
+                if(li==lj) {
+                  double tr(arma::trace(Psub*I14));
+                  Rmat(two,left)+=std::pow(Rhalf,5)*tr;
+                  Rmat(two,right)+=std::pow(Rhalf,5)*tr;
+                }
+                double cpl(gaunt.cosine_coupling(lj,mj,li,mi));
+                if(cpl!=0.0) {
+                  double tr(arma::trace(Psub*I13));
+                  Rmat(two,left)+=2*std::pow(Rhalf,5)*cpl*tr;
+                  Rmat(two,right)-=2*std::pow(Rhalf,5)*cpl*tr;
+                }
+                double cpl3(gaunt.cosine3_coupling(lj,mj,li,mi));
+                if(cpl3!=0.0) {
+                  double tr(arma::trace(Psub*I11));
+                  Rmat(two,left)-=2*std::pow(Rhalf,5)*cpl3*tr;
+                  Rmat(two,right)+=2*std::pow(Rhalf,5)*cpl3*tr;
+                }
+                double cpl4(gaunt.cosine4_coupling(lj,mj,li,mi));
+                if(cpl4!=0.0) {
+                  double tr(arma::trace(Psub*I10));
+                  Rmat(two,left)-=std::pow(Rhalf,5)*cpl4*tr;
+                  Rmat(two,right)-=std::pow(Rhalf,5)*cpl4*tr;
+                }
+              }
+
+              // <r^3>
+              {
+                if(li==lj) {
+                  double tr(arma::trace(Psub*I15));
+                  Rmat(three,left)+=std::pow(Rhalf,6)*tr;
+                  Rmat(three,right)+=std::pow(Rhalf,6)*tr;
+                }
+                double cpl(gaunt.cosine_coupling(lj,mj,li,mi));
+                if(cpl!=0.0) {
+                  double tr(arma::trace(Psub*I14));
+                  Rmat(three,left)+=3*std::pow(Rhalf,6)*cpl*tr;
+                  Rmat(three,right)-=3*std::pow(Rhalf,6)*cpl*tr;
+                }
+                double cpl2(gaunt.cosine2_coupling(lj,mj,li,mi));
+                if(cpl2!=0.0) {
+                  double tr(arma::trace(Psub*I13));
+                  Rmat(three,left)+=2*std::pow(Rhalf,6)*cpl2*tr;
+                  Rmat(three,right)+=2*std::pow(Rhalf,6)*cpl2*tr;
+                }
+                double cpl3(gaunt.cosine3_coupling(lj,mj,li,mi));
+                if(cpl3!=0.0) {
+                  double tr(arma::trace(Psub*I12));
+                  Rmat(three,left)-=2*std::pow(Rhalf,6)*cpl3*tr;
+                  Rmat(three,right)+=2*std::pow(Rhalf,6)*cpl3*tr;
+                }
+                double cpl4(gaunt.cosine4_coupling(lj,mj,li,mi));
+                if(cpl4!=0.0) {
+                  double tr(arma::trace(Psub*I11));
+                  Rmat(three,left)-=3*std::pow(Rhalf,6)*cpl4*tr;
+                  Rmat(three,right)-=3*std::pow(Rhalf,6)*cpl4*tr;
+                }
+                double cpl5(gaunt.cosine5_coupling(lj,mj,li,mi));
+                if(cpl5!=0.0) {
+                  double tr(arma::trace(Psub*I10));
+                  Rmat(three,left)-=std::pow(Rhalf,6)*cpl5*tr;
+                  Rmat(three,right)+=std::pow(Rhalf,6)*cpl5*tr;
+                }
+              }
+            }
+          }
+        }
+
+        return Rmat;
+      }
+
       bool operator<(const lmidx_t & lh, const lmidx_t & rh) {
         if(lh.first < rh.first)
           return true;
