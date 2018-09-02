@@ -62,6 +62,9 @@ namespace helfem {
 
       // Calculate density
       rho.zeros(1,wtot.n_elem);
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
       for(size_t ip=0;ip<wtot.n_elem;ip++)
         rho(0,ip)=std::real(arma::dot(Pv.col(ip),bf.col(ip)));
 
@@ -69,6 +72,9 @@ namespace helfem {
       if(do_grad) {
         grho.zeros(3,wtot.n_elem);
         sigma.zeros(1,wtot.n_elem);
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
         for(size_t ip=0;ip<wtot.n_elem;ip++) {
           // Calculate values
           double g_rad=grho(0,ip)=2.0*std::real(arma::dot(Pv.col(ip),bf_rho.col(ip)))/scale_r(ip);
@@ -90,6 +96,9 @@ namespace helfem {
         Pv_phi=P*arma::conj(bf_phi);
 
         // Calculate values
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
         for(size_t ip=0;ip<wtot.n_elem;ip++) {
           // Gradient term
           double kinrho(std::real(arma::dot(Pv_rho.col(ip),bf_rho.col(ip)))/std::pow(scale_r(ip),2));
@@ -123,6 +132,9 @@ namespace helfem {
 
       // Calculate density
       rho.zeros(2,wtot.n_elem);
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
       for(size_t ip=0;ip<wtot.n_elem;ip++) {
         rho(0,ip)=std::real(arma::dot(Pav.col(ip),bf.col(ip)));
         rho(1,ip)=std::real(arma::dot(Pbv.col(ip),bf.col(ip)));
@@ -140,6 +152,9 @@ namespace helfem {
       if(do_grad) {
         grho.zeros(6,wtot.n_elem);
         sigma.zeros(3,wtot.n_elem);
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
         for(size_t ip=0;ip<wtot.n_elem;ip++) {
           double ga_rad=grho(0,ip)=2.0*std::real(arma::dot(Pav.col(ip),bf_rho.col(ip)))/scale_r(ip);
           double ga_th=grho(1,ip)=2.0*std::real(arma::dot(Pav.col(ip),bf_theta.col(ip)))/scale_theta(ip);
@@ -171,6 +186,9 @@ namespace helfem {
         Pbv_phi=Pb*arma::conj(bf_phi);
 
         // Calculate values
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
         for(size_t ip=0;ip<wtot.n_elem;ip++) {
           // Gradient term
           double kinar=std::real(arma::dot(Pav_rho.col(ip),bf_rho.col(ip)))/std::pow(scale_r(ip),2);
@@ -194,6 +212,9 @@ namespace helfem {
 
     void DFTGridWorker::screen_density(double thr) {
       if(polarized) {
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
         for(size_t ip=0;ip<wtot.n_elem;ip++) {
           if(rho(0,ip)+rho(1,ip) <= thr) {
             rho(0,ip)=0.0;
@@ -212,6 +233,9 @@ namespace helfem {
           }
         }
       } else {
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
         for(size_t ip=0;ip<wtot.n_elem;ip++) {
           if(rho(0,ip) <= thr) {
             rho(0,ip)=0.0;
@@ -700,6 +724,9 @@ namespace helfem {
       // Compute basis function values
       bf.zeros(bf_ind.n_elem,wtot.n_elem);
       // Loop over angular grid
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
       for(size_t ia=0;ia<cth.n_elem;ia++) {
         // Evaluate radial functions at angular point
         arma::cx_mat abf(basp->eval_bf(iel, cth(ia), phi(ia)));
@@ -716,10 +743,13 @@ namespace helfem {
         bf_rho.zeros(bf_ind.n_elem,wtot.n_elem);
         bf_theta.zeros(bf_ind.n_elem,wtot.n_elem);
         bf_phi.zeros(bf_ind.n_elem,wtot.n_elem);
-        arma::cx_mat dr, dth, dphi;
 
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
         for(size_t ia=0;ia<cth.n_elem;ia++) {
           // Evaluate radial functions at angular point
+          arma::cx_mat dr, dth, dphi;
           basp->eval_df(iel, cth(ia), phi(ia), dr, dth, dphi);
           if(dr.n_cols != bf_ind.n_elem) {
             std::ostringstream oss;
@@ -756,37 +786,11 @@ namespace helfem {
       double exc=0.0;
       double ekin=0.0;
       double nel=0.0;
-#ifdef _OPENMP
-#pragma omp parallel reduction(+:exc,nel)
-#endif
       {
         DFTGridWorker grid(basp,lang,mang);
         grid.check_grad_tau_lapl(x_func,c_func);
 
-#ifdef _OPENMP
-#pragma omp for
-#endif
-        for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
-          grid.compute_bf(iel);
-          grid.update_density(P);
-          nel+=grid.compute_Nel();
-          ekin+=grid.compute_Ekin();
-
-          grid.init_xc();
-          if(thr>0.0)
-            grid.screen_density(thr);
-          if(x_func>0)
-            grid.compute_xc(x_func);
-          if(c_func>0)
-            grid.compute_xc(c_func);
-
-          exc+=grid.eval_Exc();
-          grid.eval_Fxc(H);
-        }
-#ifdef _OPENMP
-#pragma omp for
-#endif
-        for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
+        for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
           grid.compute_bf(iel);
           grid.update_density(P);
           nel+=grid.compute_Nel();
@@ -820,37 +824,11 @@ namespace helfem {
       double exc=0.0;
       double nel=0.0;
       double ekin=0.0;
-#ifdef _OPENMP
-#pragma omp parallel reduction(+:exc,nel)
-#endif
       {
         DFTGridWorker grid(basp,lang,mang);
         grid.check_grad_tau_lapl(x_func,c_func);
 
-#ifdef _OPENMP
-#pragma omp for
-#endif
-        for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
-          grid.compute_bf(iel);
-          grid.update_density(Pa,Pb);
-          nel+=grid.compute_Nel();
-          ekin+=grid.compute_Ekin();
-
-          grid.init_xc();
-          if(thr>0.0)
-            grid.screen_density(thr);
-          if(x_func>0)
-            grid.compute_xc(x_func);
-          if(c_func>0)
-            grid.compute_xc(c_func);
-
-          exc+=grid.eval_Exc();
-          grid.eval_Fxc(Ha,Hb,beta);
-        }
-#ifdef _OPENMP
-#pragma omp for
-#endif
-        for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
+        for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
           grid.compute_bf(iel);
           grid.update_density(Pa,Pb);
           nel+=grid.compute_Nel();
@@ -883,24 +861,11 @@ namespace helfem {
       arma::mat S(basp->Ndummy(),basp->Ndummy());
       S.zeros();
 
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
       {
         DFTGridWorker grid(basp,lang,mang);
         grid.set_grad_tau_lapl(false,false,false);
 
-#ifdef _OPENMP
-#pragma omp for
-#endif
-        for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
-          grid.compute_bf(iel);
-          grid.eval_overlap(S);
-        }
-#ifdef _OPENMP
-#pragma omp for
-#endif
-        for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
+        for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
           grid.compute_bf(iel);
           grid.eval_overlap(S);
         }
@@ -914,24 +879,11 @@ namespace helfem {
       arma::mat T(basp->Ndummy(),basp->Ndummy());
       T.zeros();
 
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
       {
         DFTGridWorker grid(basp,lang,mang);
         grid.set_grad_tau_lapl(true,false,false);
 
-#ifdef _OPENMP
-#pragma omp for
-#endif
-        for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
-          grid.compute_bf(iel);
-          grid.eval_kinetic(T);
-        }
-#ifdef _OPENMP
-#pragma omp for
-#endif
-        for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
+        for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
           grid.compute_bf(iel);
           grid.eval_kinetic(T);
         }
