@@ -600,8 +600,12 @@ int main(int argc, char **argv) {
   printf("Nuclear electron densities\n");
   arma::vec nucdena(basis.nuclear_density(Pa));
   arma::vec nucdenb(basis.nuclear_density(Pb));
-  for(size_t i=0;i<nucdena.size();i++)
-    printf(" % .10e % .10e % .10e\n",nucdena(i),nucdenb(i),nucdena(i)+nucdenb(i));
+  for(size_t i=0;i<nucdena.size();i++) {
+    int Z = (i==0) ? Z1 : Z2;
+    if(Z==0)
+      continue;
+    printf("%-2s: % .10e % .10e % .10e\n",element_symbols[Z].c_str(),nucdena(i),nucdenb(i),nucdena(i)+nucdenb(i));
+  }
 
   // rms sizes
   std::vector<arma::mat> orba, orbb;
