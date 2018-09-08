@@ -48,4 +48,7 @@ const std::string element_symbols[]={
 /// Get nuclear charge of element
 int get_Z(std::string el);
 
+/// Get number of orbitals
+void num_orbs(int Z1, int Z2, int & sigma, int & pi, int & delta, int & phi);
+
 #endif

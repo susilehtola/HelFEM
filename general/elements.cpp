@@ -47,3 +47,36 @@ int get_Z(std::string el) {
   // Not found, return dummy charge.
   return 0;
 }
+
+static void num_orbs(int Z, int & sigma, int & pi, int & delta, int & phi) {
+  const int shellZ[]={1, 3, 5, 11, 13, 19, 21, 31, 37, 39, 49, 55, 57, 71, 81, 87, 89, 103, 113};
+  const int shellL[]={0, 0, 1,  0,  1,  0,  2,  1,  0,  2,  1,  0,  3,  2,  1,  0,  3,   2,   1};
+
+  for(size_t ii=0;ii<sizeof(shellZ)/sizeof(shellZ[0]);ii++) {
+    if(Z>=shellZ[ii]) {
+      switch(shellL[ii]) {
+      case(3):
+        phi++;
+      case(2):
+        delta++;
+      case(1):
+        pi++;
+      case(0):
+        sigma++;
+        break;
+
+      default:
+        throw std::logic_error("Unknown shell type.\n");
+      }
+    }
+  }
+}
+
+void num_orbs(int Z1, int Z2, int & sigma, int & pi, int & delta, int & phi) {
+  sigma=0;
+  pi=0;
+  delta=0;
+  phi=0;
+  num_orbs(Z1,sigma,pi,delta,phi);
+  num_orbs(Z2,sigma,pi,delta,phi);
+}
