@@ -30,9 +30,9 @@ namespace helfem {
       size_t iidx=0;
       // Loop over symmetries
       double res=0.0;
-      for(size_t i=0;i<m_idx.size();i++) {
+      for(size_t isym=0;isym<m_idx.size();isym++) {
         // Find basis vectors that belong to this symmetry
-        arma::mat Scmp(Sinvh.rows(m_idx[i]));
+        arma::mat Scmp(Sinvh.rows(m_idx[isym]));
 
         arma::vec Snrm(Scmp.n_cols);
         for(size_t i=0;i<Snrm.n_elem;i++)
@@ -49,6 +49,11 @@ namespace helfem {
         // Store solutions
         E.subvec(iidx,iidx+Esub.n_elem-1)=Esub;
         C.cols(iidx,iidx+Esub.n_elem-1)=Csub;
+
+#if 0
+        printf("Symmetry %i\n",isym);
+        Esub.t().print();
+#endif
 
         // Check residual
         if(iidx>0) {
