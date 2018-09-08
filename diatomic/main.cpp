@@ -76,14 +76,14 @@ int main(int argc, char **argv) {
   parser.add<int>("nelb", 0, "number of beta  electrons", false, 0);
   parser.add<int>("Q", 0, "charge state", false, 0);
   parser.add<int>("M", 0, "spin multiplicity", false, 0);
-  parser.add<int>("lmax", 0, "maximum l quantum number", true);
-  parser.add<int>("mmax", 0, "maximum m quantum number", true);
+  parser.add<std::string>("lmax", 0, "maximum l quantum number", true, "");
+  parser.add<int>("mmax", 0, "maximum m quantum number", false, -1);
   parser.add<int>("lpad", 0, "padding for max l for more accurate Qlm recursion", false, 10);
   parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
-  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for logarithmic", false, 4);
-  parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
+  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for logarithmic", false, 1);
+  parser.add<double>("zexp", 0, "parameter in radial grid", false, 1.0);
   parser.add<int>("nelem", 0, "number of elements", true);
-  parser.add<int>("nnodes", 0, "number of nodes per element", false, 6);
+  parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
   parser.add<int>("maxit", 0, "maximum number of iterations", false, 50);
   parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
   parser.add<int>("symmetry", 0, "force orbital symmetry", false, 1);
-  parser.add<int>("primbas", 0, "primitive radial basis", false, 3);
+  parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -121,7 +121,7 @@ int main(int argc, char **argv) {
   // Order of quadrature rule
   int Nquad(parser.get<int>("nquad"));
   // Angular grid
-  int lmax(parser.get<int>("lmax"));
+  std::string lmax(parser.get<std::string>("lmax"));
   int mmax(parser.get<int>("mmax"));
   int lpad(parser.get<int>("lpad"));
 
@@ -169,9 +169,24 @@ int main(int argc, char **argv) {
     throw std::logic_error("Insufficient radial quadrature.\n");
 
   printf("Using %i point quadrature rule.\n",Nquad);
-  printf("Angular grid spanning from l=0..%i, m=%i..%i.\n",lmax,-mmax,mmax);
 
-  diatomic::basis::TwoDBasis basis(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp, lpad);
+  arma::ivec lmmax;
+  if(mmax>=0) {
+    lmmax.ones(mmax+1);
+    lmmax*=atoi(lmax.c_str());
+  } else {
+    // Parse list of l values
+    std::vector<arma::uword> lmmaxv;
+    std::stringstream ss(lmax);
+    while( ss.good() ) {
+      std::string substr;
+      getline( ss, substr, ',' );
+      lmmaxv.push_back(atoi(substr.c_str()));
+    }
+    lmmax=arma::conv_to<arma::ivec>::from(lmmaxv);
+  }
+
+  diatomic::basis::TwoDBasis basis(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, lpad);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
 
   printf("One-electron matrix requires %s\n",scf::memory_size(basis.mem_1el()).c_str());
@@ -184,7 +199,12 @@ int main(int argc, char **argv) {
   printf("Number of electrons is %i %i\n",nela,nelb);
 
   // Collect basis function indices
-  arma::ivec mvals(arma::linspace<arma::ivec>(-mmax,mmax,2*mmax+1));
+  arma::ivec mvals;
+  {
+    arma::ivec mv(basis.get_m());
+    arma::uvec idx(arma::find_unique(mv,true));
+    mvals=mv(idx);
+  }
   std::vector<arma::uvec> midx(mvals.n_elem), mposidx(mvals.n_elem), mnegidx(mvals.n_elem);
   for(size_t i=0;i<midx.size();i++) {
     midx[i]=basis.m_indices(mvals(i));
@@ -229,16 +249,16 @@ int main(int argc, char **argv) {
       // Default value: we have 2*lmax from the bra and ket and 2 from
       // the volume element, and allow for 2*lmax from the
       // density/potential. Add in 10 more for a bit more accuracy.
-      ldft=4*lmax+12;
-    if(ldft<2*lmax+2)
+      ldft=4*arma::max(lmmax)+12;
+    if(ldft<(int) (2*arma::max(lmmax)+2))
       throw std::logic_error("Increase ldft to guarantee accuracy of quadrature!\n");
 
     if(mdft==0)
       // Default value: we have 2*mmax from the bra and ket, and allow
       // for 2*mmax from the density/potential. Add in 5 to make
       // sure quadrature is still accurate for mmax=0
-      mdft=4*mmax+5;
-    if(mdft<2*mmax)
+      mdft=4*lmmax.n_elem+5;
+    if(mdft<(int) (2*lmmax.n_elem))
       throw std::logic_error("Increase mdft to guarantee accuracy of quadrature!\n");
 
     // Form grid
@@ -649,7 +669,7 @@ int main(int argc, char **argv) {
       }
     } else {
       printf("Alpha orbitals\n");
-      printf("%2s %13s %12s %12s %12s %12s\n","io","energy","1/<r>","<r>","sqrt(<r^2>)","cbrt(<r^3>)");
+      printf("%2s %13s %12s %12s %12s %12s\n","io","energy","1/<r^-1>","<r>","sqrt(<r^2>)","cbrt(<r^3>)");
       for(int io=0;io<nela;io++) {
         printf("%2i % e %e %e %e %e\n",(int) io+1, Ea(io), 1.0/orba[io](mone,ic), orba[io](one,ic), sqrt(orba[io](two,ic)), cbrt(orba[io](three,ic)));
       }

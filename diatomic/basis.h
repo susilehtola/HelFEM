@@ -116,6 +116,7 @@ namespace helfem {
 
         /// L, |M| map
         std::vector<lmidx_t> lm_map;
+        /// L, M map
         std::vector<lmidx_t> LM_map;
         /// Auxiliary integrals, Plm
         std::vector<arma::mat> disjoint_P0, disjoint_P2;
@@ -140,14 +141,10 @@ namespace helfem {
         size_t lmind(int L, int M, bool check=true) const;
         /// Find index in (L,M) table
         size_t LMind(int L, int M, bool check=true) const;
-        /// Get L_max
-        int L_max() const;
-        /// Get M_max
-        int M_max() const;
 
       public:
         /// Constructor
-        TwoDBasis(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int lpad);
+        TwoDBasis(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, const arma::ivec & lmax, int igrid, double zexp, int lpad, bool legendre=true);
         /// Destructor
         ~TwoDBasis();
 

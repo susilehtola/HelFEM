@@ -85,8 +85,8 @@ namespace helfem {
           return bas;
       }
 
-      polynomial_basis::PolynomialBasis * RadialBasis::get_basis(const polynomial_basis::PolynomialBasis * poly, size_t iel) const {
-        polynomial_basis::PolynomialBasis *p(poly->copy());
+      polynomial_basis::PolynomialBasis * RadialBasis::get_basis(const polynomial_basis::PolynomialBasis * polynom, size_t iel) const {
+        polynomial_basis::PolynomialBasis *p(polynom->copy());
         if(iel==bval.n_elem-2) {
           // Boundary condition at infinity
           p->drop_last();
@@ -293,7 +293,7 @@ namespace helfem {
         return rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq;
       }
 
-      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rbond, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int lpad) {
+      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rbond, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, const arma::ivec & lmax, int igrid, double zexp, int lpad, bool legendre) {
         // Nuclear charge
         Z1=Z1_;
         Z2=Z2_;
@@ -302,101 +302,122 @@ namespace helfem {
         // Compute max mu value
         double mumax=utils::arcosh(rmax/Rhalf);
 
-        printf("rmax = %e yields mumax = %e\n",rmax,mumax);
+        if(legendre) printf("rmax = %e yields mumax = %e\n",rmax,mumax);
 
         // Construct radial basis
         radial=RadialBasis(poly, n_quad, num_el, mumax, igrid, zexp);
 
-        // Construct angular basis
-        size_t nang=0;
-        for(int l=0;l<=lmax;l++)
-          nang+=2*std::min(mmax,l)+1;
-
-        // Allocate memory
-        lval.zeros(nang);
-        mval.zeros(nang);
-
         // Store values
-        size_t iang=0;
-        for(int mabs=0;mabs<=mmax;mabs++)
-          for(int l=mabs;l<=lmax;l++) {
-            lval(iang)=l;
-            mval(iang)=mabs;
-            iang++;
-          }
-        for(int mabs=1;mabs<=mmax;mabs++)
-          for(int l=mabs;l<=lmax;l++) {
-            lval(iang)=l;
-            mval(iang)=-mabs;
-            iang++;
-          }
-        if(iang!=lval.n_elem)
-          throw std::logic_error("Error.\n");
+        {
+          std::vector<arma::sword> lv, mv;
+          for(size_t mabs=0;mabs<lmax.n_elem;mabs++)
+            for(arma::sword l=mabs;l<=lmax(mabs);l++) {
+              lv.push_back(l);
+              mv.push_back(mabs);
+              if(mabs>0) {
+                lv.push_back(l);
+                mv.push_back(-mabs);
+              }
+            }
+          lval=arma::conv_to<arma::ivec>::from(lv);
+          mval=arma::conv_to<arma::ivec>::from(mv);
+        }
 
-        arma::imat bang(lval.n_elem,2);
-        bang.col(0)=lval;
-        bang.col(1)=mval;
-        bang.print("Angular basis");
+        if(legendre) {
+          arma::imat bang(lval.n_elem,2);
+          bang.col(0)=lval;
+          bang.col(1)=mval;
+          bang.print("Angular basis");
+        }
 
         // Gaunt coefficients
-        int gmax(std::max(lmax,mmax));
-        int Lmax(L_max());
-        int Mmax(M_max());
-
-        // One-electron matrices need gmax,3,gmax
-        // Two-electron matrices need Lmax+2,Lmax,Lmax+2
-        int lrval(std::max(Lmax+2,gmax));
-        int mval(std::max(Lmax,3));
-
-        Timer t;
-        printf("Computing Gaunt coefficients ... ");
-        fflush(stdout);
-        gaunt=gaunt::Gaunt(lrval,Mmax,mval,Mmax,lrval,Mmax);
-        printf("done (% .3f s)\n",t.get());
-        fflush(stdout);
+        int gmax(arma::max(lmax)+2);
 
         // Legendre function values
-        t.set();
-        printf("Computing Legendre function values ... ");
-        fflush(stdout);
+        if(legendre) {
+          int Lmax=0;
+          int Mmax=0;
 
-        // Fill table with necessary values
-        legtab=legendretable::LegendreTable(L_max()+lpad,L_max(),M_max());
-        arma::vec chmu(radial.get_chmu_quad());
-        for(size_t i=0;i<chmu.n_elem;i++)
-          legtab.compute(chmu(i));
-        printf("done (% .3f s)\n",t.get());
-        fflush(stdout);
+          // Form L|M| and LM maps
+          lm_map.clear();
+          LM_map.clear();
+          for(size_t iang=0;iang<lval.n_elem;iang++) {
+            for(size_t jang=0;jang<lval.n_elem;jang++) {
+              // l and m values
+              int li(lval(iang));
+              int mi(mval(iang));
+              int lj(lval(jang));
+              int mj(mval(jang));
+              // LH m value
+              int M(mj-mi);
 
-        // Form lm map
-        lm_map.clear();
-        for(int L=0;L<=L_max();L++)
-          for(int M=0;M<=std::min(M_max(),L);M++) { // m=-mmax and M=2*mmax can still couple to m'=mmax
-            lmidx_t p;
-            p.first=L;
-            p.second=M;
+              int Lstart=std::max(std::abs(lj-li)-2,abs(M));
+              int Lend=lj+li+2;
+              for(int L=Lstart;L<=Lend;L++) {
+                lmidx_t p;
+                p.first=L;
 
-            if(!lm_map.size())
-              lm_map.push_back(p);
-            else
-              // Insert at lower bound
-              lm_map.insert(lm_map.begin()+lmind(L,M,false),p);
+                // Check maxima
+                Lmax=std::max(Lmax,L);
+                Mmax=std::max(Mmax,std::abs(M));
+
+                // L|M|
+                p.second=std::abs(M);
+                if(!lm_map.size())
+                  lm_map.push_back(p);
+                else {
+                  size_t idx=lmind(L,M,false);
+                  if(!(lm_map[idx]==p))
+                    // Insert at lower bound
+                    lm_map.insert(lm_map.begin()+idx,p);
+                }
+
+                // LM
+                p.second=M;
+                if(!LM_map.size())
+                  LM_map.push_back(p);
+                else {
+                  size_t idx=LMind(L,M,false);
+                  if(!(LM_map[idx]==p))
+                    // Insert at lower bound
+                    LM_map.insert(LM_map.begin()+idx,p);
+                }
+              }
+            }
           }
 
-        // Form LM map
-        LM_map.clear();
-        for(int L=0;L<=L_max();L++)
-          for(int M=-std::min(M_max(),L);M<=std::min(M_max(),L);M++) {
-            lmidx_t p;
-            p.first=L;
-            p.second=M;
+          // One-electron matrices need gmax,5,gmax
+          // Two-electron matrices need Lmax+2,Lmax,Lmax+2
+          int lrval(std::max(Lmax+2,gmax));
+          int midval(std::max(Lmax,5));
 
-            if(!LM_map.size())
-              LM_map.push_back(p);
-            else
-              // Insert at lower bound
-              LM_map.insert(LM_map.begin()+LMind(L,M,false),p);
-          }
+          Timer t;
+          printf("Computing Gaunt coefficients ... ");
+          fflush(stdout);
+          gaunt=gaunt::Gaunt(lrval,Mmax,midval,Mmax,lrval,Mmax);
+          printf("done (% .3f s)\n",t.get());
+          fflush(stdout);
+
+          t.set();
+          printf("Computing Legendre function values ... ");
+          fflush(stdout);
+
+          // Fill table with necessary values
+          legtab=legendretable::LegendreTable(Lmax+lpad,Lmax,Mmax);
+          arma::vec chmu(radial.get_chmu_quad());
+          for(size_t i=0;i<chmu.n_elem;i++)
+            legtab.compute(chmu(i));
+          printf("done (% .3f s)\n",t.get());
+          fflush(stdout);
+
+        } else {
+          // One-electron matrices need gmax,5,gmax
+          int lrval(gmax);
+          int midval(5);
+          int Mmax=arma::max(mval)-arma::min(mval);
+
+          gaunt=gaunt::Gaunt(lrval,Mmax,midval,Mmax,lrval,Mmax);
+        }
       }
 
       TwoDBasis::~TwoDBasis() {
@@ -513,7 +534,7 @@ namespace helfem {
         } else if(symm==1) {
           // Find unique m values
           arma::uvec muni(arma::find_unique(mval));
-          arma::ivec mv(mval(muni));
+          arma::ivec mv(arma::sort(mval(muni),"ascend"));
 
           idx.resize(mv.n_elem);
           for(size_t i=0;i<mv.n_elem;i++)
@@ -521,7 +542,7 @@ namespace helfem {
         } else if(symm==2) {
           // Find unique m values
           arma::uvec muni(arma::find_unique(mval));
-          arma::ivec mv(mval(muni));
+          arma::ivec mv(arma::sort(mval(muni),"ascend"));
 
           idx.resize(2*mv.n_elem);
           for(size_t i=0;i<mv.n_elem;i++) {
@@ -1003,16 +1024,6 @@ namespace helfem {
 
       bool operator==(const lmidx_t & lh, const lmidx_t & rh) {
         return (lh.first == rh.first) && (lh.second == rh.second);
-      }
-
-      int TwoDBasis::L_max() const {
-        // l=lmax and L=2*lmax+2 can still couple to l'=lmax through the cos^2 term
-        return 2*arma::max(lval)+2;
-      }
-
-      int TwoDBasis::M_max() const {
-        // Maximum M value is
-        return arma::max(mval)-arma::min(mval);
       }
 
       size_t TwoDBasis::mem_1el() const {
