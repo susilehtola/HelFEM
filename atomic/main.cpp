@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
   parser.add<int>("nelem0", 0, "number of elements between center and off-center nuclei", false, 0);
   parser.add<int>("nelem", 0, "number of elements", true);
-  parser.add<int>("nnodes", 0, "number of nodes per element", false, 6);
+  parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
   parser.add<int>("maxit", 0, "maximum number of iterations", false, 50);
   parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
   parser.add<int>("symmetry", 0, "force orbital symmetry", false, 1);
-  parser.add<int>("primbas", 0, "primitive radial basis", false, 3);
+  parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -597,7 +597,7 @@ int main(int argc, char **argv) {
 
   printf("\nOccupied orbital analysis:\n");
   printf("Alpha orbitals\n");
-  printf("%2s %13s %12s %12s %12s %12s\n","io","energy","1/<r>","<r>","sqrt(<r^2>)","cbrt(<r^3>)");
+  printf("%2s %13s %12s %12s %12s %12s\n","io","energy","1/<r^-1>","<r>","sqrt(<r^2>)","cbrt(<r^3>)");
   for(int io=0;io<nela;io++) {
     printf("%2i % e %e %e %e %e\n",(int) io+1, Ea(io), rinva(io), ra(io), rmsa(io), rcba(io));
   }
