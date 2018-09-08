@@ -184,8 +184,8 @@ namespace helfem {
           return bas;
       }
 
-      polynomial_basis::PolynomialBasis * RadialBasis::get_basis(const polynomial_basis::PolynomialBasis * poly, size_t iel) const {
-        polynomial_basis::PolynomialBasis *p(poly->copy());
+      polynomial_basis::PolynomialBasis * RadialBasis::get_basis(const polynomial_basis::PolynomialBasis * polynom, size_t iel) const {
+        polynomial_basis::PolynomialBasis *p(polynom->copy());
 
         if(iel==0 && iel==bval.n_elem-2) {
           // Boundary condition both at r=0 and at r=infinity
@@ -362,12 +362,12 @@ namespace helfem {
         // Evaluate derivative at nucleus
         double rlen((bval(1)-bval(0))/2);
 
-        arma::mat bf, df;
-        poly->eval(x,bf,df);
-        df=(get_basis(df,0)/rlen);
+        arma::mat func, der;
+        poly->eval(x,func,der);
+        der=(get_basis(der,0)/rlen);
 
         // P_uv B_u'(0) B_v'(0)
-        double den(arma::as_scalar(df*P*arma::trans(df)));
+        double den(arma::as_scalar(der*P*arma::trans(der)));
 
         return den;
       }
