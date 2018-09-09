@@ -149,7 +149,7 @@ namespace helfem {
         bfprod.col(i)%=wp;
 
       // Integrals are then
-      arma::mat ints(4.0*M_PI/(2*L+1)*arma::trans(bfprod)*inner);
+      arma::mat ints(arma::trans(bfprod)*inner);
       // but we are still missing the second term which can be
       // obtained as simply as
       ints+=arma::trans(ints);

@@ -903,15 +903,12 @@ namespace helfem {
 
             /*
               for(size_t jel=0;jel<Nel;jel++) {
-	      // Normalization factor
-	      double Lfac=4.0*M_PI/(2*L+1);
-
 	      // Disjoint integrals. When r(iel)>r(jel), iel gets -1-L, jel gets L.
 	      const arma::mat & iint=(iel>jel) ? disjoint_m1L[L*Nel+iel] : disjoint_L[L*Nel+iel];
 	      const arma::mat & jint=(iel>jel) ? disjoint_L[L*Nel+jel] : disjoint_m1L[L*Nel+jel];
 
 	      // Store integrals
-	      prim_tei[Nel*Nel*L + iel*Nel + jel]=utils::product_tei(Lfac*iint,jint);
+	      prim_tei[Nel*Nel*L + iel*Nel + jel]=utils::product_tei(iint,jint);
               }
               }
             */
@@ -1092,7 +1089,7 @@ namespace helfem {
                       Psub.reshape(Nj*Nj,1);
 
                       const size_t idx(Nel*Nel*L + iel*Nel + jel);
-                      Jsub+=cpl*(prim_tei[idx]*Psub);
+                      Jsub+=Lfac*cpl*(prim_tei[idx]*Psub);
                       Jsub.reshape(Ni,Ni);
 
                       // Increment global Coulomb matrix
@@ -1136,6 +1133,7 @@ namespace helfem {
 #endif
         std::vector<arma::vec> mem_Ksub(nth);
         std::vector<arma::vec> mem_Psub(nth);
+        std::vector<arma::vec> mem_T(nth);
 
 #ifdef _OPENMP
 #pragma omp parallel
@@ -1149,6 +1147,7 @@ namespace helfem {
           // These are only small submatrices!
           mem_Psub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
           mem_Ksub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
+          mem_T[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
 
           // Increment
 #ifdef _OPENMP
@@ -1162,6 +1161,16 @@ namespace helfem {
               int lk(lval(kang));
               int mk(mval(kang));
 
+              // Form radial helpers
+              size_t N_L(2*arma::max(lval)+1);
+              std::vector<arma::mat> Rmat(N_L);
+              for(size_t i=0;i<N_L;i++) {
+                Rmat[i].zeros(Nrad,Nrad);
+              }
+              // Is there a coupling to the channel?
+              std::vector<bool> couple(N_L,false);
+
+              // Perform angular sums
               for(size_t iang=0;iang<lval.n_elem;iang++) {
                 int li(lval(iang));
                 int mi(mval(iang));
@@ -1190,75 +1199,87 @@ namespace helfem {
                   for(int L=Lmin;L<=Lmax;L++) {
                     // Calculate total coupling coefficient
                     double cpl(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
+                    if(cpl==0.0)
+                      continue;
 
-                    if(cpl!=0.0) {
-                      // Loop over elements: output
-                      for(size_t iel=0;iel<Nel;iel++) {
-                        size_t ifirst, ilast;
-                        radial.get_idx(iel,ifirst,ilast);
+                    // L factor
+                    double Lfac=4.0*M_PI/(2*L+1);
+                    Rmat[L]+=(Lfac*cpl)*P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1);
+                    couple[L]=true;
+                  }
+                }
+              }
 
-                        // Input
-                        for(size_t jel=0;jel<Nel;jel++) {
-                          size_t jfirst, jlast;
-                          radial.get_idx(jel,jfirst,jlast);
+              // Loop over elements: output
+              for(size_t iel=0;iel<Nel;iel++) {
+                size_t ifirst, ilast;
+                radial.get_idx(iel,ifirst,ilast);
 
-                          // Number of functions in the two elements
-                          size_t Ni(ilast-ifirst+1);
-                          size_t Nj(jlast-jfirst+1);
+                // Input
+                for(size_t jel=0;jel<Nel;jel++) {
+                  size_t jfirst, jlast;
+                  radial.get_idx(jel,jfirst,jlast);
 
-                          if(iel == jel) {
-                            /*
-                              The exchange matrix is given by
-                              K(jk) = (ij|kl) P(il)
-                              i.e. the complex conjugation hits i and l as
-                              in the density matrix.
+                  // Number of functions in the two elements
+                  size_t Ni(ilast-ifirst+1);
+                  size_t Nj(jlast-jfirst+1);
 
-                              To get this in the proper order, we permute the integrals
-                              K(jk) = (jk;il) P(il)
-                            */
+                  if(iel == jel) {
+                    /*
+                      The exchange matrix is given by
+                      K(jk) = (ij|kl) P(il)
+                      i.e. the complex conjugation hits i and l as
+                      in the density matrix.
 
-                            // Get density submatrix
-                            arma::vec Psub(mem_Psub[ith].memptr(),Ni*Nj,false,true);
-                            Psub=arma::vectorise(P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast));
+                      To get this in the proper order, we permute the integrals
+                      K(jk) = (jk;il) P(il)
+                    */
 
-                            // Don't calculate zeros
-                            if(arma::norm(Psub,2)==0.0)
-                              continue;
+                    // Exchange submatrix
+                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni*Nj,1,false,true);
+                    Ksub.zeros();
 
-                            // Exchange submatrix
-                            arma::mat Ksub(mem_Ksub[ith].memptr(),Ni*Nj,1,false,true);
-                            Ksub=cpl*(prim_ktei[Nel*Nel*L + iel*Nel + jel]*Psub);
-                            Ksub.reshape(Ni,Nj);
-
-                            // Increment global exchange matrix
-                            K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
-
-                            //arma::vec Ptgt(arma::vectorise(P.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)));
-                            //printf("(%i %i) (%i %i) (%i %i) (%i %i) [%i %i]\n",li,mi,lj,mj,lk,mk,ll,ml,L,M);
-                            //printf("Element %i - %i contribution to exchange energy % .10e\n",(int) iel,(int) jel,-0.5*arma::dot(Ksub,Ptgt));
-
-                          } else {
-                            // Disjoint integrals. When r(iel)>r(jel), iel gets -1-L, jel gets L.
-                            const arma::mat & iint=(iel>jel) ? disjoint_m1L[L*Nel+iel] : disjoint_L[L*Nel+iel];
-                            const arma::mat & jint=(iel>jel) ? disjoint_L[L*Nel+jel] : disjoint_m1L[L*Nel+jel];
-
-                            double Lfac=4.0*M_PI/(2*L+1);
-
-                            // Get density submatrix (Niel x Njel)
-                            arma::mat Psub(mem_Psub[ith].memptr(),Ni,Nj,false,true);
-                            Psub=P.submat(iang*Nrad+ifirst,lang*Nrad+jfirst,iang*Nrad+ilast,lang*Nrad+jlast);
-
-                            // Calculate helper
-                            arma::mat T(mem_Ksub[ith].memptr(),Ni*Nj,1,false,true);
-                            // (Niel x Njel) = (Niel x Njel) x (Njel x Njel)
-                            T=Psub*arma::trans(jint);
-
-                            // Increment global exchange matrix
-                            K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=cpl*Lfac*iint*T;
-                          }
-                        }
-                      }
+                    for(size_t L=0;L<N_L;L++) {
+                      if(!couple[L])
+                        continue;
+                      Ksub+=prim_ktei[Nel*Nel*L + iel*Nel + jel]*arma::vectorise(Rmat[L].submat(ifirst,jfirst,ilast,jlast));
                     }
+                    Ksub.reshape(Ni,Nj);
+
+                    // Increment global exchange matrix
+                    K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
+
+                    //arma::vec Ptgt(arma::vectorise(P.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)));
+                    //printf("(%i %i) (%i %i) (%i %i) (%i %i) [%i %i]\n",li,mi,lj,mj,lk,mk,ll,ml,L,M);
+                    //printf("Element %i - %i contribution to exchange energy % .10e\n",(int) iel,(int) jel,-0.5*arma::dot(Ksub,Ptgt));
+
+                  } else {
+                    // Exchange submatrix
+                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni,Nj,false,true);
+                    Ksub.zeros();
+
+                    for(size_t L=0;L<N_L;L++) {
+                      if(!couple[L])
+                        continue;
+
+                      // Disjoint integrals. When r(iel)>r(jel), iel gets -1-L, jel gets L.
+                      const arma::mat & iint=(iel>jel) ? disjoint_m1L[L*Nel+iel] : disjoint_L[L*Nel+iel];
+                      const arma::mat & jint=(iel>jel) ? disjoint_L[L*Nel+jel] : disjoint_m1L[L*Nel+jel];
+
+                      // Get density submatrix (Niel x Njel)
+                      arma::mat Psub(mem_Psub[ith].memptr(),Ni,Nj,false,true);
+                      Psub=Rmat[L].submat(ifirst,jfirst,ilast,jlast);
+
+                      // Calculate helper
+                      arma::mat T(mem_T[ith].memptr(),Ni,Nj,false,true);
+                      // (Niel x Njel) = (Niel x Njel) x (Njel x Njel)
+                      T=Psub*arma::trans(jint);
+
+                      // Increment
+                      Ksub+=iint*T;
+                    }
+
+                    K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
                   }
                 }
               }
