@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
   parser.add<double>("Ez", 0, "electric dipole field", false, 0.0);
   parser.add<double>("Qzz", 0, "electric quadrupole field", false, 0.0);
   parser.add<int>("thresh", 0, "convergence threshold, 10 corresponds to 1e-10", false, 10);
-  parser.add<int>("nadd", 0, "number of funcs to add", false, 1);
+  parser.add<int>("nadd", 0, "number of funcs to add", false, 2);
   parser.parse_check(argc, argv);
 
   // Get parameters
