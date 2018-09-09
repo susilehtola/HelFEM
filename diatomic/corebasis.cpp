@@ -83,6 +83,9 @@ int main(int argc, char **argv) {
   int nadd(parser.get<int>("nadd"));
   int thresh(parser.get<int>("thresh"));
 
+  if(nadd%2)
+    printf("WARNING - Adding an odd number of functions at a time does not give a balanced description of gerade/ungerade orbitals and may give wrong results.\n");
+
   // Nuclear charge
   int Z1(get_Z(parser.get<std::string>("Z1")));
   int Z2(get_Z(parser.get<std::string>("Z2")));
