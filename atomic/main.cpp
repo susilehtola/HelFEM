@@ -77,6 +77,9 @@ int main(int argc, char **argv) {
   parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
   parser.add<int>("symmetry", 0, "force orbital symmetry", false, 1);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
+  parser.add<double>("diiseps", 0, "when to start mixing in diis", false, 1e-2);
+  parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
+  parser.add<int>("diisorder", 0, "length of diis history", false, 5);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -121,6 +124,10 @@ int main(int argc, char **argv) {
   int nelb(parser.get<int>("nelb"));
   int Q(parser.get<int>("Q"));
   int M(parser.get<int>("M"));
+
+  double diiseps=parser.get<double>("diiseps");
+  double diisthr=parser.get<double>("diisthr");
+  int diisorder=parser.get<int>("diisorder");
 
   std::string method(parser.get<std::string>("method"));
 
@@ -351,10 +358,8 @@ int main(int argc, char **argv) {
   double Ekin, Epot, Ecoul, Exx, Exc, Efield, Etot;
   double Eold=0.0;
 
-  double diiseps=1e-2, diisthr=1e-3;
   bool usediis=true, useadiis=true;
   bool diis_c1=false;
-  int diisorder=5;
   uDIIS diis(S,Sinvh,usediis,diis_c1,diiseps,diisthr,useadiis,true,diisorder);
   double diiserr;
 
