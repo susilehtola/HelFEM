@@ -100,6 +100,7 @@ int main(int argc, char **argv) {
   parser.add<double>("diiseps", 0, "when to start mixing in diis", false, 1e-2);
   parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
   parser.add<int>("diisorder", 0, "length of diis history", false, 5);
+  parser.add<bool>("readocc", 0, "read occupations from file", false, false);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -148,6 +149,16 @@ int main(int argc, char **argv) {
   int diisorder=parser.get<int>("diisorder");
 
   std::string method(parser.get<std::string>("method"));
+
+  // Read occupations from file?
+  bool readocc=parser.get<bool>("readocc");
+  arma::imat occs;
+  if(readocc) {
+    occs.load("occs.dat",arma::raw_ascii);
+    if(occs.n_cols != 3) {
+      throw std::logic_error("Must have three columns in occupation data.\n");
+    }
+  }
 
   if(parser.get<bool>("angstrom")) {
     // Convert to atomic units
@@ -231,6 +242,33 @@ int main(int argc, char **argv) {
   }
   if(symm)
     dsym=basis.get_sym_idx(symm);
+
+  // Forced occupations?
+  arma::ivec occnuma, occnumb;
+  std::vector<arma::uvec> occsym;
+  if(readocc) {
+    // Number of occupied alpha orbitals is first column
+    occnuma=occs.col(0);
+    // Number of occupied beta orbitals is second column
+    occnumb=occs.col(1);
+    // m value is third column
+    for(size_t i=0;i<occs.n_rows;i++)
+      occsym.push_back(basis.m_indices(occs(i,2)));
+
+    // Check consistency of values
+    if(arma::sum(occnuma) != nela) {
+      std::ostringstream oss;
+      oss << "Specified alpha occupations don't match wanted spin state.\n";
+      oss << "Occupying " << arma::sum(occnuma) << " orbitals but should have " << nela << " orbitals.\n";
+      throw std::logic_error(oss.str());
+    }
+    if(arma::sum(occnumb) != nelb) {
+      std::ostringstream oss;
+      oss << "Specified alpha occupations don't match wanted spin state.\n";
+      oss << "Occupying " << arma::sum(occnumb) << " orbitals but should have " << nelb << " orbitals.\n";
+      throw std::logic_error(oss.str());
+    }
+  }
 
   // Functional
   int x_func, c_func;
@@ -351,20 +389,34 @@ int main(int argc, char **argv) {
   timer.set();
   {
     // Use core guess
+    arma::vec E;
     arma::mat C;
     if(symm)
-      scf::eig_gsym_sub(Ea,C,H0,Sinvh,dsym);
+      scf::eig_gsym_sub(E,C,H0,Sinvh,dsym);
     else
-      scf::eig_gsym(Ea,C,H0,Sinvh);
-    Caocc=C.cols(0,nela-1);
+      scf::eig_gsym(E,C,H0,Sinvh);
+
+    Ea=E;
+    arma::mat Ca(C);
+    Eb=E;
+    arma::mat Cb(C);
+
+    // Enforce occupation according to specified symmetry
+    if(readocc) {
+      scf::enforce_occupations(Ca,Ea,occnuma,occsym);
+      scf::enforce_occupations(Cb,Eb,occnumb,occsym);
+    }
+
+    // Alpha orbitals
+    Caocc=Ca.cols(0,nela-1);
     if(C.n_cols>(size_t) nela)
-      Cavirt=C.cols(nela,C.n_cols-1);
+      Cavirt=Ca.cols(nela,C.n_cols-1);
 
     // Beta guess
     if(nelb)
-      Cbocc=Caocc.cols(0,nelb-1);
-    Cbvirt = (nelb<nela) ? arma::join_rows(Caocc.cols(nelb,nela-1),Cavirt) : Cavirt;
-    Eb=Ea;
+      Cbocc=Cb.cols(0,nelb-1);
+    if(C.n_cols>(size_t) nelb)
+      Cbvirt=Cb.cols(nelb,C.n_cols-1);
 
     Ea.subvec(0,nena-1).t().print("Alpha orbital energies");
     Eb.subvec(0,nenb-1).t().print("Beta  orbital energies");
@@ -557,6 +609,11 @@ int main(int argc, char **argv) {
       scf::eig_gsym_sub(Ea,Ca,Fa,Sinvh,dsym);
     else
       scf::eig_gsym(Ea,Ca,Fa,Sinvh);
+    // Enforce occupation according to specified symmetry
+    if(readocc) {
+      scf::enforce_occupations(Ca,Ea,occnuma,occsym);
+    }
+
     if(restr && nela==nelb) {
       Eb=Ea;
       Cb=Ca;
@@ -566,6 +623,11 @@ int main(int argc, char **argv) {
       else
         scf::eig_gsym(Eb,Cb,Fb,Sinvh);
     }
+    // Enforce occupation according to specified symmetry
+    if(readocc) {
+      scf::enforce_occupations(Cb,Eb,occnumb,occsym);
+    }
+
     Caocc=Ca.cols(0,nela-1);
     if(Ca.n_cols>(size_t) nela)
       Cavirt=Ca.cols(nela,Ca.n_cols-1);

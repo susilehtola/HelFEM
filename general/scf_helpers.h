@@ -6,6 +6,9 @@ namespace helfem {
   namespace scf {
     /// Form density matrix
     arma::mat form_density(const arma::mat & C, size_t nocc);
+    /// Enforce occupation of wanted symmetries
+    void enforce_occupations(arma::mat & C, arma::vec & E, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx);
+
     /// Solve generalized eigenvalue problem
     void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh);
     /// Solve generalized eigenvalue problem in subspaces

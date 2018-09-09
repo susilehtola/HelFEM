@@ -12,6 +12,68 @@ namespace helfem {
         return arma::zeros<arma::mat>(C.n_rows,C.n_rows);
     }
 
+    void enforce_occupations(arma::mat & C, arma::vec & E, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx) {
+      if(nocc.n_elem != m_idx.size())
+        throw std::logic_error("nocc vector and symmetry indices don't match!\n");
+
+      // Indices of occupied orbitals
+      std::vector<arma::uword> occidx;
+
+      // Loop over symmetries
+      for(size_t isym=0;isym<m_idx.size();isym++) {
+        // Check for occupation
+        if(!nocc(isym))
+          continue;
+
+        // Find basis vectors that belong to this symmetry
+        arma::mat Ccmp(C.rows(m_idx[isym]));
+
+        arma::vec Cnrm(Ccmp.n_cols);
+        for(size_t i=0;i<Cnrm.n_elem;i++)
+          Cnrm(i)=arma::norm(Ccmp.col(i),"fro");
+
+        // Column indices of C that have non-zero elements
+        arma::uvec Cind(arma::find(Cnrm));
+
+        // Add to list of occupied orbitals
+        for(size_t io=0;io<nocc(isym);io++)
+          occidx.push_back(Cind(io));
+      }
+
+      // Sort list
+      std::sort(occidx.begin(),occidx.end());
+
+      // Add in the rest of the orbitals
+      std::vector<arma::uword> virtidx;
+      for(arma::uword i=0;i<C.n_cols;i++) {
+        bool found=false;
+        for(size_t j=0;j<occidx.size();j++)
+          if(occidx[j]==i) {
+            found=true;
+            break;
+          }
+        if(!found)
+          virtidx.push_back(i);
+      }
+
+      // Make sure orbital energies are in order
+      arma::uvec occorder(arma::conv_to<arma::uvec>::from(occidx));
+      arma::vec Eocc(E(occorder));
+      arma::uvec occsort(arma::sort_index(Eocc,"ascend"));
+      occorder=occorder(occsort);
+
+      arma::uvec virtorder(arma::conv_to<arma::uvec>::from(virtidx));
+      arma::vec Evirt(E(virtorder));
+      arma::uvec virtsort(arma::sort_index(Evirt,"ascend"));
+      virtorder=virtorder(virtsort);
+
+      arma::uvec newidx(occorder.n_elem+virtorder.n_elem);
+      newidx.subvec(0,occorder.n_elem-1)=occorder;
+      newidx.subvec(occorder.n_elem,newidx.n_elem-1)=virtorder;
+      C=C.cols(newidx);
+      E=E(newidx);
+    }
+
     void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh) {
       // Form matrix in orthonormal basis
       arma::mat Forth(Sinvh.t()*F*Sinvh);
