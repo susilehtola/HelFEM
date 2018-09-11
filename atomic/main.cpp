@@ -190,7 +190,7 @@ int main(int argc, char **argv) {
 
   // Symmetry indices
   std::vector<arma::uvec> dsym;
-  if(symm==2 && Ez!=0.0) {
+  if(symm==2 && (Ez!=0.0 || Qzz!=0.0)) {
     printf("Warning - asked for full orbital symmetry in presence of electric field. Relaxing restriction.\n");
     symm=1;
   }
@@ -208,6 +208,9 @@ int main(int argc, char **argv) {
   arma::ivec occnuma, occnumb;
   std::vector<arma::uvec> occsym;
   if(readocc) {
+    if(symm!=2)
+      throw std::logic_error("To enable forced occupation numbers you need to switch to full symmetry.\n");
+
     // Number of occupied alpha orbitals is first column
     occnuma=occs.col(0);
     // Number of occupied beta orbitals is second column

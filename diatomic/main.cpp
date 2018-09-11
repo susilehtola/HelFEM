@@ -156,8 +156,8 @@ int main(int argc, char **argv) {
   arma::imat occs;
   if(readocc) {
     occs.load("occs.dat",arma::raw_ascii);
-    if(occs.n_cols != 3) {
-      throw std::logic_error("Must have three columns in occupation data.\n");
+    if(occs.n_cols < 3) {
+      throw std::logic_error("Must have at least three columns in occupation data.\n");
     }
   }
 
@@ -252,9 +252,30 @@ int main(int argc, char **argv) {
     occnuma=occs.col(0);
     // Number of occupied beta orbitals is second column
     occnumb=occs.col(1);
-    // m value is third column
-    for(size_t i=0;i<occs.n_rows;i++)
-      occsym.push_back(basis.m_indices(occs(i,2)));
+
+    // Heteronuclear molecule?
+    if(Z1 != Z2 && occs.n_cols != 3)
+      throw std::logic_error("Heteronuclear molecule orbital occupations must have three columns.\n");
+    if(Z1 == Z2 && (occs.n_cols != 3) && (occs.n_cols != 4))
+      throw std::logic_error("Homonuclear molecule orbital occupations must have three or four columns.\n");
+
+    if(occs.n_cols == 3) {
+      // m value is third column
+      for(size_t i=0;i<occs.n_rows;i++)
+        occsym.push_back(basis.m_indices(occs(i,2)));
+    } else if(occs.n_cols == 4) {
+      if(symm!=2)
+        throw std::logic_error("For use of homonuclear orbital occupations, must turn on use of full symmetry.\n");
+      // m value is third column, parity is fourth column
+      for(size_t i=0;i<occs.n_rows;i++) {
+        if(occs(i,3)!=1 && occs(i,3)!=-1) {
+          std::ostringstream oss;
+          oss << "Error on line " << i+1 << " of orbital occupations: parity must be +1 or -1\n";
+          throw std::logic_error(oss.str());
+        }
+        occsym.push_back(basis.m_indices(occs(i,2),(occs(i,3)==-1)));
+      }
+    }
 
     // Check consistency of values
     if(arma::sum(occnuma) != nela) {
