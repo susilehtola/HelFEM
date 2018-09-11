@@ -1035,7 +1035,7 @@ namespace helfem {
               // LH m value
               int M(mj-mi);
 
-              int Lmin=std::max(std::abs(lj-li)-2,abs(M));
+              int Lmin=std::max(std::abs(lj-li),abs(M));
               int Lmax=lj+li;
               for(int L=Lmin;L<=Lmax;L++) {
                 const double Lfac=4.0*M_PI/(2*L+1);
