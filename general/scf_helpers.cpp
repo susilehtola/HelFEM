@@ -36,7 +36,7 @@ namespace helfem {
         arma::uvec Cind(arma::find(Cnrm));
 
         // Add to list of occupied orbitals
-        for(size_t io=0;io<nocc(isym);io++)
+        for(arma::sword io=0;io<nocc(isym);io++)
           occidx.push_back(Cind(io));
       }
 
