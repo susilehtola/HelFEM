@@ -10,8 +10,6 @@
 #include "dftgrid.h"
 #include <cfloat>
 
-//#define SPARSE
-
 using namespace helfem;
 
 void classify_orbitals(const arma::mat & C, const arma::ivec & lvals, const arma::ivec & mvals, const std::vector<arma::uvec> & lmidx) {
@@ -80,6 +78,7 @@ int main(int argc, char **argv) {
   parser.add<double>("diiseps", 0, "when to start mixing in diis", false, 1e-2);
   parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
   parser.add<int>("diisorder", 0, "length of diis history", false, 5);
+  parser.add<int>("readocc", 0, "read occupations from file, use until nth build", false, 0);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -130,6 +129,18 @@ int main(int argc, char **argv) {
   int diisorder=parser.get<int>("diisorder");
 
   std::string method(parser.get<std::string>("method"));
+
+  // Read occupations from file?
+  int readocc=parser.get<int>("readocc");
+  if(readocc<0)
+    readocc=INT_MAX;
+  arma::imat occs;
+  if(readocc) {
+    occs.load("occs.dat",arma::raw_ascii);
+    if(occs.n_cols != 4) {
+      throw std::logic_error("Must have four columns in occupation data.\n");
+    }
+  }
 
   if(parser.get<bool>("angstrom")) {
     // Convert to atomic units
@@ -192,6 +203,33 @@ int main(int argc, char **argv) {
   std::vector<arma::uvec> lmidx(lvals.n_elem);
   for(size_t i=0;i<lmidx.size();i++)
     lmidx[i]=basis.lm_indices(lvals(i),mvals(i));
+
+  // Forced occupations?
+  arma::ivec occnuma, occnumb;
+  std::vector<arma::uvec> occsym;
+  if(readocc) {
+    // Number of occupied alpha orbitals is first column
+    occnuma=occs.col(0);
+    // Number of occupied beta orbitals is second column
+    occnumb=occs.col(1);
+    // l and m values are third and fourth column
+    for(size_t i=0;i<occs.n_rows;i++)
+      occsym.push_back(basis.lm_indices(occs(i,2),occs(i,3)));
+
+    // Check consistency of values
+    if(arma::sum(occnuma) != nela) {
+      std::ostringstream oss;
+      oss << "Specified alpha occupations don't match wanted spin state.\n";
+      oss << "Occupying " << arma::sum(occnuma) << " orbitals but should have " << nela << " orbitals.\n";
+      throw std::logic_error(oss.str());
+    }
+    if(arma::sum(occnumb) != nelb) {
+      std::ostringstream oss;
+      oss << "Specified alpha occupations don't match wanted spin state.\n";
+      oss << "Occupying " << arma::sum(occnumb) << " orbitals but should have " << nelb << " orbitals.\n";
+      throw std::logic_error(oss.str());
+    }
+  }
 
   // Functional
   int x_func, c_func;
@@ -318,21 +356,35 @@ int main(int argc, char **argv) {
   // Guess orbitals
   timer.set();
   {
-    // Proceed by solving eigenvectors of core Hamiltonian with subspace iterations
+    // Use core guess
+    arma::vec E;
     arma::mat C;
     if(symm)
-      scf::eig_gsym_sub(Ea,C,H0,Sinvh,dsym);
+      scf::eig_gsym_sub(E,C,H0,Sinvh,dsym);
     else
-      scf::eig_gsym(Ea,C,H0,Sinvh);
-    Caocc=C.cols(0,nela-1);
-    if(C.n_cols>Caocc.n_cols)
-      Cavirt=C.cols(nela,C.n_cols-1);
+      scf::eig_gsym(E,C,H0,Sinvh);
+
+    Ea=E;
+    arma::mat Ca(C);
+    Eb=E;
+    arma::mat Cb(C);
+
+    // Enforce occupation according to specified symmetry
+    if(readocc) {
+      scf::enforce_occupations(Ca,Ea,occnuma,occsym);
+      scf::enforce_occupations(Cb,Eb,occnumb,occsym);
+    }
+
+    // Alpha orbitals
+    Caocc=Ca.cols(0,nela-1);
+    if(C.n_cols>(size_t) nela)
+      Cavirt=Ca.cols(nela,C.n_cols-1);
 
     // Beta guess
     if(nelb)
-      Cbocc=Caocc.cols(0,nelb-1);
-    Cbvirt = (nelb<nela) ? arma::join_rows(Caocc.cols(nelb,nela-1),Cavirt) : Cavirt;
-    Eb=Ea;
+      Cbocc=Cb.cols(0,nelb-1);
+    if(C.n_cols>(size_t) nelb)
+      Cbvirt=Cb.cols(nelb,C.n_cols-1);
 
     Ea.subvec(0,nena-1).t().print("Alpha orbital energies");
     Eb.subvec(0,nenb-1).t().print("Beta  orbital energies");
@@ -524,6 +576,11 @@ int main(int argc, char **argv) {
       scf::eig_gsym_sub(Ea,Ca,Fa,Sinvh,dsym);
     else
       scf::eig_gsym(Ea,Ca,Fa,Sinvh);
+    // Enforce occupation according to specified symmetry
+    if(i<readocc) {
+      scf::enforce_occupations(Ca,Ea,occnuma,occsym);
+    }
+
     if(restr && nela==nelb) {
       Eb=Ea;
       Cb=Ca;
@@ -533,6 +590,11 @@ int main(int argc, char **argv) {
       else
         scf::eig_gsym(Eb,Cb,Fb,Sinvh);
     }
+    // Enforce occupation according to specified symmetry
+    if(i<readocc) {
+      scf::enforce_occupations(Cb,Eb,occnumb,occsym);
+    }
+
     Caocc=Ca.cols(0,nela-1);
     if(Ca.n_cols>(size_t) nela)
       Cavirt=Ca.cols(nela,Ca.n_cols-1);
@@ -540,11 +602,14 @@ int main(int argc, char **argv) {
       Cbocc=Cb.cols(0,nelb-1);
     if(Cb.n_cols>(size_t) nelb)
       Cbvirt=Cb.cols(nelb,Cb.n_cols-1);
-    printf("Full diagonalization done in %.6f\n",timer.get());
+    if(symm)
+      printf("Subspace diagonalization done in %.6f\n",timer.get());
+    else
+      printf("Full diagonalization done in %.6f\n",timer.get());
 
-    if(Ea.n_elem>(size_t) nela)
+    if(Ea.n_elem>(size_t)nela)
       printf("Alpha HOMO-LUMO gap is % .3f eV\n",(Ea(nela)-Ea(nela-1))*HARTREEINEV);
-    if(nelb && Eb.n_elem>(size_t) nelb)
+    if(nelb && Eb.n_elem>(size_t)nelb)
       printf("Beta  HOMO-LUMO gap is % .3f eV\n",(Eb(nelb)-Eb(nelb-1))*HARTREEINEV);
     fflush(stdout);
 
