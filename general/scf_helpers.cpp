@@ -16,6 +16,23 @@ namespace helfem {
       if(nocc.n_elem != m_idx.size())
         throw std::logic_error("nocc vector and symmetry indices don't match!\n");
 
+      // Make sure index vector doesn't have duplicates
+      {
+        // Collect all indices
+        arma::uvec fullidx;
+        for(size_t i=0;i<m_idx.size();i++) {
+          arma::uvec fidx(fullidx.n_elem+m_idx[i].n_elem);
+          if(fullidx.n_elem)
+            fidx.subvec(0,fullidx.n_elem-1)=fullidx;
+          fidx.subvec(fullidx.n_elem,fidx.n_elem-1)=m_idx[i];
+          fullidx=fidx;
+        }
+        // Get indices of unique elements
+        arma::uvec iunq(arma::find_unique(fullidx));
+        if(iunq.n_elem != fullidx.n_elem)
+          throw std::logic_error("Duplicate basis functions in symmetry list!\n");
+      }
+
       // Indices of occupied orbitals
       std::vector<arma::uword> occidx;
 
