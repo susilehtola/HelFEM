@@ -8,8 +8,7 @@
 #include "basis.h"
 #include "dftgrid.h"
 #include <cfloat>
-
-//#define SPARSE
+#include <climits>
 
 using namespace helfem;
 
@@ -100,7 +99,7 @@ int main(int argc, char **argv) {
   parser.add<double>("diiseps", 0, "when to start mixing in diis", false, 1e-2);
   parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
   parser.add<int>("diisorder", 0, "length of diis history", false, 5);
-  parser.add<bool>("readocc", 0, "read occupations from file", false, false);
+  parser.add<int>("readocc", 0, "read occupations from file, use until nth build", false, 0);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -151,7 +150,9 @@ int main(int argc, char **argv) {
   std::string method(parser.get<std::string>("method"));
 
   // Read occupations from file?
-  bool readocc=parser.get<bool>("readocc");
+  int readocc=parser.get<int>("readocc");
+  if(readocc<0)
+    readocc=INT_MAX;
   arma::imat occs;
   if(readocc) {
     occs.load("occs.dat",arma::raw_ascii);
@@ -610,7 +611,7 @@ int main(int argc, char **argv) {
     else
       scf::eig_gsym(Ea,Ca,Fa,Sinvh);
     // Enforce occupation according to specified symmetry
-    if(readocc) {
+    if(i<readocc) {
       scf::enforce_occupations(Ca,Ea,occnuma,occsym);
     }
 
@@ -624,7 +625,7 @@ int main(int argc, char **argv) {
         scf::eig_gsym(Eb,Cb,Fb,Sinvh);
     }
     // Enforce occupation according to specified symmetry
-    if(readocc) {
+    if(i<readocc) {
       scf::enforce_occupations(Cb,Eb,occnumb,occsym);
     }
 
