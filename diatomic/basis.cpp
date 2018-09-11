@@ -1271,8 +1271,100 @@ namespace helfem {
               double cpl2(gaunt.coeff(lk,mk,L,M,ll,ml));
               // Increment
               arma::mat Prad(P.submat(kang*Nrad,lang*Nrad,(kang+1)*Nrad-1,(lang+1)*Nrad-1));
-              Paux0[iLM]+=cpl0*Prad;
-              Paux2[iLM]+=cpl2*Prad;
+              if(cpl0!=0.0)
+                Paux0[iLM]+=cpl0*Prad;
+              if(cpl2!=0.0)
+                Paux2[iLM]+=cpl2*Prad;
+            }
+          }
+        }
+
+        // Coulomb helpers
+        std::vector<arma::mat> Jaux0(LM_map.size());
+        std::vector<arma::mat> Jaux2(LM_map.size());
+        for(size_t i=0;i<Jaux0.size();i++) {
+          Jaux0[i].zeros(Nrad,Nrad);
+          Jaux2[i].zeros(Nrad,Nrad);
+        }
+        for(size_t iLM=0;iLM<LM_map.size();iLM++) {
+          // Values of L and M
+          int L(LM_map[iLM].first);
+          int M(LM_map[iLM].second);
+
+          // Helpers
+          const size_t ilm(lmind(L,M));
+          const double LMfac(4.0*M_PI*std::pow(Rhalf,5)*std::pow(-1.0,M)/polynomial::factorial_ratio(L+std::abs(M),L-std::abs(M)));
+
+          // Loop over input elements
+          for(size_t jel=0;jel<Nel;jel++) {
+            size_t jfirst, jlast;
+            radial.get_idx(jel,jfirst,jlast);
+            size_t Nj(jlast-jfirst+1);
+
+            // Get density submatrices
+            arma::mat Psub0(Paux0[iLM].submat(jfirst,jfirst,jlast,jlast));
+            arma::mat Psub2(Paux2[iLM].submat(jfirst,jfirst,jlast,jlast));
+
+            // Contract integrals
+            double jsmall0 = LMfac*arma::trace(disjoint_P0[ilm*Nel+jel]*Psub0);
+            double jbig0 = LMfac*arma::trace(disjoint_Q0[ilm*Nel+jel]*Psub0);
+            double jsmall2 = LMfac*arma::trace(disjoint_P2[ilm*Nel+jel]*Psub2);
+            double jbig2 = LMfac*arma::trace(disjoint_Q2[ilm*Nel+jel]*Psub2);
+
+            // Increment J: jel>iel
+            double ifac0(jbig0 - jbig2);
+            double ifac2(-jbig0 + jbig2);
+            for(size_t iel=0;iel<jel;iel++) {
+              size_t ifirst, ilast;
+              radial.get_idx(iel,ifirst,ilast);
+
+              const arma::mat & iint0=disjoint_P0[ilm*Nel+iel];
+              const arma::mat & iint2=disjoint_P2[ilm*Nel+iel];
+              Jaux0[iLM].submat(ifirst,ifirst,ilast,ilast)+=iint0*ifac0;
+              Jaux2[iLM].submat(ifirst,ifirst,ilast,ilast)+=iint2*ifac2;
+            }
+
+            // Increment J: jel<iel
+            ifac0=jsmall0 - jsmall2;
+            ifac2=-jsmall0 + jsmall2;
+            for(size_t iel=jel+1;iel<Nel;iel++) {
+              size_t ifirst, ilast;
+              radial.get_idx(iel,ifirst,ilast);
+
+              const arma::mat & iint0=disjoint_Q0[ilm*Nel+iel];
+              const arma::mat & iint2=disjoint_Q2[ilm*Nel+iel];
+              Jaux0[iLM].submat(ifirst,ifirst,ilast,ilast)+=iint0*ifac0;
+              Jaux2[iLM].submat(ifirst,ifirst,ilast,ilast)+=iint2*ifac2;
+            }
+
+            // In-element contribution
+            {
+              size_t iel=jel;
+              size_t ifirst=jfirst;
+              size_t ilast=jlast;
+              size_t Ni=Nj;
+
+              // Contract integrals
+              arma::mat Jsub0(Ni*Ni,1);
+              Jsub0.zeros();
+              arma::mat Jsub2(Ni*Ni,1);
+              Jsub2.zeros();
+
+              Psub0.reshape(Nj*Nj,1);
+              Psub2.reshape(Nj*Nj,1);
+
+              const size_t idx(Nel*Nel*ilm + iel*Nel + jel);
+              Jsub0+=LMfac*(prim_tei00[idx]*Psub0);
+              Jsub0-=LMfac*(prim_tei02[idx]*Psub2);
+              Jsub2-=LMfac*(prim_tei20[idx]*Psub0);
+              Jsub2+=LMfac*(prim_tei22[idx]*Psub2);
+
+              Jsub0.reshape(Ni,Ni);
+              Jsub2.reshape(Ni,Ni);
+
+              // Increment global Coulomb matrix
+              Jaux0[iLM].submat(ifirst,ifirst,ilast,ilast)+=Jsub0;
+              Jaux2[iLM].submat(ifirst,ifirst,ilast,ilast)+=Jsub2;
             }
           }
         }
@@ -1280,134 +1372,30 @@ namespace helfem {
         // Full Coulomb matrix
         arma::mat J(Ndummy(),Ndummy());
         J.zeros();
+        for(size_t iang=0;iang<lval.n_elem;iang++) {
+          for(size_t jang=0;jang<lval.n_elem;jang++) {
+            // l and m values
+            int li(lval(iang));
+            int mi(mval(iang));
+            int lj(lval(jang));
+            int mj(mval(jang));
+            // LH m value
+            int M(mj-mi);
 
-        // Helper memory
-#ifdef _OPENMP
-        const int nth(omp_get_max_threads());
-#else
-        const int nth(1);
-#endif
-        std::vector<arma::vec> mem_Jsub(nth);
-        std::vector<arma::vec> mem_Psub0(nth);
-        std::vector<arma::vec> mem_Psub2(nth);
+            int Lmin=std::max(std::abs(lj-li)-2,abs(M));
+            int Lmax=lj+li+2;
+            for(int L=Lmin;L<=Lmax;L++) {
+              const size_t iLM(LMind(L,M));
 
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-        {
-#ifdef _OPENMP
-          const int ith(omp_get_thread_num());
-#else
-          const int ith(0);
-#endif
-          // These are only small submatrices!
-          mem_Psub0[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-          mem_Psub2[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-          mem_Jsub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
+              // Couplings
+              double cpl0(gaunt.mod_coeff(lj,mj,L,M,li,mi));
+              if(cpl0!=0.0) {
+                J.submat(iang*Nrad,jang*Nrad,(iang+1)*Nrad-1,(jang+1)*Nrad-1)+=cpl0*Jaux0[iLM];
+              }
 
-          // Increment
-#ifdef _OPENMP
-#pragma omp for collapse(2)
-#endif
-          for(size_t iang=0;iang<lval.n_elem;iang++) {
-            for(size_t jang=0;jang<lval.n_elem;jang++) {
-              // l and m values
-              int li(lval(iang));
-              int mi(mval(iang));
-              int lj(lval(jang));
-              int mj(mval(jang));
-              // LH m value
-              int M(mj-mi);
-
-              int Lmin=std::max(std::abs(lj-li)-2,abs(M));
-              int Lmax=lj+li+2;
-              for(int L=Lmin;L<=Lmax;L++) {
-                const size_t iLM(LMind(L,M));
-                const size_t ilm(lmind(L,M));
-                const double LMfac(4.0*M_PI*std::pow(Rhalf,5)*std::pow(-1.0,M)/polynomial::factorial_ratio(L+std::abs(M),L-std::abs(M)));
-
-                // Couplings
-                double cpl0(gaunt.mod_coeff(lj,mj,L,M,li,mi));
-                double cpl2(gaunt.coeff(lj,mj,L,M,li,mi));
-
-                if(cpl0!=0.0 || cpl2!=0.0) {
-                  // Loop over input elements
-                  for(size_t jel=0;jel<Nel;jel++) {
-                    size_t jfirst, jlast;
-                    radial.get_idx(jel,jfirst,jlast);
-                    size_t Nj(jlast-jfirst+1);
-
-                    // Get density submatrices
-                    arma::mat Psub0(mem_Psub0[ith].memptr(),Nj,Nj,false,true);
-                    Psub0=Paux0[iLM].submat(jfirst,jfirst,jlast,jlast);
-                    arma::mat Psub2(mem_Psub2[ith].memptr(),Nj,Nj,false,true);
-                    Psub2=Paux2[iLM].submat(jfirst,jfirst,jlast,jlast);
-
-                    // Contract integrals
-                    double jsmall0=0.0, jsmall2=0.0, jbig0=0.0, jbig2=0.0;
-                    if(cpl0!=0.0 || cpl2!=0.0) {
-                      jsmall0 = LMfac*arma::trace(disjoint_P0[ilm*Nel+jel]*Psub0);
-                      jbig0 = LMfac*arma::trace(disjoint_Q0[ilm*Nel+jel]*Psub0);
-                    }
-                    if(cpl0!=0.0 || cpl2!=0.0) {
-                      jsmall2 = LMfac*arma::trace(disjoint_P2[ilm*Nel+jel]*Psub2);
-                      jbig2 = LMfac*arma::trace(disjoint_Q2[ilm*Nel+jel]*Psub2);
-                    }
-
-                    // Increment J: jel>iel
-                    double ifac0(jbig0*cpl0 - jbig2*cpl0);
-                    double ifac2(-jbig0*cpl2 + jbig2*cpl2);
-                    for(size_t iel=0;iel<jel;iel++) {
-                      size_t ifirst, ilast;
-                      radial.get_idx(iel,ifirst,ilast);
-
-                      const arma::mat & iint0=disjoint_P0[ilm*Nel+iel];
-                      const arma::mat & iint2=disjoint_P2[ilm*Nel+iel];
-                      J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=iint0*ifac0 + iint2*ifac2;
-                    }
-
-                    // Increment J: jel<iel
-                    ifac0=jsmall0*cpl0 - jsmall2*cpl0;
-                    ifac2=-cpl2*jsmall0 + cpl2*jsmall2;
-                    for(size_t iel=jel+1;iel<Nel;iel++) {
-                      size_t ifirst, ilast;
-                      radial.get_idx(iel,ifirst,ilast);
-
-                      const arma::mat & iint0=disjoint_Q0[ilm*Nel+iel];
-                      const arma::mat & iint2=disjoint_Q2[ilm*Nel+iel];
-                      J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=iint0*ifac0 + iint2*ifac2;
-                    }
-
-                    // In-element contribution
-                    {
-                      size_t iel=jel;
-                      size_t ifirst=jfirst;
-                      size_t ilast=jlast;
-                      size_t Ni=Nj;
-
-                      // Contract integrals
-                      arma::mat Jsub(mem_Jsub[ith].memptr(),Ni*Ni,1,false,true);
-                      Jsub.zeros();
-
-                      Psub0.reshape(Nj*Nj,1);
-                      Psub2.reshape(Nj*Nj,1);
-
-                      const size_t idx(Nel*Nel*ilm + iel*Nel + jel);
-                      if(cpl0!=0.0) {
-                        Jsub+=LMfac*cpl0*(prim_tei00[idx]*Psub0);
-                        Jsub-=LMfac*cpl0*(prim_tei02[idx]*Psub2);
-                      }
-                      if(cpl2!=0.0) {
-                        Jsub-=LMfac*cpl2*(prim_tei20[idx]*Psub0);
-                        Jsub+=LMfac*cpl2*(prim_tei22[idx]*Psub2);
-                      }
-                      Jsub.reshape(Ni,Ni);
-
-                      // Increment global Coulomb matrix
-                      J.submat(iang*Nrad+ifirst,jang*Nrad+ifirst,iang*Nrad+ilast,jang*Nrad+ilast)+=Jsub;
-                    }
-                  }
-                }
+              double cpl2(gaunt.coeff(lj,mj,L,M,li,mi));
+              if(cpl2!=0.0) {
+                J.submat(iang*Nrad,jang*Nrad,(iang+1)*Nrad-1,(jang+1)*Nrad-1)+=cpl2*Jaux2[iLM];
               }
             }
           }
