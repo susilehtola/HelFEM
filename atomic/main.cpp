@@ -79,6 +79,8 @@ int main(int argc, char **argv) {
   parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
   parser.add<int>("diisorder", 0, "length of diis history", false, 5);
   parser.add<int>("readocc", 0, "read occupations from file, use until nth build", false, 0);
+  parser.add<double>("perturb", 0, "randomly perturb initial guess", false, 0.0);
+  parser.add<int>("seed", 0, "seed for random perturbation", false, 0);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -129,6 +131,9 @@ int main(int argc, char **argv) {
   int diisorder=parser.get<int>("diisorder");
 
   std::string method(parser.get<std::string>("method"));
+
+  double perturb=parser.get<double>("perturb");
+  int seed=parser.get<int>("seed");
 
   // Read occupations from file?
   int readocc=parser.get<int>("readocc");
@@ -375,7 +380,23 @@ int main(int argc, char **argv) {
     // Enforce occupation according to specified symmetry
     if(readocc) {
       scf::enforce_occupations(Ca,Ea,occnuma,occsym);
-      scf::enforce_occupations(Cb,Eb,occnumb,occsym);
+      if(restr && nela==nelb)
+        Cb=Ca;
+      else
+        scf::enforce_occupations(Cb,Eb,occnumb,occsym);
+    }
+
+    // Perturb guess
+    if(perturb) {
+      // Generate norb x norb rotation matrix
+      arma::arma_rng::set_seed(seed);
+      Ca*=scf::perturbation_matrix(Ca.n_cols,perturb);
+      if(restr && nela==nelb) {
+        Cb=Ca;
+      } else {
+        Cb*=scf::perturbation_matrix(Cb.n_cols,perturb);
+      }
+      printf("Guess orbitals perturbed by %e\n",perturb);
     }
 
     // Alpha orbitals

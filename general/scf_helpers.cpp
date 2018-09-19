@@ -354,6 +354,23 @@ namespace helfem {
         Cvirt.clear();
     }
 
+    arma::mat perturbation_matrix(size_t N, double ampl) {
+      arma::mat R(N,N);
+      // Uniform distribution
+      R.randu();
+      // Apply amplitude and antisymmetrize
+      R=0.5*ampl*(R-R.t());
+      // Eigendecompose
+      arma::vec Rval;
+      arma::cx_mat Rvec;
+      bool diagok=arma::eig_sym(Rval,Rvec,std::complex<double>(0.0,-1.0)*R);
+      if(!diagok)
+        throw std::runtime_error("Error diagonalizing R.\n");
+
+      // Rotation matrix is given by
+      return arma::real(Rvec*arma::diagmat(arma::exp(std::complex<double>(0.0,1.0)*Rval))*arma::trans(Rvec));
+    }
+
     void form_NOs(const arma::mat & P, const arma::mat & Sh, const arma::mat & Sinvh, arma::mat & AO_to_NO, arma::mat & NO_to_AO, arma::vec & occs) {
       // P in orthonormal basis is
       arma::mat P_orth=arma::trans(Sh)*P*Sh;

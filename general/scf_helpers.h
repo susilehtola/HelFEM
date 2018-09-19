@@ -26,6 +26,9 @@ namespace helfem {
     /// Iterative eigenvalue solver
     void eig_iter(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, const arma::mat & Sinvh, size_t nocc, size_t neig, size_t nsub, int maxit, double convthr);
 
+    /// Random perturbation
+    arma::mat perturbation_matrix(size_t N, double ampl);
+
     /// Form natural orbitals
     void form_NOs(const arma::mat & P, const arma::mat & Sh, const arma::mat & Sinvh, arma::mat & AO_to_NO, arma::mat & NO_to_AO, arma::vec & occs);
 
