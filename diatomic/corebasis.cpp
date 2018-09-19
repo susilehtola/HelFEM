@@ -203,7 +203,7 @@ int main(int argc, char **argv) {
           Eval=Eva;
           Nrad=Nra;
           Nang=Naa;
-          printf("Basis set has now %i partial waves\n",lmmax(m));
+          printf("Basis set has now %i partial waves\n",(int) lmmax(m));
         } else {
           Nelem+=nadd;
           E=Er;
