@@ -662,8 +662,8 @@ int main(int argc, char **argv) {
   printf("%-21s energy: % .16f\n","Virial ratio",-Etot/Ekin);
 
   printf("\n");
-  printf("Electronic dipole     moment % .16e\n",arma::trace(dip*P));
-  printf("Electronic quadrupole moment % .16e\n",arma::trace(quad*P));
+  printf("Electronic dipole     moment % .16e\n",-arma::trace(dip*P));
+  printf("Electronic quadrupole moment % .16e\n",-arma::trace(quad*P));
 
   // Electron density at nucleus
   if(Z!=0) {
