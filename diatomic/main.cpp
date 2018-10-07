@@ -485,9 +485,8 @@ int main(int argc, char **argv) {
   double Ekin, Epot, Ecoul, Exx, Exc, Efield, Etot;
   double Eold=0.0;
 
-  bool usediis=true, useadiis=true;
-  bool diis_c1=false;
-  uDIIS diis(S,Sinvh,usediis,diis_c1,diiseps,diisthr,useadiis,true,diisorder);
+  bool usediis=true, useadiis=true, diiscomb=false;
+  uDIIS diis(S,Sinvh,diiscomb,usediis,diiseps,diisthr,useadiis,true,diisorder);
   double diiserr;
 
   // Density matrices

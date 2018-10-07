@@ -33,11 +33,10 @@ bool operator<(const diis_unpol_entry_t & lhs, const diis_unpol_entry_t & rhs) {
   return lhs.E < rhs.E;
 }
 
-DIIS::DIIS(const arma::mat & S_, const arma::mat & Sinvh_, bool usediis_, bool c1diis_, double diiseps_, double diisthr_, bool useadiis_, bool verbose_, size_t imax_) {
+DIIS::DIIS(const arma::mat & S_, const arma::mat & Sinvh_, bool usediis_, double diiseps_, double diisthr_, bool useadiis_, bool verbose_, size_t imax_) {
   S=S_;
   Sinvh=Sinvh_;
   usediis=usediis_;
-  c1diis=c1diis_;
   useadiis=useadiis_;
   verbose=verbose_;
   imax=imax_;
@@ -51,10 +50,10 @@ DIIS::DIIS(const arma::mat & S_, const arma::mat & Sinvh_, bool usediis_, bool c
   cooloff=0;
 }
 
-rDIIS::rDIIS(const arma::mat & S_, const arma::mat & Sinvh_, bool usediis_, bool c1diis_, double diiseps_, double diisthr_, bool useadiis_, bool verbose_, size_t imax_) : DIIS(S_,Sinvh_,usediis_,c1diis_,diiseps_,diisthr_,useadiis_,verbose_,imax_) {
+rDIIS::rDIIS(const arma::mat & S_, const arma::mat & Sinvh_, bool usediis_, double diiseps_, double diisthr_, bool useadiis_, bool verbose_, size_t imax_) : DIIS(S_,Sinvh_,usediis_,diiseps_,diisthr_,useadiis_,verbose_,imax_) {
 }
 
-uDIIS::uDIIS(const arma::mat & S_, const arma::mat & Sinvh_, bool usediis_, bool c1diis_, double diiseps_, double diisthr_, bool useadiis_, bool verbose_, size_t imax_) : DIIS(S_,Sinvh_,usediis_,c1diis_,diiseps_,diisthr_,useadiis_,verbose_,imax_) {
+uDIIS::uDIIS(const arma::mat & S_, const arma::mat & Sinvh_, bool combine_, bool usediis_, double diiseps_, double diisthr_, bool useadiis_, bool verbose_, size_t imax_) : DIIS(S_,Sinvh_,usediis_,diiseps_,diisthr_,useadiis_,verbose_,imax_), combine(combine_) {
 }
 
 DIIS::~DIIS() {
@@ -138,12 +137,19 @@ void uDIIS::update(const arma::mat & Fa, const arma::mat & Fb, const arma::mat &
   arma::mat errmata=Fa*Pa*S-S*Pa*Fa;
   arma::mat errmatb=Fb*Pb*S-S*Pb*Fb;
   // and transform them to the orthonormal basis (1982 paper, page 557)
-  arma::mat errmat=arma::trans(Sinvh)*(errmata+errmatb)*Sinvh;
+  errmata=arma::trans(Sinvh)*errmata*Sinvh;
+  errmatb=arma::trans(Sinvh)*errmatb*Sinvh;
   // and store it
-  hlp.err=arma::vectorise(errmat);
+  if(combine) {
+    hlp.err=arma::vectorise(errmata+errmatb);
+  } else {
+    hlp.err.zeros(errmata.n_elem+errmatb.n_elem);
+    hlp.err.subvec(0,errmata.n_elem-1)=arma::vectorise(errmata);
+    hlp.err.subvec(errmata.n_elem,hlp.err.n_elem-1)=arma::vectorise(errmatb);
+  }
 
   // DIIS error is
-  error=arma::max(arma::max(arma::abs(errmat)));
+  error=arma::max(arma::abs(hlp.err));
 
   // Is stack full?
   if(stack.size()==imax) {
@@ -217,7 +223,7 @@ arma::vec DIIS::get_w() {
   } else if(!useadiis && usediis) {
     // Use DIIS only if error is smaller than threshold
     if(err>diisthr)
-      throw std::runtime_error("DIIS error too large.\n");
+      throw std::runtime_error("DIIS error too large for only DIIS to converge wave function.\n");
 
     w=get_w_diis();
 
@@ -226,8 +232,10 @@ arma::vec DIIS::get_w() {
       w.t().print();
     }
   } else if(useadiis && usediis) {
-    // Sliding scale
+    // Sliding scale: DIIS weight
     double diisw=std::max(std::min(1.0 - (err-diisthr)/(diiseps-diisthr), 1.0), 0.0);
+    // ADIIS weght
+    double adiisw=1.0-diisw;
 
     // Determine cooloff
     if(cooloff>0) {
@@ -242,17 +250,32 @@ arma::vec DIIS::get_w() {
       }
     }
 
-    arma::vec wa=get_w_adiis();
-    arma::vec wd=get_w_diis();
-    w=diisw*wd + (1.0-diisw)*wa;
+    w.zeros(de.n_cols);
+
+    // DIIS and ADIIS weights
+    arma::vec wd, wa;
+    if(diisw!=0.0) {
+      wd=get_w_diis();
+      w+=diisw*wd;
+    }
+    if(adiisw!=0.0) {
+      wa=get_w_adiis();
+      w+=adiisw*wa;
+    }
 
     if(verbose) {
-      printf("ADIIS weights\n");
-      wa.t().print();
-      printf("CDIIS weights\n");
-      wd.t().print();
-      printf(" DIIS weights\n");
-      w.t().print();
+      if(adiisw!=0.0) {
+        printf("ADIIS weights\n");
+        wa.t().print();
+      }
+      if(diisw!=0.0) {
+        printf("CDIIS weights\n");
+        wd.t().print();
+      }
+      if(adiisw!=0.0 && diisw!=0.0) {
+        printf(" DIIS weights\n");
+        w.t().print();
+      }
     }
 
   } else
@@ -270,117 +293,70 @@ arma::vec DIIS::get_w_diis_wrk(const arma::mat & errs) const {
   // Size of LA problem
   int N=(int) errs.n_cols;
 
-  // DIIS weights
+  // Array holding the errors
+  arma::mat B(N,N);
+  B.zeros();
+  // Compute errors
+  for(int i=0;i<N;i++)
+    for(int j=0;j<N;j++) {
+      B(i,j)=arma::dot(errs.col(i),errs.col(j));
+    }
+
+  /*
+    The C1-DIIS method is equivalent to solving the group of linear
+    equations
+            B w = lambda 1       (1)
+
+    where B is the error matrix, w are the DIIS weights, lambda is the
+    Lagrange multiplier that guarantees that the weights sum to unity,
+    and 1 stands for a unit vector (1 1 ... 1)^T.
+
+    By rescaling the weights as w -> w/lambda, equation (1) is
+    reverted to the form
+            B w = 1              (2)
+
+    which can easily be solved using SVD techniques.
+
+    Finally, the weights are renormalized to satisfy
+            \sum_i w_i = 1
+    which takes care of the Lagrange multipliers.
+  */
+
+  // Right-hand side of equation is
+  arma::vec rh(N);
+  rh.ones();
+
+  // Singular value decomposition
+  arma::mat U, V;
+  arma::vec sval;
+  if(!arma::svd(U,sval,V,B,"std")) {
+    throw std::logic_error("SVD failed in DIIS.\n");
+  }
+  //sval.print("Singular values");
+
+  // Form solution vector
   arma::vec sol(N);
   sol.zeros();
-
-  if(c1diis) {
-    // Original, Pulay's DIIS (C1-DIIS)
-
-    // Array holding the errors
-    arma::mat B(N+1,N+1);
-    B.zeros();
-    // Compute errors
-    for(int i=0;i<N;i++)
-      for(int j=0;j<N;j++) {
-	B(i,j)=arma::dot(errs.col(i),errs.col(j));
-      }
-    // Fill in the rest of B
-    for(int i=0;i<N;i++) {
-      B(i,N)=-1.0;
-      B(N,i)=-1.0;
-    }
-
-    // RHS vector
-    arma::vec A(N+1);
-    A.zeros();
-    A(N)=-1.0;
-
-    // Solve B*X = A
-    arma::vec X;
-    bool succ;
-
-    succ=arma::solve(X,B,A);
-
-    if(succ) {
-      // Solution is (last element of X is DIIS error)
-      sol=X.subvec(0,N-1);
-
-      // Check that weights are within tolerance
-      if(arma::max(arma::abs(sol))>=MAXWEIGHT) {
-	printf("Large coefficient produced by DIIS. Reducing to %i matrices.\n",N-1);
-	arma::vec w0=get_w_diis_wrk(errs.submat(1,1,errs.n_rows-1,errs.n_cols-1));
-
-	// Helper vector
-	arma::vec w(N);
-	w.zeros();
-	w.subvec(w.n_elem-w0.n_elem,w.n_elem-1)=w0;
-	return w;
-      }
-    }
-
-    if(!succ) {
-      // Failed to invert matrix. Use the two last iterations instead.
-      printf("C1-DIIS was not succesful, mixing matrices instead.\n");
-      sol.zeros();
-      sol(0)=0.5;
-      sol(1)=0.5;
-    }
-  } else {
-    // C2-DIIS
-
-    // Array holding the errors
-    arma::mat B(N,N);
-    B.zeros();
-    // Compute errors
-    for(int i=0;i<N;i++)
-      for(int j=0;j<N;j++) {
-	B(i,j)=arma::dot(errs.col(i),errs.col(j));
-      }
-
-    // Solve eigenvectors of B
-    arma::mat Q;
-    arma::vec lambda;
-    arma::eig_sym(lambda,Q,B);
-
-    // Normalize weights
-    for(int i=0;i<N;i++) {
-      Q.col(i)/=arma::sum(Q.col(i));
-    }
-
-    // Choose solution by picking out solution with smallest error
-    arma::vec errors(N);
-    arma::mat eQ=errs*Q;
-    // The weighted error is
-    for(int i=0;i<N;i++) {
-      errors(i)=arma::norm(eQ.col(i),2);
-    }
-
-    // Find minimal error
-    double mine=DBL_MAX;
-    int minloc=-1;
-    for(int i=0;i<N;i++) {
-      if(errors[i]<mine) {
-	// Check weights
-	bool ok=arma::max(arma::abs(Q.col(i)))<MAXWEIGHT;
-	if(ok) {
-	  mine=errors(i);
-	  minloc=i;
-	}
-      }
-    }
-
-    if(minloc!=-1) {
-      // Solution is
-      sol=Q.col(minloc);
-    } else {
-      printf("C2-DIIS did not find a suitable solution. Mixing matrices instead.\n");
-
-      sol.zeros();
-      sol(0)=0.5;
-      sol(1)=0.5;
-    }
+  for(int i=0;i<N;i++) {
+#if 0
+    // Perform Tikhonov regularization for the singular
+    // eigenvalues. This doesn't appear to work as well as just
+    // cutting out the spectrum.
+    double s(sval(i));
+    double t=1e-4;
+    double invs=s/(s*s + t*t);
+    sol += arma::dot(U.col(i),rh)*invs * V.col(i);
+#else
+    // Just cut out the problematic part. Weirdly, it appears that any
+    // kind of screening of the singular eigenvalues results in poorer
+    // convergence behavior(!)
+    if(sval(i) != 0.0)
+      sol += arma::dot(U.col(i),rh)/sval(i) * V.col(i);
+#endif
   }
+  // Normalize solution
+  //printf("Sum of weights is %e\n",arma::sum(sol));
+  sol/=arma::sum(sol);
 
   return sol;
 }
