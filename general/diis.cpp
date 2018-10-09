@@ -89,7 +89,9 @@ void rDIIS::update(const arma::mat & F, const arma::mat & P, double E, double & 
   hlp.E=E;
 
   // Compute error matrix
-  arma::mat errmat=F*P*S-S*P*F;
+  arma::mat errmat(F*P*S);
+  // FPS - SPF
+  errmat-=arma::trans(errmat);
   // and transform it to the orthonormal basis (1982 paper, page 557)
   errmat=arma::trans(Sinvh)*errmat*Sinvh;
   // and store it
@@ -134,8 +136,11 @@ void uDIIS::update(const arma::mat & Fa, const arma::mat & Fb, const arma::mat &
   hlp.E=E;
 
   // Compute error matrices
-  arma::mat errmata=Fa*Pa*S-S*Pa*Fa;
-  arma::mat errmatb=Fb*Pb*S-S*Pb*Fb;
+  arma::mat errmata(Fa*Pa*S);
+  arma::mat errmatb(Fb*Pb*S);
+  // FPS - SPF
+  errmata-=arma::trans(errmata);
+  errmatb-=arma::trans(errmatb);
   // and transform them to the orthonormal basis (1982 paper, page 557)
   errmata=arma::trans(Sinvh)*errmata*Sinvh;
   errmatb=arma::trans(Sinvh)*errmatb*Sinvh;
