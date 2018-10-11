@@ -390,18 +390,23 @@ int main(int argc, char **argv) {
 
   // Form nuclear attraction energy matrix
   Timer tnuc;
-  arma::mat Vnuc(basis.nuclear());
+  const arma::mat Vnuc(basis.nuclear());
 
   // Dipole coupling
-  arma::mat dip(basis.dipole_z());
+  const arma::mat dip(basis.dipole_z());
   // Quadrupole coupling
-  arma::mat quad(basis.quadrupole_zz());
+  const arma::mat quad(basis.quadrupole_zz());
+
+  // Nuclear dipole and quadrupole
+  const double nucdip=(Z2-Z1)*Rbond/2.0;
+  const double nucquad=(Z1+Z2)*Rbond*Rbond/4.0;
 
   // Electric field coupling (minus sign cancels one from charge)
-  arma::mat Vel(Ez*dip + Qzz*quad/3.0);
+  const arma::mat Vel(Ez*dip + Qzz*quad/3.0);
+  const double Enucfield(-Ez*nucdip - Qzz*nucquad/3.0);
 
   // Form Hamiltonian
-  arma::mat H0(T+Vnuc+Vel);
+  const arma::mat H0(T+Vnuc+Vel);
 
   printf("One-electron matrices formed in %.6f\n",timer.get());
 
@@ -584,7 +589,7 @@ int main(int argc, char **argv) {
       scf::ROHF_update(Fa,Fb,P,Sh,Sinvh,nela,nelb);
 
     // Update energy
-    Etot=Ekin+Epot+Efield+Ecoul+Exx+Exc+Enucr;
+    Etot=Ekin+Epot+Efield+Ecoul+Exx+Exc+Enucr+Enucfield;
     double dE=Etot-Eold;
 
     printf("Total energy is % .10f\n",Etot);
@@ -709,13 +714,12 @@ int main(int argc, char **argv) {
   printf("%-21s energy: % .16f\n","Exact exchange",Exx);
   printf("%-21s energy: % .16f\n","Exchange-correlation",Exc);
   printf("%-21s energy: % .16f\n","Electric field",Efield);
+  printf("%-21s energy: % .16f\n","Nucleus-field",Enucfield);
   printf("%-21s energy: % .16f\n","Total",Etot);
   printf("%-21s energy: % .16f\n","Virial ratio",-Etot/Ekin);
 
   double eldip=-arma::trace(dip*P);
-  double nucdip=(Z2-Z1)*Rbond/2.0;
   double elquad=-arma::trace(quad*P);
-  double nucquad=(Z1+Z2)*Rbond*Rbond/4.0;
 
   printf("\n");
   printf("Electronic dipole     moment % .16e\n",eldip);
