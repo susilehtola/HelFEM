@@ -421,80 +421,55 @@ namespace helfem {
       else
         nspin=XC_POLARIZED;
 
-      // Parallel section
-#ifdef _OPENMP
-      // Set number of threads to use
-      size_t numth;
-      numth=std::min(N,(size_t) omp_get_max_threads());
-#pragma omp parallel num_threads(numth)
-#endif
-      {
-#ifdef _OPENMP
-        int nth(omp_get_num_threads());
-        int ith(omp_get_thread_num());
-#else
-        int nth(1);
-        int ith(0);
-#endif
-        // First point in current batch is
-        size_t Nfirst(ith*N/nth);
-        // Last point in current batch is
-        size_t Nlast((ith+1)*N/nth);
-        if(Nlast>=N)
-          Nlast=N-1;
-        // Number of points in current batch is then
-        size_t Nbatch(Nlast-Nfirst+1);
+      // Initialize libxc worker
+      xc_func_type func;
+      if(xc_func_init(&func, func_id, nspin) != 0) {
+        std::ostringstream oss;
+        oss << "Functional "<<func_id<<" not found!";
+        throw std::runtime_error(oss.str());
+      }
 
-        // Initialize libxc worker
-        xc_func_type func;
-        if(xc_func_init(&func, func_id, nspin) != 0) {
-          std::ostringstream oss;
-          oss << "Functional "<<func_id<<" not found!";
-          throw std::runtime_error(oss.str());
-        }
-
-        // Evaluate functionals.
-        if(has_exc(func_id)) {
-          if(pot) {
-            if(mgga_t || mgga_l) {// meta-GGA
-              double * laplp = mgga_l ? lapl.colptr(Nfirst) : NULL;
-              double * taup = mgga_t ? tau.colptr(Nfirst) : NULL;
-              double * vlaplp = mgga_t ? vlapl_wrk.colptr(Nfirst) : NULL;
-              double * vtaup = mgga_t ? vtau_wrk.colptr(Nfirst) : NULL;
-              xc_mgga_exc_vxc(&func, Nbatch, rho.colptr(Nfirst), sigma.colptr(Nfirst), laplp, taup, &exc_wrk(Nfirst), vxc_wrk.colptr(Nfirst), vsigma_wrk.colptr(Nfirst), vlaplp, vtaup);
-            } else if(gga) // GGA
-              xc_gga_exc_vxc(&func, Nbatch, rho.colptr(Nfirst), sigma.colptr(Nfirst), &exc_wrk(Nfirst), vxc_wrk.colptr(Nfirst), vsigma_wrk.colptr(Nfirst));
-            else // LDA
-              xc_lda_exc_vxc(&func, Nbatch, rho.colptr(Nfirst), &exc_wrk(Nfirst), vxc_wrk.colptr(Nfirst));
-          } else {
-            if(mgga_t || mgga_l) { // meta-GGA
-              double * laplp = mgga_l ? lapl.colptr(Nfirst) : NULL;
-              double * taup = mgga_t ? tau.colptr(Nfirst) : NULL;
-              xc_mgga_exc(&func, Nbatch, rho.colptr(Nfirst), sigma.colptr(Nfirst), laplp, taup, exc_wrk.colptr(Nfirst));
-            } else if(gga) // GGA
-              xc_gga_exc(&func, Nbatch, rho.colptr(Nfirst), sigma.colptr(Nfirst), exc_wrk.colptr(Nfirst));
-            else // LDA
-              xc_lda_exc(&func, Nbatch, rho.colptr(Nfirst), exc_wrk.colptr(Nfirst));
-          }
-
+      // Evaluate functionals.
+      if(has_exc(func_id)) {
+        if(pot) {
+          if(mgga_t || mgga_l) {// meta-GGA
+            double * laplp = mgga_l ? lapl.memptr() : NULL;
+            double * taup = mgga_t ? tau.memptr() : NULL;
+            double * vlaplp = mgga_t ? vlapl_wrk.memptr() : NULL;
+            double * vtaup = mgga_t ? vtau_wrk.memptr() : NULL;
+            xc_mgga_exc_vxc(&func, N, rho.memptr(), sigma.memptr(), laplp, taup, exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr(), vlaplp, vtaup);
+          } else if(gga) // GGA
+            xc_gga_exc_vxc(&func, N, rho.memptr(), sigma.memptr(), exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr());
+          else // LDA
+            xc_lda_exc_vxc(&func, N, rho.memptr(), exc_wrk.memptr(), vxc_wrk.memptr());
         } else {
-          if(pot) {
-            if(mgga_t || mgga_l) { // meta-GGA
-              double * laplp = mgga_l ? lapl.colptr(Nfirst) : NULL;
-              double * taup = mgga_t ? tau.colptr(Nfirst) : NULL;
-              double * vlaplp = mgga_l ? vlapl_wrk.colptr(Nfirst) : NULL;
-              double * vtaup = mgga_t ? vtau_wrk.colptr(Nfirst) : NULL;
-              xc_mgga_vxc(&func, Nbatch, rho.colptr(Nfirst), sigma.colptr(Nfirst), laplp, taup, vxc_wrk.colptr(Nfirst), vsigma_wrk.colptr(Nfirst), vlaplp, vtaup);
-            } else if(gga) // GGA
-              xc_gga_vxc(&func, Nbatch, rho.colptr(Nfirst), sigma.colptr(Nfirst), vxc_wrk.colptr(Nfirst), vsigma_wrk.colptr(Nfirst));
-            else // LDA
-              xc_lda_vxc(&func, Nbatch, rho.colptr(Nfirst), vxc_wrk.colptr(Nfirst));
-          }
+          if(mgga_t || mgga_l) { // meta-GGA
+            double * laplp = mgga_l ? lapl.memptr() : NULL;
+            double * taup = mgga_t ? tau.memptr() : NULL;
+            xc_mgga_exc(&func, N, rho.memptr(), sigma.memptr(), laplp, taup, exc_wrk.memptr());
+          } else if(gga) // GGA
+            xc_gga_exc(&func, N, rho.memptr(), sigma.memptr(), exc_wrk.memptr());
+          else // LDA
+            xc_lda_exc(&func, N, rho.memptr(), exc_wrk.memptr());
         }
 
-        // Free functional
-        xc_func_end(&func);
-      } // end parallel section
+      } else {
+        if(pot) {
+          if(mgga_t || mgga_l) { // meta-GGA
+            double * laplp = mgga_l ? lapl.memptr() : NULL;
+            double * taup = mgga_t ? tau.memptr() : NULL;
+            double * vlaplp = mgga_l ? vlapl_wrk.memptr() : NULL;
+            double * vtaup = mgga_t ? vtau_wrk.memptr() : NULL;
+            xc_mgga_vxc(&func, N, rho.memptr(), sigma.memptr(), laplp, taup, vxc_wrk.memptr(), vsigma_wrk.memptr(), vlaplp, vtaup);
+          } else if(gga) // GGA
+            xc_gga_vxc(&func, N, rho.memptr(), sigma.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr());
+          else // LDA
+            xc_lda_vxc(&func, N, rho.memptr(), vxc_wrk.memptr());
+        }
+      }
+
+      // Free functional
+      xc_func_end(&func);
 
       // Sum to total arrays containing both exchange and correlation
       if(has_exc(func_id))
