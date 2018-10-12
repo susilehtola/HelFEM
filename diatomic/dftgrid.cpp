@@ -457,7 +457,7 @@ namespace helfem {
         if(has_exc(func_id)) {
           if(pot) {
             if(mgga_t || mgga_l) {// meta-GGA
-              double * laplp = mgga_t ? lapl.colptr(Nfirst) : NULL;
+              double * laplp = mgga_l ? lapl.colptr(Nfirst) : NULL;
               double * taup = mgga_t ? tau.colptr(Nfirst) : NULL;
               double * vlaplp = mgga_t ? vlapl_wrk.colptr(Nfirst) : NULL;
               double * vtaup = mgga_t ? vtau_wrk.colptr(Nfirst) : NULL;
@@ -468,7 +468,7 @@ namespace helfem {
               xc_lda_exc_vxc(&func, Nbatch, rho.colptr(Nfirst), &exc_wrk(Nfirst), vxc_wrk.colptr(Nfirst));
           } else {
             if(mgga_t || mgga_l) { // meta-GGA
-              double * laplp = mgga_t ? lapl.colptr(Nfirst) : NULL;
+              double * laplp = mgga_l ? lapl.colptr(Nfirst) : NULL;
               double * taup = mgga_t ? tau.colptr(Nfirst) : NULL;
               xc_mgga_exc(&func, Nbatch, rho.colptr(Nfirst), sigma.colptr(Nfirst), laplp, taup, exc_wrk.colptr(Nfirst));
             } else if(gga) // GGA
@@ -480,9 +480,9 @@ namespace helfem {
         } else {
           if(pot) {
             if(mgga_t || mgga_l) { // meta-GGA
-              double * laplp = mgga_t ? lapl.colptr(Nfirst) : NULL;
+              double * laplp = mgga_l ? lapl.colptr(Nfirst) : NULL;
               double * taup = mgga_t ? tau.colptr(Nfirst) : NULL;
-              double * vlaplp = mgga_t ? vlapl_wrk.colptr(Nfirst) : NULL;
+              double * vlaplp = mgga_l ? vlapl_wrk.colptr(Nfirst) : NULL;
               double * vtaup = mgga_t ? vtau_wrk.colptr(Nfirst) : NULL;
               xc_mgga_vxc(&func, Nbatch, rho.colptr(Nfirst), sigma.colptr(Nfirst), laplp, taup, vxc_wrk.colptr(Nfirst), vsigma_wrk.colptr(Nfirst), vlaplp, vtaup);
             } else if(gga) // GGA
@@ -508,6 +508,17 @@ namespace helfem {
           vsigma+=vsigma_wrk;
         vxc+=vxc_wrk;
       }
+    }
+
+    void DFTGridWorker::save(const std::string & info) const {
+      rho.save("rho"+info+".dat",arma::raw_ascii);
+      sigma.save("sigma"+info+".dat",arma::raw_ascii);
+      tau.save("tau"+info+".dat",arma::raw_ascii);
+
+      vxc.save("vxc"+info+".dat",arma::raw_ascii);
+      vsigma.save("vsigma"+info+".dat",arma::raw_ascii);
+      vtau.save("vtau"+info+".dat",arma::raw_ascii);
+      exc.save("exc"+info+".dat",arma::raw_ascii);
     }
 
     double DFTGridWorker::eval_Exc() const {
@@ -835,6 +846,12 @@ namespace helfem {
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(H);
+
+#if 0
+            std::ostringstream oss;
+            oss << "_" << iel << "_" << irad;
+            grid.save(oss.str());
+#endif
           }
         }
       }
@@ -875,6 +892,12 @@ namespace helfem {
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(Ha,Hb,beta);
+
+#if 0
+            std::ostringstream oss;
+            oss << "_" << iel << "_" << irad;
+            grid.save(oss.str());
+#endif
           }
         }
       }

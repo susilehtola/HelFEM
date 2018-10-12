@@ -122,6 +122,8 @@ namespace helfem {
       void compute_bf(size_t iel, size_t irad);
       /// Free memory
       void free();
+      /// Save data
+      void save(const std::string & info) const;
 
       /// Update values of density, restricted calculation
       void update_density(const arma::mat & P);
