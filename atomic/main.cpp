@@ -249,6 +249,10 @@ int main(int argc, char **argv) {
     throw std::logic_error("Range separated functionals are not supported.\n");
   // Fraction of exact exchange
   double kfrac(exact_exchange(x_func));
+  if(kfrac!=0.0)
+    printf("\nUsing hybrid exchange with % .3f %% of exact exchange.\n",kfrac*100);
+  else
+    printf("\nA pure exchange functional used, no exact exchange.\n");
 
   Timer timer;
 
