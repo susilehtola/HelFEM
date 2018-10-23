@@ -88,6 +88,7 @@ int main(int argc, char **argv) {
   parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
   parser.add<double>("Ez", 0, "electric dipole field", false, 0.0);
   parser.add<double>("Qzz", 0, "electric quadrupole field", false, 0.0);
+  parser.add<double>("Bz", 0, "magnetic dipole field", false, 0.0);
   parser.add<bool>("diag", 0, "exact diagonalization", false, 1);
   parser.add<std::string>("method", 0, "method to use", false, "HF");
   parser.add<int>("ldft", 0, "theta rule for dft quadrature (0 for auto)", false, 0);
@@ -110,6 +111,7 @@ int main(int argc, char **argv) {
   double zexp(parser.get<double>("zexp"));
   double Ez(parser.get<double>("Ez"));
   double Qzz(parser.get<double>("Qzz"));
+  double Bz(parser.get<double>("Bz"));
 
   int maxit(parser.get<int>("maxit"));
   double convthr(parser.get<double>("convthr"));
@@ -242,8 +244,12 @@ int main(int argc, char **argv) {
     printf("Warning - asked for homonuclear symmetry for heteronuclear molecule. Relaxing restriction.\n");
     symm=1;
   }
-  if(symm==2 && Ez!=0.0) {
+  if(symm==2 && (Ez!=0.0 || Qzz!=0.0)) {
     printf("Warning - asked for full orbital symmetry in presence of electric field. Relaxing restriction.\n");
+    symm=1;
+  }
+  if(symm==2 && Bz!=0.0) {
+    printf("Warning - asked for full orbital symmetry in presence of magnetic field. Relaxing restriction.\n");
     symm=1;
   }
   if(symm)
@@ -407,10 +413,12 @@ int main(int argc, char **argv) {
 
   // Electric field coupling (minus sign cancels one from charge)
   const arma::mat Vel(Ez*dip + Qzz*quad/3.0);
+  // Magnetic field coupling
+  arma::mat Vmag(basis.Bz_field(Bz));
   const double Enucfield(-Ez*nucdip - Qzz*nucquad/3.0);
 
   // Form Hamiltonian
-  const arma::mat H0(T+Vnuc+Vel);
+  const arma::mat H0(T+Vnuc+Vel+Vmag);
 
   printf("One-electron matrices formed in %.6f\n",timer.get());
 
@@ -491,7 +499,7 @@ int main(int argc, char **argv) {
   basis.compute_tei(kfrac!=0.0);
   printf("Done in %.6f\n",timer.get());
 
-  double Ekin, Epot, Ecoul, Exx, Exc, Efield, Etot;
+  double Ekin, Epot, Ecoul, Exx, Exc, Eefield, Emfield, Etot;
   double Eold=0.0;
 
   bool usediis=true, useadiis=true, diiscomb=false;
@@ -518,7 +526,8 @@ int main(int argc, char **argv) {
 
     Ekin=arma::trace(P*T);
     Epot=arma::trace(P*Vnuc);
-    Efield=arma::trace(P*Vel);
+    Eefield=arma::trace(P*Vel);
+    Emfield=arma::trace(P*Vmag)+Bz/2.0*(nela-nelb);
 
     // Form Coulomb matrix
     timer.set();
@@ -587,13 +596,18 @@ int main(int argc, char **argv) {
         Fb+=XCb;
       }
     }
+    if(Bz!=0.0) {
+      // Add in the B*Sz term
+      Fa+=Bz*S/2.0;
+      Fb-=Bz*S/2.0;
+    }
 
     // ROHF update to Fock matrix
     if(restr && nela!=nelb)
       scf::ROHF_update(Fa,Fb,P,Sh,Sinvh,nela,nelb);
 
     // Update energy
-    Etot=Ekin+Epot+Efield+Ecoul+Exx+Exc+Enucr+Enucfield;
+    Etot=Ekin+Epot+Eefield+Emfield+Ecoul+Exx+Exc+Enucr+Enucfield;
     double dE=Etot-Eold;
 
     printf("Total energy is % .10f\n",Etot);
@@ -717,7 +731,8 @@ int main(int argc, char **argv) {
   printf("%-21s energy: % .16f\n","Coulomb",Ecoul);
   printf("%-21s energy: % .16f\n","Exact exchange",Exx);
   printf("%-21s energy: % .16f\n","Exchange-correlation",Exc);
-  printf("%-21s energy: % .16f\n","Electric field",Efield);
+  printf("%-21s energy: % .16f\n","Electric field",Eefield);
+  printf("%-21s energy: % .16f\n","Magnetic field",Emfield);
   printf("%-21s energy: % .16f\n","Nucleus-field",Enucfield);
   printf("%-21s energy: % .16f\n","Total",Etot);
   printf("%-21s energy: % .16f\n","Virial ratio",-Etot/Ekin);

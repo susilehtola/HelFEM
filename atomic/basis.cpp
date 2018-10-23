@@ -850,6 +850,47 @@ namespace helfem {
         return remove_boundaries(V);
       }
 
+      arma::mat TwoDBasis::Bz_field(double B) const {
+        // Build radial elements
+        size_t Nrad(radial.Nbf());
+        arma::mat Orad(Nrad,Nrad);
+        Orad.zeros();
+
+        // Loop over elements
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          // Where are we in the matrix?
+          size_t ifirst, ilast;
+          radial.get_idx(iel,ifirst,ilast);
+          Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(2,iel);
+        }
+
+        // Full coupling
+        arma::mat V(Ndummy(),Ndummy());
+        V.zeros();
+
+        int gmax(std::max(arma::max(lval),arma::max(mval)));
+        gaunt::Gaunt gaunt(gmax,4,gmax);
+
+        // Fill elements
+        for(size_t iang=0;iang<lval.n_elem;iang++) {
+          int li(lval(iang));
+          int mi(mval(iang));
+
+          for(size_t jang=0;jang<lval.n_elem;jang++) {
+            int lj(lval(jang));
+            int mj(mval(jang));
+
+            // Calculate coupling
+            double cpl(gaunt.sine2_coupling(lj,mj,li,mi));
+            if(cpl!=0.0) {
+              set_sub(V,iang,jang,(B*mj/2.0 + B*B/8.0)*Orad*cpl);
+            }
+          }
+        }
+
+        return remove_boundaries(V);
+      }
+
       size_t TwoDBasis::mem_1el() const {
         return Nbf()*Nbf()*sizeof(double);
       }

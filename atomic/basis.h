@@ -173,6 +173,9 @@ namespace helfem {
         /// Form quadrupole coupling matrix
         arma::mat quadrupole_zz() const;
 
+        /// Coupling to magnetic field in z direction
+        arma::mat Bz_field(double B) const;
+
         /// Form density matrix
         arma::mat form_density(const arma::mat & C, size_t nocc) const;
 

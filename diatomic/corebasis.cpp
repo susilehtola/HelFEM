@@ -9,7 +9,7 @@
 
 using namespace helfem;
 
-void eval(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, const arma::ivec & lmmax, int igrid, double zexp, double Ez, double Qzz, int norb, double & E, arma::uword & nang, arma::uword & nrad, arma::vec & Eval) {
+void eval(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, const arma::ivec & lmmax, int igrid, double zexp, double Ez, double Qzz, double Bz, int norb, double & E, arma::uword & nang, arma::uword & nrad, arma::vec & Eval) {
 
   int lpad=0;
   int symm=1;
@@ -34,7 +34,11 @@ void eval(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis 
   // Quadrupole coupling
   if(Qzz!=0.0)
     H0+=Qzz*basis.quadrupole_zz()/3.0;
-
+  // Magnetic field coupling
+  if(Bz!=0.0) {
+    printf("Bz=%e\n",Bz);
+    H0+=basis.Bz_field(Bz)-Bz*S/2.0;
+  }
   // Use core guess
   arma::vec Ev;
   arma::mat C;
@@ -65,6 +69,7 @@ int main(int argc, char **argv) {
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
   parser.add<double>("Ez", 0, "electric dipole field", false, 0.0);
   parser.add<double>("Qzz", 0, "electric quadrupole field", false, 0.0);
+  parser.add<double>("Bz", 0, "magnetic dipole field", false, 0.0);
   parser.add<int>("thresh", 0, "convergence threshold, 10 corresponds to 1e-10", false, 10);
   parser.add<int>("nadd", 0, "number of funcs to add", false, 2);
   parser.parse_check(argc, argv);
@@ -75,6 +80,7 @@ int main(int argc, char **argv) {
   double zexp(parser.get<double>("zexp"));
   double Ez(parser.get<double>("Ez"));
   double Qzz(parser.get<double>("Qzz"));
+  double Bz(parser.get<double>("Bz"));
   int primbas(parser.get<int>("primbas"));
   // Number of nodes
   int Nnodes(parser.get<int>("nnodes"));
@@ -161,7 +167,7 @@ int main(int argc, char **argv) {
       double E;
       arma::vec Eval;
       arma::uword Nrad, Nang;
-      eval(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, Ez, Qzz, norbs[m], E, Nrad, Nang, Eval);
+      eval(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], E, Nrad, Nang, Eval);
 
       Eval.t().print("Initial eigenvalues");
 
@@ -182,11 +188,11 @@ int main(int argc, char **argv) {
 
         printf("m=%i iteration %i\n",(int) m,iiter);
 
-        eval(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmtr, igrid, zexp, Ez, Qzz, norbs[m], Ea, Nra, Naa, Eva);
+        eval(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmtr, igrid, zexp, Ez, Qzz, Bz, norbs[m], Ea, Nra, Naa, Eva);
         double dEa=Ea-E;
         printf("Addition of %i partial waves decreases energy by %e\n",nadd,dEa);
 
-        eval(Z1, Z2, Rbond, poly, Nquad, Nelem+nadd, Rmax, lmmax, igrid, zexp, Ez, Qzz, norbs[m], Er, Nrr, Nar, Evr);
+        eval(Z1, Z2, Rbond, poly, Nquad, Nelem+nadd, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], Er, Nrr, Nar, Evr);
         double dEr=Er-E;
         printf("Addition of %i radial elements decreases energy by %e\n",nadd,dEr);
 
@@ -222,7 +228,8 @@ int main(int argc, char **argv) {
     if(cvd) {
       printf("\n");
       printf("An estimated accuracy of %e is achieved with\n",thr);
-      printf("--grid=%i --zexp=%e --primbas=%i --nnodes=%i --nelem=%i --Rmax=%e --lmax=", igrid, zexp, primbas, Nnodes, (int) Nelem, Rmax);
+      printf("--Z1=%s --Z2=%s --Rbond=%e --angstrom=%i --grid=%i --zexp=%e --primbas=%i --nnodes=%i --nelem=%i --Rmax=%e --lmax=", parser.get<std::string>("Z1").c_str(), parser.get<std::string>("Z2").c_str(), parser.get<double>("Rbond"), parser.get<bool>("angstrom"), igrid, zexp, primbas, Nnodes, (int) Nelem, Rmax);
+
       for(size_t m=0;m<lmgrid.n_elem;m++) {
         if(m)
           printf(",");

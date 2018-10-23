@@ -189,6 +189,10 @@ namespace helfem {
         arma::mat dipole_z() const;
         /// Form dipole coupling matrix
         arma::mat quadrupole_zz() const;
+
+        /// Coupling to magnetic field in z direction
+        arma::mat Bz_field(double B) const;
+
         /// <r^2> matrix
         arma::mat radial_moments(const arma::mat & P) const;
 

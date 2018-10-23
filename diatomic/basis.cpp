@@ -840,6 +840,48 @@ namespace helfem {
         return remove_boundaries(V);
       }
 
+      arma::mat TwoDBasis::Bz_field(double B) const {
+        // Full couplings
+        arma::mat V(Ndummy(),Ndummy());
+        V.zeros();
+
+        // Build radial matrix elements
+        arma::mat I30(radial.radial_integral(3,0));
+        arma::mat I32(radial.radial_integral(3,2));
+
+        // Fill elements
+        for(size_t iang=0;iang<lval.n_elem;iang++) {
+          int li(lval(iang));
+          int mi(mval(iang));
+
+          for(size_t jang=0;jang<lval.n_elem;jang++) {
+            int lj(lval(jang));
+            int mj(mval(jang));
+
+            // Calculate coupling
+            if(mi==mj) {
+              // Coupling strength
+              double cs(-mj*B/2.0 + B*B/8.0);
+
+              // Coupling through the sin^2 term
+              double cpl2(gaunt.sine2_coupling(lj,mj,li,mi));
+              if(cpl2!=0.0)
+                add_sub(V,iang,jang,cs*cpl2*I32);
+
+              // We can also couple through the sin^2 cos^2 term
+              double cpl22(gaunt.cosine2_sine2_coupling(lj,mj,li,mi));
+              if(cpl22!=0.0)
+                add_sub(V,iang,jang,-cs*cpl22*I30);
+            }
+          }
+        }
+
+        // Plug in prefactors
+        V*=std::pow(Rhalf,5);
+
+        return remove_boundaries(V);
+      }
+
       arma::mat TwoDBasis::radial_moments(const arma::mat & P0) const {
         // Returned matrix elements
         arma::mat Rmat(4,3); // -1, 1, 2, 3 and lh, cen, rh
