@@ -19,7 +19,7 @@ add_library(helfem general/polynomial.cpp general/polynomial_basis.cpp
 general/gaunt.cpp general/chebyshev.cpp general/diis.cpp
 general/lbfgs.cpp general/utils.cpp general/spherical_harmonics.cpp
 general/timer.cpp general/elements.cpp general/lobatto.cpp
-general/angular.cpp general/scf_helpers.cpp)
+general/angular.cpp general/scf_helpers.cpp general/lcao.cpp)
 
 add_library(legendre legendre/accuracy.f90 legendre/input_output.f90
   legendre/itoc.f90 legendre/Matrix_Print.f90 legendre/Data_Module.f90
