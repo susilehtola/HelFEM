@@ -3,11 +3,10 @@
 # Installation directory
 export target=$(pwd) # this installs the binaries under bin/ in the present directory
 
-host=$(hostname -s)
-if [[ ! -d exe.${host} ]]; then
-    mkdir exe.${host}
+if [[ ! -d objdir ]]; then
+    mkdir objdir
 fi
-cd exe.${host}
+cd objdir
 
 #export CXXFLAGS="-g -O2 -Wall -Wno-implicit-fallthrough -Wno-misleading-indentation -DARMA_NO_DEBUG"
 export CXXFLAGS="-g -O2 -Wall -Wno-implicit-fallthrough -Wno-misleading-indentation -Wshadow"
