@@ -717,10 +717,6 @@ int main(int argc, char **argv) {
     printf("%2i % e %e %e %e %e\n",(int) io+1, Eb(io), rinvb(io), rb(io), rmsb(io), rcbb(io));
   }
 
-  S.save("S.dat",arma::raw_ascii);
-  T.save("T.dat",arma::raw_ascii);
-  Vnuc.save("V.dat",arma::raw_ascii);
-
   /*
   // Test orthonormality
   arma::mat Smo(Ca.t()*S*Ca);
