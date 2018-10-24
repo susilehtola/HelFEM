@@ -10,6 +10,25 @@ extern "C" {
 
 namespace helfem {
   namespace polynomial_basis {
+    void drop_first(arma::uvec & idx) {
+      // This is simple - just drop first function
+      idx=idx.subvec(1,idx.n_elem-1);
+    }
+
+    void drop_last(arma::uvec & idx, int noverlap) {
+      // This is simple too - drop the last noverlap functions to force function and its derivatives to zero
+      idx=idx.subvec(0,idx.n_elem-noverlap-1);
+    }
+
+    arma::uvec primitive_indices(int nprim, int noverlap, bool first, bool last) {
+      arma::uvec idx(arma::linspace<arma::uvec>(0,nprim-1,nprim));
+      if(first)
+	drop_first(idx);
+      if(last)
+	drop_last(idx, noverlap);
+      return idx;
+    }
+
     PolynomialBasis * get_basis(int primbas, int Nnodes) {
       // Primitive basis
       polynomial_basis::PolynomialBasis * poly;
@@ -60,16 +79,18 @@ namespace helfem {
       return noverlap;
     }
 
-    void PolynomialBasis::print() const {
-      arma::vec x(arma::linspace<arma::vec>(-1.0,1.0,1000));
+    void PolynomialBasis::print(const std::string & str) const {
+      arma::vec x(arma::linspace<arma::vec>(-1.0,1.0,1001));
       arma::mat bf, df;
       eval(x,bf,df);
 
       bf.insert_cols(0,x);
       df.insert_cols(0,x);
 
-      bf.save("bf.dat",arma::raw_ascii);
-      df.save("df.dat",arma::raw_ascii);
+      std::string fname("bf" + str + ".dat");
+      std::string dname("df" + str + ".dat");
+      bf.save(fname,arma::raw_ascii);
+      df.save(dname,arma::raw_ascii);
     }
 
     HermiteBasis::HermiteBasis(int n_nodes, int der_order) {
@@ -99,14 +120,22 @@ namespace helfem {
     }
 
     void HermiteBasis::drop_first() {
-      bf_C=bf_C.cols(noverlap,bf_C.n_cols-1);
-      df_C=df_C.cols(noverlap,df_C.n_cols-1);
+      // Only drop function value, not derivatives
+      arma::uvec idx(arma::linspace<arma::uvec>(0,bf_C.n_cols-1,bf_C.n_cols));
+      polynomial_basis::drop_first(idx);
+
+      bf_C=bf_C.cols(idx);
+      df_C=df_C.cols(idx);
       nbf=bf_C.n_cols;
     }
 
     void HermiteBasis::drop_last() {
-      bf_C=bf_C.cols(0,bf_C.n_cols-1-noverlap);
-      df_C=df_C.cols(0,df_C.n_cols-1-noverlap);
+      // Only drop function value, not derivatives
+      arma::uvec idx(arma::linspace<arma::uvec>(0,bf_C.n_cols-1,bf_C.n_cols));
+      polynomial_basis::drop_last(idx, noverlap);
+
+      bf_C=bf_C.cols(idx);
+      df_C=df_C.cols(idx);
       nbf=bf_C.n_cols;
     }
 

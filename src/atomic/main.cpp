@@ -171,8 +171,8 @@ int main(int argc, char **argv) {
 
   if(Nquad==0)
     // Set default value
-    Nquad=5*Nnodes;
-  else if(Nquad<2*Nnodes)
+    Nquad=5*poly->get_nbf();
+  else if(Nquad<2*poly->get_nbf())
     throw std::logic_error("Insufficient radial quadrature.\n");
 
   printf("Using %i point quadrature rule.\n",Nquad);
@@ -716,6 +716,10 @@ int main(int argc, char **argv) {
   for(int io=0;io<nelb;io++) {
     printf("%2i % e %e %e %e %e\n",(int) io+1, Eb(io), rinvb(io), rb(io), rmsb(io), rcbb(io));
   }
+
+  S.save("S.dat",arma::raw_ascii);
+  T.save("T.dat",arma::raw_ascii);
+  Vnuc.save("V.dat",arma::raw_ascii);
 
   /*
   // Test orthonormality

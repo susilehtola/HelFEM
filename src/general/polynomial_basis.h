@@ -5,6 +5,9 @@
 
 namespace helfem {
   namespace polynomial_basis {
+    /// Get primitive indices for a basis with n nodes and n overlapping functions.
+    arma::uvec primitive_indices(int nnodes, int noverlap, bool drop_first, bool drop_last);
+
     /// Template for a primitive basis
     class PolynomialBasis {
     protected:
@@ -36,7 +39,7 @@ namespace helfem {
       virtual void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const=0;
 
       /// Print out the basis functions
-      void print() const;
+      void print(const std::string & str="") const;
     };
     /// Get the wanted basis
     PolynomialBasis * get_basis(int primbas, int Nnodes);

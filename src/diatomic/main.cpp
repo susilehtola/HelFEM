@@ -190,8 +190,8 @@ int main(int argc, char **argv) {
 
   if(Nquad==0)
     // Set default value
-    Nquad=5*Nnodes;
-  else if(Nquad<2*Nnodes)
+    Nquad=5*poly->get_nbf();
+  else if(Nquad<2*poly->get_nbf())
     throw std::logic_error("Insufficient radial quadrature.\n");
 
   printf("Using %i point quadrature rule.\n",Nquad);

@@ -24,6 +24,8 @@ namespace helfem {
         /// Element boundary values
         arma::vec bval;
 
+	/// Used basis function indices in element
+	arma::uvec basis_indices(size_t iel) const;
         /// Get basis functions in element
         arma::mat get_basis(const arma::mat & b, size_t iel) const;
         /// Get basis functions in element

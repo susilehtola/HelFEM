@@ -78,11 +78,12 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::get_basis(const arma::mat & bas, size_t iel) const {
-        if(iel==bval.n_elem-2)
+        if(iel==bval.n_elem-2) {
           // Boundary condition at r=infinity
-          return bas.cols(0,bf.n_cols-1-get_noverlap());
-        else
+	  return bas.cols(polynomial_basis::primitive_indices(bf.n_cols,get_noverlap(),false,true));
+	} else {
           return bas;
+	}
       }
 
       polynomial_basis::PolynomialBasis * RadialBasis::get_basis(const polynomial_basis::PolynomialBasis * polynom, size_t iel) const {
@@ -105,14 +106,13 @@ namespace helfem {
       }
 
       size_t RadialBasis::Nbf() const {
-        // The number of basis functions is Nbf*Nel - (Nel-1)*Noverlap
-        // - Noverlap or just
-        return Nel()*(bf.n_cols-get_noverlap());
+        // Number of basis functions is Nbf*Nel - (Nel-1)*Noverlap - Noverlap
+        return Nel()*bf.n_cols-Nel()*get_noverlap();
       }
 
       size_t RadialBasis::Nprim(size_t iel) const {
         if(iel==bval.n_elem-2)
-          return bf.n_cols-get_noverlap();
+          return bf.n_cols-1;
         else
           return bf.n_cols;
       }
@@ -433,8 +433,8 @@ namespace helfem {
         for(size_t i=0;i<mval.n_elem;i++) {
           nbf+=radial.Nbf();
           if(mval(i)!=0)
-            // Remove first noverlap functions
-            nbf-=radial.get_noverlap();
+            // Remove first function
+            nbf--;
         }
 
         return nbf;
@@ -458,8 +458,9 @@ namespace helfem {
             idx.subvec(ioff,ioff+radial.Nbf()-1)=arma::linspace<arma::uvec>(i*radial.Nbf(),(i+1)*radial.Nbf()-1,radial.Nbf());
             ioff+=radial.Nbf();
           } else {
-            idx.subvec(ioff,ioff+radial.Nbf()-radial.get_noverlap()-1)=arma::linspace<arma::uvec>(i*radial.Nbf()+radial.get_noverlap(),(i+1)*radial.Nbf()-1,radial.Nbf()-radial.get_noverlap());
-            ioff+=radial.Nbf()-radial.get_noverlap();
+	    // Just drop the first function
+            idx.subvec(ioff,ioff+radial.Nbf()-2)=arma::linspace<arma::uvec>(i*radial.Nbf()+1,(i+1)*radial.Nbf()-1,radial.Nbf()-1);
+            ioff+=radial.Nbf()-1;
           }
         }
 
@@ -479,7 +480,7 @@ namespace helfem {
         size_t nm=0;
         for(size_t i=0;i<mval.n_elem;i++) {
           if(mval(i)==m) {
-            nm += (m==0) ? radial.Nbf() : radial.Nbf()-radial.get_noverlap();
+            nm += (m==0) ? radial.Nbf() : radial.Nbf()-1;
           }
         }
 
@@ -489,7 +490,7 @@ namespace helfem {
         size_t ibf=0;
         for(size_t i=0;i<mval.n_elem;i++) {
           // Number of functions on shell is
-          size_t nsh=(mval(i)==0) ? radial.Nbf() : radial.Nbf()-radial.get_noverlap();
+          size_t nsh=(mval(i)==0) ? radial.Nbf() : radial.Nbf()-1;
           if(mval(i)==m) {
             idx.subvec(ioff,ioff+nsh-1)=arma::linspace<arma::uvec>(ibf,ibf+nsh-1,nsh);
             ioff+=nsh;
@@ -505,7 +506,7 @@ namespace helfem {
         size_t nm=0;
         for(size_t i=0;i<mval.n_elem;i++) {
           if(mval(i)==m && lval(i)%2==odd) {
-            nm += (m==0) ? radial.Nbf() : radial.Nbf()-radial.get_noverlap();
+            nm += (m==0) ? radial.Nbf() : radial.Nbf()-1;
           }
         }
 
@@ -515,7 +516,7 @@ namespace helfem {
         size_t ibf=0;
         for(size_t i=0;i<mval.n_elem;i++) {
           // Number of functions on shell is
-          size_t nsh=(mval(i)==0) ? radial.Nbf() : radial.Nbf()-radial.get_noverlap();
+          size_t nsh=(mval(i)==0) ? radial.Nbf() : radial.Nbf()-1;
           if(mval(i)==m && lval(i)%2==odd) {
             idx.subvec(ioff,ioff+nsh-1)=arma::linspace<arma::uvec>(ibf,ibf+nsh-1,nsh);
             ioff+=nsh;

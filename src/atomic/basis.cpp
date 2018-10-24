@@ -170,32 +170,30 @@ namespace helfem {
       RadialBasis::~RadialBasis() {
       }
 
+      arma::uvec RadialBasis::basis_indices(size_t iel) const {
+	// Number of overlapping functions
+	int noverlap(get_noverlap());
+	// Number of primitive functions
+	int nprim(bf.n_cols);
+
+	return polynomial_basis::primitive_indices(nprim, noverlap, iel==0, iel==bval.n_elem-2);
+      }
+
       arma::mat RadialBasis::get_basis(const arma::mat & bas, size_t iel) const {
-        if(iel==0 && iel==bval.n_elem-2)
-          // Boundary condition both at r=0 and at r=infinity
-          return bas.cols(get_noverlap(),bf.n_cols-1-get_noverlap());
-        else if(iel==0)
-          // Boundary condition at r=0
-          return bas.cols(get_noverlap(),bf.n_cols-1);
-        else if(iel==bval.n_elem-2)
-          // Boundary condition at r=infinity
-          return bas.cols(0,bf.n_cols-1-get_noverlap());
-        else
-          return bas;
+	arma::uvec idx(basis_indices(iel));
+	return bas.cols(idx);
       }
 
       polynomial_basis::PolynomialBasis * RadialBasis::get_basis(const polynomial_basis::PolynomialBasis * polynom, size_t iel) const {
         polynomial_basis::PolynomialBasis *p(polynom->copy());
+	if(iel==0)
+          p->drop_first();
+	if(iel==bval.n_elem-2)
+          p->drop_last();
 
-        if(iel==0 && iel==bval.n_elem-2) {
-          // Boundary condition both at r=0 and at r=infinity
-          p->drop_first();
-          p->drop_last();
-        } else if(iel==0) {
-          p->drop_first();
-        } else if(iel==bval.n_elem-2) {
-          p->drop_last();
-        }
+	std::ostringstream oss;
+	oss << "_" << iel;
+	p->print(oss.str());
 
         return p;
       }
@@ -210,20 +208,12 @@ namespace helfem {
       }
 
       size_t RadialBasis::Nbf() const {
-        // The number of basis functions is Nbf*Nel - (Nel-1)*Poly->Get_Noverlap() -
-        // 2*Poly->Get_Noverlap() or just
-        return Nel()*(bf.n_cols-poly->get_noverlap())-poly->get_noverlap();
+        // Number of basis functions is Nprim*Nel - (Nel-1)*noverlap - 1 - noverlap
+        return Nel()*(bf.n_cols-poly->get_noverlap())-1;
       }
 
       size_t RadialBasis::Nprim(size_t iel) const {
-        if(iel==0 && iel==bval.n_elem-2)
-          return bf.n_cols-2*poly->get_noverlap();
-        else if(iel==0)
-          return bf.n_cols-poly->get_noverlap();
-        else if(iel==bval.n_elem-2)
-          return bf.n_cols-poly->get_noverlap();
-        else
-          return bf.n_cols;
+	return basis_indices(iel).n_elem;
       }
 
       size_t RadialBasis::max_Nprim() const {
@@ -231,15 +221,17 @@ namespace helfem {
       }
 
       void RadialBasis::get_idx(size_t iel, size_t & ifirst, size_t & ilast) const {
+	// Compute the storage indices of elements.
         // The first function in the element will be
-        ifirst=iel*(bf.n_cols-poly->get_noverlap());
+        ifirst=iel*(bf.n_cols - poly->get_noverlap());
         // and the last one will be
         ilast=ifirst+bf.n_cols-1;
 
-        // Account for the functions deleted at the origin
-        ilast-=poly->get_noverlap();
+        // Account for the function deleted at the origin
+        ilast--;
         if(iel>0)
-          ifirst-=poly->get_noverlap();
+	  // First function in first element is always 0
+          ifirst--;
 
         // Last element does not have trailing functions
         if(iel==bval.n_elem-2)
@@ -645,7 +637,7 @@ namespace helfem {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-          Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(Rexp,iel);
+	  Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(Rexp,iel);
         }
 
         // Full overlap matrix

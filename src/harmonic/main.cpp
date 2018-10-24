@@ -119,8 +119,20 @@ arma::mat kinetic(const arma::vec & r, const arma::vec & x, const arma::vec & wx
 }
 
 arma::mat remove_edges(const arma::mat & M, int noverlap) {
-  // Drop the first and last noverlap rows and columns
-  return M.submat(noverlap,noverlap,M.n_rows-noverlap,M.n_cols-noverlap);
+  // Full list of functions is
+  arma::uvec idx(arma::linspace<arma::uvec>(0,M.n_cols-1,M.n_cols));
+
+  // Drop first function
+  idx=idx.subvec(1,idx.n_elem-1);
+  // Drop last function
+  arma::uvec newidx(idx.n_elem-1);
+  newidx.subvec(0,idx.n_elem-noverlap-1)=idx.subvec(0,idx.n_elem-noverlap-1);
+  if(noverlap>1)
+    newidx.subvec(idx.n_elem-noverlap,newidx.n_elem-1)=idx.subvec(idx.n_elem-noverlap+1,idx.n_elem-1);
+  idx=newidx;
+
+  // Return submatrix
+  return M(idx,idx);
 }
 
 int main(int argc, char **argv) {
@@ -211,7 +223,8 @@ int main(int argc, char **argv) {
   C=Sinvh*C;
 
   printf("Eigenvalues\n");
-  for(size_t i=0;i<8;i++)
+  size_t neig=std::min(E.n_elem,(arma::uword) 8);
+  for(size_t i=0;i<neig;i++)
     printf("%i % 10.6f % 10.6f\n",(int) i, E(i),E(i)-(2*i+1));
 
   // Test orthonormality
