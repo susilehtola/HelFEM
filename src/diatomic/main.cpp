@@ -499,7 +499,7 @@ int main(int argc, char **argv) {
   basis.compute_tei(kfrac!=0.0);
   printf("Done in %.6f\n",timer.get());
 
-  double Ekin, Epot, Ecoul, Exx, Exc, Eefield, Emfield, Etot;
+  double Ekin=0.0, Epot=0.0, Ecoul=0.0, Exx=0.0, Exc=0.0, Eefield=0.0, Emfield=0.0, Etot=0.0;
   double Eold=0.0;
 
   bool usediis=true, useadiis=true, diiscomb=false;
