@@ -191,10 +191,6 @@ namespace helfem {
 	if(iel==bval.n_elem-2)
           p->drop_last();
 
-	std::ostringstream oss;
-	oss << "_" << iel;
-	p->print(oss.str());
-
         return p;
       }
 
