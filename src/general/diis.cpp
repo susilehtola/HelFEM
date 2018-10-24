@@ -359,6 +359,11 @@ arma::vec DIIS::get_w_diis_wrk(const arma::mat & errs) const {
       sol += arma::dot(U.col(i),rh)/sval(i) * V.col(i);
 #endif
   }
+
+  // Sanity check
+  if(arma::sum(sol)==0.0)
+    sol.ones();
+
   // Normalize solution
   //printf("Sum of weights is %e\n",arma::sum(sol));
   sol/=arma::sum(sol);
