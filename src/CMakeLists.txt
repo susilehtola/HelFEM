@@ -46,3 +46,6 @@ target_link_libraries(diatomic_itest gsl ${LAPACK_LIBRARY} rt)
 add_executable(diatomic_cbasis diatomic/corebasis.cpp diatomic/basis.cpp diatomic/quadrature.cpp)
 target_link_libraries(diatomic_cbasis helfem legendre)
 target_link_libraries(diatomic_cbasis gsl ${LAPACK_LIBRARY} rt)
+
+# Install libraries and main executables
+install (TARGETS helfem legendre atomic diatomic diatomic_cbasis DESTINATION bin)
