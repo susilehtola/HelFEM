@@ -856,15 +856,18 @@ namespace helfem {
       arma::mat TwoDBasis::Bz_field(double B) const {
         // Build radial elements
         size_t Nrad(radial.Nbf());
-        arma::mat Orad(Nrad,Nrad);
-        Orad.zeros();
+        arma::mat O0rad(Nrad,Nrad);
+        O0rad.zeros();
+        arma::mat O2rad(Nrad,Nrad);
+        O2rad.zeros();
 
         // Loop over elements
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-          Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(2,iel);
+          O0rad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(0,iel);
+          O2rad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(2,iel);
         }
 
         // Full coupling
@@ -886,7 +889,11 @@ namespace helfem {
             // Calculate coupling
             double cpl(gaunt.sine2_coupling(lj,mj,li,mi));
             if(cpl!=0.0) {
-              set_sub(V,iang,jang,(B*mj/2.0 + B*B/8.0)*Orad*cpl);
+              set_sub(V,iang,jang,B*B/8.0*O2rad*cpl);
+            }
+
+            if(li==lj && mi==mj) {
+              add_sub(V,iang,jang,-0.5*B*mj*O0rad);
             }
           }
         }

@@ -542,7 +542,7 @@ int main(int argc, char **argv) {
     Ekin=arma::trace(P*T);
     Epot=arma::trace(P*Vnuc);
     Eefield=arma::trace(P*Vel);
-    Emfield=arma::trace(P*Vmag)+Bz/2.0*(nela-nelb);
+    Emfield=arma::trace(P*Vmag)-Bz/2.0*(nela-nelb);
 
     // Form Coulomb matrix
     timer.set();
@@ -613,8 +613,8 @@ int main(int argc, char **argv) {
     }
     if(Bz!=0.0) {
       // Add in the B*Sz term
-      Fa+=Bz*S/2.0;
-      Fb-=Bz*S/2.0;
+      Fa-=Bz*S/2.0;
+      Fb+=Bz*S/2.0;
     }
 
     // ROHF update to Fock matrix
