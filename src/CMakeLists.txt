@@ -32,6 +32,10 @@ add_executable(atomic atomic/main.cpp atomic/basis.cpp atomic/quadrature.cpp ato
 target_link_libraries(atomic helfem legendre)
 target_link_libraries(atomic gsl ${LAPACK_LIBRARY} rt xc)
 
+add_executable(atomic_gszopt atomic/gszopt.cpp atomic/basis.cpp atomic/quadrature.cpp atomic/dftgrid.cpp general/dftfuncs.cpp)
+target_link_libraries(atomic_gszopt helfem legendre)
+target_link_libraries(atomic_gszopt gsl ${LAPACK_LIBRARY} rt xc)
+
 add_executable(atomic_itest atomic/inttest.cpp atomic/basis.cpp atomic/quadrature.cpp)
 target_link_libraries(atomic_itest helfem legendre)
 target_link_libraries(atomic_itest gsl ${LAPACK_LIBRARY} rt)
