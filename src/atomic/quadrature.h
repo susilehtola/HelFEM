@@ -40,6 +40,18 @@ namespace helfem {
     arma::mat derivative_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & dbf);
 
     /**
+     * Computes a GSZ radial integral \f$ \int_0^\infty Z(r) B_1 (r) B_2(r) / r dr \f$.
+     *
+     * Input
+     *   rmin: start of element boundary
+     *   rmax: end of element boundary
+     *       x: integration nodes
+     *      wx: integration weights
+     *      bf: basis functions evaluated at integration nodes.
+     */
+    arma::mat gsz_integral(double Z, double dz, double Hz, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
+
+    /**
      * Computes the inner in-element two-electron integral:
      * \f$ \phi(r) = \frac 1 r^{L+1} \int_0^r dr' r'^{L} B_k(r') B_l(r') \f$
      */

@@ -89,19 +89,27 @@ namespace helfem {
       }
 
       // Make sure orbital energies are in order
-      arma::uvec occorder(arma::conv_to<arma::uvec>::from(occidx));
-      arma::vec Eocc(E(occorder));
-      arma::uvec occsort(arma::sort_index(Eocc,"ascend"));
-      occorder=occorder(occsort);
+      arma::uvec occorder;
+      if(occidx.size()) {
+	occorder=arma::conv_to<arma::uvec>::from(occidx);
+	arma::vec Eocc(E(occorder));
+	arma::uvec occsort(arma::sort_index(Eocc,"ascend"));
+	occorder=occorder(occsort);
+      }
 
-      arma::uvec virtorder(arma::conv_to<arma::uvec>::from(virtidx));
-      arma::vec Evirt(E(virtorder));
-      arma::uvec virtsort(arma::sort_index(Evirt,"ascend"));
-      virtorder=virtorder(virtsort);
+      arma::uvec virtorder;
+      if(virtidx.size()) {
+	virtorder=arma::conv_to<arma::uvec>::from(virtidx);
+	arma::vec Evirt(E(virtorder));
+	arma::uvec virtsort(arma::sort_index(Evirt,"ascend"));
+	virtorder=virtorder(virtsort);
+      }
 
       arma::uvec newidx(occorder.n_elem+virtorder.n_elem);
-      newidx.subvec(0,occorder.n_elem-1)=occorder;
-      newidx.subvec(occorder.n_elem,newidx.n_elem-1)=virtorder;
+      if(occorder.n_elem)
+	newidx.subvec(0,occorder.n_elem-1)=occorder;
+      if(virtorder.n_elem)
+	newidx.subvec(occorder.n_elem,newidx.n_elem-1)=virtorder;
       C=C.cols(newidx);
       E=E(newidx);
     }
@@ -117,7 +125,7 @@ namespace helfem {
       C=Sinvh*C;
     }
 
-    void eig_gsym_sub(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh, const std::vector<arma::uvec> & m_idx) {
+    void eig_gsym_sub(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh, const std::vector<arma::uvec> & m_idx, bool verbose) {
       E.zeros(F.n_rows);
       C.zeros(F.n_rows,F.n_rows);
 
@@ -164,7 +172,8 @@ namespace helfem {
         throw std::logic_error(oss.str());
       }
 
-      printf("Cross-symmetry residual %e\n",res);
+      if(verbose)
+	printf("Cross-symmetry residual %e\n",res);
 
       // Sort energies
       arma::uvec Eord=arma::sort_index(E,"ascend");

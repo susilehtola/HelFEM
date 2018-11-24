@@ -16,6 +16,7 @@
 #include "quadrature.h"
 #include "../general/chebyshev.h"
 #include "../general/polynomial.h"
+#include "../general/gsz.h"
 
 namespace helfem {
   namespace quadrature {
@@ -79,6 +80,41 @@ namespace helfem {
 
       // Integral is
       return arma::trans(wdbf)*dbf;
+    }
+
+    arma::mat gsz_integral(double Z, double dz, double Hz, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf) {
+#ifndef ARMA_NO_DEBUG
+      if(x.n_elem != wx.n_elem) {
+        std::ostringstream oss;
+        oss << "x and wx not compatible: " << x.n_elem << " vs " << wx.n_elem << "!\n";
+        throw std::logic_error(oss.str());
+      }
+      if(x.n_elem != bf.n_rows) {
+        std::ostringstream oss;
+        oss << "x and bf not compatible: " << x.n_elem << " vs " << bf.n_rows << "!\n";
+        throw std::logic_error(oss.str());
+      }
+#endif
+
+      // Midpoint is at
+      double rmid(0.5*(rmax+rmin));
+      // and half-length of interval is
+      double rlen(0.5*(rmax-rmin));
+      // r values are then
+      arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
+
+      // Calculate total weight per point
+      arma::vec wp(wx*rlen);
+      // Plug in charge
+      wp%=-GSZ::Z_GSZ(r,Z,dz,Hz)/r;
+
+      // Put in weight
+      arma::mat wbf(bf);
+      for(size_t i=0;i<bf.n_cols;i++)
+	wbf.col(i)%=wp;
+
+      // Matrix elements are then
+      return arma::trans(wbf)*bf;
     }
 
     static arma::vec twoe_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L) {
