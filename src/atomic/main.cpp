@@ -97,6 +97,7 @@ int main(int argc, char **argv) {
   parser.add<int>("readocc", 0, "read occupations from file, use until nth build", false, 0);
   parser.add<double>("perturb", 0, "randomly perturb initial guess", false, 0.0);
   parser.add<int>("seed", 0, "seed for random perturbation", false, 0);
+  parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ", false, 1);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -113,6 +114,7 @@ int main(int argc, char **argv) {
   bool diag(parser.get<bool>("diag"));
   int restr(parser.get<int>("restricted"));
   int symm(parser.get<int>("symmetry"));
+  int iguess(parser.get<int>("iguess"));
 
   int primbas(parser.get<int>("primbas"));
   // Number of elements
@@ -390,13 +392,33 @@ int main(int argc, char **argv) {
   // Guess orbitals
   timer.set();
   {
-    // Use core guess
     arma::vec E;
     arma::mat C;
-    if(symm)
-      scf::eig_gsym_sub(E,C,H0,Sinvh,dsym);
-    else
-      scf::eig_gsym(E,C,H0,Sinvh);
+    switch(iguess) {
+    case(0):
+      // Use core guess
+      printf("Guess orbitals from core Hamiltonian\n");
+      if(symm)
+	scf::eig_gsym_sub(E,C,H0,Sinvh,dsym);
+      else
+	scf::eig_gsym(E,C,H0,Sinvh);
+      break;
+
+    case(1):
+      // Use GSZ guess
+      printf("Guess orbitals from GSZ screened nucleus\n");
+      {
+	arma::mat Hgsz(T+basis.gsz()+Vel+Vmag);
+	if(symm)
+	  scf::eig_gsym_sub(E,C,Hgsz,Sinvh,dsym);
+	else
+	  scf::eig_gsym(E,C,Hgsz,Sinvh);
+	break;
+      }
+
+    default:
+      throw std::logic_error("Unsupported guess\n");
+    }
 
     Ea=E;
     arma::mat Ca(C);
