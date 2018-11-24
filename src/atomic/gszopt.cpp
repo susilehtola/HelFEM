@@ -1952,11 +1952,9 @@ double compute_value(const arma::mat & T, const arma::mat & Sinvh, const std::ve
   arma::vec E=compute_energies(T, Sinvh, dsym, basis, p);
   // Grab interesting part
   E=E.subvec(0,Eref.n_elem-1);
-  // Substract reference
-  E-=Eref;
 
-  // rms error
-  return sqrt(arma::dot(E,E)/E.n_elem);
+  // chi2 value
+  return arma::sum(arma::square(E-Eref)/(-Eref));
 }
 
 int main(int argc, char **argv) {
@@ -2061,7 +2059,7 @@ int main(int argc, char **argv) {
     arma::mat Etes(Eref.n_elem,3);
     Etes.col(0)=Eref;
     Etes.col(1)=compute_energies(T,Sinvh,dsym,basis,p).subvec(0,Eref.n_elem-1);
-    Etes.col(2)=Etes.col(1)-Etes.col(0);
+    Etes.col(2)=(Etes.col(1)-Etes.col(0))/Eref;
     Etes.print("GWH energies");
     printf("\n");
   }
@@ -2159,7 +2157,7 @@ int main(int argc, char **argv) {
     arma::mat Etes(Eref.n_elem,3);
     Etes.col(0)=Eref;
     Etes.col(1)=compute_energies(T,Sinvh,dsym,basis,p).subvec(0,Eref.n_elem-1);
-    Etes.col(2)=Etes.col(1)-Etes.col(0);
+    Etes.col(2)=(Etes.col(1)-Etes.col(0))/Eref;
     Etes.print("GWH energies");
     printf("\n");
 
