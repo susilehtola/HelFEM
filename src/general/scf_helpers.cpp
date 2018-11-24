@@ -125,7 +125,7 @@ namespace helfem {
       C=Sinvh*C;
     }
 
-    void eig_gsym_sub(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh, const std::vector<arma::uvec> & m_idx) {
+    void eig_gsym_sub(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh, const std::vector<arma::uvec> & m_idx, bool verbose) {
       E.zeros(F.n_rows);
       C.zeros(F.n_rows,F.n_rows);
 
@@ -172,7 +172,8 @@ namespace helfem {
         throw std::logic_error(oss.str());
       }
 
-      printf("Cross-symmetry residual %e\n",res);
+      if(verbose)
+	printf("Cross-symmetry residual %e\n",res);
 
       // Sort energies
       arma::uvec Eord=arma::sort_index(E,"ascend");
