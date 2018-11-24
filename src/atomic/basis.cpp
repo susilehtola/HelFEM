@@ -19,6 +19,7 @@
 #include "../general/chebyshev.h"
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
+#include "../general/gsz.h"
 #include "../general/utils.h"
 #include "../general/scf_helpers.h"
 #include <cassert>
@@ -274,6 +275,14 @@ namespace helfem {
 
       arma::mat RadialBasis::nuclear(size_t iel) const {
         return -radial_integral(-1,iel);
+      }
+
+      arma::mat RadialBasis::gsz(double Z, double dz, double Hz, size_t iel) const {
+        double Rmin(bval(iel));
+        double Rmax(bval(iel+1));
+
+        // Integral by quadrature
+        return quadrature::gsz_integral(Z,dz,Hz,Rmin,Rmax,xq,wq,get_basis(bf,iel));
       }
 
       arma::mat RadialBasis::nuclear_offcenter(size_t iel, double Rhalf, int L) const {
@@ -770,6 +779,35 @@ namespace helfem {
         return remove_boundaries(V);
       }
 
+      arma::mat TwoDBasis::gsz(double dz, double Hz) const {
+        // Full nuclear attraction matrix
+        arma::mat V(Ndummy(),Ndummy());
+        V.zeros();
+
+	size_t Nrad(radial.Nbf());
+	arma::mat Vrad(Nrad,Nrad);
+	Vrad.zeros();
+	// Loop over elements
+	for(size_t iel=0;iel<radial.Nel();iel++) {
+	  // Where are we in the matrix?
+	  size_t ifirst, ilast;
+	  radial.get_idx(iel,ifirst,ilast);
+	  Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.gsz(Z,dz,Hz,iel);
+	}
+	// Fill elements
+	for(size_t iang=0;iang<lval.n_elem;iang++)
+	  set_sub(V,iang,iang,Vrad);
+
+        return remove_boundaries(V);
+      }
+
+      arma::mat TwoDBasis::gsz() const {
+	// Get default parameters
+	double dz, Hz;
+	GSZ::GSZ_parameters(Z,dz,Hz);
+	return gsz(dz,Hz);
+      }
+
       arma::mat TwoDBasis::dipole_z() const {
         // Build radial elements
         size_t Nrad(radial.Nbf());
@@ -856,15 +894,18 @@ namespace helfem {
       arma::mat TwoDBasis::Bz_field(double B) const {
         // Build radial elements
         size_t Nrad(radial.Nbf());
-        arma::mat Orad(Nrad,Nrad);
-        Orad.zeros();
+        arma::mat O0rad(Nrad,Nrad);
+        O0rad.zeros();
+        arma::mat O2rad(Nrad,Nrad);
+        O2rad.zeros();
 
         // Loop over elements
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-          Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(2,iel);
+          O0rad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(0,iel);
+          O2rad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(2,iel);
         }
 
         // Full coupling
@@ -886,7 +927,11 @@ namespace helfem {
             // Calculate coupling
             double cpl(gaunt.sine2_coupling(lj,mj,li,mi));
             if(cpl!=0.0) {
-              set_sub(V,iang,jang,(B*mj/2.0 + B*B/8.0)*Orad*cpl);
+              set_sub(V,iang,jang,B*B/8.0*O2rad*cpl);
+            }
+
+            if(li==lj && mi==mj) {
+              add_sub(V,iang,jang,-0.5*B*mj*O0rad);
             }
           }
         }

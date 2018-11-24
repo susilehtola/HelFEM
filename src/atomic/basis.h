@@ -85,6 +85,8 @@ namespace helfem {
         arma::mat kinetic_l(size_t iel) const;
         /// Compute nuclear attraction matrix in element
         arma::mat nuclear(size_t iel) const;
+        /// Compute gsz matrix in element
+        arma::mat gsz(double Z, double dz, double Hz, size_t iel) const;
         /// Compute off-center nuclear attraction matrix in element
         arma::mat nuclear_offcenter(size_t iel, double Rhalf, int L) const;
 
@@ -185,6 +187,10 @@ namespace helfem {
         arma::mat kinetic() const;
         /// Form nuclear attraction matrix
         arma::mat nuclear() const;
+        /// Form GSZ matrix
+        arma::mat gsz(double dz, double Hz) const;
+	/// Form GSZ matrix with default parameters
+	arma::mat gsz() const;
         /// Form dipole coupling matrix
         arma::mat dipole_z() const;
         /// Form quadrupole coupling matrix

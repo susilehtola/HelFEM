@@ -862,8 +862,10 @@ namespace helfem {
         V.zeros();
 
         // Build radial matrix elements
-        arma::mat I30(radial.radial_integral(3,0));
-        arma::mat I32(radial.radial_integral(3,2));
+        arma::mat I10(radial.radial_integral(1,0)*std::pow(Rhalf,3));
+        arma::mat I12(radial.radial_integral(1,2)*std::pow(Rhalf,3));
+        arma::mat I30(radial.radial_integral(3,0)*std::pow(Rhalf,5));
+        arma::mat I32(radial.radial_integral(3,2)*std::pow(Rhalf,5));
 
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++) {
@@ -877,7 +879,7 @@ namespace helfem {
             // Calculate coupling
             if(mi==mj) {
               // Coupling strength
-              double cs(-mj*B/2.0 + B*B/8.0);
+              double cs(B*B/8.0);
 
               // Coupling through the sin^2 term
               double cpl2(gaunt.sine2_coupling(lj,mj,li,mi));
@@ -888,12 +890,21 @@ namespace helfem {
               double cpl22(gaunt.cosine2_sine2_coupling(lj,mj,li,mi));
               if(cpl22!=0.0)
                 add_sub(V,iang,jang,-cs*cpl22*I30);
+
+              // m term
+              double ds(-0.5*mj*B);
+              if(ds!=0.0) {
+                if(li==lj)
+                  add_sub(V,iang,jang,ds*I12);
+
+                // We can also couple through the cos^2 term
+                double cpl(gaunt.cosine2_coupling(lj,mj,li,mi));
+                if(cpl!=0.0)
+                  add_sub(V,iang,jang,-ds*I10*cpl);
+              }
             }
           }
         }
-
-        // Plug in prefactors
-        V*=std::pow(Rhalf,5);
 
         return remove_boundaries(V);
       }
