@@ -1509,9 +1509,6 @@ namespace helfem {
         // Expand density matrix to boundary conditions
         arma::mat P(expand_boundaries(P0));
 
-        // Gaunt coefficients
-        gaunt::Gaunt gaunt(arma::max(arma::abs(lval)),0,arma::max(arma::abs(lval)));
-
         // Loop over angular momentum
         double nucden=0.0;
 #ifdef _OPENMP
