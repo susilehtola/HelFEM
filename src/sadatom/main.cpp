@@ -48,9 +48,9 @@ void print(std::vector<occorb_t> occlist) {
   std::sort(occlist.begin(),occlist.end());
 
   static const char shtype[]="spdf";
-  printf("%2s %5s %12s\n","nl","occ","eigenvalue");
+  printf("%2s %6s %12s\n","nl","occ","eigenvalue");
   for(size_t i=0;i<occlist.size();i++)
-    printf("%i%c %5.3f % 12.6f\n",occlist[i].n,shtype[occlist[i].l],(double) occlist[i].nocc,occlist[i].E);
+    printf("%i%c %6.3f % 12.6f\n",occlist[i].n,shtype[occlist[i].l],(double) occlist[i].nocc,occlist[i].E);
 }
 
 arma::mat supermat(const arma::mat & M, int lmax) {
@@ -329,14 +329,6 @@ int main(int argc, char **argv) {
       Kmo.print("K");
       Fmo.print("F");
     */
-
-    printf("%-21s energy: % .16f\n","Kinetic",Ekin);
-    printf("%-21s energy: % .16f\n","Nuclear attraction",Epot);
-    printf("%-21s energy: % .16f\n","Coulomb",Ecoul);
-    printf("%-21s energy: % .16f\n","Exchange-correlation",Exc);
-    printf("%-21s energy: % .16f\n","Total",Etot);
-    printf("%-21s energy: % .16f\n","Virial ratio",-Etot/Ekin);
-    printf("\n");
 
     // Since Fock operator depends on the l channel, we need to create
     // a supermatrix for DIIS.
