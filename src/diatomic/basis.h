@@ -13,8 +13,8 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  */
-#ifndef BASIS_H
-#define BASIS_H
+#ifndef DIATOMIC_BASIS_H
+#define DIATOMIC_BASIS_H
 
 #include <armadillo>
 #include "../general/gaunt.h"
