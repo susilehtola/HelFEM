@@ -29,13 +29,13 @@ using namespace helfem;
 
 typedef std::pair<int, double> hfentry;
 
-bool operator<(const std::pair<int, double> & l, const std::pair<int, double> & r) {
+bool operator<(const hfentry & l, const hfentry & r) {
   return l.second < r.second;
 }
 
-std::vector< std::pair<int, double> > get_energies(int Z) {
+std::vector<hfentry> get_energies(int Z) {
   // Energy vector
-  std::vector< std::pair<int, double> > Ev;
+  std::vector<hfentry> Ev;
 
   switch(Z) {
     // H
