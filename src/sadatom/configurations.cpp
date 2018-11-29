@@ -1,5 +1,6 @@
 #include "configurations.h"
 #include <stdexcept>
+#include <sstream>
 
 std::vector<occ_t> get_configuration(int Z) {
   std::vector<occ_t> ret;
@@ -499,7 +500,9 @@ std::vector<occ_t> get_configuration(int Z) {
     break;
 
   default:
-    throw std::logic_error("Unsupported element.\n");
+    std::ostringstream oss;
+    oss << "Unsupported element Z = " << Z << ".\n";
+    throw std::logic_error(oss.str());
   }
 
   return ret;
@@ -508,6 +511,8 @@ std::vector<occ_t> get_configuration(int Z) {
 std::vector<occ_t> get_cationic_configuration(int Z) {
   std::vector<occ_t> ret;
   switch(Z) {
+  case(1):
+    break;
   case(21):
     ret=get_configuration(18);
     ret.push_back(occ_t(0,1));
