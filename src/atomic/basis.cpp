@@ -15,7 +15,7 @@
  */
 #include "basis.h"
 #include "quadrature.h"
-#include "../general/polynomial.h"
+#include "../general/polynomial_basis.h"
 #include "../general/chebyshev.h"
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
@@ -32,58 +32,12 @@
 namespace helfem {
   namespace atomic {
     namespace basis {
-
-      static arma::vec get_grid(double rmax, int num_el, int igrid, double zexp) {
-        // Boundary values
-        arma::vec bval;
-
-        // Get boundary values
-        switch(igrid) {
-          // linear grid
-        case(1):
-          printf("Using linear grid\n");
-          bval=arma::linspace<arma::vec>(0,rmax,num_el+1);
-          break;
-
-          // quadratic grid (Schweizer et al 1999)
-        case(2):
-          printf("Using quadratic grid\n");
-          bval.zeros(num_el+1);
-          for(int i=0;i<=num_el;i++)
-            bval(i)=i*i*rmax/(num_el*num_el);
-          break;
-
-          // generalized polynomial grid, monotonic decrease till zexp~3, after that fails to work
-        case(3):
-          printf("Using generalized polynomial grid, zexp = %e\n",zexp);
-          bval.zeros(num_el+1);
-          for(int i=0;i<=num_el;i++)
-            bval(i)=rmax*std::pow(i*1.0/num_el,zexp);
-          break;
-
-          // generalized logarithmic grid, monotonic decrease till zexp~2, after that fails to work
-        case(4):
-          printf("Using generalized logarithmic grid, zexp = %e\n",zexp);
-          bval=arma::exp(arma::pow(arma::linspace<arma::vec>(0,std::pow(log(rmax+1),1.0/zexp),num_el+1),zexp))-arma::ones<arma::vec>(num_el+1);
-          break;
-
-        default:
-          throw std::logic_error("Invalid choice for grid\n");
-        }
-
-        // Make sure start and end points are numerically exact
-        bval(0)=0.0;
-        bval(bval.n_elem-1)=rmax;
-
-        return bval;
-      }
-
       RadialBasis::RadialBasis() {
       }
 
       RadialBasis::RadialBasis(const polynomial_basis::PolynomialBasis * poly_, int n_quad, int num_el, double rmax, int igrid, double zexp) {
         // Polynomial basis
-        poly=poly_;
+        poly=poly_->copy();
 
         // Get quadrature rule
         chebyshev::chebyshev(n_quad,xq,wq);
@@ -98,7 +52,7 @@ namespace helfem {
         poly->eval(xq,bf,df);
 
         // Get boundary values
-        bval=get_grid(rmax,num_el,igrid,zexp);
+        bval=utils::get_grid(rmax,num_el,igrid,zexp);
 
         //bval.print("Element boundaries");
       }
@@ -123,7 +77,7 @@ namespace helfem {
 
       RadialBasis::RadialBasis(const polynomial_basis::PolynomialBasis * poly_, int n_quad, int num_el0, int Zm, int Zlr, double Rhalf, int num_el, double rmax, int igrid, double zexp) {
 	// Polynomial basis
-	poly=poly_;
+        poly=poly_->copy();
 
         // Get quadrature rule
         chebyshev::chebyshev(n_quad,xq,wq);
@@ -154,19 +108,19 @@ namespace helfem {
         arma::vec bval0, bval1;
         if(b0used) {
           // 0 to b0
-          bval0=get_grid(b0,num_el0,igrid,zexp);
+          bval0=utils::get_grid(b0,num_el0,igrid,zexp);
         }
         if(b1used) {
           // b0 to b1
 
           // Reverse grid to get tighter spacing around nucleus
-          bval1=-arma::reverse(get_grid(b1-b0,num_el0,igrid,zexp));
+          bval1=-arma::reverse(utils::get_grid(b1-b0,num_el0,igrid,zexp));
           bval1+=arma::ones<arma::vec>(bval1.n_elem)*(b1-b0);
           // Assert numerical exactness
           bval1(0)=0.0;
           bval1(bval1.n_elem-1)=b1-b0;
         }
-        arma::vec bval2=get_grid(b2-b1,num_el,igrid,zexp);
+        arma::vec bval2=utils::get_grid(b2-b1,num_el,igrid,zexp);
 
         if(b0used && b1used) {
           bval=concatenate_grid(bval0,bval1);
@@ -183,7 +137,59 @@ namespace helfem {
         bval.print("Element boundaries");
       }
 
+      RadialBasis::RadialBasis(const polynomial_basis::PolynomialBasis * poly_, int n_quad, const arma::vec & bval_) {
+	// Polynomial basis
+        poly=poly_->copy();
+
+        // Get quadrature rule
+        chebyshev::chebyshev(n_quad,xq,wq);
+        for(size_t i=0;i<xq.n_elem;i++) {
+          if(!std::isfinite(xq[i]))
+            printf("xq[%i]=%e\n",(int) i, xq[i]);
+          if(!std::isfinite(wq[i]))
+            printf("wq[%i]=%e\n",(int) i, wq[i]);
+        }
+
+        // Evaluate polynomials at quadrature points
+        poly->eval(xq,bf,df);
+
+        // Element boundaries
+        bval=bval_;
+      }
+
+      RadialBasis::RadialBasis(const RadialBasis & old) {
+        *this=old;
+      }
+
+      RadialBasis & RadialBasis::operator=(const RadialBasis & old) {
+        xq=old.xq;
+        wq=old.wq;
+        poly=old.poly->copy();
+        bf=old.bf;
+        df=old.df;
+        bval=old.bval;
+
+        return *this;
+      }
+
       RadialBasis::~RadialBasis() {
+        delete poly;
+      }
+
+      int RadialBasis::get_nquad() const {
+        return (int) xq.n_elem;
+      }
+
+      arma::vec RadialBasis::get_bval() const {
+        return bval;
+      }
+
+      int RadialBasis::get_poly_id() const {
+        return poly->get_id();
+      }
+
+      int RadialBasis::get_poly_order() const {
+        return poly->get_order();
       }
 
       arma::uvec RadialBasis::basis_indices(size_t iel) const {
@@ -260,6 +266,97 @@ namespace helfem {
 
         // Integral by quadrature
         return quadrature::radial_integral(Rmin,Rmax,Rexp,xq,wq,get_basis(funcs,iel));
+      }
+
+      arma::mat RadialBasis::overlap(const RadialBasis & rh) const {
+
+        bval.print("New boundaries");
+        rh.bval.print("Old boundaries");
+
+        // Form list of overlapping elements
+        std::vector< std::vector<size_t> > overlap(bval.n_elem-1);
+        for(size_t iel=0;iel<bval.n_elem-1;iel++) {
+          // Range of element i
+          double istart(bval(iel));
+          double iend(bval(iel+1));
+
+          for(size_t jel=0;jel<rh.bval.n_elem-1;jel++) {
+            // Range of element j
+            double jstart(rh.bval(jel));
+            double jend(rh.bval(jel+1));
+
+            // Is there overlap?
+            if((jstart >= istart && jstart<iend) || (istart >= jstart && istart < jend))
+              overlap[iel].push_back(jel);
+          }
+        }
+
+        // Form overlap matrix
+        arma::mat S(Nbf(),rh.Nbf());
+        S.zeros();
+        for(size_t iel=0;iel<bval.n_elem-1;iel++) {
+          // Basis function indices
+          arma::uvec iidx(basis_indices(iel));
+          // Limits
+          double rmin(bval(iel));
+          double rmax(bval(iel+1));
+          // Where are we in the matrix?
+          size_t ifirst, ilast;
+          get_idx(iel,ifirst,ilast);
+
+          // Midpoint is at
+          double rmid(0.5*(rmax+rmin));
+          // and half-length of interval is
+          double rlen(0.5*(rmax-rmin));
+          // r values are then
+          arma::vec r(rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq);
+
+          // Calculate total weight per point
+          arma::vec wp(wq*rlen);
+          // Put in weight
+          arma::mat wbf(bf);
+          for(size_t i=0;i<bf.n_cols;i++)
+            wbf.col(i)%=wp;
+
+          // Form transpose
+          arma::mat twbf(arma::trans(wbf));
+
+          // Loop over overlapping elements
+          for(size_t jj=0;jj<overlap[iel].size();jj++) {
+            // Index of element is
+            size_t jel=overlap[iel][jj];
+            // Basis function indices
+            arma::uvec jidx(rh.basis_indices(jel));
+            // Where are we in the matrix?
+            size_t jfirst, jlast;
+            rh.get_idx(jel,jfirst,jlast);
+
+            // Range of element
+            double jmin(rh.bval(jel));
+            double jmax(rh.bval(jel+1));
+
+            // Back-transform r values into j:th element
+            double jmid(0.5*(jmax+jmin));
+            double jlen(0.5*(jmax-jmin));
+
+            // Calculate x values the polynomials should be evaluated at
+            arma::vec xj((r-jmid*arma::ones<arma::vec>(r.n_elem))/jlen);
+
+            // Find the values that are *actually* within the element
+            arma::uvec xind(arma::find(xj>=-1.0 && xj<=1.0));
+
+            // Evaluate the polynomials at these points
+            arma::mat rbf(rh.poly->eval(xj(xind)));
+
+            // Perform quadrature
+            arma::mat s(twbf.cols(xind)*rbf);
+
+            // Increment overlap matrix
+            S.submat(ifirst,jfirst,ilast,jlast)+=s(iidx,jidx);
+          }
+        }
+
+        return S;
       }
 
       arma::mat RadialBasis::kinetic(size_t iel) const {
@@ -461,7 +558,62 @@ namespace helfem {
           throw std::logic_error("Error.\n");
       }
 
+      TwoDBasis::TwoDBasis(int Z_, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int Zl_, int Zr_, double Rhalf_) {
+        // Nuclear charge
+        Z=Z_;
+        Zl=Zl_;
+        Zr=Zr_;
+        Rhalf=Rhalf_;
+
+        // Construct radial basis
+        radial=RadialBasis(poly, n_quad, bval);
+
+        // Construct angular basis
+        lval=lval_;
+        mval=mval_;
+      }
+
       TwoDBasis::~TwoDBasis() {
+      }
+
+      int TwoDBasis::get_Z() const {
+        return Z;
+      }
+
+      int TwoDBasis::get_Zl() const {
+        return Zl;
+      }
+
+      int TwoDBasis::get_Zr() const {
+        return Zr;
+      }
+
+      double TwoDBasis::get_Rhalf() const {
+        return Rhalf;
+      }
+
+      arma::ivec TwoDBasis::get_lval() const {
+        return lval;
+      }
+
+      arma::ivec TwoDBasis::get_mval() const {
+        return mval;
+      }
+
+      int TwoDBasis::get_nquad() const {
+        return radial.get_nquad();
+      }
+
+      arma::vec TwoDBasis::get_bval() const {
+        return radial.get_bval();
+      }
+
+      int TwoDBasis::get_poly_id() const {
+        return radial.get_poly_id();
+      }
+
+      int TwoDBasis::get_poly_order() const {
+        return radial.get_poly_order();
       }
 
       size_t TwoDBasis::Ndummy() const {
@@ -610,7 +762,7 @@ namespace helfem {
         S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
 
         // Half-inverse is
-        if(chol) {
+        if(chol && sym==0) {
           return arma::diagmat(bfnormlz) * arma::inv(arma::chol(S));
         } else {
           arma::vec Sval;
@@ -672,6 +824,22 @@ namespace helfem {
 
       arma::mat TwoDBasis::overlap() const {
         return radial_integral(0);
+      }
+
+      arma::mat TwoDBasis::overlap(const TwoDBasis & rh) const {
+        // Full overlap matrix
+        arma::mat S(Ndummy(),rh.Ndummy());
+        S.zeros();
+        // Form radial overlap
+        arma::mat Srad(radial.overlap(rh.radial));
+
+        // Fill elements
+        for(size_t iang=0;iang<lval.n_elem;iang++)
+          for(size_t jang=0;jang<rh.lval.n_elem;jang++)
+            if(lval(iang) == rh.lval(jang) && mval(iang) == rh.mval(jang))
+              S.submat(iang*radial.Nbf(),jang*rh.radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*rh.radial.Nbf()-1)=Srad;
+
+        return S;
       }
 
       arma::mat TwoDBasis::kinetic() const {

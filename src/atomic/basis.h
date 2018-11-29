@@ -53,8 +53,23 @@ namespace helfem {
         RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int igrid, double zexp);
         /// Construct radial basis
         RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el0, int Zm, int Zlr, double Rhalf, int num_el, double rmax, int igrid, double zexp);
+        /// Construct radial basis
+        RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval);
+        // Copy constructor
+        RadialBasis(const RadialBasis & old);
+        // Assignment
+        RadialBasis & operator=(const RadialBasis & old);
         /// Destructor
         ~RadialBasis();
+
+        /// Get number of quadrature points
+        int get_nquad() const;
+        /// Get boundary values
+        arma::vec get_bval() const;
+        /// Get polynomial basis identifier
+        int get_poly_id() const;
+        /// Get polynomial basis order
+        int get_poly_order() const;
 
         /// Get number of overlapping functions
         size_t get_noverlap() const;
@@ -92,6 +107,9 @@ namespace helfem {
 
         /// Compute primitive two-electron integral
         arma::mat twoe_integral(int L, size_t iel) const;
+
+        /// Compute projection
+        arma::mat overlap(const RadialBasis & rh) const;
 
         /// Evaluate basis functions at quadrature points
         arma::mat get_bf(size_t iel) const;
@@ -146,9 +164,35 @@ namespace helfem {
         TwoDBasis();
         /// Constructor
         TwoDBasis(int Z, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp);
+        /// Constructor
         TwoDBasis(int Z, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el0, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int Zl, int Zr, double Rhalf);
+        /// Constructor
+        TwoDBasis(int Z, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int Zl, int Zr, double Rhalf);
         /// Destructor
         ~TwoDBasis();
+
+        /// Get Z
+        int get_Z() const;
+        /// Get Zl
+        int get_Zl() const;
+        /// Get Zr
+        int get_Zr() const;
+        /// Get Rhalf
+        double get_Rhalf() const;
+
+        /// Get l values
+        arma::ivec get_lval() const;
+        /// Get m values
+        arma::ivec get_mval() const;
+
+        /// Get number of quadrature points
+        int get_nquad() const;
+        /// Get boundary values
+        arma::vec get_bval() const;
+        /// Get polynomial basis identifier
+        int get_poly_id() const;
+        /// Get polynomial basis order
+        int get_poly_order() const;
 
         /// Expand boundary conditions
         arma::mat expand_boundaries(const arma::mat & H) const;
@@ -195,6 +239,9 @@ namespace helfem {
         arma::mat dipole_z() const;
         /// Form quadrupole coupling matrix
         arma::mat quadrupole_zz() const;
+
+        /// Compute overlap matrix
+        arma::mat overlap(const TwoDBasis & rh) const;
 
         /// Coupling to magnetic field in z direction
         arma::mat Bz_field(double B) const;

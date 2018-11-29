@@ -30,6 +30,10 @@ namespace helfem {
       int nbf;
       /// Number of overlapping functions
       int noverlap;
+      /// Identifier
+      int id;
+      /// Order
+      int order;
     public:
       /// Constructor
       PolynomialBasis();
@@ -42,6 +46,11 @@ namespace helfem {
       int get_nbf() const;
       /// Get number of overlapping functions
       int get_noverlap() const;
+
+      /// Get identifier
+      int get_id() const;
+      /// Get order
+      int get_order() const;
 
       /// Drop first function
       virtual void drop_first()=0;
@@ -65,6 +74,10 @@ namespace helfem {
       arma::mat bf_C;
       /// Primitive polynomial basis expansion, derivative
       arma::mat df_C;
+      /// Identifier
+      int id;
+      /// Order
+      int order;
     public:
       /// Constructor
       HermiteBasis(int n_nodes, int der_order);
@@ -92,7 +105,7 @@ namespace helfem {
       arma::mat T;
     public:
       /// Constructor
-      LegendreBasis(int lmax);
+      LegendreBasis(int nfuncs, int id);
       /// Destructor
       ~LegendreBasis();
       /// Get a copy
@@ -117,7 +130,7 @@ namespace helfem {
       arma::uvec enabled;
     public:
       /// Constructor
-      LIPBasis(const arma::vec & x0);
+      LIPBasis(const arma::vec & x0, int id);
       /// Destructor
       ~LIPBasis();
       /// Get a copy

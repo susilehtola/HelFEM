@@ -14,6 +14,7 @@
  * of the License, or (at your option) any later version.
  */
 #include "../general/cmdline.h"
+#include "../general/checkpoint.h"
 #include "../general/constants.h"
 #include "../general/diis.h"
 #include "../general/dftfuncs.h"
@@ -118,6 +119,8 @@ int main(int argc, char **argv) {
   parser.add<int>("readocc", 0, "read occupations from file, use until nth build", false, 0);
   parser.add<double>("perturb", 0, "randomly perturb initial guess", false, 0.0);
   parser.add<int>("seed", 0, "seed for random perturbation", false, 0);
+  parser.add<std::string>("load", 0, "load guess from checkpoint", false, "");
+  parser.add<std::string>("save", 0, "save calculation to checkpoint", false, "helfem.chk");
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -170,6 +173,12 @@ int main(int argc, char **argv) {
 
   double perturb=parser.get<double>("perturb");
   int seed=parser.get<int>("seed");
+
+  std::string save(parser.get<std::string>("save"));
+  std::string load(parser.get<std::string>("load"));
+
+  // Open checkpoint in save mode
+  Checkpoint chkpt(save,true);
 
   // Read occupations from file?
   int readocc=parser.get<int>("readocc");
@@ -228,6 +237,7 @@ int main(int argc, char **argv) {
   }
 
   diatomic::basis::TwoDBasis basis(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, lpad);
+  chkpt.write(basis);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
 
   printf("One-electron matrix requires %s\n",scf::memory_size(basis.mem_1el()).c_str());
@@ -337,10 +347,12 @@ int main(int argc, char **argv) {
 
   // Form overlap matrix
   arma::mat S(basis.overlap());
+  chkpt.write("S",S);
   // Form kinetic energy matrix
   arma::mat T(basis.kinetic());
+  chkpt.write("T",T);
 
-  helfem::dftgrid::DFTGrid grid;
+  helfem::diatomic::dftgrid::DFTGrid grid;
   if(dft) {
     if(ldft==0)
       // Default value: we have 2*lmax from the bra and ket and 2 from
@@ -359,7 +371,7 @@ int main(int argc, char **argv) {
       throw std::logic_error("Increase mdft to guarantee accuracy of quadrature!\n");
 
     // Form grid
-    grid=helfem::dftgrid::DFTGrid(&basis,ldft,mdft);
+    grid=helfem::diatomic::dftgrid::DFTGrid(&basis,ldft,mdft);
 
     // Basis function norms
     arma::vec bfnorm(arma::pow(arma::diagvec(S),-0.5));
@@ -399,6 +411,7 @@ int main(int argc, char **argv) {
   // Get half-inverse
   timer.set();
   arma::mat Sinvh(basis.Sinvh(!diag,symm));
+  chkpt.write("Sinvh",Sinvh);
   printf("Half-inverse formed in %.6f\n",timer.get());
   {
     arma::mat Smo(Sinvh.t()*S*Sinvh);
@@ -406,6 +419,7 @@ int main(int argc, char **argv) {
     printf("Orbital orthonormality deviation is %e\n",arma::norm(Smo,"fro"));
   }
   arma::mat Sh(basis.Shalf(!diag,symm));
+  chkpt.write("Sh",Sh);
   printf("Half-overlap formed in %.6f\n",timer.get());
   {
     arma::mat Smo(Sh.t()*Sinvh);
@@ -416,11 +430,14 @@ int main(int argc, char **argv) {
   // Form nuclear attraction energy matrix
   Timer tnuc;
   const arma::mat Vnuc(basis.nuclear());
+  chkpt.write("Vnuc",Vnuc);
 
   // Dipole coupling
   const arma::mat dip(basis.dipole_z());
+  chkpt.write("dip",dip);
   // Quadrupole coupling
   const arma::mat quad(basis.quadrupole_zz());
+  chkpt.write("quad",quad);
 
   // Nuclear dipole and quadrupole
   const double nucdip=(Z2-Z1)*Rbond/2.0;
@@ -428,12 +445,15 @@ int main(int argc, char **argv) {
 
   // Electric field coupling (minus sign cancels one from charge)
   const arma::mat Vel(Ez*dip + Qzz*quad/3.0);
+  chkpt.write("Vel",Vel);
   // Magnetic field coupling
   arma::mat Vmag(basis.Bz_field(Bz));
+  chkpt.write("Vmag",Vmag);
   const double Enucfield(-Ez*nucdip - Qzz*nucquad/3.0);
 
   // Form Hamiltonian
   const arma::mat H0(T+Vnuc+Vel+Vmag);
+  chkpt.write("H0",H0);
 
   printf("One-electron matrices formed in %.6f\n",timer.get());
 
@@ -447,18 +467,53 @@ int main(int argc, char **argv) {
   // Guess orbitals
   timer.set();
   {
-    // Use core guess
-    arma::vec E;
-    arma::mat C;
-    if(symm)
-      scf::eig_gsym_sub(E,C,H0,Sinvh,dsym);
-    else
-      scf::eig_gsym(E,C,H0,Sinvh);
+    arma::mat Ca, Cb;
+    if(load.size()) {
+      printf("Guess orbitals from checkpoint\n");
 
-    Ea=E;
-    arma::mat Ca(C);
-    Eb=E;
-    arma::mat Cb(C);
+      // Load checkpoint
+      Checkpoint loadchk(load,false);
+      // Old basis set
+      diatomic::basis::TwoDBasis oldbasis;
+      loadchk.read(oldbasis);
+
+      arma::mat S12(basis.overlap(oldbasis));
+      S12.print("S12");
+      // Compute projection operator
+      arma::mat P((Sinvh*arma::trans(Sinvh))*S12);
+      // Fock matrix
+      arma::mat F;
+
+      // Load Fock matrix
+      loadchk.read("Fa",F);
+      // Project onto the new basis
+      F=P*F*arma::trans(P);
+      // Diagonalize
+      if(symm)
+        scf::eig_gsym_sub(Ea,Ca,F,Sinvh,dsym);
+      else
+        scf::eig_gsym(Ea,Ca,F,Sinvh);
+
+      // Load Fock matrix
+      loadchk.read("Fb",F);
+      // Project onto the new basis
+      F=P*F*arma::trans(P);
+      // Diagonalize
+      if(symm)
+        scf::eig_gsym_sub(Eb,Cb,F,Sinvh,dsym);
+      else
+        scf::eig_gsym(Eb,Cb,F,Sinvh);
+
+    } else {
+      // Use core guess
+      if(symm)
+        scf::eig_gsym_sub(Ea,Ca,H0,Sinvh,dsym);
+      else
+        scf::eig_gsym(Ea,Ca,H0,Sinvh);
+
+      Cb=Ca;
+      Eb=Ea;
+    }
 
     // Enforce occupation according to specified symmetry
     if(readocc) {
@@ -484,14 +539,14 @@ int main(int argc, char **argv) {
 
     // Alpha orbitals
     Caocc=Ca.cols(0,nela-1);
-    if(C.n_cols>(size_t) nela)
-      Cavirt=Ca.cols(nela,C.n_cols-1);
+    if(Ca.n_cols>(size_t) nela)
+      Cavirt=Ca.cols(nela,Ca.n_cols-1);
 
     // Beta guess
     if(nelb)
       Cbocc=Cb.cols(0,nelb-1);
-    if(C.n_cols>(size_t) nelb)
-      Cbvirt=Cb.cols(nelb,C.n_cols-1);
+    if(Cb.n_cols>(size_t) nelb)
+      Cbvirt=Cb.cols(nelb,Cb.n_cols-1);
 
     Ea.subvec(0,nena-1).t().print("Alpha orbital energies");
     Eb.subvec(0,nenb-1).t().print("Beta  orbital energies");
@@ -534,6 +589,10 @@ int main(int argc, char **argv) {
       Pb.zeros(Pa.n_rows,Pa.n_cols);
     P=Pa+Pb;
 
+    chkpt.write("P",P);
+    chkpt.write("Pa",Pa);
+    chkpt.write("Pb",Pb);
+
     printf("Tr Pa = %f\n",arma::trace(Pa*S));
     if(nelb)
       printf("Tr Pb = %f\n",arma::trace(Pb*S));
@@ -551,6 +610,7 @@ int main(int argc, char **argv) {
     Ecoul=0.5*arma::trace(P*J);
     printf("Coulomb energy %.10e % .6f\n",Ecoul,tJ);
     fflush(stdout);
+    chkpt.write("J",J);
 
     // Form exchange matrix
     timer.set();
@@ -575,6 +635,9 @@ int main(int argc, char **argv) {
     }
     fflush(stdout);
 
+    chkpt.write("Ka",Ka);
+    chkpt.write("Kb",Kb);
+
     // Exchange-correlation
     Exc=0.0;
     arma::mat XCa, XCb;
@@ -595,6 +658,9 @@ int main(int argc, char **argv) {
         printf("Error in integral of kinetic energy density % e\n",ekin-Ekin);
     }
     fflush(stdout);
+
+    chkpt.write("XCa",XCa);
+    chkpt.write("XCb",XCb);
 
     // Fock matrices
     arma::mat Fa(H0+J);
@@ -621,6 +687,9 @@ int main(int argc, char **argv) {
     if(restr && nela!=nelb)
       scf::ROHF_update(Fa,Fb,P,Sh,Sinvh,nela,nelb);
 
+    chkpt.write("Fa",Fa);
+    chkpt.write("Fb",Fb);
+
     // Update energy
     Etot=Ekin+Epot+Eefield+Emfield+Ecoul+Exx+Exc+Enucr+Enucfield;
     double dE=Etot-Eold;
@@ -630,42 +699,6 @@ int main(int argc, char **argv) {
       printf("Energy changed by %e\n",dE);
     Eold=Etot;
     fflush(stdout);
-
-    /*
-      S.print("S");
-      T.print("T");
-      Vnuc.print("Vnuc");
-      Ca.print("Ca");
-      Pa.print("Pa");
-      J.print("J");
-      Ka.print("Ka");
-
-      arma::mat Jmo(Ca.t()*J*Ca);
-      arma::mat Kmo(Ca.t()*Ka*Ca);
-      Jmo.submat(0,0,10,10).print("Jmo");
-      Kmo.submat(0,0,10,10).print("Kmo");
-
-
-      Kmo+=Jmo;
-      Kmo.print("Jmo+Kmo");
-
-      Fa.print("Fa");
-      arma::mat Fao(Sinvh.t()*Fa*Sinvh);
-      Fao.print("Fao");
-      Sinvh.print("Sinvh");
-    */
-
-    /*
-      arma::mat Jmo(Ca.t()*J*Ca);
-      arma::mat Kmo(Ca.t()*Ka*Ca);
-      arma::mat Fmo(Ca.t()*Fa*Ca);
-      Jmo=Jmo.submat(0,0,4,4);
-      Kmo=Kmo.submat(0,0,4,4);
-      Fmo=Fmo.submat(0,0,4,4);
-      Jmo.print("J");
-      Kmo.print("K");
-      Fmo.print("F");
-    */
 
     // Update DIIS
     timer.set();
@@ -707,6 +740,11 @@ int main(int argc, char **argv) {
     if(i<readocc) {
       scf::enforce_occupations(Cb,Eb,occnumb,occsym);
     }
+
+    chkpt.write("Ca",Ca);
+    chkpt.write("Cb",Cb);
+    chkpt.write("Ea",Ea);
+    chkpt.write("Eb",Eb);
 
     Caocc=Ca.cols(0,nela-1);
     if(Ca.n_cols>(size_t) nela)

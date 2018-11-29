@@ -45,6 +45,9 @@ namespace helfem {
     }
 
     PolynomialBasis * get_basis(int primbas, int Nnodes) {
+      if(Nnodes<2)
+        throw std::logic_error("Can't have finite element basis with less than two nodes per element.\n");
+
       // Primitive basis
       polynomial_basis::PolynomialBasis * poly;
       switch(primbas) {
@@ -57,7 +60,7 @@ namespace helfem {
       break;
 
       case(3):
-        poly=new polynomial_basis::LegendreBasis(Nnodes-1);
+        poly=new polynomial_basis::LegendreBasis(Nnodes,primbas);
         printf("Basis set composed of %i-node spectral elements.\n",Nnodes);
         break;
 
@@ -65,7 +68,7 @@ namespace helfem {
         {
           arma::vec x, w;
           ::lobatto_compute(Nnodes,x,w);
-          poly=new polynomial_basis::LIPBasis(x);
+          poly=new polynomial_basis::LIPBasis(x,primbas);
           printf("Basis set composed of %i-node LIPs with Gauss-Lobatto nodes.\n",Nnodes);
           break;
         }
@@ -75,7 +78,7 @@ namespace helfem {
       }
 
       // Print out
-      poly->print();
+      //poly->print();
 
       return poly;
     }
@@ -92,6 +95,14 @@ namespace helfem {
 
     int PolynomialBasis::get_noverlap() const {
       return noverlap;
+    }
+
+    int PolynomialBasis::get_id() const {
+      return id;
+    }
+
+    int PolynomialBasis::get_order() const {
+      return order;
     }
 
     void PolynomialBasis::print(const std::string & str) const {
@@ -116,6 +127,11 @@ namespace helfem {
       nbf=bf_C.n_cols;
       // Number of overlapping functions is
       noverlap=der_order+1;
+
+      /// Identifier is
+      id=der_order;
+      /// Order is
+      order=n_nodes;
     }
 
     HermiteBasis::~HermiteBasis() {
@@ -154,10 +170,8 @@ namespace helfem {
       nbf=bf_C.n_cols;
     }
 
-    LegendreBasis::LegendreBasis(int lmax_) {
-      if(lmax_<1)
-        throw std::logic_error("Legendre basis requires l>=1.\n");
-      lmax=lmax_;
+    LegendreBasis::LegendreBasis(int n_nodes, int id_) {
+      lmax=n_nodes-1;
 
       // Transformation matrix
       T.zeros(lmax+1,lmax+1);
@@ -178,6 +192,11 @@ namespace helfem {
 
       noverlap=1;
       nbf=T.n_cols;
+
+      /// Identifier is
+      id=id_;
+      /// Order is
+      order=n_nodes;
     }
 
     LegendreBasis::~LegendreBasis() {
@@ -187,7 +206,7 @@ namespace helfem {
       return new LegendreBasis(*this);
     }
 
-    static double sanitize_x(double x) {
+    inline static double sanitize_x(double x) {
         if(x<-1.0) x=-1.0;
         if(x>1.0) x=1.0;
         return x;
@@ -225,7 +244,7 @@ namespace helfem {
       nbf=T.n_cols;
     }
 
-    LIPBasis::LIPBasis(const arma::vec & x) {
+    LIPBasis::LIPBasis(const arma::vec & x, int id_) {
       // Make sure nodes are in order
       x0=arma::sort(x,"ascend");
 
@@ -240,6 +259,11 @@ namespace helfem {
       nbf=x0.n_elem;
       // All functions are enabled
       enabled=arma::linspace<arma::uvec>(0,x0.n_elem-1,x0.n_elem);
+
+      /// Identifier is
+      id=id_;
+      /// Order is
+      order=x.n_elem;
     }
 
     LIPBasis::~LIPBasis() {
