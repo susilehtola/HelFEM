@@ -235,10 +235,9 @@ namespace helfem {
             size_t jel=overlap[iel][jj];
 
 	    // Because the functions are only defined within a single
-	    // element, as a result the projections can be very
-	    // raggedy. However, since we *know* where the overlap
-	    // function is non-zero, we can restrict the quadrature to
-	    // that zone.
+	    // element, the product can be very raggedy. However,
+	    // since we *know* where the overlap is non-zero, we can
+	    // restrict the quadrature to just that zone.
 
 	    // Limits
 	    double imin(bval(iel));
