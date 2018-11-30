@@ -422,17 +422,27 @@ int main(int argc, char **argv) {
       atomic::basis::TwoDBasis oldbasis;
       loadchk.read(oldbasis);
 
+      arma::mat oldSinvh;
+      loadchk.read("Sinvh",oldSinvh);
+
+      // Interbasis overlap
       arma::mat S12(basis.overlap(oldbasis));
-      S12.print("S12");
-      // Compute projection operator
-      arma::mat P((Sinvh*arma::trans(Sinvh))*S12);
+      // Convert to orthonormal basis
+      S12=arma::trans(Sinvh)*S12*oldSinvh;
+      // Helper
+      arma::mat SSinvh(S*Sinvh);
+
       // Fock matrix
       arma::mat F;
 
       // Load Fock matrix
       loadchk.read("Fa",F);
+      // Project onto the old orthogonal basis
+      F=arma::trans(oldSinvh)*F*oldSinvh;
       // Project onto the new basis
-      F=P*F*arma::trans(P);
+      F=S12*F*arma::trans(S12);
+      // Go back to original basis
+      F=SSinvh*F*arma::trans(SSinvh);
       // Diagonalize
       if(symm)
         scf::eig_gsym_sub(Ea,Ca,F,Sinvh,dsym);
@@ -441,8 +451,12 @@ int main(int argc, char **argv) {
 
       // Load Fock matrix
       loadchk.read("Fb",F);
+      // Project onto the old orthogonal basis
+      F=arma::trans(oldSinvh)*F*oldSinvh;
       // Project onto the new basis
-      F=P*F*arma::trans(P);
+      F=S12*F*arma::trans(S12);
+      // Go back to original basis
+      F=SSinvh*F*arma::trans(SSinvh);
       // Diagonalize
       if(symm)
         scf::eig_gsym_sub(Eb,Cb,F,Sinvh,dsym);
