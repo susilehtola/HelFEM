@@ -269,9 +269,12 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::overlap(const RadialBasis & rh) const {
+	// Use the larger number of quadrature points to assure
+	// projection is computed ok
+	size_t n_quad(std::max(xq.n_elem,rh.xq.n_elem));
 
-        bval.print("New boundaries");
-        rh.bval.print("Old boundaries");
+	arma::vec xproj, wproj;
+	chebyshev::chebyshev(n_quad,xproj,wproj);
 
         // Form list of overlapping elements
         std::vector< std::vector<size_t> > overlap(bval.n_elem-1);
@@ -286,8 +289,10 @@ namespace helfem {
             double jend(rh.bval(jel+1));
 
             // Is there overlap?
-            if((jstart >= istart && jstart<iend) || (istart >= jstart && istart < jend))
+            if((jstart >= istart && jstart<iend) || (istart >= jstart && istart < jend)) {
               overlap[iel].push_back(jel);
+	      //printf("New element %i overlaps with old element %i\n",iel,jel);
+	    }
           }
         }
 
@@ -295,61 +300,61 @@ namespace helfem {
         arma::mat S(Nbf(),rh.Nbf());
         S.zeros();
         for(size_t iel=0;iel<bval.n_elem-1;iel++) {
-          // Basis function indices
-          arma::uvec iidx(basis_indices(iel));
-          // Limits
-          double rmin(bval(iel));
-          double rmax(bval(iel+1));
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          get_idx(iel,ifirst,ilast);
-
-          // Midpoint is at
-          double rmid(0.5*(rmax+rmin));
-          // and half-length of interval is
-          double rlen(0.5*(rmax-rmin));
-          // r values are then
-          arma::vec r(rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq);
-
-          // Calculate total weight per point
-          arma::vec wp(wq*rlen);
-          // Put in weight
-          arma::mat wbf(bf);
-          for(size_t i=0;i<bf.n_cols;i++)
-            wbf.col(i)%=wp;
-
-          // Form transpose
-          arma::mat twbf(arma::trans(wbf));
-
           // Loop over overlapping elements
           for(size_t jj=0;jj<overlap[iel].size();jj++) {
             // Index of element is
             size_t jel=overlap[iel][jj];
-            // Basis function indices
-            arma::uvec jidx(rh.basis_indices(jel));
-            // Where are we in the matrix?
-            size_t jfirst, jlast;
-            rh.get_idx(jel,jfirst,jlast);
 
+	    // Because the functions are only defined within a single
+	    // element, as a result the projections can be very
+	    // raggedy. However, since we *know* where the overlap
+	    // function is non-zero, we can restrict the quadrature to
+	    // that zone.
+
+	    // Limits
+	    double imin(bval(iel));
+	    double imax(bval(iel+1));
             // Range of element
             double jmin(rh.bval(jel));
             double jmax(rh.bval(jel+1));
 
-            // Back-transform r values into j:th element
+	    // Range of integral is thus
+	    double intstart(std::max(imin,jmin));
+	    double intend(std::min(imax,jmax));
+	    // Inteval mid-point is at
+            double intmid(0.5*(intend+intstart));
+            double intlen(0.5*(intend-intstart));
+
+	    // r values we're going to use are then
+	    arma::vec r(intmid*arma::ones<arma::vec>(xproj.n_elem)+intlen*xproj);
+
+	    // Basis function indices
+	    arma::uvec iidx(basis_indices(iel));
+            arma::uvec jidx(rh.basis_indices(jel));
+	    // Where are we in the matrix?
+	    size_t ifirst, ilast;
+	    get_idx(iel,ifirst,ilast);
+            size_t jfirst, jlast;
+            rh.get_idx(jel,jfirst,jlast);
+
+	    // Back-transform r values into i:th and j:th elements
+	    double imid(0.5*(imax+imin));
+	    double ilen(0.5*(imax-imin));
             double jmid(0.5*(jmax+jmin));
             double jlen(0.5*(jmax-jmin));
 
             // Calculate x values the polynomials should be evaluated at
-            arma::vec xj((r-jmid*arma::ones<arma::vec>(r.n_elem))/jlen);
+            arma::vec xi((r-imid*arma::ones<arma::vec>(r.n_elem))/ilen);
+	    arma::vec xj((r-jmid*arma::ones<arma::vec>(r.n_elem))/jlen);
 
-            // Find the values that are *actually* within the element
-            arma::uvec xind(arma::find(xj>=-1.0 && xj<=1.0));
+	    // Calculate total weight per point
+	    arma::vec wtot(wproj*intlen);
+	    // Put in weight
+	    arma::mat ibf(poly->eval(xi));
+	    arma::mat jbf(rh.poly->eval(xj));
 
-            // Evaluate the polynomials at these points
-            arma::mat rbf(rh.poly->eval(xj(xind)));
-
-            // Perform quadrature
-            arma::mat s(twbf.cols(xind)*rbf);
+	    // Perform quadrature
+            arma::mat s(arma::trans(ibf)*arma::diagmat(wtot)*jbf);
 
             // Increment overlap matrix
             S.submat(ifirst,jfirst,ilast,jlast)+=s(iidx,jidx);
