@@ -185,6 +185,8 @@ int main(int argc, char **argv) {
     // If number of electrons differs then unrestrict
     restr=(nela==nelb);
   }
+  chkpt.write("nela",nela);
+  chkpt.write("nelb",nelb);
 
   std::vector<std::string> rcalc(2);
   rcalc[0]="unrestricted";
