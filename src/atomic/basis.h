@@ -150,9 +150,6 @@ namespace helfem {
         /// Primitive two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
         std::vector<arma::mat> prim_ktei;
 
-        /// Get indices of real basis functions
-        arma::uvec pure_indices() const;
-
         /// Add to radial submatrix
         void add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
         /// Set radial submatrix
@@ -194,6 +191,8 @@ namespace helfem {
         /// Get polynomial basis order
         int get_poly_order() const;
 
+        /// Get indices of real basis functions
+        arma::uvec pure_indices() const;
         /// Expand boundary conditions
         arma::mat expand_boundaries(const arma::mat & H) const;
         /// Remove boundary conditions

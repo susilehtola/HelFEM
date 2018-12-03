@@ -162,9 +162,6 @@ namespace helfem {
         /// Primitive two-electron integrals: <Nel^2 * N_L> sorted for exchange
         std::vector<arma::mat> prim_ktei00, prim_ktei02, prim_ktei20, prim_ktei22;
 
-        /// Get indices of real basis functions
-        arma::uvec pure_indices() const;
-
         /// Add to radial submatrix
         void add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
         /// Set radial submatrix
@@ -208,6 +205,8 @@ namespace helfem {
         /// Get polynomial basis order
         int get_poly_order() const;
 
+        /// Get indices of real basis functions
+        arma::uvec pure_indices() const;
         /// Expand boundary conditions
         arma::mat expand_boundaries(const arma::mat & H) const;
         /// Remove boundary conditions
@@ -288,10 +287,15 @@ namespace helfem {
         arma::cx_mat eval_bf(size_t iel, size_t irad, double cth, double phi) const;
         /// Evaluate basis functions at wanted x value
         arma::cx_mat eval_bf(size_t iel, const arma::vec & x, double cth, double phi) const;
+        /// Evaluate basis functions with m=m at quadrature point
+        arma::mat eval_bf(size_t iel, size_t irad, double cth, int m) const;
+
         /// Evaluate basis functions derivatives at quadrature points
         void eval_df(size_t iel, size_t irad, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const;
         /// Get list of basis function indices in element
         arma::uvec bf_list(size_t iel) const;
+        /// Get list of basis function indices in element with m=m
+        arma::uvec bf_list(size_t iel, int m) const;
 
         /// Get number of radial elements
         size_t get_rad_Nel() const;
