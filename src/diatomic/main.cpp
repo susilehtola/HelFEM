@@ -119,6 +119,7 @@ int main(int argc, char **argv) {
   parser.add<int>("readocc", 0, "read occupations from file, use until nth build", false, 0);
   parser.add<double>("perturb", 0, "randomly perturb initial guess", false, 0.0);
   parser.add<int>("seed", 0, "seed for random perturbation", false, 0);
+  parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ", false, 0);
   parser.add<std::string>("load", 0, "load guess from checkpoint", false, "");
   parser.add<std::string>("save", 0, "save calculation to checkpoint", false, "helfem.chk");
   parser.parse_check(argc, argv);
@@ -137,6 +138,7 @@ int main(int argc, char **argv) {
   bool diag(parser.get<bool>("diag"));
   int restr(parser.get<int>("restricted"));
   int symm(parser.get<int>("symmetry"));
+  int iguess(parser.get<int>("iguess"));
 
   int primbas(parser.get<int>("primbas"));
   // Number of elements
@@ -477,51 +479,141 @@ int main(int argc, char **argv) {
       diatomic::basis::TwoDBasis oldbasis;
       loadchk.read(oldbasis);
 
+      arma::mat oldSinvh;
+      loadchk.read("Sinvh",oldSinvh);
+
+      // Interbasis overlap
       arma::mat S12(basis.overlap(oldbasis));
-      S12.print("S12");
-      // Compute projection operator
-      arma::mat P((Sinvh*arma::trans(Sinvh))*S12);
-      // Fock matrix
-      arma::mat F;
 
-      // Load Fock matrix
-      loadchk.read("Fa",F);
-      // Project onto the new basis
-      F=P*F*arma::trans(P);
-      // Diagonalize
-      if(symm)
-        scf::eig_gsym_sub(Ea,Ca,F,Sinvh,dsym);
-      else
-        scf::eig_gsym(Ea,Ca,F,Sinvh);
+      switch(iguess) {
+      case(0):
+        printf("Guess orbitals from Fock matrix projection\n");
+	{
+	  // Convert to orthonormal basis
+	  S12=arma::trans(Sinvh)*S12*oldSinvh;
+	  // Helper
+	  arma::mat SSinvh(S*Sinvh);
 
-      // Load Fock matrix
-      loadchk.read("Fb",F);
-      // Project onto the new basis
-      F=P*F*arma::trans(P);
-      // Diagonalize
-      if(symm)
-        scf::eig_gsym_sub(Eb,Cb,F,Sinvh,dsym);
-      else
-        scf::eig_gsym(Eb,Cb,F,Sinvh);
+	  // Fock matrix
+	  arma::mat F;
 
+	  // Load Fock matrix
+	  loadchk.read("Fa",F);
+	  // Project onto the old orthogonal basis
+	  F=arma::trans(oldSinvh)*F*oldSinvh;
+	  // Project onto the new basis
+	  F=S12*F*arma::trans(S12);
+	  // Go back to original basis
+	  F=SSinvh*F*arma::trans(SSinvh);
+	  // Diagonalize
+	  if(symm)
+	    scf::eig_gsym_sub(Ea,Ca,F,Sinvh,dsym);
+	  else
+	    scf::eig_gsym(Ea,Ca,F,Sinvh);
+
+	  // Load Fock matrix
+	  loadchk.read("Fb",F);
+	  // Project onto the old orthogonal basis
+	  F=arma::trans(oldSinvh)*F*oldSinvh;
+	  // Project onto the new basis
+	  F=S12*F*arma::trans(S12);
+	  // Go back to original basis
+	  F=SSinvh*F*arma::trans(SSinvh);
+	  // Diagonalize
+	  if(symm)
+	    scf::eig_gsym_sub(Eb,Cb,F,Sinvh,dsym);
+	  else
+	    scf::eig_gsym(Eb,Cb,F,Sinvh);
+	}
+        break;
+
+      case(1):
+        // Project lowest orbitals
+        printf("Guess orbitals from previous calculation\n");
+        {
+	  // Projector
+	  arma::mat P((Sinvh*arma::trans(Sinvh))*S12);
+
+	  // Orbitals
+	  arma::mat C;
+
+	  // Alpha orbitals
+	  loadchk.read("Ca",C);
+	  // Project onto new basis: C1 = S11^-1 S12 C2
+	  Ca=P*C;
+
+	  // Beta orbitals
+	  loadchk.read("Cb",C);
+	  Cb=P*C;
+
+	  // Run Gram-Schmidt to make sure orbitals are orthonormal
+	  for(int ia=0;ia<nela;ia++) {
+	    for(int ja=0;ja<ia;ja++)
+	      Ca.col(ia)-= Ca.col(ja)*(arma::trans(Ca.col(ja))*S*Ca.col(ia));
+	    Ca.col(ia) /= sqrt(arma::as_scalar(arma::trans(Ca.col(ia))*S*Ca.col(ia)));
+	  }
+
+	  for(int ib=0;ib<nelb;ib++) {
+	    for(int jb=0;jb<ib;jb++)
+	      Cb.col(ib) -= Cb.col(jb)*(arma::trans(Cb.col(jb))*S*Cb.col(ib));
+	    Cb.col(ib) /= sqrt(arma::as_scalar(arma::trans(Cb.col(ib))*S*Cb.col(ib)));
+	  }
+
+	  // Read in orbital energies
+	  loadchk.read("Ea",Ea);
+	  if(Ea.n_elem<Ca.n_cols)
+	    Ea=Ea.subvec(0,Ca.n_cols-1);
+	  loadchk.read("Eb",Eb);
+	  if(Eb.n_elem<Cb.n_cols)
+	    Eb=Eb.subvec(0,Cb.n_cols-1);
+	}
+	break;
+
+      default:
+        throw std::logic_error("Unsupported guess\n");
+
+      }
     } else {
-      // Use core guess
-      if(symm)
-        scf::eig_gsym_sub(Ea,Ca,H0,Sinvh,dsym);
-      else
-        scf::eig_gsym(Ea,Ca,H0,Sinvh);
+      switch(iguess) {
+      case(0):
+        // Use core guess
+        printf("Guess orbitals from core Hamiltonian\n");
+        if(symm)
+          scf::eig_gsym_sub(Ea,Ca,H0,Sinvh,dsym);
+        else
+          scf::eig_gsym(Ea,Ca,H0,Sinvh);
+        break;
 
+	/*
+      case(1):
+        // Use GSZ guess
+        printf("Guess orbitals from GSZ screened nucleus\n");
+        {
+          arma::mat Hgsz(T+basis.gsz()+Vel+Vmag);
+          if(symm)
+            scf::eig_gsym_sub(Ea,Ca,Hgsz,Sinvh,dsym);
+          else
+            scf::eig_gsym(Ea,Ca,Hgsz,Sinvh);
+          break;
+        }
+	*/
+
+      default:
+        throw std::logic_error("Unsupported guess\n");
+      }
+
+      // Beta guess is the same as the alpha guess
       Cb=Ca;
       Eb=Ea;
-    }
 
-    // Enforce occupation according to specified symmetry
-    if(readocc) {
-      scf::enforce_occupations(Ca,Ea,occnuma,occsym);
-      if(restr && nela==nelb)
-        Cb=Ca;
-      else
-        scf::enforce_occupations(Cb,Eb,occnumb,occsym);
+      // Enforce occupation according to specified symmetry
+      if(readocc) {
+	scf::enforce_occupations(Ca,Ea,occnuma,occsym);
+	if(restr && nela==nelb)
+	  Cb=Ca;
+	else
+	  scf::enforce_occupations(Cb,Eb,occnumb,occsym);
+      }
     }
 
     // Perturb guess
