@@ -20,6 +20,7 @@
 #include "../general/chebyshev.h"
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
+#include "../general/gsz.h"
 #include "../general/utils.h"
 #include "../general/timer.h"
 #include "../general/scf_helpers.h"
@@ -1977,6 +1978,30 @@ namespace helfem {
         return bf;
       }
 
+      arma::mat TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, int m) const {
+        // Figure out list of functions
+        std::vector<arma::uword> flist;
+        for(size_t i=0;i<mval.n_elem;i++)
+          if(mval(i)==m)
+            flist.push_back(i);
+
+        // Evaluate spherical harmonics
+        arma::vec sph(flist.size());
+        for(size_t i=0;i<flist.size();i++)
+          sph(i)=std::real(::spherical_harmonics(lval(flist[i]),mval(flist[i]),cth,0.0));
+
+        // Evaluate radial functions
+        arma::mat rad(radial.get_bf(iel));
+        rad=rad.rows(irad,irad);
+
+        // Form supermatrix
+        arma::mat bf(rad.n_rows,flist.size()*rad.n_cols);
+        for(size_t i=0;i<flist.size();i++)
+          bf.cols(i*rad.n_cols,(i+1)*rad.n_cols-1)=sph(i)*rad;
+
+        return bf;
+      }
+
       void TwoDBasis::eval_df(size_t iel, size_t irad, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const {
         // Evaluate spherical harmonics
         arma::cx_vec sph(lval.n_elem);
@@ -2037,6 +2062,26 @@ namespace helfem {
         //idx.print();
 
         return idx;
+      }
+
+      arma::uvec TwoDBasis::bf_list(size_t iel, int m) const {
+        // Radial functions in element
+        size_t ifirst, ilast;
+        radial.get_idx(iel,ifirst,ilast);
+        // Number of radial functions in element
+        size_t Nr(ilast-ifirst+1);
+
+        // Total number of radial functions
+        size_t Nrad(radial.Nbf());
+
+        // List of functions in the element
+        std::vector<arma::uword> idx;
+        for(size_t iam=0;iam<lval.n_elem;iam++)
+          if(mval(iam)==m)
+            for(size_t j=0;j<Nr;j++)
+              idx.push_back(Nrad*iam+ifirst+j);
+
+        return arma::conv_to<arma::uvec>::from(idx);
       }
 
       size_t TwoDBasis::get_rad_Nel() const {

@@ -6,7 +6,7 @@ general/angular.cpp general/scf_helpers.cpp general/lcao.cpp
 general/gsz.cpp general/dftfuncs.cpp general/checkpoint.cpp
 atomic/basis.cpp atomic/quadrature.cpp atomic/dftgrid.cpp
 sadatom/basis.cpp sadatom/dftgrid.cpp sadatom/configurations.cpp general/dftfuncs.cpp
-diatomic/basis.cpp diatomic/quadrature.cpp diatomic/dftgrid.cpp)
+diatomic/basis.cpp diatomic/quadrature.cpp diatomic/dftgrid.cpp diatomic/twodquadrature.cpp)
 
 add_executable(sadtest sadatom/main.cpp)
 target_link_libraries(sadtest helfem)
@@ -58,6 +58,10 @@ target_link_libraries(diatomic_itest gsl ${LAPACK_LIBRARY} rt hdf5 z)
 add_executable(diatomic_cbasis diatomic/corebasis.cpp)
 target_link_libraries(diatomic_cbasis helfem legendre)
 target_link_libraries(diatomic_cbasis gsl ${LAPACK_LIBRARY} rt hdf5 z)
+
+add_executable(diatomic_cpl diatomic/completeness.cpp)
+target_link_libraries(diatomic_cpl helfem legendre)
+target_link_libraries(diatomic_cpl gsl ${LAPACK_LIBRARY} rt hdf5 z)
 
 # Install libraries and main executables
 install (TARGETS helfem legendre atomic diatomic diatomic_cbasis DESTINATION bin)
