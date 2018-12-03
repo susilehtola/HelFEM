@@ -743,7 +743,7 @@ namespace helfem {
 #pragma omp parallel for
 #endif
         for(size_t ia=0;ia<cth.n_elem;ia++) {
-          // Evaluate radial functions at angular point
+          // Evaluate basis functions at angular point
           arma::cx_mat abf(basp->eval_bf(iel, irad, cth(ia), phi(ia)));
           if(abf.n_cols != bf_ind.n_elem) {
             std::ostringstream oss;
@@ -763,7 +763,7 @@ namespace helfem {
 #pragma omp parallel for
 #endif
           for(size_t ia=0;ia<cth.n_elem;ia++) {
-            // Evaluate radial functions at angular point
+            // Evaluate basis functions at angular point
             arma::cx_mat dr, dth, dphi;
             basp->eval_df(iel, irad, cth(ia), phi(ia), dr, dth, dphi);
             if(dr.n_cols != bf_ind.n_elem) {
