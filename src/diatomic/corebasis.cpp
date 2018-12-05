@@ -19,12 +19,12 @@
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
 #include "basis.h"
-#include "dftgrid.h"
+#include "twodquadrature.h"
 #include <cfloat>
 
 using namespace helfem;
 
-void eval(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, const arma::ivec & lmmax, int igrid, double zexp, double Ez, double Qzz, double Bz, int norb, double & E, arma::uword & nang, arma::uword & nrad, arma::vec & Eval) {
+void eval(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, const arma::ivec & lmmax, int igrid, double zexp, double Ez, double Qzz, double Bz, int norb, double & E, arma::uword & nang, arma::uword & nrad, arma::vec & Eval, int imodel) {
 
   int lpad=0;
   int symm=1;
@@ -41,7 +41,28 @@ void eval(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis 
   // Get half-inverse
   arma::mat Sinvh(basis.Sinvh(!diag,symm));
   // Form nuclear attraction energy matrix
-  arma::mat Vnuc(basis.nuclear());
+  arma::mat Vnuc;
+
+  switch(imodel) {
+  case(0):
+    // Bare nucleus
+    Vnuc=basis.nuclear();
+    break;
+
+  case(1):
+    // GSZ
+    {
+      int lquad = 4*arma::max(lmmax)+12;
+      helfem::diatomic::twodquad::TwoDGrid qgrid;
+      qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
+      Vnuc=qgrid.GSZ();
+      break;
+    }
+
+  default:
+    throw std::logic_error("Invalid model!\n");
+  }
+
   // Form Hamiltonian
   arma::mat H0(T+Vnuc);
   if(Ez!=0.0)
@@ -87,6 +108,7 @@ int main(int argc, char **argv) {
   parser.add<double>("Bz", 0, "magnetic dipole field", false, 0.0);
   parser.add<int>("thresh", 0, "convergence threshold, 10 corresponds to 1e-10", false, 10);
   parser.add<int>("nadd", 0, "number of funcs to add", false, 2);
+  parser.add<int>("imodel", 0, "model potential: bare nucleus (0), GSZ (1)", false, 0);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -103,6 +125,7 @@ int main(int argc, char **argv) {
   int Nquad(parser.get<int>("nquad"));
   int nadd(parser.get<int>("nadd"));
   int thresh(parser.get<int>("thresh"));
+  int imodel(parser.get<int>("imodel"));
 
   if(nadd%2)
     printf("WARNING - Adding an odd number of functions at a time does not give a balanced description of gerade/ungerade orbitals and may give wrong results.\n");
@@ -182,7 +205,7 @@ int main(int argc, char **argv) {
       double E;
       arma::vec Eval;
       arma::uword Nrad, Nang;
-      eval(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], E, Nrad, Nang, Eval);
+      eval(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], E, Nrad, Nang, Eval, imodel);
 
       Eval.t().print("Initial eigenvalues");
 
@@ -203,11 +226,11 @@ int main(int argc, char **argv) {
 
         printf("m=%i iteration %i\n",(int) m,iiter);
 
-        eval(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmtr, igrid, zexp, Ez, Qzz, Bz, norbs[m], Ea, Nra, Naa, Eva);
+        eval(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmtr, igrid, zexp, Ez, Qzz, Bz, norbs[m], Ea, Nra, Naa, Eva, imodel);
         double dEa=Ea-E;
         printf("Addition of %i partial waves decreases energy by %e\n",nadd,dEa);
 
-        eval(Z1, Z2, Rbond, poly, Nquad, Nelem+nadd, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], Er, Nrr, Nar, Evr);
+        eval(Z1, Z2, Rbond, poly, Nquad, Nelem+nadd, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], Er, Nrr, Nar, Evr, imodel);
         double dEr=Er-E;
         printf("Addition of %i radial elements decreases energy by %e\n",nadd,dEr);
 
