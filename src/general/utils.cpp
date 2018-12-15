@@ -22,8 +22,22 @@ namespace helfem {
       return log(x+sqrt(x*x-1.0));
     }
 
+    arma::vec arcosh(const arma::vec & x) {
+      arma::vec y(x);
+      for(size_t i=0;i<x.n_elem;i++)
+	y(i)=arcosh(x(i));
+      return y;
+    }
+
     double arsinh(double x) {
       return log(x+sqrt(x*x+1.0));
+    }
+
+    arma::vec arsinh(const arma::vec & x) {
+      arma::vec y(x);
+      for(size_t i=0;i<x.n_elem;i++)
+	y(i)=arsinh(x(i));
+      return y;
     }
 
     arma::mat product_tei(const arma::mat & ijint, const arma::mat & klint) {

@@ -22,8 +22,12 @@ namespace helfem {
   namespace utils {
     /// inverse cosh
     double arcosh(double x);
+    /// inverse cosh
+    arma::vec arcosh(const arma::vec & x);
     /// inverse sinh
     double arsinh(double x);
+    /// inverse sinh
+    arma::vec arsinh(const arma::vec & x);
 
     /// Form two-electron integrals from product of large-r and small-r radial moment matrices
     arma::mat product_tei(const arma::mat & big, const arma::mat & small);
