@@ -604,6 +604,10 @@ namespace helfem {
         return radial.get_bval();
       }
 
+      double TwoDBasis::get_mumax() const {
+        return radial.get_bval()(radial.get_bval().n_elem-1);
+      }
+
       int TwoDBasis::get_poly_id() const {
         return radial.get_poly_id();
       }
@@ -2000,6 +2004,44 @@ namespace helfem {
           bf.cols(i*rad.n_cols,(i+1)*rad.n_cols-1)=sph(i)*rad;
 
         return bf;
+      }
+
+      arma::cx_vec TwoDBasis::eval_bf(double mu, double cth, double phi) const {
+	// Find out which element mu belongs to
+	arma::vec bval(radial.get_bval());
+	size_t iel;
+	for(iel=0;iel<bval.n_elem-1;iel++)
+	  if(bval(iel)<=mu && mu<=bval(iel+1))
+	    break;
+	if(iel==bval.n_elem-1) {
+	  std::ostringstream oss;
+	  oss << "mu value " << mu << " not found!\n";
+	  throw std::logic_error(oss.str());
+	}
+
+	// x value is then
+	arma::vec x(1);
+	x(0)=2.0*(mu-bval(iel))/(bval(iel+1)-bval(iel)) - 1.0;
+
+	// Evaluate spherical harmonics
+        arma::cx_vec sph(lval.n_elem);
+        for(size_t i=0;i<lval.n_elem;i++)
+          sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
+        // Evaluate radial functions
+        arma::mat rad(radial.get_bf(iel,x));
+
+	// Get indices of radial functions
+	size_t ifirst, ilast;
+        radial.get_idx(iel,ifirst,ilast);
+
+        // Form supermatrix
+	arma::cx_vec bf;
+	bf.zeros(Ndummy());
+	for(size_t i=0;i<lval.n_elem;i++) {
+	  bf.subvec(i*radial.Nbf()+ifirst,i*radial.Nbf()+ilast)=sph(i)*arma::trans(rad);
+	}
+
+	return bf(pure_indices());
       }
 
       void TwoDBasis::eval_df(size_t iel, size_t irad, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const {

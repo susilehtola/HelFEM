@@ -115,6 +115,8 @@ namespace helfem {
         arma::mat get_bf(size_t iel) const;
         /// Evaluate basis functions at wanted point in [-1,1]
         arma::mat get_bf(size_t iel, const arma::vec & x) const;
+        /// Evaluate all basis functions at given value of mu
+        arma::mat get_bf(double mu) const;
         /// Evaluate derivatives of basis functions at quadrature points
         arma::mat get_df(size_t iel) const;
         /// Get quadrature weights
@@ -200,6 +202,8 @@ namespace helfem {
         int get_nquad() const;
         /// Get boundary values
         arma::vec get_bval() const;
+	/// Get maximum mu value
+	double get_mumax() const;
         /// Get polynomial basis identifier
         int get_poly_id() const;
         /// Get polynomial basis order
@@ -289,6 +293,9 @@ namespace helfem {
         arma::cx_mat eval_bf(size_t iel, const arma::vec & x, double cth, double phi) const;
         /// Evaluate basis functions with m=m at quadrature point
         arma::mat eval_bf(size_t iel, size_t irad, double cth, int m) const;
+
+	/// Evaluate basis functions at wanted point
+	arma::cx_vec eval_bf(double mu, double cth, double phi) const;
 
         /// Evaluate basis functions derivatives at quadrature points
         void eval_df(size_t iel, size_t irad, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const;
