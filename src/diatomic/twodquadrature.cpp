@@ -96,7 +96,12 @@ namespace helfem {
             r1(0)=Rhalf*(chmu(ir) + cth(ia));
             r2(0)=Rhalf*(chmu(ir) - cth(ia));
 
-            itg(idx)=-arma::as_scalar(GSZ::Z_GSZ(r1,Z1,d1,H1)/r1 + GSZ::Z_GSZ(r2,Z2,d2,H2)/r2);
+	    double V1(-arma::as_scalar(GSZ::Z_GSZ(r1,Z1,d1,H1)/r1));
+	    double V2(-arma::as_scalar(GSZ::Z_GSZ(r2,Z2,d2,H2)/r2));
+	    if(std::isnormal(V1))
+	      itg(idx)+=V1;
+	    if(std::isnormal(V2))
+	      itg(idx)+=V2;
           }
       }
 
