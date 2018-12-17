@@ -67,5 +67,9 @@ add_executable(diatomic_dline diatomic/density_line.cpp)
 target_link_libraries(diatomic_dline helfem legendre)
 target_link_libraries(diatomic_dline gsl ${LAPACK_LIBRARY} rt hdf5 z)
 
+add_executable(diatomic_dgrid diatomic/density_grid.cpp)
+target_link_libraries(diatomic_dgrid helfem legendre)
+target_link_libraries(diatomic_dgrid gsl ${LAPACK_LIBRARY} rt hdf5 z)
+
 # Install libraries and main executables
 install (TARGETS helfem legendre atomic diatomic diatomic_cbasis DESTINATION bin)
