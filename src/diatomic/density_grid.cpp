@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
   arma::vec nu;
   bool nuoff(parser.get<bool>("nuoff"));
   if(nuoff) {
-    double dnu=M_PI/(Nnu-2);
+    double dnu=M_PI/Nnu;
     nu=arma::linspace<arma::vec>(0.5*dnu,(Nnu-0.5)*dnu,Nnu);
   } else {
     nu=arma::linspace<arma::vec>(0.0,M_PI,Nnu);
