@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
   parser.add<double>("phi", 0, "value of phi angle", false, 0.0);
   parser.add<int>("Nmu", 0, "number of points in mu (negative for same as input)", false, -1);
   parser.add<int>("Nnu", 0, "number of points in nu (negative for same as input)", false, -1);
-  parser.add<bool>("nuoff", 0, "use nu offset?", false, false);
+  parser.add<bool>("offset", 0, "use nu and mu offset?", false, false);
   parser.add<std::string>("savedens", 0, "save density to file", false, "density.hdf5");
   parser.parse_check(argc, argv);
 
@@ -70,13 +70,15 @@ int main(int argc, char **argv) {
   loadchk.read("P",P);
 
   // mu array
-  arma::vec mu(arma::linspace<arma::vec>(0.0,mumax,Nmu));
-  arma::vec nu;
-  bool nuoff(parser.get<bool>("nuoff"));
-  if(nuoff) {
+  arma::vec mu, nu;
+  bool offset(parser.get<bool>("offset"));
+  if(offset) {
+    double dmu=mumax/Nmu;
     double dnu=M_PI/Nnu;
+    mu=arma::linspace<arma::vec>(dmu,mumax,Nmu);
     nu=arma::linspace<arma::vec>(0.5*dnu,(Nnu-0.5)*dnu,Nnu);
   } else {
+    mu=arma::linspace<arma::vec>(0.0,mumax,Nmu);
     nu=arma::linspace<arma::vec>(0.0,M_PI,Nnu);
   }
 
