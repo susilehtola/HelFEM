@@ -531,6 +531,7 @@ int main(int argc, char **argv) {
         break;
 
       case(1):
+      default:
         // Project lowest orbitals
         printf("Guess orbitals from previous calculation\n");
         {
@@ -571,10 +572,6 @@ int main(int argc, char **argv) {
 	    Eb=Eb.subvec(0,Cb.n_cols-1);
 	}
 	break;
-
-      default:
-        throw std::logic_error("Unsupported guess\n");
-
       }
     } else {
       switch(iguess) {
