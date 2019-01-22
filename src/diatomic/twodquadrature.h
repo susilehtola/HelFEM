@@ -18,6 +18,7 @@
 #define DIATOMIC_2DQUAD_H
 
 #include "basis.h"
+#include "../general/sap.h"
 
 namespace helfem {
   namespace diatomic {
@@ -70,6 +71,8 @@ namespace helfem {
         /// Free memory
         void free();
 
+        /// Compute SAP potential
+        void sap_pot(const ::SAP & sap, int Z1, int Z2);
         /// Compute GSZ potential
         void gsz_pot(int Z1, double d1, double H1, int Z2, double d2, double H2);
         /// Set unit potential
@@ -80,7 +83,7 @@ namespace helfem {
         /// Compute STO projection
         void sto(int l, const arma::vec & expn, probe_t p);
 
-        /// Evaluate potential energy matrix elements (for GSZ)
+        /// Evaluate potential energy matrix elements (for GSZ and SAP)
         void eval_pot(arma::mat & V) const;
         /// Evaluate basis set projection
         void eval_proj(arma::mat & S) const;
@@ -108,6 +111,8 @@ namespace helfem {
         arma::mat GSZ(int Z1, double d1, double H1, int Z2, double d2, double H2);
         /// Compute GSZ matrix with default parameters
         arma::mat GSZ();
+        /// Compute SAP matrix
+        arma::mat SAP(const ::SAP & sap);
 
         /// Compute overlap matrix
         arma::mat overlap();

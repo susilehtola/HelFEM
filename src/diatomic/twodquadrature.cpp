@@ -105,6 +105,28 @@ namespace helfem {
           }
       }
 
+      void TwoDGridWorker::sap_pot(const ::SAP & sap, int Z1, int Z2) {
+        double Rhalf(basp->get_Rhalf());
+        arma::vec chmu(arma::cosh(r));
+
+        itg.zeros(1,wtot.n_elem);
+        for(size_t ia=0;ia<wang.n_elem;ia++)
+          for(size_t ir=0;ir<wrad.n_elem;ir++) {
+            size_t idx=ia*wrad.n_elem+ir;
+
+            arma::vec r1(1), r2(1);
+            r1(0)=Rhalf*(chmu(ir) + cth(ia));
+            r2(0)=Rhalf*(chmu(ir) - cth(ia));
+
+	    double V1(arma::as_scalar(sap.get(Z1,r1)));
+	    double V2(arma::as_scalar(sap.get(Z2,r2)));
+	    if(std::isnormal(V1))
+	      itg(idx)+=V1;
+	    if(std::isnormal(V2))
+	      itg(idx)+=V2;
+          }
+      }
+
       void TwoDGridWorker::unit_pot() {
         itg.ones(1,wtot.n_elem);
       }
@@ -242,6 +264,35 @@ namespace helfem {
         GSZ::GSZ_parameters(Z1,d1,H1);
         GSZ::GSZ_parameters(Z2,d2,H2);
         return GSZ(Z1, d1, H1, Z2, d2, H2);
+      }
+
+      arma::mat TwoDGrid::SAP(const ::SAP & sap) {
+        int Z1=basp->get_Z1();
+        int Z2=basp->get_Z2();
+
+        arma::mat H;
+        H.zeros(basp->Ndummy(),basp->Ndummy());
+
+        // Get unique m values in basis set
+        arma::ivec muni(basp->get_mval());
+        muni=muni(arma::find_unique(muni));
+        {
+          TwoDGridWorker grid(basp,lang);
+
+          for(size_t im=0;im<muni.n_elem;im++) {
+            for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+              for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
+                grid.compute_bf(iel,irad,muni(im));
+                grid.sap_pot(sap, Z1, Z2);
+                grid.eval_pot(H);
+              }
+            }
+          }
+        }
+
+        H=basp->remove_boundaries(H);
+
+        return H;
       }
 
       arma::mat TwoDGrid::overlap() {

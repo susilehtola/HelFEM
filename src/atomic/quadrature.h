@@ -18,6 +18,7 @@
 
 #include <armadillo>
 #include "../general/polynomial_basis.h"
+#include "../general/sap.h"
 
 namespace helfem {
   namespace quadrature {
@@ -50,6 +51,18 @@ namespace helfem {
      *      bf: basis functions evaluated at integration nodes.
      */
     arma::mat gsz_integral(double Z, double dz, double Hz, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
+
+    /**
+     * Computes a SAP radial integral \f$ \int_0^\infty Z(r) B_1 (r) B_2(r) / r dr \f$.
+     *
+     * Input
+     *   rmin: start of element boundary
+     *   rmax: end of element boundary
+     *       x: integration nodes
+     *      wx: integration weights
+     *      bf: basis functions evaluated at integration nodes.
+     */
+    arma::mat sap_integral(const ::SAP & sap, int Z, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
 
     /**
      * Computes the inner in-element two-electron integral:
