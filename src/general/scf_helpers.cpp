@@ -15,6 +15,7 @@
  */
 #include "scf_helpers.h"
 #include "timer.h"
+#include <cfloat>
 
 namespace helfem {
   namespace scf {
@@ -27,7 +28,7 @@ namespace helfem {
         return arma::zeros<arma::mat>(C.n_rows,C.n_rows);
     }
 
-    void enforce_occupations(arma::mat & C, arma::vec & E, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx) {
+    void enforce_occupations(arma::mat & C, arma::vec & E, const arma::mat & S, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx) {
       if(nocc.n_elem != m_idx.size())
         throw std::logic_error("nocc vector and symmetry indices don't match!\n");
 
@@ -57,15 +58,18 @@ namespace helfem {
         if(!nocc(isym))
           continue;
 
-        // Find basis vectors that belong to this symmetry
-        arma::mat Ccmp(C.rows(m_idx[isym]));
+        // C submatrix
+        arma::mat Csub(C.rows(m_idx[isym]));
+        // S submatrix
+        arma::mat Ssub(S.submat(m_idx[isym],m_idx[isym]));
 
-        arma::vec Cnrm(Ccmp.n_cols);
-        for(size_t i=0;i<Cnrm.n_elem;i++)
-          Cnrm(i)=arma::norm(Ccmp.col(i),"fro");
+        // Find basis vectors that belong to this symmetry: compute their norm
+        arma::vec Csubnrm(arma::diagvec(Csub.t()*Ssub*Csub));
+        // Clean up
+        Csubnrm(arma::find(Csubnrm <= 10*DBL_EPSILON)).zeros();
 
         // Column indices of C that have non-zero elements
-        arma::uvec Cind(arma::find(Cnrm));
+        arma::uvec Cind(arma::find(Csubnrm));
 
         // Add to list of occupied orbitals
         for(arma::sword io=0;io<nocc(isym);io++)
@@ -74,6 +78,16 @@ namespace helfem {
 
       // Sort list
       std::sort(occidx.begin(),occidx.end());
+
+      // Make sure orbital vector doesn't have duplicates
+      {
+        arma::uvec iunq(arma::find_unique(arma::conv_to<arma::uvec>::from(occidx)));
+        if(iunq.n_elem != occidx.size()) {
+          arma::conv_to<arma::uvec>::from(occidx).print("Occupied orbital list");
+          fflush(stdout);
+          throw std::logic_error("Duplicates in occupied orbital list!\n");
+        }
+      }
 
       // Add in the rest of the orbitals
       std::vector<arma::uword> virtidx;

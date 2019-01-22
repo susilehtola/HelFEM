@@ -623,11 +623,11 @@ int main(int argc, char **argv) {
 
       // Enforce occupation according to specified symmetry
       if(readocc) {
-	scf::enforce_occupations(Ca,Ea,occnuma,occsym);
+	scf::enforce_occupations(Ca,Ea,S,occnuma,occsym);
 	if(restr && nela==nelb)
 	  Cb=Ca;
 	else
-	  scf::enforce_occupations(Cb,Eb,occnumb,occsym);
+	  scf::enforce_occupations(Cb,Eb,S,occnumb,occsym);
       }
     }
 
@@ -831,7 +831,7 @@ int main(int argc, char **argv) {
       scf::eig_gsym(Ea,Ca,Fa,Sinvh);
     // Enforce occupation according to specified symmetry
     if(i<readocc) {
-      scf::enforce_occupations(Ca,Ea,occnuma,occsym);
+      scf::enforce_occupations(Ca,Ea,S,occnuma,occsym);
     }
 
     if(restr && nela==nelb) {
@@ -845,7 +845,7 @@ int main(int argc, char **argv) {
     }
     // Enforce occupation according to specified symmetry
     if(i<readocc) {
-      scf::enforce_occupations(Cb,Eb,occnumb,occsym);
+      scf::enforce_occupations(Cb,Eb,S,occnumb,occsym);
     }
 
     chkpt.write("Ca",Ca);
