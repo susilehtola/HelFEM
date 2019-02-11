@@ -530,7 +530,7 @@ int main(int argc, char **argv) {
         // Use GSZ guess
         printf("Guess orbitals from GSZ screened nucleus\n");
         {
-          arma::mat Hgsz(H0-T+basis.gsz());
+          arma::mat Hgsz(H0-Vnuc+basis.gsz());
           if(symm)
             scf::eig_gsym_sub(Ea,Ca,Hgsz,Sinvh,dsym);
           else
