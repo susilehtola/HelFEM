@@ -341,6 +341,9 @@ void is_gga_mgga(int func_id, bool & gga, bool & mgga_t, bool & mgga_l) {
   switch(func.info->family)
     {
     case XC_FAMILY_LDA:
+#ifdef XC_FAMILY_HYB_LDA
+    case XC_FAMILY_HYB_LDA:
+#endif
       break;
 
     case XC_FAMILY_GGA:
@@ -384,6 +387,9 @@ double exact_exchange(int func_id) {
 
     switch(func.info->family)
       {
+#ifdef XC_FAMILY_HYB_LDA
+      case XC_FAMILY_HYB_LDA:
+#endif
       case XC_FAMILY_HYB_GGA:
       case XC_FAMILY_HYB_MGGA:
 	// libxc prior to 2.0.0
@@ -448,6 +454,9 @@ void range_separation(int func_id, double & omega, double & alpha, double & beta
 
     switch(func.info->family)
       {
+#ifdef XC_FAMILY_HYB_LDA
+      case XC_FAMILY_HYB_LDA:
+#endif
       case XC_FAMILY_HYB_GGA:
       case XC_FAMILY_HYB_MGGA:
 	XC(hyb_cam_coef(&func,&omega,&alpha,&beta));
