@@ -97,10 +97,24 @@ namespace helfem {
     }
 
     double LegendreTable::get_Plm(int l, int m, double xi) const {
+#ifndef ARMA_NO_DEBUG
+      if(get_index(xi)>stor.size()) {
+        std::ostringstream oss;
+        oss << "Error in get_Plm(" << l << "," << m << "," << xi << "): index " << get_index(xi) << " greater than array size " << stor.size() << "!\n";
+        throw std::logic_error(oss.str());
+      }
+#endif
       return stor[get_index(xi)].Plm(l,m);
     }
 
     double LegendreTable::get_Qlm(int l, int m, double xi) const {
+#ifndef ARMA_NO_DEBUG
+      if(get_index(xi)>stor.size()) {
+        std::ostringstream oss;
+        oss << "Error in get_Qlm(" << l << "," << m << "," << xi << "): index " << get_index(xi) << " greater than array size " << stor.size() << "!\n";
+        throw std::logic_error(oss.str());
+      }
+#endif
       return stor[get_index(xi)].Qlm(l,m);
     }
 
