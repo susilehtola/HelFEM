@@ -392,7 +392,7 @@ namespace helfem {
         size_t Npts=d[0].n_elem;
         arma::mat n(radial.Nel()*Npts+1,2);
         n.zeros();
-        n(0,0)=4.0*M_PI*nuclear_density(Prad);
+        n(0,1)=4.0*M_PI*nuclear_density(Prad);
         for(size_t iel=0;iel<radial.Nel();iel++) {
           n.submat(1+iel*Npts,0,(iel+1)*Npts,0)=r[iel];
           n.submat(1+iel*Npts,1,(iel+1)*Npts,1)=d[iel];
