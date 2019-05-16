@@ -6,9 +6,8 @@ general/angular.cpp general/scf_helpers.cpp general/lcao.cpp
 general/gsz.cpp general/sap.cpp general/dftfuncs.cpp
 general/checkpoint.cpp atomic/basis.cpp atomic/quadrature.cpp
 atomic/dftgrid.cpp sadatom/basis.cpp sadatom/dftgrid.cpp
-sadatom/configurations.cpp general/dftfuncs.cpp diatomic/basis.cpp
-diatomic/quadrature.cpp diatomic/dftgrid.cpp
-diatomic/twodquadrature.cpp)
+general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
+diatomic/dftgrid.cpp diatomic/twodquadrature.cpp)
 
 add_executable(sadtest sadatom/main.cpp)
 target_link_libraries(sadtest helfem)
