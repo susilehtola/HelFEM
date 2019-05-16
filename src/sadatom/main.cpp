@@ -50,6 +50,8 @@ typedef struct {
   arma::ivec occs;
   // Energy of configuration
   double E;
+  // Orbitals
+  std::vector<arma::mat> C;
   // Orbitals of configuration
   std::vector<aufbau_t> orbs;
   // Coulomb&exchange potential
@@ -554,7 +556,6 @@ int main(int argc, char **argv) {
 
     // Print info
     print(orblist);
-    print_orb(basis,C,orblist,element_symbols[Z]);
 
     // Add to map
     occmap_t tmp;
@@ -566,6 +567,7 @@ int main(int argc, char **argv) {
     tmp.Zeff=Zeff;
     tmp.rho=rho.col(1);
     tmp.wt=wt;
+    tmp.C=C;
     occmap.push_back(tmp);
 
     // Switch densities
@@ -636,6 +638,7 @@ int main(int argc, char **argv) {
   print(occmap[0].orbs);
   printf("Electronic configuration is\n");
   print_config(occmap[0].orbs);
+  print_orb(basis,occmap[0].C,occmap[0].orbs,element_symbols[Z]);
 
   // Assemble the potential
   arma::mat result(occmap[0].Zeff.n_rows,6);
