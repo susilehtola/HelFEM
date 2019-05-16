@@ -9,9 +9,9 @@ atomic/dftgrid.cpp sadatom/basis.cpp sadatom/dftgrid.cpp
 general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
 diatomic/dftgrid.cpp diatomic/twodquadrature.cpp)
 
-add_executable(sadtest sadatom/main.cpp)
-target_link_libraries(sadtest helfem)
-target_link_libraries(sadtest gsl ${LAPACK_LIBRARY} rt hdf5 z xc)
+add_executable(gensap sadatom/main.cpp)
+target_link_libraries(gensap helfem)
+target_link_libraries(gensap gsl ${LAPACK_LIBRARY} rt hdf5 z xc)
 
 add_library(legendre legendre/accuracy.f90 legendre/input_output.f90
   legendre/itoc.f90 legendre/Matrix_Print.f90 legendre/Data_Module.f90
@@ -73,4 +73,4 @@ target_link_libraries(diatomic_dgrid helfem legendre)
 target_link_libraries(diatomic_dgrid gsl ${LAPACK_LIBRARY} rt hdf5 z)
 
 # Install libraries and main executables
-install (TARGETS helfem legendre atomic diatomic diatomic_cbasis DESTINATION bin)
+install (TARGETS helfem legendre atomic diatomic diatomic_cbasis gensap DESTINATION bin)
