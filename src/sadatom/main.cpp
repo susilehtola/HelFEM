@@ -239,7 +239,7 @@ arma::mat supermat(const arma::mat & M) {
   return S;
 }
 
-void print_orb(const sadatom::basis::TwoDBasis & basis, const std::vector<arma::mat> & C, const std::vector<aufbau_t> & orblist) {
+void print_orb(const sadatom::basis::TwoDBasis & basis, const std::vector<arma::mat> & C, const std::vector<aufbau_t> & orblist, const std::string & symbol) {
   const char orbtypes[]="spdfgh";
 
   for(size_t io=0;io<orblist.size();io++) {
@@ -252,7 +252,7 @@ void print_orb(const sadatom::basis::TwoDBasis & basis, const std::vector<arma::
     arma::mat Clt(arma::trans(C[l].col(n-1)));
 
     std::ostringstream oss;
-    oss << "orbs_" << n+l << orbtypes[l] << ".dat";
+    oss << symbol << "_" << n+l << orbtypes[l] << ".dat";
     FILE *out = fopen(oss.str().c_str(),"w");
 
     // Loop over elements
@@ -554,7 +554,7 @@ int main(int argc, char **argv) {
 
     // Print info
     print(orblist);
-    print_orb(basis,C,orblist);
+    print_orb(basis,C,orblist,element_symbols[Z]);
 
     // Add to map
     occmap_t tmp;
