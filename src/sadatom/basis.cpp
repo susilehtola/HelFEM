@@ -28,6 +28,9 @@
 #include <omp.h>
 #endif
 
+#include <xc.h>
+
+
 namespace helfem {
   namespace sadatom {
     namespace basis {
@@ -289,6 +292,136 @@ namespace helfem {
         radial.get_idx(0,ifirst,ilast);
 
         return radial.nuclear_density(P.submat(ifirst,ifirst,ilast,ilast))/(4.0*M_PI);
+      }
+
+      arma::vec TwoDBasis::quadrature_weights() const {
+        std::vector<arma::vec> w(radial.Nel());
+        size_t ntot=1;
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          w[iel]=radial.get_wrad(iel);
+          ntot+=w[iel].n_elem;
+        }
+        arma::vec wt(ntot);
+        wt.zeros();
+        size_t Npts(w[0].n_elem);
+        for(size_t iel=0;iel<radial.Nel();iel++)
+          wt.subvec(1+iel*Npts,(iel+1)*Npts)=w[iel];
+
+        return wt;
+      }
+          
+      arma::mat TwoDBasis::coulomb_screening(const arma::mat & Prad) const {
+        std::vector<arma::vec> r(radial.Nel());
+        std::vector<arma::vec> V(radial.Nel());
+
+        // Calculate potential due to charge outside the element
+        arma::vec zero(radial.Nel());
+        arma::vec minusone(radial.Nel());
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          // Radial functions in element
+          size_t ifirst, ilast;
+          radial.get_idx(iel,ifirst,ilast);
+          // Density matrix
+          arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
+          arma::mat zm(radial.radial_integral(0,iel));
+          arma::mat mo(radial.radial_integral(-1,iel));
+          zero(iel)=arma::trace(Psub*zm);
+          minusone(iel)=arma::trace(Psub*mo);
+        }
+        // Sum zero potentials together
+        for(size_t iel=1;iel<radial.Nel();iel++)
+          zero(iel)+=zero(iel-1);
+        // Sum minus one potentials together
+        for(size_t iel=radial.Nel()-2;iel<radial.Nel();iel--)
+          minusone(iel)+=minusone(iel+1);
+
+        // Form potential        
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          // Initialize potential
+          r[iel]=radial.get_r(iel);
+          V[iel].zeros(r[iel].n_elem);
+
+          // Get the density in the element
+          size_t ifirst, ilast;
+          radial.get_idx(iel,ifirst,ilast);
+          arma::vec Pv(arma::vectorise(Prad.submat(ifirst,ifirst,ilast,ilast)));
+
+          // Calculate the in-element potential
+          arma::mat pot(radial.spherical_potential(iel));
+          V[iel] += pot*Pv;
+
+          // Add in the contributions from the other elements
+          if(iel>0)
+            for(size_t ip=0;ip<r[iel].n_elem;ip++)
+              V[iel](ip) += zero(iel-1)/r[iel](ip);
+          if(iel != radial.Nel()-1)
+            V[iel] += minusone(iel+1)*arma::ones<arma::vec>(V[iel].n_elem);
+
+          // Multiply by r to convert this into an effective charge
+          for(size_t ip=0;ip<r[iel].n_elem;ip++)
+            V[iel](ip)*=r[iel](ip);
+        }
+
+        // Assemble all of this into an array
+        size_t Npts=r[0].n_elem;
+        arma::mat Veff(radial.Nel()*Npts+1,2);
+        Veff.zeros();
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          Veff.submat(1+iel*Npts,0,(iel+1)*Npts,0)=r[iel];
+          Veff.submat(1+iel*Npts,1,(iel+1)*Npts,1)=V[iel];
+        }
+
+        return Veff;
+      }
+
+      arma::mat TwoDBasis::electron_density(const arma::mat & Prad) const {
+        std::vector<arma::vec> r(radial.Nel());
+        std::vector<arma::vec> d(radial.Nel());
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          // Radial functions in element
+          size_t ifirst, ilast;
+          radial.get_idx(iel,ifirst,ilast);
+          // Density matrix
+          arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
+          arma::mat bf(radial.get_bf(iel));
+
+          d[iel]=arma::diagvec(bf*Psub*bf.t());
+          r[iel]=radial.get_r(iel);
+        }
+
+        size_t Npts=d[0].n_elem;
+        arma::mat n(radial.Nel()*Npts+1,2);
+        n.zeros();
+        n(0,0)=4.0*M_PI*nuclear_density(Prad);
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          n.submat(1+iel*Npts,0,(iel+1)*Npts,0)=r[iel];
+          n.submat(1+iel*Npts,1,(iel+1)*Npts,1)=d[iel];
+        }
+        
+        return n;
+      }
+
+      arma::vec TwoDBasis::exchange_screening(const arma::mat & Prad) const {
+        // Get the electron density
+        arma::mat rho(electron_density(Prad));
+
+        // Exchange energy
+        arma::vec exc(rho.n_rows);
+        exc.zeros();
+        // Exchange potential
+        arma::vec vxc(rho.n_rows);
+        vxc.zeros();
+
+        // Call LIBXC
+        xc_func_type func;
+        if(xc_func_init(&func, 1, XC_UNPOLARIZED) != 0) {
+          throw std::logic_error("Error initializing LDA exchange functional!\n");
+        }
+        xc_lda_exc_vxc(&func, rho.n_rows, rho.colptr(1), exc.memptr(), vxc.memptr());
+        xc_func_end(&func);
+
+        // Convert to radial potential (this is how it matches with GPAW)
+        return (vxc%rho.col(0))/std::cbrt(4.0*M_PI);
       }
     }
   }

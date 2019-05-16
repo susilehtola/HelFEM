@@ -416,6 +416,18 @@ namespace helfem {
         return tei;
       }
 
+      arma::mat RadialBasis::spherical_potential(size_t iel) const {
+        double Rmin(bval(iel));
+        double Rmax(bval(iel+1));
+
+        // Integral by quadrature
+        polynomial_basis::PolynomialBasis * p(get_basis(poly,iel));
+        arma::mat pot(quadrature::spherical_potential(Rmin,Rmax,xq,wq,p));
+        delete p;
+
+        return pot;
+      }
+
       arma::mat RadialBasis::get_bf(size_t iel) const {
         // Element function values at quadrature points are
         arma::mat val(get_basis(bf,iel));

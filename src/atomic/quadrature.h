@@ -76,6 +76,11 @@ namespace helfem {
      * Note that the routine needs the polynomial representation.
      */
     arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L);
+
+    /**
+     * Computes the spherically symmetric potential V(r).
+     */
+    arma::mat spherical_potential(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly);
   }
 }
 

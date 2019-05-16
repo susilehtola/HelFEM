@@ -82,6 +82,15 @@ namespace helfem {
 
         /// Electron density at nucleus
         double nuclear_density(const arma::mat & P) const;
+
+        /// Get quadrature weights
+        arma::vec quadrature_weights() const;
+        /// Compute the Coulomb screening of the nucleus
+        arma::mat coulomb_screening(const arma::mat & Prad) const;
+        /// Compute the electron density
+        arma::mat electron_density(const arma::mat & Prad) const;
+        /// Compute the LDA exchange screening 
+        arma::vec exchange_screening(const arma::mat & Prad) const;
       };
     }
   }

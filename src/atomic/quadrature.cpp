@@ -242,5 +242,45 @@ namespace helfem {
 
       return ints;
     }
+
+    arma::mat spherical_potential(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly) {
+      // Midpoint is at
+      double rmid(0.5*(rmax+rmin));
+      // and half-length of interval is
+      double rlen(0.5*(rmax-rmin));
+      // r values are then
+      arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
+
+      // Compute the "inner" integrals as function of r.
+      arma::mat zero(std::pow(poly->get_nbf(),2),x.n_elem);
+      zero.zeros();
+      arma::mat minusone(std::pow(poly->get_nbf(),2),x.n_elem);
+      minusone.zeros();
+      // Every subinterval uses a fresh nquad points!
+      for(size_t ip=0;ip<x.n_elem;ip++) {
+        if(ip) {
+          zero.col(ip)=twoe_inner_integral_wrk(r(ip-1), r(ip), rmin, rmax, x, wx, poly, 0);
+          minusone.col(ip)=twoe_inner_integral_wrk(r(ip-1), r(ip), rmin, rmax, x, wx, poly, -1);
+        }
+      }
+
+      // The potential itself
+      arma::mat V(std::pow(poly->get_nbf(),2),x.n_elem);
+      V.zeros();
+      for(size_t ip=0;ip<x.n_elem;ip++) {
+        // int_0^r Bi(r) Bj(r)
+        for(size_t jp=0;jp<ip;jp++)
+          V.col(ip)+=zero.col(jp);
+        // divided by r
+        V.col(ip) /= r(ip);
+
+        // plus the integral to infinity
+        for(size_t jp=ip;jp<x.n_elem;jp++)
+          V.col(ip)+=minusone.col(jp);
+      }
+
+      // Should be returned as transpose
+      return arma::trans(V);
+    }
   }
 }

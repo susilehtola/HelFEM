@@ -110,6 +110,8 @@ namespace helfem {
 
         /// Compute primitive two-electron integral
         arma::mat twoe_integral(int L, size_t iel) const;
+        /// Compute a spherically symmetric potential
+        arma::mat spherical_potential(size_t iel) const;
 
         /// Compute projection
         arma::mat overlap(const RadialBasis & rh) const;
