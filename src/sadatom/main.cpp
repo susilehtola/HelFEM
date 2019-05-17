@@ -279,12 +279,13 @@ int main(int argc, char **argv) {
   // full option name, no short option, description, argument required
   parser.add<std::string>("Z", 0, "nuclear charge", true);
   parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
-  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for logarithmic", false, 4);
+  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
   parser.add<int>("nelem", 0, "number of elements", true);
+  parser.add<int>("Q", 0, "charge of system", false, 0);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
-  parser.add<int>("maxit", 0, "maximum number of iterations", false, 500);
+  parser.add<int>("maxit", 0, "maximum number of iterations", false, 50);
   parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
   parser.add<std::string>("method", 0, "method to use", false, "lda_x");
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
@@ -293,7 +294,8 @@ int main(int argc, char **argv) {
   parser.add<double>("diiseps", 0, "when to start mixing in diis", false, 1e-2);
   parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
   parser.add<int>("diisorder", 0, "length of diis history", false, 5);
-  parser.parse_check(argc, argv);
+  if(!parser.parse(argc, argv))
+    throw std::logic_error("Error parsing arguments!\n");
 
   // Get parameters
   double Rmax(parser.get<double>("Rmax"));
@@ -313,6 +315,7 @@ int main(int argc, char **argv) {
   double dftthr(parser.get<double>("dftthr"));
 
   // Nuclear charge
+  int Q(parser.get<int>("Q"));
   int Z(get_Z(parser.get<std::string>("Z")));
   double diiseps=parser.get<double>("diiseps");
   double diisthr=parser.get<double>("diisthr");
@@ -336,7 +339,7 @@ int main(int argc, char **argv) {
     throw std::logic_error("Insufficient radial quadrature.\n");
 
   // Total number of electrons is
-  arma::sword numel=Z;
+  arma::sword numel=Z-Q;
 
   sadatom::basis::TwoDBasis basis=sadatom::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, LMAX, igrid, zexp);
 
