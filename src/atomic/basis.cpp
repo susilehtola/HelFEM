@@ -387,12 +387,12 @@ namespace helfem {
         return quadrature::gsz_integral(Z,dz,Hz,Rmin,Rmax,xq,wq,get_basis(bf,iel));
       }
 
-      arma::mat RadialBasis::sap(const ::SAP & sap, double Z, size_t iel) const {
+      arma::mat RadialBasis::sap(double Z, size_t iel) const {
         double Rmin(bval(iel));
         double Rmax(bval(iel+1));
 
         // Integral by quadrature
-        return quadrature::sap_integral(sap,Z,Rmin,Rmax,xq,wq,get_basis(bf,iel));
+        return quadrature::sap_integral(Z,Rmin,Rmax,xq,wq,get_basis(bf,iel));
       }
 
       arma::mat RadialBasis::nuclear_offcenter(size_t iel, double Rhalf, int L) const {
@@ -1001,7 +1001,7 @@ namespace helfem {
 	return gsz(dz,Hz);
       }
 
-      arma::mat TwoDBasis::sap(const ::SAP & sap) const {
+      arma::mat TwoDBasis::sap() const {
         // Full nuclear attraction matrix
         arma::mat V(Ndummy(),Ndummy());
         V.zeros();
@@ -1014,7 +1014,7 @@ namespace helfem {
 	  // Where are we in the matrix?
 	  size_t ifirst, ilast;
 	  radial.get_idx(iel,ifirst,ilast);
-	  Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.sap(sap,Z,iel);
+	  Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.sap(Z,iel);
 	}
 	// Fill elements
 	for(size_t iang=0;iang<lval.n_elem;iang++)

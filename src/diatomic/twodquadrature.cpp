@@ -18,6 +18,7 @@
 #include "../general/chebyshev.h"
 #include "../general/lcao.h"
 #include "../general/gsz.h"
+#include "../general/utils.h"
 
 namespace helfem {
   namespace diatomic {
@@ -105,7 +106,7 @@ namespace helfem {
           }
       }
 
-      void TwoDGridWorker::sap_pot(const ::SAP & sap, int Z1, int Z2) {
+      void TwoDGridWorker::sap_pot(int Z1, int Z2) {
         double Rhalf(basp->get_Rhalf());
         arma::vec chmu(arma::cosh(r));
 
@@ -118,8 +119,8 @@ namespace helfem {
             r1(0)=Rhalf*(chmu(ir) + cth(ia));
             r2(0)=Rhalf*(chmu(ir) - cth(ia));
 
-	    double V1(arma::as_scalar(sap.get(Z1,r1)));
-	    double V2(arma::as_scalar(sap.get(Z2,r2)));
+	    double V1(arma::as_scalar(utils::sap_potential(Z1,r1)/r1));
+            double V2(arma::as_scalar(utils::sap_potential(Z2,r2)/r2));
 	    if(std::isnormal(V1))
 	      itg(idx)+=V1;
 	    if(std::isnormal(V2))
@@ -266,7 +267,7 @@ namespace helfem {
         return GSZ(Z1, d1, H1, Z2, d2, H2);
       }
 
-      arma::mat TwoDGrid::SAP(const ::SAP & sap) {
+      arma::mat TwoDGrid::SAP() {
         int Z1=basp->get_Z1();
         int Z2=basp->get_Z2();
 
@@ -283,7 +284,7 @@ namespace helfem {
             for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
               for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
                 grid.compute_bf(iel,irad,muni(im));
-                grid.sap_pot(sap, Z1, Z2);
+                grid.sap_pot(Z1, Z2);
                 grid.eval_pot(H);
               }
             }

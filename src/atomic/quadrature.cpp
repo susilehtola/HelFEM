@@ -17,6 +17,7 @@
 #include "../general/chebyshev.h"
 #include "../general/polynomial.h"
 #include "../general/gsz.h"
+#include "../general/utils.h"
 
 namespace helfem {
   namespace quadrature {
@@ -117,7 +118,7 @@ namespace helfem {
       return arma::trans(wbf)*bf;
     }
 
-    arma::mat sap_integral(const ::SAP & sap, int Z, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf) {
+    arma::mat sap_integral(int Z, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf) {
 #ifndef ARMA_NO_DEBUG
       if(x.n_elem != wx.n_elem) {
         std::ostringstream oss;
@@ -141,7 +142,7 @@ namespace helfem {
       // Calculate total weight per point
       arma::vec wp(wx*rlen);
       // Plug in charge
-      wp%=sap.get(Z,r);
+      wp%=utils::sap_potential(Z,r)/r;
 
       // Put in weight
       arma::mat wbf(bf);

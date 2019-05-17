@@ -62,7 +62,7 @@ namespace helfem {
      *      wx: integration weights
      *      bf: basis functions evaluated at integration nodes.
      */
-    arma::mat sap_integral(const ::SAP & sap, int Z, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
+    arma::mat sap_integral(int Z, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
 
     /**
      * Computes the inner in-element two-electron integral:

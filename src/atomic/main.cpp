@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
   parser.add<int>("readocc", 0, "read occupations from file, use until nth build", false, 0);
   parser.add<double>("perturb", 0, "randomly perturb initial guess", false, 0.0);
   parser.add<int>("seed", 0, "seed for random perturbation", false, 0);
-  parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ, 2 for SAP", false, 1);
+  parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ, 2 for SAP", false, 2);
   parser.add<std::string>("load", 0, "load guess from checkpoint", false, "");
   parser.add<std::string>("save", 0, "save calculation to checkpoint", false, "helfem.chk");
   parser.parse_check(argc, argv);
@@ -542,8 +542,7 @@ int main(int argc, char **argv) {
         // Use GSZ guess
         printf("Guess orbitals from SAP screened nucleus\n");
         {
-          ::SAP sap;
-          arma::mat Hsap(H0+basis.sap(sap));
+          arma::mat Hsap(H0+basis.sap());
           if(symm)
             scf::eig_gsym_sub(Ea,Ca,Hsap,Sinvh,dsym);
           else

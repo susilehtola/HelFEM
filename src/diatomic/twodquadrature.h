@@ -72,7 +72,7 @@ namespace helfem {
         void free();
 
         /// Compute SAP potential
-        void sap_pot(const ::SAP & sap, int Z1, int Z2);
+        void sap_pot(int Z1, int Z2);
         /// Compute GSZ potential
         void gsz_pot(int Z1, double d1, double H1, int Z2, double d2, double H2);
         /// Set unit potential
@@ -112,7 +112,7 @@ namespace helfem {
         /// Compute GSZ matrix with default parameters
         arma::mat GSZ();
         /// Compute SAP matrix
-        arma::mat SAP(const ::SAP & sap);
+        arma::mat SAP();
 
         /// Compute overlap matrix
         arma::mat overlap();

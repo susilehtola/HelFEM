@@ -104,7 +104,7 @@ namespace helfem {
         /// Compute gsz matrix in element
         arma::mat gsz(double Z, double dz, double Hz, size_t iel) const;
         /// Compute SAP matrix in element
-        arma::mat sap(const ::SAP & sap, double Z, size_t iel) const;
+        arma::mat sap(double Z, size_t iel) const;
         /// Compute off-center nuclear attraction matrix in element
         arma::mat nuclear_offcenter(size_t iel, double Rhalf, int L) const;
 
@@ -240,7 +240,7 @@ namespace helfem {
 	/// Form GSZ matrix with default parameters
 	arma::mat gsz() const;
 	/// Form GSZ matrix with default parameters
-	arma::mat sap(const ::SAP & sap) const;
+	arma::mat sap() const;
         /// Form dipole coupling matrix
         arma::mat dipole_z() const;
         /// Form quadrupole coupling matrix

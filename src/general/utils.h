@@ -47,6 +47,11 @@ namespace helfem {
      *        3 for generalized exponential grid with parameter zexp
      */
     arma::vec get_grid(double rmax, int num_el, int igrid, double zexp);
+
+    /**
+     * Calculate SAP potential
+     */
+    arma::vec sap_potential(int Z, const arma::vec & r);
   }
 }
 

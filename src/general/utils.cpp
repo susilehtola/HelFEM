@@ -14,6 +14,7 @@
  * of the License, or (at your option) any later version.
  */
 #include "utils.h"
+#include "sap.h"
 #include <cmath>
 
 namespace helfem {
@@ -167,6 +168,13 @@ namespace helfem {
       bval(bval.n_elem-1)=rmax;
 
       return bval;
+    }
+
+    arma::vec sap_potential(int Z, const arma::vec & r) {
+      arma::vec z(r);
+      for(size_t i=0;i<r.n_elem;i++)
+        z(i)=::sap_potential(Z,r(i));
+      return z;
     }
   }
 }
