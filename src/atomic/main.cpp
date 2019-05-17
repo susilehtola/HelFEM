@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
   parser.add<int>("lmax", 0, "maximum l quantum number", true);
   parser.add<int>("mmax", 0, "maximum m quantum number", true);
   parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
-  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for logarithmic", false, 4);
+  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
   parser.add<int>("nelem0", 0, "number of elements between center and off-center nuclei", false, 0);
   parser.add<int>("nelem", 0, "number of elements", true);
