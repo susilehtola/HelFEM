@@ -28,6 +28,24 @@
 */
 
 #ifndef SAP_POTENTIAL
-/* Function to evaluate the potential at an arbitrary distance */
+/*
+  Routines for the implementation of the superposition of atomic
+  potentials guess for electronic structure calculations, see
+
+  S. Lehtola, "Assessment of Initial Guesses for Self-Consistent Field
+  Calculations. Superposition of Atomic Potentials: Simple yet
+  Efficient", J. Chem. Theory Comput. 15, 1593 (2019).
+  DOI: 10.1021/acs.jctc.8b01089
+
+  This function evaluates the repulsive part of the LDA exchange-only
+  potential of a neutral atom. The potentials have been calculated for
+  the ground-states of spherically symmetric atoms at the non-relativistic
+  level of theory, using accurate finite-element calculations as described
+  in
+
+  S. Lehtola, "Fully numerical Hartree-Fock and density functional
+  calculations. I. Atoms", Int J Quantum Chem. e25945 (2019).
+  DOI: 10.1002/qua.25945
+*/
 double sap_potential(int Z, double r);
 #endif
