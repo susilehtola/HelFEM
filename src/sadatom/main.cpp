@@ -554,8 +554,8 @@ int main(int argc, char **argv) {
     Zeff.col(1)+=vx;
     arma::mat rho(basis.electron_density(P));
 
-    printf("Number of electrons by quadrature: %.16f\n",arma::sum(wt%arma::square(rho.col(0))%rho.col(1)));
-    printf("Coulomb energy by quadrature: %.16f\n",0.5*arma::sum(wt%vcoul%rho.col(0)%rho.col(1)));
+    printf("Error in quadrature of number of electrons: % e\n",arma::sum(wt%arma::square(rho.col(0))%rho.col(1))-numel);
+    printf("Error in quadrature of Coulomb energy: %.16f\n",0.5*arma::sum(wt%vcoul%rho.col(0)%rho.col(1))-Ecoul);
 
     // Print info
     print(orblist);

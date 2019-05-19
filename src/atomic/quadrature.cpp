@@ -259,10 +259,14 @@ namespace helfem {
       minusone.zeros();
       // Every subinterval uses a fresh nquad points!
       for(size_t ip=0;ip<x.n_elem;ip++) {
-        if(ip) {
-          zero.col(ip)=twoe_inner_integral_wrk(r(ip-1), r(ip), rmin, rmax, x, wx, poly, 0);
-          minusone.col(ip)=twoe_inner_integral_wrk(r(ip-1), r(ip), rmin, rmax, x, wx, poly, -1);
-        }
+        double low = ip ? r(ip-1) : rmin;
+        double high = r(ip);
+        zero.col(ip)=twoe_inner_integral_wrk(low, high, rmin, rmax, x, wx, poly, 0);
+      }
+      for(size_t ip=0;ip<x.n_elem;ip++) {
+        double low = r(ip);
+        double high = (ip == x.n_elem-1) ? rmax : r(ip+1);
+        minusone.col(ip)=twoe_inner_integral_wrk(low, high, rmin, rmax, x, wx, poly, -1);
       }
 
       // The potential itself
@@ -270,7 +274,7 @@ namespace helfem {
       V.zeros();
       for(size_t ip=0;ip<x.n_elem;ip++) {
         // int_0^r Bi(r) Bj(r)
-        for(size_t jp=0;jp<ip;jp++)
+        for(size_t jp=0;jp<=ip;jp++)
           V.col(ip)+=zero.col(jp);
         // divided by r
         V.col(ip) /= r(ip);
