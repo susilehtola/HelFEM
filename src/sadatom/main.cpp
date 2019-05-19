@@ -555,7 +555,7 @@ int main(int argc, char **argv) {
     arma::mat rho(basis.electron_density(P));
 
     printf("Error in quadrature of number of electrons: % e\n",arma::sum(wt%arma::square(rho.col(0))%rho.col(1))-numel);
-    printf("Error in quadrature of Coulomb energy: %.16f\n",0.5*arma::sum(wt%vcoul%rho.col(0)%rho.col(1))-Ecoul);
+    printf("Error in quadrature of Coulomb energy: % e\n",0.5*arma::sum(wt%vcoul%rho.col(0)%rho.col(1))-Ecoul);
 
     // Print info
     print(orblist);
