@@ -39,7 +39,7 @@
 
 double sap_potential(int Z, double r) {
   /* Table lookup helpers */
-  size_t posleft, posright;
+  size_t posleft, posright, posmiddle;
   /* Storage for data points */
   double xi[LIP_ORDER];
   double yi[LIP_ORDER];
@@ -15060,11 +15060,14 @@ double sap_potential(int Z, double r) {
   posleft = 0;
   posright = SAP_NRAD - 1;
   while (1) {
-    size_t posmiddle = (posleft + posright) / 2;
+    posmiddle = (posleft + posright) / 2;
     if (sap_potential_array[0][posmiddle] < r)
       posleft = posmiddle;
     else if (sap_potential_array[0][posmiddle] > r)
       posright = posmiddle;
+    else if (sap_potential_array[0][posmiddle] == r)
+      return sap_potential_array[Z][posmiddle];
+
     if (posleft + 1 == posright)
       break;
   }
@@ -15076,7 +15079,7 @@ double sap_potential(int Z, double r) {
     posleft -= (posleft + LIP_ORDER) - SAP_NRAD;
 
   /* Copy data */
-  for (size_t i = 0; i < LIP_ORDER; i++) {
+  for (i = 0; i < LIP_ORDER; i++) {
     xi[i] = sap_potential_array[0][posleft + i];
     yi[i] = sap_potential_array[Z][posleft + i];
   }
