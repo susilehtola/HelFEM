@@ -71,7 +71,7 @@ namespace helfem {
 
         arma::mat Sinvh(Svec*arma::diagmat(arma::pow(Sval,-0.5))*arma::trans(Svec));
         Sinvh=arma::diagmat(bfnormlz)*Sinvh;
-        
+
         return Sinvh;
       }
 
@@ -112,13 +112,13 @@ namespace helfem {
 
         return Trad;
       }
-      
+
       arma::mat TwoDBasis::kinetic_l() const {
         // Build radial kinetic energy matrix
         size_t Nrad(radial.Nbf());
         arma::mat Trad_l(Nrad,Nrad);
         Trad_l.zeros();
-        
+
         // Loop over elements
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Where are we in the matrix?
@@ -191,7 +191,7 @@ namespace helfem {
             size_t Nj(jlast-jfirst+1);
 
             arma::mat Psub(P.submat(jfirst,jfirst,jlast,jlast));
-            
+
             // Contract integrals
             double jsmall = Lfac*arma::trace(disjoint_L[L*Nel+jel]*Psub);
             double jbig = Lfac*arma::trace(disjoint_m1L[L*Nel+jel]*Psub);
@@ -309,7 +309,7 @@ namespace helfem {
 
         return wt;
       }
-          
+
       arma::mat TwoDBasis::coulomb_screening(const arma::mat & Prad) const {
         std::vector<arma::vec> r(radial.Nel());
         std::vector<arma::vec> V(radial.Nel());
@@ -335,7 +335,7 @@ namespace helfem {
         for(size_t iel=radial.Nel()-2;iel<radial.Nel();iel--)
           minusone(iel)+=minusone(iel+1);
 
-        // Form potential        
+        // Form potential
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Initialize potential
           r[iel]=radial.get_r(iel);
@@ -397,7 +397,7 @@ namespace helfem {
           n.submat(1+iel*Npts,0,(iel+1)*Npts,0)=r[iel];
           n.submat(1+iel*Npts,1,(iel+1)*Npts,1)=d[iel];
         }
-        
+
         return n;
       }
 
@@ -422,6 +422,43 @@ namespace helfem {
 
         // Convert to radial potential (this is how it matches with GPAW)
         return (vxc%rho.col(0))/std::cbrt(4.0*M_PI);
+      }
+
+      arma::mat TwoDBasis::exchange_screening(const arma::mat & Parad, const arma::mat & Pbrad) const {
+        // Get the electron density
+        arma::mat rhoa(electron_density(Parad));
+        arma::mat rhob(electron_density(Pbrad));
+
+        // and pack it for libxc
+        arma::mat rho_libxc(rhoa.n_rows,2);
+        rho_libxc.col(0)=rhoa.col(1);
+        rho_libxc.col(1)=rhob.col(1);
+        // Take transpose so that order is (na0, nb0, na1, nb1, ...)
+        rho_libxc=rho_libxc.t();
+
+        // Exchange energy
+        arma::vec exc(rhoa.n_rows);
+        exc.zeros();
+        // Exchange potential
+        arma::mat vxc(2,rhoa.n_rows);
+        vxc.zeros();
+
+        // Call LIBXC
+        xc_func_type func;
+        if(xc_func_init(&func, 1, XC_POLARIZED) != 0) {
+          throw std::logic_error("Error initializing LDA exchange functional!\n");
+        }
+        xc_lda_exc_vxc(&func, rhoa.n_rows, rho_libxc.memptr(), exc.memptr(), vxc.memptr());
+        xc_func_end(&func);
+
+        // Back-transpose
+        vxc=vxc.t();
+
+        // Convert to radial potential (this is how it matches with GPAW)
+        for(size_t ic=0;ic<vxc.n_cols;ic++)
+          vxc.col(ic)%=rhoa.col(0)/std::cbrt(4.0*M_PI);
+
+        return vxc;
       }
     }
   }

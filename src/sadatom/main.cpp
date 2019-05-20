@@ -26,210 +26,20 @@
 
 // Just use spdf for everything since this is so cheap
 #define LMAX 3
+// Shell types
+static const char shtype[]="spdfgh";
 
 using namespace helfem;
 
 typedef struct {
-  // Primary quantum number
-  arma::sword n;
-  // Angular momentum
-  arma::sword l;
-  // Occupation
-  double nocc;
-  // Energy
+  int n;
+  int l;
   double E;
-} aufbau_t;
+  int nocc;
+} shell_occupation_t;
 
-bool operator<(const aufbau_t & lh, const aufbau_t & rh) {
+bool operator<(const shell_occupation_t & lh, const shell_occupation_t & rh) {
   return lh.E < rh.E;
-}
-
-// Structure for finding out the ground-state occupation
-typedef struct {
-  // Number of electrons on s, p, d, and f shells
-  arma::ivec occs;
-  // Energy of configuration
-  double E;
-  // Orbitals
-  std::vector<arma::mat> C;
-  // Orbitals of configuration
-  std::vector<aufbau_t> orbs;
-  // Coulomb&exchange potential
-  arma::mat Zeff;
-  // Coulomb potential
-  arma::vec Vcoul;
-  // Exchange potential
-  arma::vec Vexch;
-  // Electron density
-  arma::vec rho;
-  // Weights
-  arma::vec wt;
-} occmap_t;
-
-// Comparison operator for sort
-bool operator<(const occmap_t & lh, const occmap_t & rh) {
-  return lh.E < rh.E;
-}
-// Comparison
-bool operator==(const arma::ivec & occs, const occmap_t & rh) {
-  if(occs.n_elem != rh.occs.n_elem)
-    return false;
-
-  bool match=true;
-  for(size_t j=0;j<rh.occs.n_elem;j++)
-    if(occs(j) != rh.occs(j))
-      match=false;
-
-  return match;
-}
-// Is on list?
-bool in_list(const arma::ivec & occs, const std::vector<occmap_t> & rh) {
-  for(size_t i=0;i<rh.size();i++)
-    if(occs == rh[i])
-      return true;
-  return false;
-}
-
-
-std::vector<aufbau_t> form_orbital_list(const std::vector<arma::vec> & E) {
-  std::vector<aufbau_t> orblist;
-  for(size_t l=0;l<E.size();l++)
-    for(arma::uword iorb=0;iorb<E[l].n_elem;iorb++) {
-      aufbau_t tmp;
-      tmp.n=iorb+1;
-      tmp.l=l;
-      tmp.nocc=0;
-      tmp.E=E[l](iorb);
-      orblist.push_back(tmp);
-    }
-
-  std::sort(orblist.begin(),orblist.end());
-
-  return orblist;
-}
-
-arma::vec find_occupations(std::vector<aufbau_t> & orblist, arma::ivec nelocc) {
-  // Distribute electrons
-  arma::vec occs(orblist.size());
-  for(size_t io=0;io<orblist.size();io++) {
-    // Occupation is?
-    arma::sword nocc = 0;
-    if(nelocc(orblist[io].l)) {
-      nocc = std::min((arma::sword) 4*orblist[io].l+2, (arma::sword) nelocc(orblist[io].l));
-      nelocc(orblist[io].l) -= nocc;
-    }
-    occs[io] = nocc;
-  }
-
-  return occs;
-}
-
-arma::vec focc(const arma::vec & E, double mu, double B) {
-  if(!E.size())
-    throw std::logic_error("Can't do Fermi occupations without orbital energies!\n");
-
-  arma::vec focc(E.n_elem);
-  for(size_t i=0;i<E.n_elem;i++)
-    focc(i)=1.0/(1.0 + exp(B*(E(i)-mu)));
-  return focc;
-}
-
-arma::vec get_fermi_occupations(std::vector<aufbau_t> & orblist, double mu, double B) {
-  // Get orbital energies
-  arma::vec E(orblist.size()), nel(orblist.size());
-  for(size_t io=0;io<orblist.size();io++) {
-    E(io)=orblist[io].E;
-    nel(io)=4*orblist[io].l+2;
-  }
-  // Occupation numbers are
-  return nel%focc(E,mu,B);
-}
-
-arma::vec fermi_occupations(std::vector<aufbau_t> & orblist, double T, double N) {
-  // Temperature factor: 1/(kB T)
-  const double B(1.0/T);
-
-  arma::vec occ;
-  double occsum;
-
-  double Eleft(orblist[0].E);
-  double Eright(orblist[orblist.size()-1].E);
-
-  // Check that limiting values are okay
-  while(arma::sum(get_fermi_occupations(orblist,Eleft,B))>N) {
-    Eleft=-2*std::abs(Eleft);
-  }
-  while(arma::sum(get_fermi_occupations(orblist,Eright,B))<N) {
-    Eright=2*std::abs(Eright);
-  }
-
-  // Iterate
-  for(size_t it=1;it<100;it++) {
-    double Efermi((Eleft+Eright)/2);
-    occ=get_fermi_occupations(orblist,Efermi,B);
-    occsum=arma::sum(occ);
-
-    //printf("it = %i, Efermi = %e, occsum = %e\n",(int)it,Efermi,occsum);
-
-    if(occsum>N) {
-      // Chemical potential is too large, move it to the left
-      Eright=Efermi;
-    } else if(occsum<N) {
-      // Chemical potential is too small, move it to the right
-      Eleft=Efermi;
-    }
-
-    if(std::abs(occsum-N)<=10*DBL_EPSILON*N)
-      break;
-  }
-
-  //printf("N = %e, sum(occ)-N = %e\n",N,occsum-N);
-
-  // Rescale occupation numbers
-  return N*occ/occsum;
-}
-
-arma::ivec aufbau_occupations(std::vector<aufbau_t> & orblist, arma::sword numel) {
-  // Returned occupations
-  arma::ivec nelocc;
-  nelocc.zeros(LMAX+1);
-
-  // Distribute electrons
-  arma::sword noccd = 0;
-  for(size_t io=0;io<orblist.size();io++) {
-    // Occupation is?
-    arma::sword nocc = std::min(4*orblist[io].l+2, numel-noccd);
-    orblist[io].nocc = nocc;
-    // Increment count
-    nelocc(orblist[io].l) += nocc;
-
-    // Bookkeeping
-    noccd += nocc;
-    if(orblist[io].nocc == 0)
-      break;
-  }
-
-  return nelocc;
-}
-
-void print(const std::vector<aufbau_t> & orblist) {
-  static const char shtype[]="spdfgh";
-  printf("%3s %6s %12s\n","nl","occ","eigenvalue");
-  for(size_t i=0;i<orblist.size();i++) {
-    if(orblist[i].nocc == 0 && orblist[i].E > 0)
-      continue;
-    printf("%2i%c %6.3f % 12.6f\n",(int) (orblist[i].n+orblist[i].l),shtype[orblist[i].l],(double) orblist[i].nocc,orblist[i].E);
-  }
-}
-
-void print_config(const std::vector<aufbau_t> & orblist) {
-  static const char shtype[]="spdfgh";
-  for(size_t i=0;i<orblist.size();i++) {
-    if(orblist[i].nocc == 0)
-      continue;
-    printf(" %i%c^{%i}",(int) (orblist[i].n+orblist[i].l),shtype[orblist[i].l],(int) orblist[i].nocc);
-  }
-  printf("\n");
 }
 
 arma::mat supermat(const arma::mat & M) {
@@ -241,37 +51,711 @@ arma::mat supermat(const arma::mat & M) {
   return S;
 }
 
-void print_orb(const sadatom::basis::TwoDBasis & basis, const std::vector<arma::mat> & C, const std::vector<aufbau_t> & orblist, const std::string & symbol) {
-  const char orbtypes[]="spdfgh";
+class OrbitalChannel {
+protected:
+  // Orbitals and orbital energies
+  std::vector<arma::mat> C;
+  // Orbitals and orbital energies
+  std::vector<arma::vec> E;
+  // Orbital occupations
+  arma::ivec occs;
+  // Kinetic energy l factors
+  arma::vec lfac;
+  // Restricted occupations?
+  bool restr;
 
-  for(size_t io=0;io<orblist.size();io++) {
-    if(orblist[io].nocc==0)
-      continue;
+  arma::sword shell_capacity(arma::sword l) const {
+    return restr ? (4*l+2) : (2*l+1);
+  }
 
-    int l = orblist[io].l;
-    int n = orblist[io].n;
-    // Orbital
-    arma::mat Clt(arma::trans(C[l].col(n-1)));
+public:
+  OrbitalChannel() {
+  }
+
+  OrbitalChannel(bool restr_) : restr(restr_) {
+    // Orbitals and orbital energies
+    C.resize(LMAX+1);
+    E.resize(LMAX+1);
+    // Occupation numbers
+    occs.zeros(LMAX+1);
+    // Kinetic energy l factors
+    lfac.zeros(LMAX+1);
+    for(arma::sword l=0;l<=LMAX;l++)
+      lfac(l)=l*(l+1);
+  }
+  ~OrbitalChannel() {
+  }
+
+  bool Restricted() const {
+    return restr;
+  }
+
+  bool OrbitalsInitialized() const {
+    for(size_t l=0;l<C.size();l++)
+      if(!C[l].n_elem)
+        return false;
+    return true;
+  }
+
+  bool OccupationsInitialized() const {
+    return arma::sum(occs) != 0;
+  }
+
+  OrbitalChannel Unrestrict() const {
+    OrbitalChannel urestr(*this);
+    urestr.restr=false;
+    urestr.occs /= 2;
+
+    return urestr;
+  }
+
+  arma::sword Nel() const {
+    return arma::sum(occs);
+  }
+
+  arma::ivec Occs() const {
+    return occs;
+  }
+
+  std::string Characterize() {
+    // Form list of shells
+    std::vector<shell_occupation_t> occlist;
+    for(size_t l=0;l<=LMAX;l++) {
+      // Number of electrons to put in
+      arma::sword numl = occs(l);
+      for(size_t io=0;io<C[l].n_cols;io++) {
+        arma::sword nocc = std::min(shell_capacity(l), numl);
+        numl-=nocc;
+        if(nocc == 0)
+          break;
+
+        shell_occupation_t sh;
+        sh.n = l+io+1;
+        sh.l = l;
+        sh.E = E[l](io);
+        sh.nocc = nocc;
+        occlist.push_back(sh);
+      }
+    }
+    std::sort(occlist.begin(),occlist.end());
 
     std::ostringstream oss;
-    oss << symbol << "_" << n+l << orbtypes[l] << ".dat";
-    FILE *out = fopen(oss.str().c_str(),"w");
+    for(size_t i=0;i<occlist.size();i++) {
+      if(i)
+        oss << " ";
+      oss << occlist[i].n << shtype[occlist[i].l] << "^" << occlist[i].nocc;
+    }
 
-    // Loop over elements
-    for(size_t iel=0;iel<basis.get_rad_Nel();iel++) {
-      arma::vec r(basis.get_r(iel));
-      arma::mat bf(basis.eval_bf(iel));
-      arma::uvec bf_idx(basis.bf_list(iel));
-      arma::vec orbval(bf*arma::trans(Clt.cols(bf_idx)));
+    return oss.str();
+  }
 
-      for(size_t ir=0;ir<orbval.n_rows;ir++) {
-        fprintf(out,"%e % e\n",r(ir),orbval(ir));
+  bool operator==(const OrbitalChannel & rh) const {
+    if(occs.n_elem != rh.occs.n_elem)
+      return false;
+    for(size_t i=0;i<occs.n_elem;i++) {
+      if(occs(i) != rh.occs(i))
+        return false;
+    }
+    return true;
+  }
+
+  void UpdateOrbitals(const arma::mat & F, const arma::mat & Tl, const arma::mat & Sinvh) {
+    for(size_t l=0;l<=LMAX;l++)
+      scf::eig_gsym(E[l],C[l],F+lfac(l)*Tl,Sinvh);
+  }
+
+  void UpdateDensity(std::vector<arma::mat> & Pl) const {
+    Pl.resize(LMAX+1);
+    for(size_t l=0;l<=LMAX;l++) {
+      Pl[l].zeros(C[l].n_rows,C[l].n_rows);
+
+      // Number of electrons to put in
+      arma::sword numl = occs(l);
+      for(size_t io=0;io<C[l].n_cols;io++) {
+        arma::sword nocc = std::min(shell_capacity(l), numl);
+        numl -= nocc;
+        Pl[l] += nocc * C[l].col(io) * C[l].col(io).t();
+        if(nocc == 0)
+          break;
+      }
+    }
+  }
+
+  void AufbauOccupations(arma::sword numel) {
+    occs.zeros();
+
+    // Number of radial solutions
+    size_t Nrad=E[0].n_elem;
+
+    // Collect energies
+    arma::vec El(E.size()*Nrad);
+    for(size_t l=0;l<E.size();l++)
+      El.subvec(l*Nrad,(l+1)*Nrad-1)=E[l];
+    arma::ivec lval(El.n_elem);
+    for(size_t l=0;l<E.size();l++)
+      lval.subvec(l*Nrad,(l+1)*Nrad-1)=l*arma::ones<arma::ivec>(Nrad);
+
+    // Sort in increasing energy
+    arma::uvec idx(arma::sort_index(El,"ascend"));
+    El=El(idx);
+    lval=lval(idx);
+
+    // Fill in electrons to shells
+    for(size_t i=0;i<El.n_elem;i++) {
+      // Shell angular momentum is
+      arma::sword l=lval(i);
+
+      // Number of electrons to occupy shell with
+      arma::sword nocc = std::min(shell_capacity(l), numel);
+      occs(l) += nocc;
+      numel -= nocc;
+
+      if(numel == 0)
+        break;
+    }
+  }
+
+  std::vector<OrbitalChannel> MoveElectrons() const {
+    std::vector<OrbitalChannel> ret;
+    for(int shell_from=0;shell_from<=LMAX;shell_from++) {
+      // Check that we have electrons we can move
+      if(!occs(shell_from))
+        continue;
+
+      for(int shell_to=0;shell_to<=LMAX;shell_to++) {
+        // We include the identity, since otherwise fully
+        // spin-polarized calculations don't work (empty list for beta
+        // moves)
+
+        // New channel
+        OrbitalChannel newch(*this);
+        newch.occs(shell_from)--;
+        newch.occs(shell_to)++;
+
+        ret.push_back(newch);
       }
     }
 
-    fclose(out);
+    return ret;
   }
+};
+
+typedef struct {
+  // Orbitals
+  OrbitalChannel orbs;
+  // Energy of configuration
+  double Econf;
+} rconf_t;
+bool operator==(const rconf_t & lh, const rconf_t & rh) {
+  return lh.orbs == rh.orbs;
 }
+bool operator<(const rconf_t & lh, const rconf_t & rh) {
+  return lh.Econf < rh.Econf;
+}
+
+typedef struct {
+  // Orbitals
+  OrbitalChannel orbsa, orbsb;
+  // Energy of configuration
+  double Econf;
+} uconf_t;
+bool operator==(const uconf_t & lh, const uconf_t & rh) {
+  return (lh.orbsa == rh.orbsa) && (lh.orbsb == rh.orbsb);
+}
+bool operator<(const uconf_t & lh, const uconf_t & rh) {
+  return lh.Econf < rh.Econf;
+}
+
+class SCFSolver {
+ protected:
+  sadatom::basis::TwoDBasis basis;
+
+  arma::mat S;
+  arma::mat Sinvh;
+
+  arma::mat T;
+  arma::mat Tl;
+  arma::mat Vnuc;
+  arma::mat H0;
+
+  dftgrid::DFTGrid grid;
+  int x_func, c_func;
+
+  int maxit;
+  double convthr;
+  double dftthr;
+  double diiseps;
+  double diisthr;
+  int diisorder;
+
+ public:
+  SCFSolver(int Z, polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, int igrid, double zexp, int x_func_, int c_func_, int maxit_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : x_func(x_func_), c_func(c_func_), maxit(maxit_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
+    // Form basis
+    basis=sadatom::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, LMAX, igrid, zexp);
+    // Form overlap matrix
+    S=basis.overlap();
+    // Get half-inverse
+    Sinvh=basis.Sinvh();
+    // Form kinetic energy matrix
+    T=basis.kinetic();
+    // Form kinetic energy matrix
+    Tl=basis.kinetic_l();
+    // Form nuclear attraction energy matrix
+    Vnuc=basis.nuclear();
+    // Form core Hamiltonian
+    H0=T+Vnuc;
+
+    // Form DFT grid
+    grid=helfem::dftgrid::DFTGrid(&basis);
+
+    // Compute two-electron integrals
+    basis.compute_tei();
+  }
+
+  ~SCFSolver() {
+  }
+
+  arma::mat TotalDensity(const std::vector<arma::mat> & Pl) {
+    arma::mat P(Pl[0]);
+    for(size_t l=1;l<Pl.size();l++)
+      P+=Pl[l];
+    return P;
+  }
+
+  void Initialize(OrbitalChannel & orbs) {
+    orbs.UpdateOrbitals(H0,Tl,Sinvh);
+  }
+
+  double Solve(OrbitalChannel & orbs) {
+    if(!orbs.OrbitalsInitialized())
+      Initialize(orbs);
+    if(!orbs.Restricted())
+      throw std::logic_error("Running restricted calculation with unrestricted orbitals!\n");
+
+    double Ekin=0.0, Epot=0.0, Ecoul=0.0, Exc=0.0, Etot=0.0;
+    double Eold=0.0;
+
+    bool verbose=false;
+
+    // S supermatrix
+    bool usediis=true, useadiis=true;
+    rDIIS diis(supermat(S),supermat(Sinvh),usediis,diiseps,diisthr,useadiis,verbose,diisorder);
+    double diiserr;
+
+    // Density matrix
+    arma::mat P;
+    // l-dependent density matrices, needed for the additional kinetic energy term
+    std::vector<arma::mat> Pl;
+
+    // Angular factor
+    double angfac(4.0*M_PI);
+    arma::vec lfac(LMAX+1);
+    for(arma::sword l=0;l<=LMAX;l++)
+      lfac(l)=l*(l+1);
+
+    for(arma::sword iscf=1;iscf<=maxit;iscf++) {
+      if(verbose) {
+        printf("\n**** Iteration %i ****\n\n",(int) iscf);
+      }
+
+      // Form new density
+      orbs.UpdateDensity(Pl);
+      P=TotalDensity(Pl);
+      if(verbose) {
+        printf("Tr P = %f\n",arma::trace(P*S));
+        fflush(stdout);
+      }
+
+      // Compute energy
+      Ekin=arma::trace(P*T);
+      for(arma::sword l=0;l<=LMAX;l++)
+        Ekin+=lfac(l)*arma::trace(Pl[l]*Tl);
+      Epot=arma::trace(P*Vnuc);
+
+      // Form Coulomb matrix
+      arma::mat J(basis.coulomb(P/angfac));
+      Ecoul=0.5*arma::trace(P*J);
+      if(verbose) {
+        printf("Coulomb energy %.10e\n",Ecoul);
+        fflush(stdout);
+      }
+
+      // Exchange-correlation
+      Exc=0.0;
+      arma::mat XC;
+      double nelnum;
+      grid.eval_Fxc(x_func, c_func, P/angfac, XC, Exc, nelnum, dftthr);
+      // Potential needs to be divided as well
+      XC/=angfac;
+      if(verbose) {
+        printf("DFT energy %.10e\n",Exc);
+        printf("Error in integrated number of electrons % e\n",nelnum-orbs.Nel());
+        fflush(stdout);
+      }
+
+      // Fock matrices
+      arma::mat F(H0+J+XC);
+
+      // Update energy
+      Etot=Ekin+Epot+Ecoul+Exc;
+      double dE=Etot-Eold;
+
+      if(verbose) {
+        printf("Total energy is % .10f\n",Etot);
+        if(iscf>1)
+          printf("Energy changed by %e\n",dE);
+      }
+      Eold=Etot;
+      fflush(stdout);
+
+      // Since Fock operator depends on the l channel, we need to create
+      // a supermatrix for DIIS.
+      arma::mat Fsuper(supermat(F));
+      for(arma::sword l=0;l<=LMAX;l++) {
+        Fsuper.submat(l*F.n_rows,l*F.n_cols,(l+1)*F.n_rows-1,(l+1)*F.n_cols-1)+=lfac(l)*Tl;
+      }
+      arma::mat Psuper(P.n_rows*(LMAX+1),P.n_cols*(LMAX+1));
+      Psuper.zeros();
+      for(arma::sword l=0;l<=LMAX;l++) {
+        Psuper.submat(l*P.n_rows,l*P.n_cols,(l+1)*P.n_rows-1,(l+1)*P.n_cols-1)=Pl[l];
+      }
+      // Update DIIS
+      diis.update(Fsuper,Psuper,Etot,diiserr);
+      if(verbose) {
+        printf("DIIS error is %e\n",diiserr);
+        fflush(stdout);
+      }
+
+      // Solve DIIS to get Fock update
+      diis.solve_F(Fsuper);
+      F=Fsuper.submat(0,0,F.n_rows-1,F.n_cols-1);
+
+      // Have we converged? Note that DIIS error is still wrt full space, not active space.
+      bool convd=(diiserr<convthr) && (std::abs(dE)<convthr);
+
+      // Update orbitals
+      orbs.UpdateOrbitals(F,Tl,Sinvh);
+
+      if(convd)
+        break;
+    }
+
+    if(verbose) {
+      printf("%-21s energy: % .16f\n","Kinetic",Ekin);
+      printf("%-21s energy: % .16f\n","Nuclear attraction",Epot);
+      printf("%-21s energy: % .16f\n","Coulomb",Ecoul);
+      printf("%-21s energy: % .16f\n","Exchange-correlation",Exc);
+      printf("%-21s energy: % .16f\n","Total",Etot);
+      printf("%-21s energy: % .16f\n","Virial ratio",-Etot/Ekin);
+      printf("\n");
+
+      // Electron density at nucleus
+      printf("Electron density at nucleus % .10e\n",basis.nuclear_density(P));
+    } else {
+      printf("Evaluated energy % .16f for configuration ",Etot);
+
+      arma::ivec occs(orbs.Occs());
+      for(size_t i=0;i<occs.size();i++)
+        printf(" %i",(int) occs(i));
+      printf("\n");
+    }
+
+    return Etot;
+  }
+
+  double Solve(OrbitalChannel & orbsa, OrbitalChannel & orbsb) {
+    if(!orbsa.OrbitalsInitialized())
+      Initialize(orbsa);
+    if(!orbsb.OrbitalsInitialized())
+      Initialize(orbsb);
+
+    if(orbsa.Restricted())
+      throw std::logic_error("Running unrestricted calculation with restricted orbitals!\n");
+    if(orbsb.Restricted())
+      throw std::logic_error("Running unrestricted calculation with restricted orbitals!\n");
+
+    double Ekin=0.0, Epot=0.0, Ecoul=0.0, Exc=0.0, Etot=0.0;
+    double Eold=0.0;
+
+    bool verbose = false;
+
+    // S supermatrix
+    bool combine=false, usediis=true, useadiis=true;
+    uDIIS diis(supermat(S),supermat(Sinvh),combine, usediis,diiseps,diisthr,useadiis,verbose,diisorder);
+    double diiserr;
+
+    // Density matrix
+    arma::mat Pa, Pb, P;
+    // l-dependent density matrices, needed for the additional kinetic energy term
+    std::vector<arma::mat> Pal(LMAX+1), Pbl(LMAX+1), Pl(LMAX+1);
+
+    // Angular factor
+    double angfac(4.0*M_PI);
+    arma::vec lfac(LMAX+1);
+    for(arma::sword l=0;l<=LMAX;l++)
+      lfac(l)=l*(l+1);
+
+    for(arma::sword iscf=1;iscf<=maxit;iscf++) {
+      if(verbose) {
+        printf("\n**** Iteration %i ****\n\n",(int) iscf);
+      }
+
+      orbsa.UpdateDensity(Pal);
+      orbsb.UpdateDensity(Pbl);
+      for(size_t l=0;l<Pal.size();l++)
+        Pl[l]=Pal[l]+Pbl[l];
+      Pa=TotalDensity(Pal);
+      Pb=TotalDensity(Pbl);
+      P=Pa+Pb;
+
+      // Energy
+      Ekin=arma::trace(P*T);
+      for(arma::sword l=0;l<=LMAX;l++)
+        Ekin+=lfac(l)*arma::trace(Pl[l]*Tl);
+      Epot=arma::trace(P*Vnuc);
+
+      // Form Coulomb matrix
+      arma::mat J(basis.coulomb(P/angfac));
+      Ecoul=0.5*arma::trace(P*J);
+      if(verbose) {
+        printf("Coulomb energy %.10e\n",Ecoul);
+        fflush(stdout);
+      }
+
+      // Exchange-correlation
+      Exc=0.0;
+      arma::mat XCa, XCb;
+      double nelnum;
+      grid.eval_Fxc(x_func, c_func, Pa/angfac, Pb/angfac, XCa, XCb, Exc, nelnum, true, dftthr);
+      // Potential needs to be divided as well
+      XCa/=angfac;
+      XCb/=angfac;
+      if(verbose) {
+        printf("DFT energy %.10e\n",Exc);
+        printf("Error in integrated number of electrons % e\n",nelnum-orbsa.Nel()-orbsb.Nel());
+        fflush(stdout);
+      }
+
+      // Fock matrices
+      arma::mat Fa(H0+J+XCa);
+      arma::mat Fb(H0+J+XCb);
+
+      // Update energy
+      Etot=Ekin+Epot+Ecoul+Exc;
+      double dE=Etot-Eold;
+
+      if(verbose) {
+        printf("Total energy is % .10f\n",Etot);
+        if(iscf>1)
+          printf("Energy changed by %e\n",dE);
+      }
+      Eold=Etot;
+      fflush(stdout);
+
+      // Since Fock operator depends on the l channel, we need to create
+      // a supermatrix for DIIS.
+      arma::mat Fasuper(supermat(Fa)), Fbsuper(supermat(Fb));
+      for(arma::sword l=0;l<=LMAX;l++) {
+        Fasuper.submat(l*Fa.n_rows,l*Fa.n_cols,(l+1)*Fa.n_rows-1,(l+1)*Fa.n_cols-1)+=lfac(l)*Tl;
+        Fbsuper.submat(l*Fb.n_rows,l*Fb.n_cols,(l+1)*Fb.n_rows-1,(l+1)*Fb.n_cols-1)+=lfac(l)*Tl;
+      }
+      arma::mat Pasuper(Pa.n_rows*(LMAX+1),Pa.n_cols*(LMAX+1)), Pbsuper(Pb.n_rows*(LMAX+1),Pb.n_cols*(LMAX+1));
+      Pasuper.zeros();
+      Pbsuper.zeros();
+      for(arma::sword l=0;l<=LMAX;l++) {
+        Pasuper.submat(l*Pa.n_rows,l*Pa.n_cols,(l+1)*Pa.n_rows-1,(l+1)*Pa.n_cols-1)=Pal[l];
+        Pbsuper.submat(l*Pb.n_rows,l*Pb.n_cols,(l+1)*Pb.n_rows-1,(l+1)*Pb.n_cols-1)=Pbl[l];
+      }
+      // Update DIIS
+      diis.update(Fasuper,Fbsuper,Pasuper,Pbsuper,Etot,diiserr);
+      if(verbose) {
+        printf("DIIS error is %e\n",diiserr);
+        fflush(stdout);
+      }
+
+      // Solve DIIS to get Fock update
+      diis.solve_F(Fasuper,Fbsuper);
+      Fa=Fasuper.submat(0,0,Fa.n_rows-1,Fa.n_cols-1);
+      Fb=Fbsuper.submat(0,0,Fb.n_rows-1,Fb.n_cols-1);
+
+      // Have we converged? Note that DIIS error is still wrt full space, not active space.
+      bool convd=(diiserr<convthr) && (std::abs(dE)<convthr);
+
+      // Update orbitals
+      orbsa.UpdateOrbitals(Fa,Tl,Sinvh);
+      orbsb.UpdateOrbitals(Fb,Tl,Sinvh);
+
+      if(convd)
+        break;
+    }
+
+    if(verbose) {
+      printf("%-21s energy: % .16f\n","Kinetic",Ekin);
+      printf("%-21s energy: % .16f\n","Nuclear attraction",Epot);
+      printf("%-21s energy: % .16f\n","Coulomb",Ecoul);
+      printf("%-21s energy: % .16f\n","Exchange-correlation",Exc);
+      printf("%-21s energy: % .16f\n","Total",Etot);
+      printf("%-21s energy: % .16f\n","Virial ratio",-Etot/Ekin);
+      printf("\n");
+
+      // Electron density at nucleus
+      printf("Electron density at nucleus % .10e\n",basis.nuclear_density(P));
+    } else {
+      printf("Evaluated energy % .16f for configuration ",Etot);
+
+      arma::ivec occa(orbsa.Occs());
+      for(size_t i=0;i<occa.size();i++)
+        printf(" %i",(int) occa(i));
+      arma::ivec occb(orbsb.Occs());
+      for(size_t i=0;i<occb.size();i++)
+        printf(" %i",(int) occb(i));
+      printf("\n");
+    }
+
+    return Etot;
+  }
+
+  arma::mat RestrictedPotential(OrbitalChannel & orbs) {
+    if(!orbs.OrbitalsInitialized())
+      throw std::logic_error("No orbitals!\n");
+    if(!orbs.Restricted())
+      throw std::logic_error("Running restricted calculation with unrestricted orbitals!\n");
+
+    std::vector<arma::mat> Pl;
+    orbs.UpdateDensity(Pl);
+    arma::mat P=TotalDensity(Pl);
+
+    arma::vec wt(basis.quadrature_weights());
+    arma::mat Zeff(basis.coulomb_screening(P));
+    arma::vec vcoul(Zeff.col(1));
+    arma::vec vx(basis.exchange_screening(P));
+    Zeff.col(1)+=vx;
+    arma::mat rho(basis.electron_density(P));
+
+    arma::mat result(Zeff.n_rows,6);
+    result.col(0)=Zeff.col(0);
+    result.col(1)=rho.col(1);
+    result.col(2)=vcoul;
+    result.col(3)=vx;
+    result.col(4)=Zeff.col(1);
+    result.col(5)=wt;
+
+    return result;
+  }
+
+  arma::mat UnrestrictedPotential(OrbitalChannel & orbsa, OrbitalChannel & orbsb) {
+    if(!orbsa.OrbitalsInitialized())
+      throw std::logic_error("No orbitals!\n");
+    if(!orbsb.OrbitalsInitialized())
+      throw std::logic_error("No orbitals!\n");
+    if(orbsa.Restricted())
+      throw std::logic_error("Running unrestricted calculation with restricted orbitals!\n");
+    if(orbsb.Restricted())
+      throw std::logic_error("Running unrestricted calculation with restricted orbitals!\n");
+
+    std::vector<arma::mat> Pal, Pbl;
+    orbsa.UpdateDensity(Pal);
+    orbsb.UpdateDensity(Pbl);
+    arma::mat Pa=TotalDensity(Pal);
+    arma::mat Pb=TotalDensity(Pbl);
+    arma::mat P(Pa+Pb);
+
+    arma::vec wt(basis.quadrature_weights());
+    arma::mat Zeff(basis.coulomb_screening(P));
+    arma::vec vcoul(Zeff.col(1));
+    arma::mat vxm(basis.exchange_screening(Pa,Pb));
+    // Averaged potential
+    arma::vec vx=arma::mean(vxm,1);
+    Zeff.col(1)+=vx;
+    arma::mat rho(basis.electron_density(P));
+
+    arma::mat result(Zeff.n_rows,6);
+    result.col(0)=Zeff.col(0);
+    result.col(1)=rho.col(1);
+    result.col(2)=vcoul;
+    result.col(3)=vx;
+    result.col(4)=Zeff.col(1);
+    result.col(5)=wt;
+
+    return result;
+  }
+
+  arma::mat AveragePotential(OrbitalChannel & orbsa, OrbitalChannel & orbsb) {
+    if(!orbsa.OrbitalsInitialized())
+      throw std::logic_error("No orbitals!\n");
+    if(!orbsb.OrbitalsInitialized())
+      throw std::logic_error("No orbitals!\n");
+    if(orbsa.Restricted())
+      throw std::logic_error("Running unrestricted calculation with restricted orbitals!\n");
+    if(orbsb.Restricted())
+      throw std::logic_error("Running unrestricted calculation with restricted orbitals!\n");
+
+    std::vector<arma::mat> Pal, Pbl;
+    orbsa.UpdateDensity(Pal);
+    orbsb.UpdateDensity(Pbl);
+    arma::mat Pa=TotalDensity(Pal);
+    arma::mat Pb=TotalDensity(Pbl);
+    arma::mat P(Pa+Pb);
+
+    arma::vec wt(basis.quadrature_weights());
+    arma::mat Zeff(basis.coulomb_screening(P));
+    arma::vec vcoul(Zeff.col(1));
+    arma::vec vx(basis.exchange_screening(P));
+    Zeff.col(1)+=vx;
+    arma::mat rho(basis.electron_density(P));
+
+    arma::mat result(Zeff.n_rows,6);
+    result.col(0)=Zeff.col(0);
+    result.col(1)=rho.col(1);
+    result.col(2)=vcoul;
+    result.col(3)=vx;
+    result.col(4)=Zeff.col(1);
+    result.col(5)=wt;
+
+    return result;
+  }
+
+  arma::mat WeightedPotential(OrbitalChannel & orbsa, OrbitalChannel & orbsb) {
+    if(!orbsa.OrbitalsInitialized())
+      throw std::logic_error("No orbitals!\n");
+    if(!orbsb.OrbitalsInitialized())
+      throw std::logic_error("No orbitals!\n");
+    if(orbsa.Restricted())
+      throw std::logic_error("Running unrestricted calculation with restricted orbitals!\n");
+    if(orbsb.Restricted())
+      throw std::logic_error("Running unrestricted calculation with restricted orbitals!\n");
+
+    std::vector<arma::mat> Pal, Pbl;
+    orbsa.UpdateDensity(Pal);
+    orbsb.UpdateDensity(Pbl);
+    arma::mat Pa=TotalDensity(Pal);
+    arma::mat Pb=TotalDensity(Pbl);
+    arma::mat P(Pa+Pb);
+
+    arma::vec wt(basis.quadrature_weights());
+    arma::mat Zeff(basis.coulomb_screening(P));
+    arma::vec vcoul(Zeff.col(1));
+    arma::mat vxm(basis.exchange_screening(Pa,Pb));
+    arma::mat rhoa(basis.electron_density(Pa));
+    arma::mat rhob(basis.electron_density(Pb));
+    // Averaged potential
+    arma::vec vx=(vxm.col(0)%rhoa.col(1) + vxm.col(1)%rhob.col(1))/(rhoa.col(1)+rhob.col(1));
+    // Set areas of small electron density to zero
+    arma::vec n(rhoa.col(1)+rhob.col(1));
+    vx(arma::find(n<dftthr)).zeros();
+    Zeff.col(1)+=vx;
+
+    arma::mat result(Zeff.n_rows,6);
+    result.col(0)=Zeff.col(0);
+    result.col(1)=rhoa.col(1)+rhob.col(1);
+    result.col(2)=vcoul;
+    result.col(3)=vx;
+    result.col(4)=Zeff.col(1);
+    result.col(5)=wt;
+
+    return result;
+  }
+};
 
 int main(int argc, char **argv) {
   cmdline::parser parser;
@@ -289,7 +773,7 @@ int main(int argc, char **argv) {
   parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
   parser.add<std::string>("method", 0, "method to use", false, "lda_x");
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
-  parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
+  parser.add<int>("restricted", 0, "spin-restricted orbitals", false, 0);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
   parser.add<double>("diiseps", 0, "when to start mixing in diis", false, 1e-2);
   parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
@@ -341,8 +825,6 @@ int main(int argc, char **argv) {
   // Total number of electrons is
   arma::sword numel=Z-Q;
 
-  sadatom::basis::TwoDBasis basis=sadatom::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, LMAX, igrid, zexp);
-
   // Functional
   int x_func, c_func;
   ::parse_xc_func(x_func, c_func, method);
@@ -369,295 +851,193 @@ int main(int argc, char **argv) {
   if(kfrac!=0.0)
     throw std::logic_error("Hybrid functionals are not supported in the spherically symmetric program.\n");
 
-  // Form overlap matrix
-  arma::mat S(basis.overlap());
-  // Form kinetic energy matrix
-  arma::mat T(basis.kinetic());
-  // Form kinetic energy matrix
-  arma::mat Tl(basis.kinetic_l());
+  // Initialize solver
+  SCFSolver solver(Z, poly, Nquad, Nelem, Rmax, igrid, zexp, x_func, c_func, maxit, convthr, dftthr, diiseps, diisthr, diisorder);
 
-  // Form DFT grid
-  dftgrid::DFTGrid grid=helfem::dftgrid::DFTGrid(&basis);
+  if(restr) {
+    // List of configurations
+    std::vector<rconf_t> rlist;
 
-  // Basis function norms
-  arma::vec bfnorm(arma::pow(arma::diagvec(S),-0.5));
+    // Restricted calculation
+    rconf_t conf;
+    conf.orbs=OrbitalChannel(true);
+    solver.Initialize(conf.orbs);
+    conf.orbs.AufbauOccupations(numel);
+    conf.Econf=solver.Solve(conf.orbs);
+    rlist.push_back(conf);
 
-  // Get half-inverse
-  arma::mat Sinvh(basis.Sinvh());
-  // Form nuclear attraction energy matrix
-  arma::mat Vnuc(basis.nuclear());
-  // Form Hamiltonian
-  arma::mat H0(T+Vnuc);
+    // Did we find the Aufbau ground state?
+    conf.orbs.AufbauOccupations(numel);
+    while(std::find(rlist.begin(), rlist.end(), conf) == rlist.end()) {
+      conf.Econf=solver.Solve(conf.orbs);
+      rlist.push_back(conf);
+      conf.orbs.AufbauOccupations(numel);
+    }
+    printf("Aufbau search finished\n");
 
-  // Compute two-electron integrals
-  basis.compute_tei();
+    // Brute force search for the lowest state
+    while(true) {
+      // Find the lowest energy configuration
+      std::sort(rlist.begin(),rlist.end());
+      // Generate new configurations
+      std::vector<OrbitalChannel> newconfs(rlist[0].orbs.MoveElectrons());
 
-  // Kinetic energy l factors
-  arma::vec lfac(LMAX+1);
-  for(arma::sword l=0;l<=LMAX;l++)
-    lfac(l)=l*(l+1);
-
-  // Guess orbitals
-  std::vector<arma::mat> C(LMAX+1);
-  std::vector<arma::vec> E(LMAX+1);
-  for(arma::sword l=0;l<=LMAX;l++) {
-    scf::eig_gsym(E[l],C[l],H0+lfac(l)*Tl,Sinvh);
-  }
-  // Form list of orbitals
-  std::vector<aufbau_t> orblist=form_orbital_list(E);
-  // Set occupations
-  arma::ivec curocc=aufbau_occupations(orblist,numel);
-
-  double Ekin=0.0, Epot=0.0, Ecoul=0.0, Exc=0.0, Etot=0.0;
-  double Eold=0.0;
-
-  // S supermatrix
-  bool usediis=true, useadiis=true;
-  rDIIS diis(supermat(S),supermat(Sinvh),usediis,diiseps,diisthr,useadiis,true,diisorder);
-  double diiserr;
-
-  // Density matrix
-  arma::mat P, Pold;
-  // l-dependent density matrices, needed for the additional kinetic energy term
-  std::vector<arma::mat> Pl(LMAX+1), Plold(LMAX+1);
-
-  // Angular factor
-  double angfac(4.0*M_PI);
-
-  // Map from occupations to energy
-  std::vector<occmap_t> occmap;
-  size_t ioccs=0;
-  do {
-    // Clean old history
-    diis.clear();
-
-    for(arma::sword iscf=1;iscf<=maxit;iscf++) {
-      printf("\n**** Iteration %i ****\n\n",(int) iscf);
-
-      // Form list of orbitals
-      orblist=form_orbital_list(E);
-
-      // Form radial density matrix
-      if(iscf>1) {
-        Plold=Pl;
-        Pold=P;
-      }
-      for(arma::sword l=0;l<=LMAX;l++)
-        Pl[l].zeros(C[0].n_rows,C[0].n_rows);
-
-      // Find the occupied orbitals
-      arma::vec nocc(find_occupations(orblist,curocc));
-      //arma::vec nocc(fermi_occupations(orblist,1e-2,numel));
-      for(size_t io=0;io<orblist.size();io++) {
-        if(nocc(io)) {
-          // Increment spherically averaged density matrix
-          const arma::vec orbcoef(C[orblist[io].l].col(orblist[io].n-1));
-          Pl[orblist[io].l] += nocc(io) * orbcoef * orbcoef.t();
-          // Store orbital occupation
-          orblist[io].nocc = nocc(io);
+      bool newconf=false;
+      for(size_t i=0;i<newconfs.size();i++) {
+        conf.orbs=newconfs[i];
+        if(std::find(rlist.begin(), rlist.end(), conf) == rlist.end()) {
+          newconf=true;
+          conf.Econf=solver.Solve(conf.orbs);
+          rlist.push_back(conf);
         }
       }
-      // Full radial density
-      P.zeros(C[0].n_rows,C[0].n_rows);
-      for(arma::sword l=0;l<=LMAX;l++)
-        P += Pl[l];
-      printf("Tr P = %f\n",arma::trace(P*S));
-      fflush(stdout);
-
-      // Print info
-      print(orblist);
-
-      Ekin=arma::trace(P*T);
-      for(arma::sword l=0;l<=LMAX;l++)
-        Ekin+=lfac(l)*arma::trace(Pl[l]*Tl);
-
-      Epot=arma::trace(P*Vnuc);
-
-      // Form Coulomb matrix
-      arma::mat J(basis.coulomb(P/angfac));
-      Ecoul=0.5*arma::trace(P*J);
-      printf("Coulomb energy %.10e\n",Ecoul);
-      fflush(stdout);
-
-      // Exchange-correlation
-      Exc=0.0;
-      arma::mat XC;
-      double nelnum;
-      grid.eval_Fxc(x_func, c_func, P/angfac, XC, Exc, nelnum, dftthr);
-      // Potential needs to be divided as well
-      XC/=angfac;
-      printf("DFT energy %.10e\n",Exc);
-      printf("Error in integrated number of electrons % e\n",nelnum-numel);
-      fflush(stdout);
-
-      // Fock matrices
-      arma::mat F(H0+J+XC);
-
-      // Update energy
-      Etot=Ekin+Epot+Ecoul+Exc;
-      double dE=Etot-Eold;
-
-      printf("Total energy is % .10f\n",Etot);
-      if(iscf>1)
-        printf("Energy changed by %e\n",dE);
-      Eold=Etot;
-      fflush(stdout);
-
-      // Since Fock operator depends on the l channel, we need to create
-      // a supermatrix for DIIS.
-      arma::mat Fsuper(supermat(F));
-      for(arma::sword l=0;l<=LMAX;l++) {
-        Fsuper.submat(l*F.n_rows,l*F.n_cols,(l+1)*F.n_rows-1,(l+1)*F.n_cols-1)+=lfac(l)*Tl;
-      }
-      arma::mat Psuper(P.n_rows*(LMAX+1),P.n_cols*(LMAX+1));
-      Psuper.zeros();
-      for(arma::sword l=0;l<=LMAX;l++) {
-        Psuper.submat(l*P.n_rows,l*P.n_cols,(l+1)*P.n_rows-1,(l+1)*P.n_cols-1)=Pl[l];
-      }
-      // Update DIIS
-      diis.update(Fsuper,Psuper,Etot,diiserr);
-      printf("DIIS error is %e\n",diiserr);
-      fflush(stdout);
-
-      // Solve DIIS to get Fock update
-      diis.solve_F(Fsuper);
-      F=Fsuper.submat(0,0,F.n_rows-1,F.n_cols-1);
-
-      // Have we converged? Note that DIIS error is still wrt full space, not active space.
-      bool convd=(diiserr<convthr) && (std::abs(dE)<convthr);
-
-      // Diagonalize Fock matrix to get new orbitals
-      for(arma::sword l=0;l<=LMAX;l++) {
-        scf::eig_gsym(E[l],C[l],F+lfac(l)*Tl,Sinvh);
-      }
-
-      if(convd)
+      if(!newconf) {
+        printf("Exhaustive search finished\n");
         break;
+      }
     }
 
-    printf("%-21s energy: % .16f\n","Kinetic",Ekin);
-    printf("%-21s energy: % .16f\n","Nuclear attraction",Epot);
-    printf("%-21s energy: % .16f\n","Coulomb",Ecoul);
-    printf("%-21s energy: % .16f\n","Exchange-correlation",Exc);
-    printf("%-21s energy: % .16f\n","Total",Etot);
-    printf("%-21s energy: % .16f\n","Virial ratio",-Etot/Ekin);
-    printf("\n");
-
-    // Electron density at nucleus
-    printf("Electron density at nucleus % .10e\n",basis.nuclear_density(P));
-
-    // Potential
-    arma::vec wt(basis.quadrature_weights());
-    arma::mat Zeff(basis.coulomb_screening(P));
-    arma::vec vcoul(Zeff.col(1));
-    arma::vec vx(basis.exchange_screening(P));
-    Zeff.col(1)+=vx;
-    arma::mat rho(basis.electron_density(P));
-
-    printf("Error in quadrature of number of electrons: % e\n",arma::sum(wt%arma::square(rho.col(0))%rho.col(1))-numel);
-    printf("Error in quadrature of Coulomb energy: % e\n",0.5*arma::sum(wt%vcoul%rho.col(0)%rho.col(1))-Ecoul);
-
-    // Print info
-    print(orblist);
-
-    // Add to map
-    occmap_t tmp;
-    tmp.occs=curocc;
-    tmp.E=Etot;
-    tmp.orbs=orblist;
-    tmp.Vcoul=vcoul;
-    tmp.Vexch=vx;
-    tmp.Zeff=Zeff;
-    tmp.rho=rho.col(1);
-    tmp.wt=wt;
-    tmp.C=C;
-    occmap.push_back(tmp);
-
-    // Switch densities
-    bool aufbau=false;
-    if(ioccs==0) {
-      aufbau=true;
-      curocc=aufbau_occupations(orblist, numel);
-
-      // Do we already have the new occupations on the list?
-      aufbau=!in_list(curocc, occmap);
+    // Print occupations
+    printf("\nMinimal energy configurations for %s\n",element_symbols[Z].c_str());
+    for(size_t i=0;i<rlist.size();i++) {
+      arma::ivec occs(rlist[i].orbs.Occs());
+      for(size_t j=0;j<occs.n_elem;j++)
+        printf(" %2i",(int) occs(j));
+      printf(" % .10f",rlist[i].Econf);
+      if(i>0)
+        printf(" %7.2f",(rlist[i].Econf-rlist[0].Econf)*HARTREEINEV);
+      printf("\n");
     }
 
-    // Check stability
-    if(!aufbau) {
-      // Sort occupations in increasing energy
-      std::sort(occmap.begin(),occmap.end());
+    // Print the minimal energy configuration
+    printf("\nOccupations for lowest configuration\n");
+    rlist[0].orbs.Occs().t().print();
+    printf("Electronic configuration is\n");
+    printf("%s\n",rlist[0].orbs.Characterize().c_str());
 
-      // Move an electron from shell i to shell j
-      bool moved=false;
-      arma::ivec refoccs(occmap[0].occs);
-      for(int shell_from=0;shell_from<=LMAX;shell_from++) {
-        for(int shell_to=0;shell_to<=LMAX;shell_to++) {
-          // Skip identity
-          if(shell_from == shell_to)
-            continue;
+    // Get the potential
+    arma::mat pot(solver.RestrictedPotential(rlist[0].orbs));
 
-          // Check that we have electrons we can move
-          if(! refoccs(shell_from))
-            continue;
-          // New occupations are
-          arma::ivec newocc(refoccs);
-          newocc(shell_from)--;
-          newocc(shell_to)++;
+    std::ostringstream oss;
+    oss << "result_" << element_symbols[Z] << ".dat";
+    pot.save(oss.str(),arma::raw_ascii);
 
-          // Do we have this on the list?
-          if(!in_list(newocc,occmap)) {
-            moved=true;
-            curocc=newocc;
-            break;
+  } else {
+    // List of configurations
+    std::vector<uconf_t> totlist;
+
+    // Restricted calculation
+    uconf_t conf;
+    conf.orbsa=OrbitalChannel(false);
+    conf.orbsb=OrbitalChannel(false);
+    solver.Initialize(conf.orbsa);
+    solver.Initialize(conf.orbsb);
+
+    // Difference in number of electrons
+    for(int dx=0; dx <= 5; dx++) {
+      arma::sword numelb=numel/2 - dx;
+      arma::sword numela=numel-numelb;
+      if(numelb<0)
+        break;
+
+      printf("\n ************ M = %i ************\n",(int) (numela-numelb+1));
+
+      std::vector<uconf_t> ulist;
+      conf.orbsa.AufbauOccupations(numela);
+      conf.orbsb.AufbauOccupations(numelb);
+      conf.Econf=solver.Solve(conf.orbsa, conf.orbsb);
+      ulist.push_back(conf);
+
+      // Did we find the Aufbau ground state?
+      conf.orbsa.AufbauOccupations(numela);
+      conf.orbsb.AufbauOccupations(numelb);
+      while(std::find(ulist.begin(), ulist.end(), conf) == ulist.end()) {
+        conf.Econf=solver.Solve(conf.orbsa, conf.orbsb);
+        ulist.push_back(conf);
+        conf.orbsa.AufbauOccupations(numela);
+        conf.orbsb.AufbauOccupations(numelb);
+      }
+      printf("Aufbau search finished\n");
+
+      // Brute force search for the lowest state
+      while(true) {
+        // Find the lowest energy configuration
+        std::sort(ulist.begin(),ulist.end());
+        // Generate new configurations
+        std::vector<OrbitalChannel> newconfa(ulist[0].orbsa.MoveElectrons());
+        std::vector<OrbitalChannel> newconfb(ulist[0].orbsb.MoveElectrons());
+
+        bool newconf=false;
+        for(size_t i=0;i<newconfa.size();i++) {
+          for(size_t j=0;j<newconfb.size();j++) {
+            conf.orbsa=newconfa[i];
+            conf.orbsb=newconfb[j];
+            if(std::find(ulist.begin(), ulist.end(), conf) == ulist.end()) {
+              newconf=true;
+              conf.Econf=solver.Solve(conf.orbsa, conf.orbsb);
+              ulist.push_back(conf);
+            }
           }
         }
-
-        if(moved)
+        if(!newconf) {
+          printf("Exhaustive search finished\n");
           break;
+        }
       }
 
-      if(!moved)
-        break;
+      // Add lowest state to collection
+      //totlist.push_back(ulist[0]);
+      totlist.insert(totlist.end(), ulist.begin(), ulist.end());
     }
-  } while(true);
 
-  // Sort occupations in increasing energy
-  std::sort(occmap.begin(),occmap.end());
+    // Sort list
+    std::sort(totlist.begin(), totlist.end());
 
-  // Print occupations
-  printf("\nMinimal energy configurations for %s\n",element_symbols[Z].c_str());
-  for(size_t i=0;i<occmap.size();i++) {
-    for(size_t j=0;j<occmap[i].occs.n_elem;j++)
-      printf(" %2i",(int) occmap[i].occs(j));
-    printf(" % .10f",occmap[i].E);
-    if(i>0)
-      printf(" %7.2f",(occmap[i].E-occmap[0].E)*HARTREEINEV);
-    printf("\n");
+    // Print occupations
+    printf("\nMinimal energy spin states for %s\n",element_symbols[Z].c_str());
+    for(size_t i=0;i<totlist.size();i++) {
+      printf("%2i:",(int) (totlist[i].orbsa.Nel()-totlist[i].orbsb.Nel()+1));
+      arma::ivec occa(totlist[i].orbsa.Occs());
+      arma::ivec occb(totlist[i].orbsb.Occs());
+      for(size_t j=0;j<occa.n_elem;j++)
+        printf(" %2i",(int) occa(j));
+      for(size_t j=0;j<occb.n_elem;j++)
+        printf(" %2i",(int) occb(j));
+      printf(" % .10f",totlist[i].Econf);
+      if(i>0)
+        printf(" %7.2f",(totlist[i].Econf-totlist[0].Econf)*HARTREEINEV);
+      printf("\n");
+    }
+
+    // Print the minimal energy configuration
+    printf("\nMinimum energy state is M = %i\n",(int) (totlist[0].orbsa.Nel()-totlist[0].orbsb.Nel()+1));
+    printf("Occupations for lowest configuration\n");
+    totlist[0].orbsa.Occs().t().print();
+    totlist[0].orbsb.Occs().t().print();
+    printf("Electronic configuration is\n");
+    printf("alpha: %s\n",totlist[0].orbsa.Characterize().c_str());
+    printf(" beta: %s\n",totlist[0].orbsb.Characterize().c_str());
+
+    // Get the potential
+    arma::mat potU(solver.UnrestrictedPotential(totlist[0].orbsa, totlist[0].orbsb));
+    arma::mat potM(solver.AveragePotential(totlist[0].orbsa, totlist[0].orbsb));
+    arma::mat potW(solver.WeightedPotential(totlist[0].orbsa, totlist[0].orbsb));
+
+    std::ostringstream oss;
+
+    oss.str("");
+    oss << "resultU_" << element_symbols[Z] << ".dat";
+    potU.save(oss.str(),arma::raw_ascii);
+
+    oss.str("");
+    oss << "resultM_" << element_symbols[Z] << ".dat";
+    potM.save(oss.str(),arma::raw_ascii);
+
+    oss.str("");
+    oss << "resultW_" << element_symbols[Z] << ".dat";
+    potW.save(oss.str(),arma::raw_ascii);
+
   }
-
-  // Print the minimal energy configuration
-  printf("\nOccupations for lowest configuration\n");
-  print(occmap[0].orbs);
-  printf("Electronic configuration is\n");
-  print_config(occmap[0].orbs);
-  print_orb(basis,occmap[0].C,occmap[0].orbs,element_symbols[Z]);
-
-  // Assemble the potential
-  arma::mat result(occmap[0].Zeff.n_rows,6);
-  result.col(0)=occmap[0].Zeff.col(0);
-  result.col(1)=occmap[0].rho;
-  result.col(2)=occmap[0].Vcoul;
-  result.col(3)=occmap[0].Vexch;
-  result.col(4)=occmap[0].Zeff.col(1);
-  result.col(5)=occmap[0].wt;
-
-  std::ostringstream oss;
-  oss << "result_" << element_symbols[Z] << ".dat";
-  result.save(oss.str(),arma::raw_ascii);
-
-  printf("\n");
-  result.print("r, n, vC, vX, Zeff, weight");
 
   return 0;
 }

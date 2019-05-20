@@ -89,8 +89,10 @@ namespace helfem {
         arma::mat coulomb_screening(const arma::mat & Prad) const;
         /// Compute the electron density
         arma::mat electron_density(const arma::mat & Prad) const;
-        /// Compute the LDA exchange screening 
+        /// Compute the LDA exchange screening
         arma::vec exchange_screening(const arma::mat & Prad) const;
+        /// Compute the LDA exchange screening
+        arma::mat exchange_screening(const arma::mat & Parad, const arma::mat & Pbrad) const;
       };
     }
   }
