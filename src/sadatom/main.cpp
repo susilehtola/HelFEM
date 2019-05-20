@@ -143,7 +143,7 @@ public:
     for(size_t i=0;i<occlist.size();i++) {
       if(i)
         oss << " ";
-      oss << occlist[i].n << shtype[occlist[i].l] << "^" << occlist[i].nocc;
+      oss << occlist[i].n << shtype[occlist[i].l] << "^{" << occlist[i].nocc << "}";
     }
 
     return oss.str();
