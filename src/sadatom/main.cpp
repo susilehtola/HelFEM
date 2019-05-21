@@ -218,21 +218,24 @@ public:
   std::vector<OrbitalChannel> MoveElectrons() const {
     std::vector<OrbitalChannel> ret;
     for(int shell_from=0;shell_from<=LMAX;shell_from++) {
-      // Check that we have electrons we can move
-      if(!occs(shell_from))
-        continue;
-
       for(int shell_to=0;shell_to<=LMAX;shell_to++) {
-        // We include the identity, since otherwise fully
-        // spin-polarized calculations don't work (empty list for beta
-        // moves)
+        // Try moving up to a whole shell at a time
+        for(int nmove=1;nmove<=std::min(shell_capacity(shell_from),shell_capacity(shell_to));nmove++) {
+          // Check that we have electrons we can move
+          if(occs(shell_from)<nmove)
+            continue;
 
-        // New channel
-        OrbitalChannel newch(*this);
-        newch.occs(shell_from)--;
-        newch.occs(shell_to)++;
+          // We include the identity, since otherwise fully
+          // spin-polarized calculations don't work (empty list for beta
+          // moves)
 
-        ret.push_back(newch);
+          // New channel
+          OrbitalChannel newch(*this);
+          newch.occs(shell_from)-=nmove;
+          newch.occs(shell_to)+=nmove;
+
+          ret.push_back(newch);
+        }
       }
     }
 
@@ -866,19 +869,24 @@ int main(int argc, char **argv) {
     conf.Econf=solver.Solve(conf.orbs);
     rlist.push_back(conf);
 
-    // Did we find the Aufbau ground state?
-    conf.orbs.AufbauOccupations(numel);
-    while(std::find(rlist.begin(), rlist.end(), conf) == rlist.end()) {
-      conf.Econf=solver.Solve(conf.orbs);
-      rlist.push_back(conf);
-      conf.orbs.AufbauOccupations(numel);
-    }
-    printf("Aufbau search finished\n");
+    // Brute force search for the lowest state
+    std::vector<rconf_t> auflist(rlist);
 
     // Brute force search for the lowest state
     while(true) {
       // Find the lowest energy configuration
       std::sort(rlist.begin(),rlist.end());
+
+      // Do we have an Aufbau ground state?
+      conf.orbs=rlist[0].orbs;
+      conf.orbs.AufbauOccupations(numel);
+      while(std::find(rlist.begin(), rlist.end(), conf) == rlist.end()) {
+        conf.Econf=solver.Solve(conf.orbs);
+        rlist.push_back(conf);
+        conf.orbs.AufbauOccupations(numel);
+      }
+      printf("Aufbau search finished\n");
+
       // Generate new configurations
       std::vector<OrbitalChannel> newconfs(rlist[0].orbs.MoveElectrons());
 
@@ -891,8 +899,8 @@ int main(int argc, char **argv) {
           rlist.push_back(conf);
         }
       }
+      printf("Exhaustive search finished\n");
       if(!newconf) {
-        printf("Exhaustive search finished\n");
         break;
       }
     }
@@ -948,21 +956,24 @@ int main(int argc, char **argv) {
       conf.Econf=solver.Solve(conf.orbsa, conf.orbsb);
       ulist.push_back(conf);
 
-      // Did we find the Aufbau ground state?
-      conf.orbsa.AufbauOccupations(numela);
-      conf.orbsb.AufbauOccupations(numelb);
-      while(std::find(ulist.begin(), ulist.end(), conf) == ulist.end()) {
-        conf.Econf=solver.Solve(conf.orbsa, conf.orbsb);
-        ulist.push_back(conf);
-        conf.orbsa.AufbauOccupations(numela);
-        conf.orbsb.AufbauOccupations(numelb);
-      }
-      printf("Aufbau search finished\n");
-
       // Brute force search for the lowest state
       while(true) {
         // Find the lowest energy configuration
         std::sort(ulist.begin(),ulist.end());
+        // Did we find an Aufbau ground state?
+        conf.orbsa=ulist[0].orbsa;
+        conf.orbsb=ulist[0].orbsb;
+        conf.orbsa.AufbauOccupations(numela);
+        conf.orbsb.AufbauOccupations(numelb);
+        while(std::find(ulist.begin(), ulist.end(), conf) == ulist.end()) {
+          conf.Econf=solver.Solve(conf.orbsa, conf.orbsb);
+          ulist.push_back(conf);
+          // Did we find the Aufbau ground state?
+          conf.orbsa.AufbauOccupations(numela);
+          conf.orbsb.AufbauOccupations(numelb);
+        }
+        printf("Aufbau search finished\n");
+
         // Generate new configurations
         std::vector<OrbitalChannel> newconfa(ulist[0].orbsa.MoveElectrons());
         std::vector<OrbitalChannel> newconfb(ulist[0].orbsb.MoveElectrons());
@@ -979,8 +990,8 @@ int main(int argc, char **argv) {
             }
           }
         }
+        printf("Exhaustive search finished\n");
         if(!newconf) {
-          printf("Exhaustive search finished\n");
           break;
         }
       }
