@@ -90,6 +90,10 @@ public:
     return restr;
   }
 
+  void SetRestricted(bool restr_) {
+    restr=restr_;
+  }
+
   bool OrbitalsInitialized() const {
     for(size_t l=0;l<C.size();l++)
       if(!C[l].n_elem)
@@ -101,20 +105,16 @@ public:
     return arma::sum(occs) != 0;
   }
 
-  OrbitalChannel Unrestrict() const {
-    OrbitalChannel urestr(*this);
-    urestr.restr=false;
-    urestr.occs /= 2;
-
-    return urestr;
-  }
-
   arma::sword Nel() const {
     return arma::sum(occs);
   }
 
   arma::ivec Occs() const {
     return occs;
+  }
+
+  void SetOccs(const arma::ivec & occs_) {
+    occs=occs_;
   }
 
   std::string Characterize() {
@@ -270,7 +270,7 @@ bool operator<(const uconf_t & lh, const uconf_t & rh) {
 }
 
 class SCFSolver {
- protected:
+protected:
   sadatom::basis::TwoDBasis basis;
 
   arma::mat S;
@@ -285,14 +285,17 @@ class SCFSolver {
   int x_func, c_func;
 
   int maxit;
+  int ndamp;
+  double dampfac;
+
   double convthr;
   double dftthr;
   double diiseps;
   double diisthr;
   int diisorder;
 
- public:
-  SCFSolver(int Z, polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, int igrid, double zexp, int x_func_, int c_func_, int maxit_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : x_func(x_func_), c_func(c_func_), maxit(maxit_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
+public:
+  SCFSolver(int Z, polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, int igrid, double zexp, int x_func_, int c_func_, int maxit_, int ndamp_, double dampfac_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : x_func(x_func_), c_func(c_func_), maxit(maxit_), ndamp(ndamp_), dampfac(dampfac_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
     // Form basis
     basis=sadatom::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, LMAX, igrid, zexp);
     // Form overlap matrix
@@ -318,6 +321,11 @@ class SCFSolver {
   ~SCFSolver() {
   }
 
+  void set_func(int x_func_, int c_func_) {
+    x_func=x_func_;
+    c_func=c_func_;
+  }
+
   arma::mat TotalDensity(const std::vector<arma::mat> & Pl) {
     arma::mat P(Pl[0]);
     for(size_t l=1;l<Pl.size();l++)
@@ -331,9 +339,12 @@ class SCFSolver {
 
   double Solve(OrbitalChannel & orbs) {
     if(!orbs.OrbitalsInitialized())
-      Initialize(orbs);
+      throw std::logic_error("Orbitals not initialized!\n");
     if(!orbs.Restricted())
       throw std::logic_error("Running restricted calculation with unrestricted orbitals!\n");
+
+    //orbs.Occs().t().print("Solving SCF for occupations");
+    //printf("Total number of electrons is %i\n",(int) orbs.Nel());
 
     double Ekin=0.0, Epot=0.0, Ecoul=0.0, Exc=0.0, Etot=0.0;
     double Eold=0.0;
@@ -347,6 +358,8 @@ class SCFSolver {
 
     // Density matrix
     arma::mat P;
+
+    arma::mat Pold, Pmix;
     // l-dependent density matrices, needed for the additional kinetic energy term
     std::vector<arma::mat> Pl;
 
@@ -356,17 +369,27 @@ class SCFSolver {
     for(arma::sword l=0;l<=LMAX;l++)
       lfac(l)=l*(l+1);
 
-    for(arma::sword iscf=1;iscf<=maxit;iscf++) {
+    int idamp=ndamp;
+
+    arma::sword iscf;
+    for(iscf=1;iscf<=maxit;iscf++) {
       if(verbose) {
         printf("\n**** Iteration %i ****\n\n",(int) iscf);
       }
 
       // Form new density
       orbs.UpdateDensity(Pl);
+      Pold=P;
       P=TotalDensity(Pl);
       if(verbose) {
         printf("Tr P = %f\n",arma::trace(P*S));
         fflush(stdout);
+      }
+
+      // Mix density
+      Pmix=P;
+      if(iscf>1 && iscf<=idamp) {
+        Pmix=dampfac*P + (1.0-dampfac)*Pold;
       }
 
       // Compute energy
@@ -376,7 +399,7 @@ class SCFSolver {
       Epot=arma::trace(P*Vnuc);
 
       // Form Coulomb matrix
-      arma::mat J(basis.coulomb(P/angfac));
+      arma::mat J(basis.coulomb(Pmix/angfac));
       Ecoul=0.5*arma::trace(P*J);
       if(verbose) {
         printf("Coulomb energy %.10e\n",Ecoul);
@@ -387,7 +410,7 @@ class SCFSolver {
       Exc=0.0;
       arma::mat XC;
       double nelnum;
-      grid.eval_Fxc(x_func, c_func, P/angfac, XC, Exc, nelnum, dftthr);
+      grid.eval_Fxc(x_func, c_func, Pmix/angfac, XC, Exc, nelnum, dftthr);
       // Potential needs to be divided as well
       XC/=angfac;
       if(verbose) {
@@ -428,19 +451,29 @@ class SCFSolver {
         printf("DIIS error is %e\n",diiserr);
         fflush(stdout);
       }
-
       // Solve DIIS to get Fock update
-      diis.solve_F(Fsuper);
-      F=Fsuper.submat(0,0,F.n_rows-1,F.n_cols-1);
+      if(iscf > idamp) {
+        diis.solve_F(Fsuper);
+        F=Fsuper.submat(0,0,F.n_rows-1,F.n_cols-1);
+      }
 
       // Have we converged? Note that DIIS error is still wrt full space, not active space.
       bool convd=(diiserr<convthr) && (std::abs(dE)<convthr);
+      if(convd && iscf <= idamp) {
+        // Turn off damping
+        idamp=iscf;
+        convd=false;
+      }
 
       // Update orbitals
       orbs.UpdateOrbitals(F,Tl,Sinvh);
 
       if(convd)
         break;
+    }
+    if(iscf > maxit) {
+      printf("*** Not converged; DIIS error %e ***\n",diiserr);
+      fflush(stdout);
     }
 
     if(verbose) {
@@ -468,9 +501,9 @@ class SCFSolver {
 
   double Solve(OrbitalChannel & orbsa, OrbitalChannel & orbsb) {
     if(!orbsa.OrbitalsInitialized())
-      Initialize(orbsa);
+      throw std::logic_error("Orbitals not initialized!\n");
     if(!orbsb.OrbitalsInitialized())
-      Initialize(orbsb);
+      throw std::logic_error("Orbitals not initialized!\n");
 
     if(orbsa.Restricted())
       throw std::logic_error("Running unrestricted calculation with restricted orbitals!\n");
@@ -489,6 +522,9 @@ class SCFSolver {
 
     // Density matrix
     arma::mat Pa, Pb, P;
+    arma::mat Paold, Pbold, Pold;
+
+    arma::mat Pamix, Pbmix, Pmix;
     // l-dependent density matrices, needed for the additional kinetic energy term
     std::vector<arma::mat> Pal(LMAX+1), Pbl(LMAX+1), Pl(LMAX+1);
 
@@ -498,7 +534,11 @@ class SCFSolver {
     for(arma::sword l=0;l<=LMAX;l++)
       lfac(l)=l*(l+1);
 
-    for(arma::sword iscf=1;iscf<=maxit;iscf++) {
+    // Damping
+    int idamp=ndamp;
+
+    arma::sword iscf;
+    for(iscf=1;iscf<=maxit;iscf++) {
       if(verbose) {
         printf("\n**** Iteration %i ****\n\n",(int) iscf);
       }
@@ -507,9 +547,22 @@ class SCFSolver {
       orbsb.UpdateDensity(Pbl);
       for(size_t l=0;l<Pal.size();l++)
         Pl[l]=Pal[l]+Pbl[l];
+
+      Paold=Pa;
       Pa=TotalDensity(Pal);
+      Pbold=Pb;
       Pb=TotalDensity(Pbl);
+      Pold=P;
       P=Pa+Pb;
+
+      Pmix=P;
+      Pamix=Pa;
+      Pbmix=Pb;
+      if(iscf>1 && iscf<=idamp) {
+        Pamix=dampfac*Pa + (1.0-dampfac)*Paold;
+        Pbmix=dampfac*Pb + (1.0-dampfac)*Pbold;
+        Pmix=dampfac*P + (1.0-dampfac)*Pold;
+      }
 
       // Energy
       Ekin=arma::trace(P*T);
@@ -518,7 +571,7 @@ class SCFSolver {
       Epot=arma::trace(P*Vnuc);
 
       // Form Coulomb matrix
-      arma::mat J(basis.coulomb(P/angfac));
+      arma::mat J(basis.coulomb(Pmix/angfac));
       Ecoul=0.5*arma::trace(P*J);
       if(verbose) {
         printf("Coulomb energy %.10e\n",Ecoul);
@@ -529,7 +582,7 @@ class SCFSolver {
       Exc=0.0;
       arma::mat XCa, XCb;
       double nelnum;
-      grid.eval_Fxc(x_func, c_func, Pa/angfac, Pb/angfac, XCa, XCb, Exc, nelnum, true, dftthr);
+      grid.eval_Fxc(x_func, c_func, Pamix/angfac, Pbmix/angfac, XCa, XCb, Exc, nelnum, true, dftthr);
       // Potential needs to be divided as well
       XCa/=angfac;
       XCb/=angfac;
@@ -577,12 +630,19 @@ class SCFSolver {
       }
 
       // Solve DIIS to get Fock update
-      diis.solve_F(Fasuper,Fbsuper);
-      Fa=Fasuper.submat(0,0,Fa.n_rows-1,Fa.n_cols-1);
-      Fb=Fbsuper.submat(0,0,Fb.n_rows-1,Fb.n_cols-1);
+      if(iscf > idamp) {
+        diis.solve_F(Fasuper,Fbsuper);
+        Fa=Fasuper.submat(0,0,Fa.n_rows-1,Fa.n_cols-1);
+        Fb=Fbsuper.submat(0,0,Fb.n_rows-1,Fb.n_cols-1);
+      }
 
       // Have we converged? Note that DIIS error is still wrt full space, not active space.
       bool convd=(diiserr<convthr) && (std::abs(dE)<convthr);
+      if(convd && iscf <=idamp) {
+        // Turn off damping
+        idamp=iscf;
+        convd=false;
+      }
 
       // Update orbitals
       orbsa.UpdateOrbitals(Fa,Tl,Sinvh);
@@ -590,6 +650,10 @@ class SCFSolver {
 
       if(convd)
         break;
+    }
+    if(iscf > maxit) {
+      printf("*** Not converged; DIIS error %e ***\n",diiserr);
+      fflush(stdout);
     }
 
     if(verbose) {
@@ -631,17 +695,21 @@ class SCFSolver {
     arma::vec wt(basis.quadrature_weights());
     arma::mat Zeff(basis.coulomb_screening(P));
     arma::vec vcoul(Zeff.col(1));
-    arma::vec vx(basis.exchange_screening(P));
-    Zeff.col(1)+=vx;
+    arma::vec vxc(basis.xc_screening(P,x_func,c_func));
+    Zeff.col(1)+=vxc;
     arma::mat rho(basis.electron_density(P));
+    arma::vec grho(basis.electron_density_gradient(P));
+    arma::vec lrho(basis.electron_density_laplacian(P));
 
-    arma::mat result(Zeff.n_rows,6);
+    arma::mat result(Zeff.n_rows,8);
     result.col(0)=Zeff.col(0);
     result.col(1)=rho.col(1);
-    result.col(2)=vcoul;
-    result.col(3)=vx;
-    result.col(4)=Zeff.col(1);
-    result.col(5)=wt;
+    result.col(2)=grho;
+    result.col(3)=lrho;
+    result.col(4)=vcoul;
+    result.col(5)=vxc;
+    result.col(6)=Zeff.col(1);
+    result.col(7)=wt;
 
     return result;
   }
@@ -666,19 +734,23 @@ class SCFSolver {
     arma::vec wt(basis.quadrature_weights());
     arma::mat Zeff(basis.coulomb_screening(P));
     arma::vec vcoul(Zeff.col(1));
-    arma::mat vxm(basis.exchange_screening(Pa,Pb));
+    arma::mat vxcm(basis.xc_screening(Pa,Pb,x_func,c_func));
     // Averaged potential
-    arma::vec vx=arma::mean(vxm,1);
-    Zeff.col(1)+=vx;
+    arma::vec vxc=arma::mean(vxcm,1);
+    Zeff.col(1)+=vxc;
     arma::mat rho(basis.electron_density(P));
+    arma::vec grho(basis.electron_density_gradient(P));
+    arma::vec lrho(basis.electron_density_laplacian(P));
 
-    arma::mat result(Zeff.n_rows,6);
+    arma::mat result(Zeff.n_rows,8);
     result.col(0)=Zeff.col(0);
     result.col(1)=rho.col(1);
-    result.col(2)=vcoul;
-    result.col(3)=vx;
-    result.col(4)=Zeff.col(1);
-    result.col(5)=wt;
+    result.col(2)=grho;
+    result.col(3)=lrho;
+    result.col(4)=vcoul;
+    result.col(5)=vxc;
+    result.col(6)=Zeff.col(1);
+    result.col(7)=wt;
 
     return result;
   }
@@ -703,17 +775,21 @@ class SCFSolver {
     arma::vec wt(basis.quadrature_weights());
     arma::mat Zeff(basis.coulomb_screening(P));
     arma::vec vcoul(Zeff.col(1));
-    arma::vec vx(basis.exchange_screening(P));
-    Zeff.col(1)+=vx;
+    arma::vec vxc(basis.xc_screening(P,x_func,c_func));
+    Zeff.col(1)+=vxc;
     arma::mat rho(basis.electron_density(P));
+    arma::vec grho(basis.electron_density_gradient(P));
+    arma::vec lrho(basis.electron_density_laplacian(P));
 
-    arma::mat result(Zeff.n_rows,6);
+    arma::mat result(Zeff.n_rows,8);
     result.col(0)=Zeff.col(0);
     result.col(1)=rho.col(1);
-    result.col(2)=vcoul;
-    result.col(3)=vx;
-    result.col(4)=Zeff.col(1);
-    result.col(5)=wt;
+    result.col(2)=grho;
+    result.col(3)=lrho;
+    result.col(4)=vcoul;
+    result.col(5)=vxc;
+    result.col(6)=Zeff.col(1);
+    result.col(7)=wt;
 
     return result;
   }
@@ -738,27 +814,49 @@ class SCFSolver {
     arma::vec wt(basis.quadrature_weights());
     arma::mat Zeff(basis.coulomb_screening(P));
     arma::vec vcoul(Zeff.col(1));
-    arma::mat vxm(basis.exchange_screening(Pa,Pb));
+    arma::mat vxcm(basis.xc_screening(Pa,Pb,x_func,c_func));
     arma::mat rhoa(basis.electron_density(Pa));
+    arma::vec grhoa(basis.electron_density_gradient(Pa));
+    arma::vec lrhoa(basis.electron_density_laplacian(Pa));
     arma::mat rhob(basis.electron_density(Pb));
+    arma::vec grhob(basis.electron_density_gradient(Pb));
+    arma::vec lrhob(basis.electron_density_laplacian(Pb));
     // Averaged potential
-    arma::vec vx=(vxm.col(0)%rhoa.col(1) + vxm.col(1)%rhob.col(1))/(rhoa.col(1)+rhob.col(1));
+    arma::vec vxc=(vxcm.col(0)%rhoa.col(1) + vxcm.col(1)%rhob.col(1))/(rhoa.col(1)+rhob.col(1));
     // Set areas of small electron density to zero
     arma::vec n(rhoa.col(1)+rhob.col(1));
-    vx(arma::find(n<dftthr)).zeros();
-    Zeff.col(1)+=vx;
+    vxc(arma::find(n<dftthr)).zeros();
+    Zeff.col(1)+=vxc;
 
-    arma::mat result(Zeff.n_rows,6);
+    arma::mat result(Zeff.n_rows,8);
     result.col(0)=Zeff.col(0);
     result.col(1)=rhoa.col(1)+rhob.col(1);
-    result.col(2)=vcoul;
-    result.col(3)=vx;
-    result.col(4)=Zeff.col(1);
-    result.col(5)=wt;
+    result.col(2)=grhoa+grhob;;
+    result.col(3)=lrhoa+lrhob;
+    result.col(4)=vcoul;
+    result.col(5)=vxc;
+    result.col(6)=Zeff.col(1);
+    result.col(7)=wt;
 
     return result;
   }
 };
+
+arma::ivec initial_occs(int Z) {
+  // Guess occupations
+  const int shell_order[]={0, 0, 1, 0, 1, 0, 2, 1, 0, 2, 1, 0, 3, 2, 1, 0, 3, 2, 1};
+
+  arma::ivec occs(LMAX+1);
+  occs.zeros();
+  for(size_t i=0;i<sizeof(shell_order)/sizeof(shell_order[0]);i++) {
+    int l = shell_order[i];
+    int nocc = std::min(Z, 2*(2*l+1));
+    occs(l) += nocc;
+    Z -= nocc;
+  }
+
+  return occs;
+}
 
 int main(int argc, char **argv) {
   cmdline::parser parser;
@@ -772,15 +870,18 @@ int main(int argc, char **argv) {
   parser.add<int>("Q", 0, "charge of system", false, 0);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
-  parser.add<int>("maxit", 0, "maximum number of iterations", false, 50);
+  parser.add<int>("maxit", 0, "maximum number of iterations", false, 200);
+  parser.add<int>("ndamp", 0, "number of iterations during which to damp density update", false, 50);
+  parser.add<double>("dampfac", 0, "density  update damping factor", false, 0.20);
   parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
   parser.add<std::string>("method", 0, "method to use", false, "lda_x");
+  parser.add<std::string>("pot", 0, "method to use to compute potential", false, "lda_x");
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.add<int>("restricted", 0, "spin-restricted orbitals", false, 0);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
   parser.add<double>("diiseps", 0, "when to start mixing in diis", false, 1e-2);
   parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
-  parser.add<int>("diisorder", 0, "length of diis history", false, 5);
+  parser.add<int>("diisorder", 0, "length of diis history", false, 10);
   if(!parser.parse(argc, argv))
     throw std::logic_error("Error parsing arguments!\n");
 
@@ -797,6 +898,9 @@ int main(int argc, char **argv) {
   // Number of nodes
   int Nnodes(parser.get<int>("nnodes"));
 
+  int ndamp(parser.get<int>("ndamp"));
+  double dampfac(parser.get<double>("dampfac"));
+
   // Order of quadrature rule
   int Nquad(parser.get<int>("nquad"));
   double dftthr(parser.get<double>("dftthr"));
@@ -809,6 +913,7 @@ int main(int argc, char **argv) {
   int diisorder=parser.get<int>("diisorder");
 
   std::string method(parser.get<std::string>("method"));
+  std::string potmethod(parser.get<std::string>("pot"));
 
   std::vector<std::string> rcalc(2);
   rcalc[0]="unrestricted";
@@ -854,17 +959,29 @@ int main(int argc, char **argv) {
   if(kfrac!=0.0)
     throw std::logic_error("Hybrid functionals are not supported in the spherically symmetric program.\n");
 
+  int xp_func, cp_func;
+  ::parse_xc_func(xp_func, cp_func, potmethod);
+
   // Initialize solver
-  SCFSolver solver(Z, poly, Nquad, Nelem, Rmax, igrid, zexp, x_func, c_func, maxit, convthr, dftthr, diiseps, diisthr, diisorder);
+  SCFSolver solver(Z, poly, Nquad, Nelem, Rmax, igrid, zexp, x_func, c_func, maxit, ndamp, dampfac, convthr, dftthr, diiseps, diisthr, diisorder);
+
+  // Initialize with a sensible guess occupation
+  rconf_t ngcore;
+  ngcore.orbs=OrbitalChannel(true);
+  solver.Initialize(ngcore.orbs);
+  ngcore.orbs.SetOccs(initial_occs(Z));
+  if(ngcore.orbs.Nel()) {
+    ngcore.Econf=solver.Solve(ngcore.orbs);
+  } else {
+    ngcore.Econf=0.0;
+  }
 
   if(restr) {
     // List of configurations
     std::vector<rconf_t> rlist;
 
     // Restricted calculation
-    rconf_t conf;
-    conf.orbs=OrbitalChannel(true);
-    solver.Initialize(conf.orbs);
+    rconf_t conf(ngcore);
     conf.orbs.AufbauOccupations(numel);
     conf.Econf=solver.Solve(conf.orbs);
     rlist.push_back(conf);
@@ -924,6 +1041,7 @@ int main(int argc, char **argv) {
     printf("%s\n",rlist[0].orbs.Characterize().c_str());
 
     // Get the potential
+    solver.set_func(xp_func, cp_func);
     arma::mat pot(solver.RestrictedPotential(rlist[0].orbs));
 
     std::ostringstream oss;
@@ -936,10 +1054,10 @@ int main(int argc, char **argv) {
 
     // Restricted calculation
     uconf_t conf;
-    conf.orbsa=OrbitalChannel(false);
-    conf.orbsb=OrbitalChannel(false);
-    solver.Initialize(conf.orbsa);
-    solver.Initialize(conf.orbsb);
+    conf.orbsa=ngcore.orbs;
+    conf.orbsb=ngcore.orbs;
+    conf.orbsa.SetRestricted(false);
+    conf.orbsb.SetRestricted(false);
 
     // Difference in number of electrons
     for(int dx=0; dx <= 5; dx++) {
@@ -1030,6 +1148,7 @@ int main(int argc, char **argv) {
     printf(" beta: %s\n",totlist[0].orbsb.Characterize().c_str());
 
     // Get the potential
+    solver.set_func(xp_func, cp_func);
     arma::mat potU(solver.UnrestrictedPotential(totlist[0].orbsa, totlist[0].orbsb));
     arma::mat potM(solver.AveragePotential(totlist[0].orbsa, totlist[0].orbsb));
     arma::mat potW(solver.WeightedPotential(totlist[0].orbsa, totlist[0].orbsb));

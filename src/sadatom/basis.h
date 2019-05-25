@@ -65,6 +65,8 @@ namespace helfem {
         arma::mat nuclear() const;
         /// Form Coulomb matrix
         arma::mat coulomb(const arma::mat & P) const;
+        /// Form Thomas-Fermi matrix
+        arma::mat thomasfermi() const;
 
         /// Evaluate basis functions
         arma::mat eval_bf(size_t iel) const;
@@ -89,10 +91,14 @@ namespace helfem {
         arma::mat coulomb_screening(const arma::mat & Prad) const;
         /// Compute the electron density
         arma::mat electron_density(const arma::mat & Prad) const;
-        /// Compute the LDA exchange screening
-        arma::vec exchange_screening(const arma::mat & Prad) const;
-        /// Compute the LDA exchange screening
-        arma::mat exchange_screening(const arma::mat & Parad, const arma::mat & Pbrad) const;
+        /// Compute the electron density gradient
+        arma::vec electron_density_gradient(const arma::mat & Prad) const;
+        /// Compute the electron density laplacian
+        arma::vec electron_density_laplacian(const arma::mat & Prad) const;
+        /// Compute the exchange-correlation screening
+        arma::vec xc_screening(const arma::mat & Prad, int x_func, int c_func) const;
+        /// Compute the exchange-correlation screening
+        arma::mat xc_screening(const arma::mat & Parad, const arma::mat & Pbrad, int x_func, int c_func) const;
       };
     }
   }
