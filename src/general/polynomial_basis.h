@@ -61,6 +61,8 @@ namespace helfem {
       virtual arma::mat eval(const arma::vec & x) const=0;
       /// Evaluate polynomials and derivatives at given points
       virtual void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const=0;
+      /// Evaluate second derivatives at given point
+      virtual void eval_lapl(const arma::vec & x, arma::mat & lf) const;
 
       /// Print out the basis functions
       void print(const std::string & str="") const;
@@ -95,6 +97,8 @@ namespace helfem {
       arma::mat eval(const arma::vec & x) const;
       /// Evaluate polynomials and derivatives at given points
       void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const;
+      /// Evaluate second derivatives at given points
+      void eval_lapl(const arma::vec & x, arma::mat & lf) const;
     };
 
     /// Legendre functions
@@ -145,6 +149,8 @@ namespace helfem {
       arma::mat eval(const arma::vec & x) const;
       /// Evaluate polynomials and derivatives at given points
       void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const;
+      /// Evaluate second derivatives at given points
+      void eval_lapl(const arma::vec & x, arma::mat & lf) const;
     };
   }
 }

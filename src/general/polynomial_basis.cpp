@@ -119,6 +119,10 @@ namespace helfem {
       df.save(dname,arma::raw_ascii);
     }
 
+    void PolynomialBasis::eval_lapl(const arma::vec & x, arma::mat & lf) const {
+      throw std::logic_error("Laplacians haven't been implemented for the used family of basis polynomials.\n");
+    }
+
     HermiteBasis::HermiteBasis(int n_nodes, int der_order) {
       bf_C=polynomial::hermite_coeffs(n_nodes, der_order);
       df_C=polynomial::derivative_coeffs(bf_C, 1);
@@ -148,6 +152,10 @@ namespace helfem {
     void HermiteBasis::eval(const arma::vec & x, arma::mat & f, arma::mat & df) const {
       f=polynomial::polyval(bf_C,x);
       df=polynomial::polyval(df_C,x);
+    }
+
+    void HermiteBasis::eval_lapl(const arma::vec & x, arma::mat & lf) const {
+      lf=polynomial::polyval(polynomial::derivative_coeffs(bf_C, 2), x);
     }
 
     void HermiteBasis::drop_first() {
@@ -279,8 +287,9 @@ namespace helfem {
 
       // Fill in array
       for(size_t ix=0;ix<x.n_elem;ix++) {
+        // Loop over polynomials: x_i term excluded
         for(size_t fi=0;fi<x0.n_elem;fi++) {
-          // Evaluate
+          // Evaluate the l_i polynomial
           double fval=1.0;
           for(size_t fj=0;fj<x0.n_elem;fj++) {
             // Term not included
@@ -289,6 +298,7 @@ namespace helfem {
             // Compute ratio
             fval *= (x(ix)-x0(fj))/(x0(fi)-x0(fj));
           }
+          // Store value
           bf(ix,fi)=fval;
         }
       }
@@ -305,8 +315,9 @@ namespace helfem {
       // Derivative
       df.zeros(x.n_elem,x0.n_elem);
       for(size_t ix=0;ix<x.n_elem;ix++) {
+        // Loop over polynomials
         for(size_t fi=0;fi<x0.n_elem;fi++) {
-          // Evaluate
+          // Derivative yields a sum over one of the indices
           for(size_t fj=0;fj<x0.n_elem;fj++) {
             if(fi==fj)
               continue;
@@ -327,6 +338,44 @@ namespace helfem {
         }
       }
       df=df.cols(enabled);
+    }
+
+    void LIPBasis::eval_lapl(const arma::vec & x, arma::mat & lf) const {
+      // Second derivative
+      lf.zeros(x.n_elem,x0.n_elem);
+      for(size_t ix=0;ix<x.n_elem;ix++) {
+        // Loop over polynomials
+        for(size_t fi=0;fi<x0.n_elem;fi++) {
+          // Derivative yields a sum over one of the indices
+          for(size_t fj=0;fj<x0.n_elem;fj++) {
+            if(fi==fj)
+              continue;
+            // Second derivative yields another sum over the indices
+            for(size_t fk=0;fk<x0.n_elem;fk++) {
+              if(fi==fk)
+                continue;
+              if(fj==fk)
+                continue;
+
+              double fval=1.0;
+              for(size_t fl=0;fl<x0.n_elem;fl++) {
+                // Term not included
+                if(fi==fl)
+                  continue;
+                if(fj==fl)
+                  continue;
+                if(fk==fl)
+                  continue;
+                // Compute ratio
+                fval *= (x(ix)-x0(fl))/(x0(fi)-x0(fl));
+              }
+              // Increment second derivative
+              lf(ix,fi)+=fval/((x0(fi)-x0(fj))*(x0(fi)-x0(fk)));
+            }
+          }
+        }
+      }
+      lf=lf.cols(enabled);
     }
 
     void LIPBasis::drop_first() {
