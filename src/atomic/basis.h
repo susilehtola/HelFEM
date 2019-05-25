@@ -43,8 +43,6 @@ namespace helfem {
 	/// Used basis function indices in element
 	arma::uvec basis_indices(size_t iel) const;
         /// Get basis functions in element
-        arma::mat get_basis(const arma::mat & b, size_t iel) const;
-        /// Get basis functions in element
         polynomial_basis::PolynomialBasis * get_basis(const polynomial_basis::PolynomialBasis * poly, size_t iel) const;
 
       public:
@@ -62,6 +60,11 @@ namespace helfem {
         RadialBasis & operator=(const RadialBasis & old);
         /// Destructor
         ~RadialBasis();
+
+        /// Get polynomial basis
+        polynomial_basis::PolynomialBasis * get_poly() const;
+        /// Get basis functions in element
+        arma::mat get_basis(const arma::mat & b, size_t iel) const;
 
         /// Get number of quadrature points
         int get_nquad() const;
@@ -105,6 +108,8 @@ namespace helfem {
         arma::mat gsz(double Z, double dz, double Hz, size_t iel) const;
         /// Compute SAP matrix in element
         arma::mat sap(double Z, size_t iel) const;
+        /// Compute Thomas-Fermi matrix in element
+        arma::mat thomasfermi(double Z, size_t iel) const;
         /// Compute off-center nuclear attraction matrix in element
         arma::mat nuclear_offcenter(size_t iel, double Rhalf, int L) const;
 
@@ -120,6 +125,8 @@ namespace helfem {
         arma::mat get_bf(size_t iel) const;
         /// Evaluate derivatives of basis functions at quadrature points
         arma::mat get_df(size_t iel) const;
+        /// Evaluate second derivatives of basis functions at quadrature points
+        arma::mat get_lf(size_t iel) const;
         /// Get quadrature weights
         arma::vec get_wrad(size_t iel) const;
         /// Get r values
@@ -239,8 +246,10 @@ namespace helfem {
         arma::mat gsz(double dz, double Hz) const;
 	/// Form GSZ matrix with default parameters
 	arma::mat gsz() const;
-	/// Form GSZ matrix with default parameters
+	/// Form SAP matrix with default parameters
 	arma::mat sap() const;
+	/// Form Thomas-Fermi matrix with default parameters
+	arma::mat thomasfermi() const;
         /// Form dipole coupling matrix
         arma::mat dipole_z() const;
         /// Form quadrupole coupling matrix

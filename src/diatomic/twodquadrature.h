@@ -75,6 +75,8 @@ namespace helfem {
         void sap_pot(int Z1, int Z2);
         /// Compute GSZ potential
         void gsz_pot(int Z1, double d1, double H1, int Z2, double d2, double H2);
+        /// Compute Thomas-Fermi potential
+        void tf_pot(int Z1, int Z2);
         /// Set unit potential
         void unit_pot();
 
@@ -113,6 +115,8 @@ namespace helfem {
         arma::mat GSZ();
         /// Compute SAP matrix
         arma::mat SAP();
+        /// Compute Thomas-Fermi matrix
+        arma::mat thomasfermi();
 
         /// Compute overlap matrix
         arma::mat overlap();

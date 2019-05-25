@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
   parser.add<int>("readocc", 0, "read occupations from file, use until nth build", false, 0);
   parser.add<double>("perturb", 0, "randomly perturb initial guess", false, 0.0);
   parser.add<int>("seed", 0, "seed for random perturbation", false, 0);
-  parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ, 2 for SAP", false, 2);
+  parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ, 2 for SAP, 3 for TF", false, 2);
   parser.add<std::string>("load", 0, "load guess from checkpoint", false, "");
   parser.add<std::string>("save", 0, "save calculation to checkpoint", false, "helfem.chk");
   parser.parse_check(argc, argv);
@@ -539,7 +539,7 @@ int main(int argc, char **argv) {
         }
 
       case(2):
-        // Use GSZ guess
+        // Use SAP guess
         printf("Guess orbitals from SAP screened nucleus\n");
         {
           arma::mat Hsap(H0+basis.sap());
@@ -547,6 +547,18 @@ int main(int argc, char **argv) {
             scf::eig_gsym_sub(Ea,Ca,Hsap,Sinvh,dsym);
           else
             scf::eig_gsym(Ea,Ca,Hsap,Sinvh);
+          break;
+        }
+
+      case(3):
+        // Use Thomas-Fermi guess
+        printf("Guess orbitals from Thomas-Fermi nucleus\n");
+        {
+          arma::mat Htf(H0+basis.thomasfermi()-Vnuc);
+          if(symm)
+            scf::eig_gsym_sub(Ea,Ca,Htf,Sinvh,dsym);
+          else
+            scf::eig_gsym(Ea,Ca,Htf,Sinvh);
           break;
         }
 

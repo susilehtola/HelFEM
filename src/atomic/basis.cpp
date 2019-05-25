@@ -177,6 +177,11 @@ namespace helfem {
         delete poly;
       }
 
+      /// Get polynomial basis
+      polynomial_basis::PolynomialBasis * RadialBasis::get_poly() const {
+        return poly->copy();
+      }
+
       int RadialBasis::get_nquad() const {
         return (int) xq.n_elem;
       }
@@ -395,6 +400,14 @@ namespace helfem {
         return quadrature::sap_integral(Z,Rmin,Rmax,xq,wq,get_basis(bf,iel));
       }
 
+      arma::mat RadialBasis::thomasfermi(double Z, size_t iel) const {
+        double Rmin(bval(iel));
+        double Rmax(bval(iel+1));
+
+        // Integral by quadrature
+        return quadrature::thomasfermi_integral(Z,Rmin,Rmax,xq,wq,get_basis(bf,iel));
+      }
+
       arma::mat RadialBasis::nuclear_offcenter(size_t iel, double Rhalf, int L) const {
         if(bval(iel)>=Rhalf)
           return -sqrt(4.0*M_PI/(2*L+1))*radial_integral(-L-1,iel)*std::pow(Rhalf,L);
@@ -462,9 +475,35 @@ namespace helfem {
         for(size_t j=0;j<fval.n_cols;j++)
           for(size_t i=0;i<fval.n_rows;i++)
             // Get one rlen from derivative
-            der(i,j)=(dval(i,j)/rlen-fval(i,j)/r(i))/r(i);
+            der(i,j)=dval(i,j)/(rlen*r(i)) - fval(i,j)/(r(i)*r(i));
 
         return der;
+      }
+
+      arma::mat RadialBasis::get_lf(size_t iel) const {
+        // Element function values at quadrature points are
+        arma::mat fval(get_basis(bf,iel));
+        arma::mat dval(get_basis(df,iel));
+
+        arma::mat lf;
+        poly->eval_lapl(xq,lf);
+        arma::mat lval(get_basis(lf,iel));
+
+        // Calculate r values
+        double rmin(bval(iel));
+        double rmax(bval(iel+1));
+        double rmid=(rmax+rmin)/2;
+        double rlen=(rmax-rmin)/2;
+        arma::vec r(rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq);
+
+        // Laplacian is then
+        arma::mat lapl(fval);
+        for(size_t j=0;j<fval.n_cols;j++)
+          for(size_t i=0;i<fval.n_rows;i++)
+            // Get one rlen from each derivative
+            lapl(i,j)=lval(i,j)/(rlen*rlen*r(i)) - 2.0*dval(i,j)/(rlen*r(i)*r(i)) + 2.0*fval(i,j)/(r(i)*r(i)*r(i));
+
+        return lapl;
       }
 
       arma::vec RadialBasis::get_wrad(size_t iel) const {
@@ -1015,6 +1054,28 @@ namespace helfem {
 	  size_t ifirst, ilast;
 	  radial.get_idx(iel,ifirst,ilast);
 	  Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.sap(Z,iel);
+	}
+	// Fill elements
+	for(size_t iang=0;iang<lval.n_elem;iang++)
+	  set_sub(V,iang,iang,Vrad);
+
+        return remove_boundaries(V);
+      }
+
+      arma::mat TwoDBasis::thomasfermi() const {
+        // Full nuclear attraction matrix
+        arma::mat V(Ndummy(),Ndummy());
+        V.zeros();
+
+	size_t Nrad(radial.Nbf());
+	arma::mat Vrad(Nrad,Nrad);
+	Vrad.zeros();
+	// Loop over elements
+	for(size_t iel=0;iel<radial.Nel();iel++) {
+	  // Where are we in the matrix?
+	  size_t ifirst, ilast;
+	  radial.get_idx(iel,ifirst,ilast);
+	  Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.thomasfermi(Z,iel);
 	}
 	// Fill elements
 	for(size_t iang=0;iang<lval.n_elem;iang++)

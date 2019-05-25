@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
   parser.add<int>("readocc", 0, "read occupations from file, use until nth build", false, 0);
   parser.add<double>("perturb", 0, "randomly perturb initial guess", false, 0.0);
   parser.add<int>("seed", 0, "seed for random perturbation", false, 0);
-  parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ, 2 for SAP", false, 2);
+  parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ, 2 for SAP, 3 for TF", false, 2);
   parser.add<std::string>("load", 0, "load guess from checkpoint", false, "");
   parser.add<std::string>("save", 0, "save calculation to checkpoint", false, "helfem.chk");
   parser.parse_check(argc, argv);
@@ -633,6 +633,32 @@ int main(int argc, char **argv) {
             scf::eig_gsym_sub(Ea,Ca,Hsap,Sinvh,dsym);
           else
             scf::eig_gsym(Ea,Ca,Hsap,Sinvh);
+          break;
+        }
+
+      case(3):
+        // Use Thomas-Fermi guess
+        printf("Guess orbitals from Thomas-Fermi nuclei\n");
+        {
+          // Quadrature grid
+          int lquad = (ldft>0) ? ldft : 4*arma::max(lmmax)+12;
+          helfem::diatomic::twodquad::TwoDGrid qgrid;
+          qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
+
+          arma::mat Ssap(qgrid.overlap());
+          Ssap-=S;
+          arma::vec bfnorm(arma::pow(arma::diagvec(S),-0.5));
+          normalize_matrix(Ssap,bfnorm);
+
+          double Serr(arma::norm(Ssap,"fro"));
+          printf("Error in overlap matrix evaluated on two-dimensional grid is %e\n",Serr);
+          fflush(stdout);
+
+          arma::mat Htf(H0-Vnuc+qgrid.thomasfermi());
+          if(symm)
+            scf::eig_gsym_sub(Ea,Ca,Htf,Sinvh,dsym);
+          else
+            scf::eig_gsym(Ea,Ca,Htf,Sinvh);
           break;
         }
 
