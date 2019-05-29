@@ -176,5 +176,9 @@ namespace helfem {
         z(i)=::sap_potential(Z,r(i));
       return z;
     }
+
+    int stricmp(const std::string & str1, const std::string & str2) {
+      return strcasecmp(str1.c_str(),str2.c_str());
+    }
   }
 }

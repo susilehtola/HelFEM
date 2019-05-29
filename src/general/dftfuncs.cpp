@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include "dftfuncs.h"
+#include "utils.h"
 
 // LibXC
 extern "C" {
@@ -31,10 +32,6 @@ extern "C" {
 #define ID_HF -1
 #define KW_NONE "none"
 #define KW_HF "hyb_x_hf"
-
-static int stricmp(const std::string & str1, const std::string & str2) {
-  return strcasecmp(str1.c_str(),str2.c_str());
-}
 
 // Print keyword corresponding to functional.
 std::string get_keyword(int func_id) {
@@ -70,11 +67,11 @@ int find_func(std::string name) {
     return atoi(name.c_str());
 
   // Check if 'none' was specified. This is internal to ERKALE
-  if(stricmp(name,KW_NONE)==0)
+  if(helfem::utils::stricmp(name,KW_NONE)==0)
     return ID_NONE;
-  else if(stricmp(name,KW_HF)==0)
+  else if(helfem::utils::stricmp(name,KW_HF)==0)
     return ID_HF;
-  else if(stricmp(name,"HF")==0)
+  else if(helfem::utils::stricmp(name,"HF")==0)
     return ID_HF;
 
   // Otherwise, call libxc function.

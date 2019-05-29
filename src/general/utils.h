@@ -52,6 +52,9 @@ namespace helfem {
      * Calculate SAP potential
      */
     arma::vec sap_potential(int Z, const arma::vec & r);
+
+    /// Case independent string comparison
+    int stricmp(const std::string & str1, const std::string & str2);
   }
 }
 
