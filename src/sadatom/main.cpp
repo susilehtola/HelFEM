@@ -362,7 +362,7 @@ int main(int argc, char **argv) {
     }
 
   } else {
-    arma::ivec occs;
+    arma::irowvec occs;
 
     std::istringstream istream(occstr);
     occs.load(istream);
@@ -378,7 +378,7 @@ int main(int argc, char **argv) {
       sadatom::solver::rconf_t conf;
       conf.orbs=sadatom::solver::OrbitalChannel(restr);
       solver.Initialize(conf.orbs);
-      conf.orbs.SetOccs(occs);
+      conf.orbs.SetOccs(occs.t());
       solver.Solve(conf);
 
       // Print the minimal energy configuration
@@ -399,8 +399,8 @@ int main(int argc, char **argv) {
       conf.orbsb=sadatom::solver::OrbitalChannel(restr);
       solver.Initialize(conf.orbsa);
       solver.Initialize(conf.orbsb);
-      conf.orbsa.SetOccs(occs.subvec(0,2*lmax));
-      conf.orbsa.SetOccs(occs.subvec(2*lmax+1,4*lmax+1));
+      conf.orbsa.SetOccs(occs.subvec(0,lmax).t());
+      conf.orbsb.SetOccs(occs.subvec(lmax+1,2*lmax+1).t());
       solver.Solve(conf);
 
       printf("Electronic configuration is\n");
