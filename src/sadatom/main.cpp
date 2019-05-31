@@ -22,6 +22,7 @@
 #include "../general/utils.h"
 #include "dftgrid.h"
 #include "solver.h"
+#include "configurations.h"
 #include <cfloat>
 
 arma::ivec initial_occs(int Z, int lmax) {
@@ -364,14 +365,47 @@ int main(int argc, char **argv) {
   } else {
     arma::irowvec occs;
 
-    std::istringstream istream(occstr);
-    occs.load(istream);
-    // Check length
-    arma::uword expected = restr ? lmax+1 : 2*(lmax+1);
-    if(occs.n_elem != expected) {
-      std::ostringstream oss;
-      oss << "Invalid occupations: expected length " << expected << ", got " << occs.n_elem << ".\n";
-      throw std::logic_error(oss.str());
+    if(helfem::utils::stricmp(occstr,"hf")==0) {
+      arma::irowvec hfoccs(helfem::sadatom::get_configuration(Z).t());
+      if(hfoccs.n_elem != (arma::uword) (lmax+1))
+        throw std::logic_error("Run with lmax=3 for HF occupation mode.\n");
+      hfoccs.print("Saito 2009 table's occupation for "+element_symbols[Z]);
+
+      if(restr) {
+        occs=hfoccs;
+      } else {
+        // Use Hund's rule to determine occupations
+        arma::irowvec occa(lmax+1), occb(lmax+1);
+
+        // Loop over shells
+        for(int l=0;l<=lmax;l++) {
+          // Number of electrons to distribute
+          int numel(hfoccs(l));
+          while(numel>0) {
+            // Populate shell
+            int numsh = std::min(numel, 2*(2*l+1));
+            int na = std::min(numsh, 2*l+1);
+            int nb = numsh-na;
+            occa(l) += na;
+            occb(l) += nb;
+            numel-=numsh;
+          }
+        }
+        occs.resize(occa.n_elem+occb.n_elem);
+        occs.subvec(0,occa.n_elem-1)=occa;
+        occs.subvec(occa.n_elem,occs.n_elem-1)=occb;
+      }
+
+    } else {
+      std::istringstream istream(occstr);
+      occs.load(istream);
+      // Check length
+      arma::uword expected = restr ? lmax+1 : 2*(lmax+1);
+      if(occs.n_elem != expected) {
+        std::ostringstream oss;
+        oss << "Invalid occupations: expected length " << expected << ", got " << occs.n_elem << ".\n";
+        throw std::logic_error(oss.str());
+      }
     }
 
     if(restr) {

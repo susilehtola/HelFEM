@@ -6,8 +6,8 @@ general/angular.cpp general/scf_helpers.cpp general/lcao.cpp
 general/gsz.cpp general/sap.cpp general/dftfuncs.cpp
 general/checkpoint.cpp atomic/basis.cpp atomic/quadrature.cpp
 atomic/dftgrid.cpp sadatom/basis.cpp sadatom/dftgrid.cpp
-sadatom/solver.cpp general/dftfuncs.cpp diatomic/basis.cpp
-diatomic/quadrature.cpp diatomic/dftgrid.cpp
+sadatom/solver.cpp sadatom/configurations.cpp general/dftfuncs.cpp
+diatomic/basis.cpp diatomic/quadrature.cpp diatomic/dftgrid.cpp
 diatomic/twodquadrature.cpp)
 
 add_executable(gensap sadatom/main.cpp)
@@ -74,4 +74,5 @@ target_link_libraries(diatomic_dgrid helfem legendre)
 target_link_libraries(diatomic_dgrid gsl ${LAPACK_LIBRARY} rt hdf5 z)
 
 # Install libraries and main executables
-install (TARGETS helfem legendre atomic diatomic diatomic_cbasis gensap DESTINATION bin)
+install (TARGETS helfem legendre atomic diatomic diatomic_cbasis
+diatomic_cpl gensap DESTINATION bin)
