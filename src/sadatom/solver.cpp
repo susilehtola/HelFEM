@@ -472,6 +472,8 @@ namespace helfem {
           throw std::logic_error("Orbitals not initialized!\n");
         if(!conf.orbs.Restricted())
           throw std::logic_error("Running restricted calculation with unrestricted orbitals!\n");
+        if(conf.orbs.Occs().n_elem != (arma::uword) (lmax+1))
+          throw std::logic_error("Occupation vector is of wrong length!\n");
 
         verbose = false;
 
@@ -570,6 +572,10 @@ namespace helfem {
           throw std::logic_error("Orbitals not initialized!\n");
         if(!conf.orbsb.OrbitalsInitialized())
           throw std::logic_error("Orbitals not initialized!\n");
+        if(conf.orbsa.Occs().n_elem != (arma::uword) (lmax+1))
+          throw std::logic_error("Occupation vector is of wrong length!\n");
+        if(conf.orbsb.Occs().n_elem != (arma::uword) (lmax+1))
+          throw std::logic_error("Occupation vector is of wrong length!\n");
 
         if(conf.orbsa.Restricted())
           throw std::logic_error("Running unrestricted calculation with restricted orbitals!\n");
@@ -682,24 +688,24 @@ namespace helfem {
 
         arma::mat P=TotalDensity(conf.Pl);
 
+        arma::vec r(basis.radii());
         arma::vec wt(basis.quadrature_weights());
-        arma::mat Zeff(basis.coulomb_screening(P));
-        arma::vec vcoul(Zeff.col(1));
+        arma::mat vcoul(basis.coulomb_screening(P));
         arma::vec vxc(basis.xc_screening(P,x_func,c_func));
-        Zeff.col(1)+=vxc;
-        arma::mat rho(basis.electron_density(P));
+        arma::vec Zeff(vcoul+vxc);
+        arma::vec rho(basis.electron_density(P));
         arma::vec grho(basis.electron_density_gradient(P));
         arma::vec lrho(basis.electron_density_laplacian(P));
 
         arma::mat result(Zeff.n_rows,8);
-        result.col(0)=Zeff.col(0);
-        result.col(1)=rho.col(1);
+        result.col(0)=r;
+        result.col(1)=rho;
         result.col(2)=grho;
         result.col(3)=lrho;
         result.col(4)=vcoul;
         result.col(5)=vxc;
-        result.col(6)=Zeff.col(1);
-        result.col(7)=wt;
+        result.col(6)=wt;
+        result.col(7)=Zeff;
 
         return result;
       }
@@ -714,26 +720,28 @@ namespace helfem {
         arma::mat Pb=TotalDensity(conf.Pbl);
         arma::mat P(Pa+Pb);
 
+        arma::vec r(basis.radii());
         arma::vec wt(basis.quadrature_weights());
-        arma::mat Zeff(basis.coulomb_screening(P));
-        arma::vec vcoul(Zeff.col(1));
+        arma::vec vcoul(basis.coulomb_screening(P));
         arma::mat vxcm(basis.xc_screening(Pa,Pb,x_func,c_func));
         // Averaged potential
         arma::vec vxc=arma::mean(vxcm,1);
-        Zeff.col(1)+=vxc;
-        arma::mat rho(basis.electron_density(P));
+        arma::vec Zeff(vcoul+vxc);
+        arma::vec rho(basis.electron_density(P));
         arma::vec grho(basis.electron_density_gradient(P));
         arma::vec lrho(basis.electron_density_laplacian(P));
 
-        arma::mat result(Zeff.n_rows,8);
-        result.col(0)=Zeff.col(0);
-        result.col(1)=rho.col(1);
+        printf("Electron density by quadrature: %e\n",arma::sum(wt%rho%r%r));
+
+        arma::mat result(r.n_elem,8);
+        result.col(0)=r;
+        result.col(1)=rho;
         result.col(2)=grho;
         result.col(3)=lrho;
         result.col(4)=vcoul;
         result.col(5)=vxc;
-        result.col(6)=Zeff.col(1);
-        result.col(7)=wt;
+        result.col(6)=wt;
+        result.col(7)=Zeff;
 
         return result;
       }
@@ -749,23 +757,24 @@ namespace helfem {
         arma::mat P(Pa+Pb);
 
         arma::vec wt(basis.quadrature_weights());
-        arma::mat Zeff(basis.coulomb_screening(P));
-        arma::vec vcoul(Zeff.col(1));
+        arma::vec vcoul(basis.coulomb_screening(P));
         arma::vec vxc(basis.xc_screening(P,x_func,c_func));
-        Zeff.col(1)+=vxc;
-        arma::mat rho(basis.electron_density(P));
+        arma::vec Zeff(vcoul+vxc);
+
+        arma::vec r(basis.radii());
+        arma::vec rho(basis.electron_density(P));
         arma::vec grho(basis.electron_density_gradient(P));
         arma::vec lrho(basis.electron_density_laplacian(P));
 
         arma::mat result(Zeff.n_rows,8);
-        result.col(0)=Zeff.col(0);
-        result.col(1)=rho.col(1);
+        result.col(0)=r;
+        result.col(1)=rho;
         result.col(2)=grho;
         result.col(3)=lrho;
         result.col(4)=vcoul;
         result.col(5)=vxc;
-        result.col(6)=Zeff.col(1);
-        result.col(7)=wt;
+        result.col(6)=wt;
+        result.col(7)=Zeff;
 
         return result;
       }
@@ -780,32 +789,32 @@ namespace helfem {
         arma::mat Pb=TotalDensity(conf.Pbl);
         arma::mat P(Pa+Pb);
 
+        arma::vec r(basis.radii());
         arma::vec wt(basis.quadrature_weights());
-        arma::mat Zeff(basis.coulomb_screening(P));
-        arma::vec vcoul(Zeff.col(1));
+        arma::vec vcoul(basis.coulomb_screening(P));
         arma::mat vxcm(basis.xc_screening(Pa,Pb,x_func,c_func));
-        arma::mat rhoa(basis.electron_density(Pa));
+        arma::vec rhoa(basis.electron_density(Pa));
         arma::vec grhoa(basis.electron_density_gradient(Pa));
         arma::vec lrhoa(basis.electron_density_laplacian(Pa));
-        arma::mat rhob(basis.electron_density(Pb));
+        arma::vec rhob(basis.electron_density(Pb));
         arma::vec grhob(basis.electron_density_gradient(Pb));
         arma::vec lrhob(basis.electron_density_laplacian(Pb));
         // Averaged potential
-        arma::vec vxc=(vxcm.col(0)%rhoa.col(1) + vxcm.col(1)%rhob.col(1))/(rhoa.col(1)+rhob.col(1));
+        arma::vec vxc((vxcm.col(0)%rhoa + vxcm.col(1)%rhob)/(rhoa+rhob));
         // Set areas of small electron density to zero
-        arma::vec n(rhoa.col(1)+rhob.col(1));
+        arma::vec n(rhoa+rhob);
         vxc(arma::find(n<dftthr)).zeros();
-        Zeff.col(1)+=vxc;
+        arma::vec Zeff(vcoul+vxc);
 
         arma::mat result(Zeff.n_rows,8);
-        result.col(0)=Zeff.col(0);
-        result.col(1)=rhoa.col(1)+rhob.col(1);
+        result.col(0)=r;
+        result.col(1)=rhoa+rhob;
         result.col(2)=grhoa+grhob;;
         result.col(3)=lrhoa+lrhob;
         result.col(4)=vcoul;
         result.col(5)=vxc;
-        result.col(6)=Zeff.col(1);
-        result.col(7)=wt;
+        result.col(6)=wt;
+        result.col(7)=Zeff;
 
         return result;
       }

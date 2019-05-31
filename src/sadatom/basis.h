@@ -88,9 +88,12 @@ namespace helfem {
         /// Get quadrature weights
         arma::vec quadrature_weights() const;
         /// Compute the Coulomb screening of the nucleus
-        arma::mat coulomb_screening(const arma::mat & Prad) const;
+        arma::vec coulomb_screening(const arma::mat & Prad) const;
+
+        /// Radii
+        arma::vec radii() const;
         /// Compute the electron density
-        arma::mat electron_density(const arma::mat & Prad) const;
+        arma::vec electron_density(const arma::mat & Prad) const;
         /// Compute the electron density gradient
         arma::vec electron_density_gradient(const arma::mat & Prad) const;
         /// Compute the electron density laplacian

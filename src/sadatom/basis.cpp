@@ -326,7 +326,7 @@ namespace helfem {
         return wt;
       }
 
-      arma::mat TwoDBasis::coulomb_screening(const arma::mat & Prad) const {
+      arma::vec TwoDBasis::coulomb_screening(const arma::mat & Prad) const {
         std::vector<arma::vec> r(radial.Nel());
         std::vector<arma::vec> V(radial.Nel());
 
@@ -380,11 +380,10 @@ namespace helfem {
 
         // Assemble all of this into an array
         size_t Npts=r[0].n_elem;
-        arma::mat Veff(radial.Nel()*Npts+1,2);
+        arma::vec Veff(radial.Nel()*Npts+1);
         Veff.zeros();
         for(size_t iel=0;iel<radial.Nel();iel++) {
-          Veff.submat(1+iel*Npts,0,(iel+1)*Npts,0)=r[iel];
-          Veff.submat(1+iel*Npts,1,(iel+1)*Npts,1)=V[iel];
+          Veff.subvec(1+iel*Npts,(iel+1)*Npts)=V[iel];
         }
 
         Veff.save("vj.dat",arma::raw_ascii);
@@ -392,8 +391,23 @@ namespace helfem {
         return Veff;
       }
 
-      arma::mat TwoDBasis::electron_density(const arma::mat & Prad) const {
+      arma::vec TwoDBasis::radii() const {
         std::vector<arma::vec> r(radial.Nel());
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          r[iel]=radial.get_r(iel);
+        }
+
+        size_t Npts=r[0].n_elem;
+        arma::vec rad(radial.Nel()*Npts+1);
+        rad.zeros();
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          rad.subvec(1+iel*Npts,(iel+1)*Npts)=r[iel];
+        }
+
+        return rad;
+      }
+
+      arma::vec TwoDBasis::electron_density(const arma::mat & Prad) const {
         std::vector<arma::vec> d(radial.Nel());
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Radial functions in element
@@ -404,16 +418,14 @@ namespace helfem {
           arma::mat bf(radial.get_bf(iel));
 
           d[iel]=arma::diagvec(bf*Psub*bf.t());
-          r[iel]=radial.get_r(iel);
         }
-
         size_t Npts=d[0].n_elem;
-        arma::mat n(radial.Nel()*Npts+1,2);
+
+        arma::vec n(radial.Nel()*Npts+1);
         n.zeros();
-        n(0,1)=4.0*M_PI*nuclear_density(Prad);
+        n(0)=4.0*M_PI*nuclear_density(Prad);
         for(size_t iel=0;iel<radial.Nel();iel++) {
-          n.submat(1+iel*Npts,0,(iel+1)*Npts,0)=r[iel];
-          n.submat(1+iel*Npts,1,(iel+1)*Npts,1)=d[iel];
+          n.subvec(1+iel*Npts,(iel+1)*Npts)=d[iel];
         }
 
         return n;
@@ -430,7 +442,7 @@ namespace helfem {
           arma::mat bf(radial.get_bf(iel));
           arma::mat df(radial.get_df(iel));
 
-          d[iel]=arma::diagvec(bf*Psub*df.t());
+          d[iel]=2.0*arma::diagvec(bf*Psub*df.t());
         }
 
         size_t Npts=d[0].n_elem;
@@ -458,7 +470,7 @@ namespace helfem {
           radial.get_idx(0,ifirst,ilast);
           // Density matrix
           arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
-          n(0)=arma::as_scalar(func*Psub*der.t());
+          n(0)=2.0*arma::as_scalar(func*Psub*der.t());
         }
         // Other points
         for(size_t iel=0;iel<radial.Nel();iel++) {
@@ -501,27 +513,29 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::xc_screening(const arma::mat & Parad, const arma::mat & Pbrad, int x_func, int c_func) const {
+        const double angfac=4.0*M_PI;
         // Get the electron density
-        arma::mat rhoa(electron_density(Parad));
-        arma::mat rhob(electron_density(Pbrad));
+        arma::vec rhoa(electron_density(Parad)/angfac);
+        arma::vec rhob(electron_density(Pbrad)/angfac);
         // and the density gradient
-        arma::vec grada(electron_density_gradient(Parad));
-        arma::vec gradb(electron_density_gradient(Pbrad));
+        arma::vec grada(electron_density_gradient(Parad)/angfac);
+        arma::vec gradb(electron_density_gradient(Pbrad)/angfac);
         // and the density Laplacian
-        arma::vec lapla(electron_density_laplacian(Parad));
-        arma::vec laplb(electron_density_laplacian(Pbrad));
+        arma::vec lapla(electron_density_laplacian(Parad)/angfac);
+        arma::vec laplb(electron_density_laplacian(Pbrad)/angfac);
         // Radial coordinates
-        arma::vec r(rhoa.col(0));
+        arma::vec r(radii());
+        size_t Npoints(r.n_elem);
 
         // and pack it for libxc
-        arma::mat rho_libxc(rhoa.n_rows,2);
-        rho_libxc.col(0)=rhoa.col(1);
-        rho_libxc.col(1)=rhob.col(1);
+        arma::mat rho_libxc(Npoints,2);
+        rho_libxc.col(0)=rhoa;
+        rho_libxc.col(1)=rhob;
         // Take transpose so that order is (na0, nb0, na1, nb1, ...)
         rho_libxc=rho_libxc.t();
 
         // Reduced gradient
-        arma::mat sigma_libxc(rhoa.n_rows,3);
+        arma::mat sigma_libxc(Npoints,3);
         sigma_libxc.col(0)=grada%grada;
         sigma_libxc.col(1)=grada%gradb;
         sigma_libxc.col(2)=gradb%gradb;
@@ -529,28 +543,28 @@ namespace helfem {
         sigma_libxc=sigma_libxc.t();
 
         // Energy
-        arma::vec exc(rhoa.n_rows);
+        arma::vec exc(Npoints);
         exc.zeros();
         // Potential
-        arma::mat vxc(2,rhoa.n_rows);
+        arma::mat vxc(2,Npoints);
         vxc.zeros();
-        arma::mat vsigma(3,rhoa.n_rows);
+        arma::mat vsigma(3,Npoints);
         vsigma.zeros();
 
         // For GGA we also need the second derivative to calculate the
         // correction to the potential
-        arma::mat v2rhosigma(6,rhoa.n_rows);
+        arma::mat v2rhosigma(6,Npoints);
         v2rhosigma.zeros();
-        arma::mat v2sigma2(6,rhoa.n_rows);
+        arma::mat v2sigma2(6,Npoints);
         v2sigma2.zeros();
 
         // Helper arrays
-        arma::vec exc_wrk(rhoa.n_rows);
-        arma::mat vxc_wrk(2,rhoa.n_rows);
-        arma::mat vsigma_wrk(3,rhoa.n_rows);
-        arma::mat v2rho2_wrk(3,rhoa.n_rows);
-        arma::mat v2rhosigma_wrk(6,rhoa.n_rows);
-        arma::mat v2sigma2_wrk(6,rhoa.n_rows);
+        arma::vec exc_wrk(Npoints);
+        arma::mat vxc_wrk(2,Npoints);
+        arma::mat vsigma_wrk(3,Npoints);
+        arma::mat v2rho2_wrk(3,Npoints);
+        arma::mat v2rhosigma_wrk(6,Npoints);
+        arma::mat v2sigma2_wrk(6,Npoints);
 
         bool do_gga=false;
 
@@ -571,13 +585,13 @@ namespace helfem {
             throw std::logic_error("Error initializing exchange functional!\n");
           }
           if(gga) {
-            xc_gga(&func, rhoa.n_rows, rho_libxc.memptr(), sigma_libxc.memptr(), exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr(), v2rho2_wrk.memptr(), v2rhosigma_wrk.memptr(), v2sigma2_wrk.memptr(), NULL, NULL, NULL, NULL);
+            xc_gga(&func, rhoa.n_elem, rho_libxc.memptr(), sigma_libxc.memptr(), exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr(), v2rho2_wrk.memptr(), v2rhosigma_wrk.memptr(), v2sigma2_wrk.memptr(), NULL, NULL, NULL, NULL);
             do_gga=true;
             vsigma+=vsigma_wrk;
             v2rhosigma+=v2rhosigma_wrk;
             v2sigma2+=v2sigma2_wrk;
           } else {
-            xc_lda_exc_vxc(&func, rhoa.n_rows, rho_libxc.memptr(), exc_wrk.memptr(), vxc_wrk.memptr());
+            xc_lda_exc_vxc(&func, rhoa.n_elem, rho_libxc.memptr(), exc_wrk.memptr(), vxc_wrk.memptr());
           }
           xc_func_end(&func);
 
@@ -601,100 +615,70 @@ namespace helfem {
             throw std::logic_error("Error initializing correlation functional!\n");
           }
           if(gga) {
-            xc_gga(&func, rhoa.n_rows, rho_libxc.memptr(), sigma_libxc.memptr(), exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr(), v2rho2_wrk.memptr(), v2rhosigma_wrk.memptr(), v2sigma2_wrk.memptr(), NULL, NULL, NULL, NULL);
+            xc_gga(&func, rhoa.n_elem, rho_libxc.memptr(), sigma_libxc.memptr(), exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr(), v2rho2_wrk.memptr(), v2rhosigma_wrk.memptr(), v2sigma2_wrk.memptr(), NULL, NULL, NULL, NULL);
             do_gga=true;
             vsigma+=vsigma_wrk;
             v2rhosigma+=v2rhosigma_wrk;
             v2sigma2+=v2sigma2_wrk;
           } else {
-            xc_lda_exc_vxc(&func, rhoa.n_rows, rho_libxc.memptr(), exc_wrk.memptr(), vxc_wrk.memptr());
+            xc_lda_exc_vxc(&func, rhoa.n_elem, rho_libxc.memptr(), exc_wrk.memptr(), vxc_wrk.memptr());
           }
 
           vxc+=vxc_wrk;
           exc+=exc_wrk;
         }
 
-        // Back-transpose
-        vxc=vxc.t();
-        vsigma=vsigma.t();
-        v2rhosigma=v2rhosigma.t();
-        v2sigma2=v2sigma2.t();
-
         // Add GGA correction to xc potential.
         if(do_gga) {
-          arma::mat corr(vxc.n_rows,2);
+          arma::mat corr(2,vxc.n_cols);
           corr.zeros();
 
-          arma::mat corr1(vxc.n_rows,2);
-          corr1.zeros();
-          arma::mat corr2(vxc.n_rows,2);
-          corr2.zeros();
-          arma::mat corr3(vxc.n_rows,2);
-          corr3.zeros();
-          arma::mat corr4(vxc.n_rows,2);
-          corr4.zeros();
-
           // Loop over points: skip nucleus since there's no laplacian there for now
-          for(size_t ip=1;ip<vxc.n_rows;ip++) {
+          for(size_t ip=1;ip<Npoints;ip++) {
             // First term: g(t) ( d^2 E / d n(t) d sigma(ss') ) g(s')
 
             // (a, aa) + (b, aa)
-            corr1(ip,0) += 2.0*(grada(ip)*v2rhosigma(ip,0) + gradb(ip)*v2rhosigma(ip,3))*grada(ip);
+            corr(0,ip) += 2.0*(grada(ip)*v2rhosigma(0,ip) + gradb(ip)*v2rhosigma(3,ip))*grada(ip);
             // (a, ab) + (b, ab)
-            corr1(ip,0) += (grada(ip)*v2rhosigma(ip,1) + gradb(ip)*v2rhosigma(ip,4))*gradb(ip);
+            corr(0,ip) += (grada(ip)*v2rhosigma(1,ip) + gradb(ip)*v2rhosigma(4,ip))*gradb(ip);
 
             // (b, bb) + (a, bb)
-            corr1(ip,1) += 2.0*(gradb(ip)*v2rhosigma(ip,5) + grada(ip)*v2rhosigma(ip,2))*gradb(ip);
+            corr(1,ip) += 2.0*(gradb(ip)*v2rhosigma(5,ip) + grada(ip)*v2rhosigma(2,ip))*gradb(ip);
             // (a, ab) + (b, ab)
-            corr1(ip,1) += (grada(ip)*v2rhosigma(ip,1) + gradb(ip)*v2rhosigma(ip,4))*grada(ip);
+            corr(1,ip) += (grada(ip)*v2rhosigma(1,ip) + gradb(ip)*v2rhosigma(4,ip))*grada(ip);
           }
-          vxc.save("vxc.dat",arma::raw_ascii);
-          corr+=corr1;
-          for(size_t ic=0;ic<corr.n_cols;ic++)
-            corr1.col(ic)%=rhoa.col(0)/std::cbrt(4.0*M_PI);
-          corr1.save("corr1.dat",arma::raw_ascii);
 
-          for(size_t ip=1;ip<vxc.n_rows;ip++) {
+          for(size_t ip=1;ip<Npoints;ip++) {
             // Second term: (l(t)g(t') + g(t)l(t')) (d^2 E / d sigma(tt') d sigma(ss')) g(s'). Contract t and t' first, put in factor two later
-            double d2Edsaa = lapla(ip)*grada(ip)*v2sigma2(ip,0) + (lapla(ip)*gradb(ip) + grada(ip)*laplb(ip))*v2sigma2(ip,1) + laplb(ip)*gradb(ip)*v2sigma2(ip,2);
-            double d2Edsab = lapla(ip)*grada(ip)*v2sigma2(ip,1) + (lapla(ip)*gradb(ip) + grada(ip)*laplb(ip))*v2sigma2(ip,3) + laplb(ip)*gradb(ip)*v2sigma2(ip,4);
-            double d2Edsbb = lapla(ip)*grada(ip)*v2sigma2(ip,2) + (lapla(ip)*gradb(ip) + grada(ip)*laplb(ip))*v2sigma2(ip,4) + laplb(ip)*gradb(ip)*v2sigma2(ip,5);
+            double d2Edsaa = lapla(ip)*grada(ip)*v2sigma2(0,ip) + (lapla(ip)*gradb(ip) + grada(ip)*laplb(ip))*v2sigma2(1,ip) + laplb(ip)*gradb(ip)*v2sigma2(2,ip);
+            double d2Edsab = lapla(ip)*grada(ip)*v2sigma2(1,ip) + (lapla(ip)*gradb(ip) + grada(ip)*laplb(ip))*v2sigma2(3,ip) + laplb(ip)*gradb(ip)*v2sigma2(4,ip);
+            double d2Edsbb = lapla(ip)*grada(ip)*v2sigma2(2,ip) + (lapla(ip)*gradb(ip) + grada(ip)*laplb(ip))*v2sigma2(4,ip) + laplb(ip)*gradb(ip)*v2sigma2(5,ip);
             // and now we can contract this with the gradient
-            corr2(ip,0) += 4.0*d2Edsaa*grada(ip) + 2.0*d2Edsab*gradb(ip);
-            corr2(ip,1) += 4.0*d2Edsbb*gradb(ip) + 2.0*d2Edsab*grada(ip);
+            corr(0,ip) += 4.0*d2Edsaa*grada(ip) + 2.0*d2Edsab*gradb(ip);
+            corr(1,ip) += 4.0*d2Edsbb*gradb(ip) + 2.0*d2Edsab*grada(ip);
           }
-          corr+=corr2;
-          for(size_t ic=0;ic<corr.n_cols;ic++)
-            corr2.col(ic)%=rhoa.col(0)/std::cbrt(4.0*M_PI);
-          corr2.save("corr2.dat",arma::raw_ascii);
 
-          for(size_t ip=1;ip<vxc.n_rows;ip++) {
+          for(size_t ip=1;ip<Npoints;ip++) {
             // Third term: dE/dsigma(ss') l(s')
-            corr3(ip,0) += 2.0*vsigma(ip,0)*lapla(ip) + vsigma(ip,1)*laplb(ip);
-            corr3(ip,1) += vsigma(ip,1)*lapla(ip) + 2.0*vsigma(ip,2)*laplb(ip);
+            corr(0,ip) += 2.0*vsigma(0,ip)*lapla(ip) + vsigma(1,ip)*laplb(ip);
+            corr(1,ip) += vsigma(1,ip)*lapla(ip) + 2.0*vsigma(2,ip)*laplb(ip);
           }
-          corr+=corr3;
-          for(size_t ic=0;ic<corr.n_cols;ic++)
-            corr3.col(ic)%=rhoa.col(0)/std::cbrt(4.0*M_PI);
-          corr3.save("corr3.dat",arma::raw_ascii);
 
-          for(size_t ip=1;ip<vxc.n_rows;ip++) {
+          for(size_t ip=1;ip<Npoints;ip++) {
             // Second term in the divergence: div A = dA/dr + 2 r A
-            corr4(ip,0) += 2.0/r(ip)*(2.0*vsigma(ip,0)*grada(ip) + vsigma(ip,1)*gradb(ip));
-            corr4(ip,1) += 2.0/r(ip)*(vsigma(ip,1)*grada(ip) + 2.0*vsigma(ip,2)*gradb(ip));
+            corr(0,ip) += 2.0/r(ip)*(2.0*vsigma(0,ip)*grada(ip) + vsigma(1,ip)*gradb(ip));
+            corr(1,ip) += 2.0/r(ip)*(vsigma(1,ip)*grada(ip) + 2.0*vsigma(2,ip)*gradb(ip));
           }
-          corr+=corr4;
-          for(size_t ic=0;ic<corr.n_cols;ic++)
-            corr4.col(ic)%=rhoa.col(0)/std::cbrt(4.0*M_PI);
-          corr4.save("corr4.dat",arma::raw_ascii);
 
-          // Perform correction
+          // Perform the correction
           vxc -= corr;
         }
 
+        // Transpose
+        vxc = vxc.t();
         // Convert to radial potential (this is how it matches with GPAW)
         for(size_t ic=0;ic<vxc.n_cols;ic++)
-          vxc.col(ic)%=rhoa.col(0)/std::cbrt(4.0*M_PI);
+          vxc.col(ic)%=r;
 
         return vxc;
       }
