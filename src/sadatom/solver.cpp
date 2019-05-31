@@ -85,7 +85,7 @@ namespace helfem {
         occs=occs_;
       }
 
-      std::string OrbitalChannel::Characterize() {
+      std::vector<shell_occupation_t> OrbitalChannel::GetOccupied() const {
         // Form list of shells
         std::vector<shell_occupation_t> occlist;
         for(size_t l=0;l<E.n_cols;l++) {
@@ -106,7 +106,11 @@ namespace helfem {
           }
         }
         std::sort(occlist.begin(),occlist.end());
+        return occlist;
+      }
 
+      std::string OrbitalChannel::Characterize() const {
+        std::vector<shell_occupation_t> occlist(GetOccupied());
         std::ostringstream oss;
         for(size_t i=0;i<occlist.size();i++) {
           if(i)
@@ -115,6 +119,14 @@ namespace helfem {
         }
 
         return oss.str();
+      }
+
+      void OrbitalChannel::Print() const {
+        std::vector<shell_occupation_t> occlist(GetOccupied());
+        printf("%3s %4s %13s\n","nl","nocc","E");
+        for(size_t i=0;i<occlist.size();i++) {
+          printf("%2i%c %4i % e\n",occlist[i].n, shtype[occlist[i].l], occlist[i].nocc, occlist[i].E);
+        }
       }
 
       bool OrbitalChannel::operator==(const OrbitalChannel & rh) const {

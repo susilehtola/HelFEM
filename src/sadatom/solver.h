@@ -54,6 +54,8 @@ namespace helfem {
         arma::sword ShellCapacity(arma::sword l) const;
         /// Count number of occupied orbitals
         size_t CountOccupied(int l) const;
+        /// Get occupied orbitals
+        std::vector<shell_occupation_t> GetOccupied() const;
 
       public:
         /// Dummy constructor
@@ -83,8 +85,11 @@ namespace helfem {
         arma::ivec Occs() const;
         /// Sets the occupations
         void SetOccs(const arma::ivec & occs_);
+
         /// Characterizes the configuration
-        std::string Characterize();
+        std::string Characterize() const;
+        /// Print out orbital info
+        void Print() const;
         /// Checks if the occupations are the same
         bool operator==(const OrbitalChannel & rh) const;
 

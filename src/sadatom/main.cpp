@@ -233,6 +233,8 @@ int main(int argc, char **argv) {
       rlist[0].orbs.Occs().t().print();
       printf("Electronic configuration is\n");
       printf("%s\n",rlist[0].orbs.Characterize().c_str());
+      printf("Orbital info\n");
+      rlist[0].orbs.Print();
 
       // Get the potential
       solver.set_func(xp_func, cp_func);
@@ -340,6 +342,10 @@ int main(int argc, char **argv) {
       printf("Electronic configuration is\n");
       printf("alpha: %s\n",totlist[0].orbsa.Characterize().c_str());
       printf(" beta: %s\n",totlist[0].orbsb.Characterize().c_str());
+      printf("Alpha orbital info\n");
+      totlist[0].orbsa.Print();
+      printf("Beta  orbital info\n");
+      totlist[0].orbsb.Print();
 
       // Get the potential
       solver.set_func(xp_func, cp_func);
@@ -418,6 +424,8 @@ int main(int argc, char **argv) {
       // Print the minimal energy configuration
       printf("Electronic configuration is\n");
       printf("%s\n",conf.orbs.Characterize().c_str());
+      printf("Orbital information\n");
+      conf.orbs.Print();
 
       // Get the potential
       solver.set_func(xp_func, cp_func);
@@ -440,6 +448,11 @@ int main(int argc, char **argv) {
       printf("Electronic configuration is\n");
       printf("alpha: %s\n",conf.orbsa.Characterize().c_str());
       printf(" beta: %s\n",conf.orbsb.Characterize().c_str());
+
+      printf("Alpha orbital information\n");
+      conf.orbsa.Print();
+      printf("Beta  orbital information\n");
+      conf.orbsb.Print();
 
       // Get the potential
       solver.set_func(xp_func, cp_func);
