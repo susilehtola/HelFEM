@@ -386,8 +386,6 @@ namespace helfem {
           Veff.subvec(1+iel*Npts,(iel+1)*Npts)=V[iel];
         }
 
-        Veff.save("vj.dat",arma::raw_ascii);
-
         return Veff;
       }
 
