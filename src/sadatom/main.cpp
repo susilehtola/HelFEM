@@ -233,7 +233,13 @@ int main(int argc, char **argv) {
       rlist[0].orbs.Occs().t().print();
       printf("Electronic configuration is\n");
       printf("%s\n",rlist[0].orbs.Characterize().c_str());
-      printf("Orbital info\n");
+
+      printf("\nResult in NIST format\n");
+      printf("Etot  = % 18.9f\n",rlist[0].Econf);
+      printf("Ekin  = % 18.9f\n",rlist[0].Ekin);
+      printf("Ecoul = % 18.9f\n",rlist[0].Ecoul);
+      printf("Eenuc = % 18.9f\n",rlist[0].Epot);
+      printf("Exc   = % 18.9f\n",rlist[0].Exc);
       rlist[0].orbs.Print();
 
       // Get the potential
@@ -342,9 +348,16 @@ int main(int argc, char **argv) {
       printf("Electronic configuration is\n");
       printf("alpha: %s\n",totlist[0].orbsa.Characterize().c_str());
       printf(" beta: %s\n",totlist[0].orbsb.Characterize().c_str());
-      printf("Alpha orbital info\n");
+
+      printf("\nResult in NIST format\n");
+      printf("Etot  = % 18.9f\n",totlist[0].Econf);
+      printf("Ekin  = % 18.9f\n",totlist[0].Ekin);
+      printf("Ecoul = % 18.9f\n",totlist[0].Ecoul);
+      printf("Eenuc = % 18.9f\n",totlist[0].Epot);
+      printf("Exc   = % 18.9f\n",totlist[0].Exc);
+      printf("Alpha orbitals\n");
       totlist[0].orbsa.Print();
-      printf("Beta  orbital info\n");
+      printf("Beta  orbitals\n");
       totlist[0].orbsb.Print();
 
       // Get the potential
@@ -424,7 +437,12 @@ int main(int argc, char **argv) {
       // Print the minimal energy configuration
       printf("Electronic configuration is\n");
       printf("%s\n",conf.orbs.Characterize().c_str());
-      printf("Orbital information\n");
+      printf("\nResult in NIST format\n");
+      printf("Etot  = % 18.9f\n",conf.Econf);
+      printf("Ekin  = % 18.9f\n",conf.Ekin);
+      printf("Ecoul = % 18.9f\n",conf.Ecoul);
+      printf("Eenuc = % 18.9f\n",conf.Epot);
+      printf("Exc   = % 18.9f\n",conf.Exc);
       conf.orbs.Print();
 
       // Get the potential
@@ -449,9 +467,15 @@ int main(int argc, char **argv) {
       printf("alpha: %s\n",conf.orbsa.Characterize().c_str());
       printf(" beta: %s\n",conf.orbsb.Characterize().c_str());
 
-      printf("Alpha orbital information\n");
+      printf("\nResult in NIST format\n");
+      printf("Etot  = % 18.9f\n",conf.Econf);
+      printf("Ekin  = % 18.9f\n",conf.Ekin);
+      printf("Ecoul = % 18.9f\n",conf.Ecoul);
+      printf("Eenuc = % 18.9f\n",conf.Epot);
+      printf("Exc   = % 18.9f\n",conf.Exc);
+      printf("Alpha orbitals\n");
       conf.orbsa.Print();
-      printf("Beta  orbital information\n");
+      printf("Beta  orbitals\n");
       conf.orbsb.Print();
 
       // Get the potential
