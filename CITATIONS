@@ -1,13 +1,22 @@
-The program has been described in two articles focusing on the atomic and diatomic parts, respectively
+The core of the program has been described in two articles focusing on the atomic and diatomic parts, respectively:
 
-S. Lehtola, Hartree--Fock and hybrid density functional theory calculations of static properties at the complete basis set limit via finite elements. I. Atoms. Submitted. arXiv:1810.11651
+S. Lehtola, Fully numerical Hartree‐Fock and density functional calculations. I. Atoms. Int. J. Quantum Chem. 2019, e25945. doi:10.1002/qua.25945. arXiv:1810.11651
 
-S. Lehtola, Hartree--Fock and hybrid density functional theory calculations of static properties at the complete basis set limit via finite elements. II. Diatomic molecules. Submitted. arXiv:1810.11653
+S. Lehtola, Fully numerical Hartree‐Fock and density functional calculations. II. Diatomic molecules. Int. J. Quantum Chem. 2019, e25944. doi:10.1002/qua.25944. arXiv:1810.11653
 
-The diatomic program employs a Legendre function library described in
+Calculations in finite magnetic fields have been described in:
+
+S. Lehtola, M. Dimitrova, and D. Sundholm, Fully numerical electronic structure calculations on diatomic molecules in weak to strong magnetic fields, Mol. Phys. (2019), DOI: 10.1080/00268976.2019.1597989. arXiv:1812.06274
+
+There is also a review paper discussing fully numerical calculations on atoms and diatomic molecules in general:
+
+S. Lehtola, A review on non-relativistic fully numerical electronic structure calculations on atoms and diatomic molecules, Int. J. Quantum Chem. 2019, e25968. doi:10.1002/qua.25968. arXiv:1902.01431
+
+The diatomic program relies on a library for the calculation of Legendre functions that has been described in
+
 B. Schneider et al, Comput. Phys. Commun. 2010, 181, 2091–2097;
 B. Schneider et al, Comput. Phys. Commun. 2018, 225, 192–193.
 
-Density functionals are evaluated in both the atomic and diatomic
-program with the LibXC library
+Density functionals are evaluated in both the atomic and diatomic program with the libxc library, which has been described in
+
 S. Lehtola et al, SoftwareX 2018, 7, 1–5.
