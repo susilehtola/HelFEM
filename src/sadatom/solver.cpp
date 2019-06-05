@@ -132,28 +132,31 @@ namespace helfem {
 
       void OrbitalChannel::Save(const basis::TwoDBasis & basis, const std::string & symbol) const {
         std::vector<shell_occupation_t> occlist(GetOccupied());
-        for(size_t io=0;io<occlist.size();io++) {
-          int l = occlist[io].l;
-          int n = occlist[io].n;
-          // Orbital
-          arma::mat Clt(arma::trans(C.slice(l).col(n-l-1)));
+        for(int l=0;l<=lmax;l++) {
+          // Collect the occupied orbitals
+          std::vector<size_t> iocc;
+          for(size_t io=0;io<occlist.size();io++) {
+            if(occlist[io].l != l)
+              continue;
+            iocc.push_back(occlist[io].n-l-1);
+          }
+          arma::uvec oidx(arma::conv_to<arma::uvec>::from(iocc));
+          // Orbital vector
+          arma::mat Cl(C.slice(l).cols(oidx));
+
+          arma::vec r(basis.radii());
+          arma::mat orbval(basis.orbitals(Cl));
 
           std::ostringstream oss;
-          oss << symbol << "_" << n << shtype[l] << ".dat";
+          oss << symbol << "_" << shtype[l] << "_orbs.dat";
           FILE *out = fopen(oss.str().c_str(),"w");
-
-          // Loop over elements
-          for(size_t iel=0;iel<basis.get_rad_Nel();iel++) {
-            arma::vec r(basis.get_r(iel));
-            arma::mat bf(basis.eval_bf(iel));
-            arma::uvec bf_idx(basis.bf_list(iel));
-            arma::vec orbval(bf*arma::trans(Clt.cols(bf_idx)));
-
-            for(size_t ir=0;ir<orbval.n_rows;ir++) {
-              fprintf(out,"%e % e\n",r(ir),orbval(ir));
+          for(size_t ir=0;ir<orbval.n_rows;ir++) {
+            fprintf(out,"%e",r(ir));
+            for(size_t ic=0;ic<orbval.n_cols;ic++) {
+              fprintf(out," % e",orbval(ir,ic));
             }
+            fprintf(out,"\n");
           }
-
           fclose(out);
         }
       }

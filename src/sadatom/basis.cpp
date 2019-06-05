@@ -405,6 +405,45 @@ namespace helfem {
         return rad;
       }
 
+      arma::mat TwoDBasis::orbitals(const arma::mat & C) const {
+        std::vector<arma::mat> c(radial.Nel());
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          // Radial functions in element
+          size_t ifirst, ilast;
+          radial.get_idx(iel,ifirst,ilast);
+          // Density matrix
+          arma::mat Csub(C.rows(ifirst,ilast));
+          arma::mat bf(radial.get_bf(iel));
+
+          c[iel]=bf*Csub;
+        }
+        size_t Npts=c[0].n_rows;
+
+        arma::mat Cv(radial.Nel()*Npts+1,C.n_cols);
+        Cv.zeros();
+        // Values at the nucleus
+        {
+          polynomial_basis::PolynomialBasis * poly(radial.get_poly());
+          arma::vec x(1);
+          x(0)=-1;
+          arma::mat func(poly->eval(x));
+          func=radial.get_basis(func,0);
+
+          // Radial functions in first element
+          size_t ifirst, ilast;
+          radial.get_idx(0,ifirst,ilast);
+          // Density matrix
+          arma::mat Csub(C.rows(ifirst,ilast));
+          Cv.row(0)=func*Csub;
+        }
+        // Other points
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          Cv.rows(1+iel*Npts,(iel+1)*Npts)=c[iel];
+        }
+
+        return Cv;
+      }
+
       arma::vec TwoDBasis::electron_density(const arma::mat & Prad) const {
         std::vector<arma::vec> d(radial.Nel());
         for(size_t iel=0;iel<radial.Nel();iel++) {

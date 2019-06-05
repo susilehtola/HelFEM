@@ -92,6 +92,8 @@ namespace helfem {
 
         /// Radii
         arma::vec radii() const;
+        /// Compute radial orbitals
+        arma::mat orbitals(const arma::mat & C) const;
         /// Compute the electron density
         arma::vec electron_density(const arma::mat & Prad) const;
         /// Compute the electron density gradient
