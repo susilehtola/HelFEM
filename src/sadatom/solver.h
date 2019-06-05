@@ -90,6 +90,9 @@ namespace helfem {
         std::string Characterize() const;
         /// Print out orbital info
         void Print() const;
+        /// Save radial part to disk
+        void Save(const sadatom::basis::TwoDBasis & basis, const std::string & symbol) const;
+
         /// Checks if the occupations are the same
         bool operator==(const OrbitalChannel & rh) const;
 
@@ -243,6 +246,9 @@ namespace helfem {
         arma::mat AveragePotential(uconf_t & conf);
         /// Compute the effective potential as the density weighted average of spin-unrestricted potentials
         arma::mat WeightedPotential(uconf_t & conf);
+
+        /// Get the basis
+        const sadatom::basis::TwoDBasis & Basis() const;
       };
     }
   }

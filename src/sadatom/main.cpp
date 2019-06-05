@@ -75,6 +75,7 @@ int main(int argc, char **argv) {
   parser.add<double>("diiseps", 0, "when to start mixing in diis", false, 1e-2);
   parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
   parser.add<int>("diisorder", 0, "length of diis history", false, 10);
+  parser.add<bool>("saveorb", 0, "save radial orbitals to disk?", false, false);
   parser.add<std::string>("occupations", 0, "occupations", false, "auto");
   if(!parser.parse(argc, argv))
     throw std::logic_error("Error parsing arguments!\n");
@@ -109,6 +110,7 @@ int main(int argc, char **argv) {
   std::string method(parser.get<std::string>("method"));
   std::string potmethod(parser.get<std::string>("pot"));
   std::string occstr(parser.get<std::string>("occs"));
+  bool saveorb(parser.get<bool>("saveorb"));
 
   std::vector<std::string> rcalc(2);
   rcalc[0]="unrestricted";
@@ -159,6 +161,11 @@ int main(int argc, char **argv) {
 
   // Initialize solver
   sadatom::solver::SCFSolver solver(Z, lmax, poly, Nquad, Nelem, Rmax, igrid, zexp, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
+
+  // Final configuration (restricted case)
+  helfem::sadatom::solver::rconf_t rconf;
+  // Final configuration (unrestricted case)
+  helfem::sadatom::solver::uconf_t uconf;
 
   if(helfem::utils::stricmp(occstr,"auto")==0) {
     // Initialize with a sensible guess occupation
@@ -228,27 +235,8 @@ int main(int argc, char **argv) {
         printf("\n");
       }
 
-      // Print the minimal energy configuration
-      printf("\nOccupations for lowest configuration\n");
-      rlist[0].orbs.Occs().t().print();
-      printf("Electronic configuration is\n");
-      printf("%s\n",rlist[0].orbs.Characterize().c_str());
-
-      printf("\nResult in NIST format\n");
-      printf("Etot  = % 18.9f\n",rlist[0].Econf);
-      printf("Ekin  = % 18.9f\n",rlist[0].Ekin);
-      printf("Ecoul = % 18.9f\n",rlist[0].Ecoul);
-      printf("Eenuc = % 18.9f\n",rlist[0].Epot);
-      printf("Exc   = % 18.9f\n",rlist[0].Exc);
-      rlist[0].orbs.Print();
-
-      // Get the potential
-      solver.set_func(xp_func, cp_func);
-      arma::mat pot(solver.RestrictedPotential(rlist[0]));
-
-      std::ostringstream oss;
-      oss << "result_" << element_symbols[Z] << ".dat";
-      pot.save(oss.str(),arma::raw_ascii);
+      // Save final configuration
+      rconf=rlist[0];
 
     } else {
       // List of configurations
@@ -342,43 +330,9 @@ int main(int argc, char **argv) {
 
       // Print the minimal energy configuration
       printf("\nMinimum energy state is M = %i\n",(int) (totlist[0].orbsa.Nel()-totlist[0].orbsb.Nel()+1));
-      printf("Occupations for lowest configuration\n");
-      totlist[0].orbsa.Occs().t().print();
-      totlist[0].orbsb.Occs().t().print();
-      printf("Electronic configuration is\n");
-      printf("alpha: %s\n",totlist[0].orbsa.Characterize().c_str());
-      printf(" beta: %s\n",totlist[0].orbsb.Characterize().c_str());
 
-      printf("\nResult in NIST format\n");
-      printf("Etot  = % 18.9f\n",totlist[0].Econf);
-      printf("Ekin  = % 18.9f\n",totlist[0].Ekin);
-      printf("Ecoul = % 18.9f\n",totlist[0].Ecoul);
-      printf("Eenuc = % 18.9f\n",totlist[0].Epot);
-      printf("Exc   = % 18.9f\n",totlist[0].Exc);
-      printf("Alpha orbitals\n");
-      totlist[0].orbsa.Print();
-      printf("Beta  orbitals\n");
-      totlist[0].orbsb.Print();
-
-      // Get the potential
-      solver.set_func(xp_func, cp_func);
-      arma::mat potU(solver.UnrestrictedPotential(totlist[0]));
-      arma::mat potM(solver.AveragePotential(totlist[0]));
-      arma::mat potW(solver.WeightedPotential(totlist[0]));
-
-      std::ostringstream oss;
-
-      oss.str("");
-      oss << "resultU_" << element_symbols[Z] << ".dat";
-      potU.save(oss.str(),arma::raw_ascii);
-
-      oss.str("");
-      oss << "resultM_" << element_symbols[Z] << ".dat";
-      potM.save(oss.str(),arma::raw_ascii);
-
-      oss.str("");
-      oss << "resultW_" << element_symbols[Z] << ".dat";
-      potW.save(oss.str(),arma::raw_ascii);
+      // Save final configuration
+      uconf=totlist[0];
     }
 
   } else {
@@ -428,76 +382,90 @@ int main(int argc, char **argv) {
     }
 
     if(restr) {
-      sadatom::solver::rconf_t conf;
-      conf.orbs=sadatom::solver::OrbitalChannel(restr);
-      solver.Initialize(conf.orbs);
-      conf.orbs.SetOccs(occs.t());
-      solver.Solve(conf);
-
-      // Print the minimal energy configuration
-      printf("Electronic configuration is\n");
-      printf("%s\n",conf.orbs.Characterize().c_str());
-      printf("\nResult in NIST format\n");
-      printf("Etot  = % 18.9f\n",conf.Econf);
-      printf("Ekin  = % 18.9f\n",conf.Ekin);
-      printf("Ecoul = % 18.9f\n",conf.Ecoul);
-      printf("Eenuc = % 18.9f\n",conf.Epot);
-      printf("Exc   = % 18.9f\n",conf.Exc);
-      conf.orbs.Print();
-
-      // Get the potential
-      solver.set_func(xp_func, cp_func);
-      arma::mat pot(solver.RestrictedPotential(conf));
-
-      std::ostringstream oss;
-      oss << "result_" << element_symbols[Z] << ".dat";
-      pot.save(oss.str(),arma::raw_ascii);
+      rconf.orbs=sadatom::solver::OrbitalChannel(restr);
+      solver.Initialize(rconf.orbs);
+      rconf.orbs.SetOccs(occs.t());
+      solver.Solve(rconf);
 
     } else {
-      sadatom::solver::uconf_t conf;
-      conf.orbsa=sadatom::solver::OrbitalChannel(restr);
-      conf.orbsb=sadatom::solver::OrbitalChannel(restr);
-      solver.Initialize(conf.orbsa);
-      solver.Initialize(conf.orbsb);
-      conf.orbsa.SetOccs(occs.subvec(0,lmax).t());
-      conf.orbsb.SetOccs(occs.subvec(lmax+1,2*lmax+1).t());
-      solver.Solve(conf);
+      uconf.orbsa=sadatom::solver::OrbitalChannel(restr);
+      uconf.orbsb=sadatom::solver::OrbitalChannel(restr);
+      solver.Initialize(uconf.orbsa);
+      solver.Initialize(uconf.orbsb);
+      uconf.orbsa.SetOccs(occs.subvec(0,lmax).t());
+      uconf.orbsb.SetOccs(occs.subvec(lmax+1,2*lmax+1).t());
+      solver.Solve(uconf);
+    }
+  }
 
-      printf("Electronic configuration is\n");
-      printf("alpha: %s\n",conf.orbsa.Characterize().c_str());
-      printf(" beta: %s\n",conf.orbsb.Characterize().c_str());
+  if(restr) {
+    // Print the minimal energy configuration
+    printf("\nOccupations for wanted configuration\n");
+    rconf.orbs.Occs().t().print();
+    printf("Electronic configuration is\n");
+    printf("%s\n",rconf.orbs.Characterize().c_str());
 
-      printf("\nResult in NIST format\n");
-      printf("Etot  = % 18.9f\n",conf.Econf);
-      printf("Ekin  = % 18.9f\n",conf.Ekin);
-      printf("Ecoul = % 18.9f\n",conf.Ecoul);
-      printf("Eenuc = % 18.9f\n",conf.Epot);
-      printf("Exc   = % 18.9f\n",conf.Exc);
-      printf("Alpha orbitals\n");
-      conf.orbsa.Print();
-      printf("Beta  orbitals\n");
-      conf.orbsb.Print();
+    printf("\nResult in NIST format\n");
+    printf("Etot  = % 18.9f\n",rconf.Econf);
+    printf("Ekin  = % 18.9f\n",rconf.Ekin);
+    printf("Ecoul = % 18.9f\n",rconf.Ecoul);
+    printf("Eenuc = % 18.9f\n",rconf.Epot);
+    printf("Exc   = % 18.9f\n",rconf.Exc);
+    rconf.orbs.Print();
 
-      // Get the potential
-      solver.set_func(xp_func, cp_func);
-      arma::mat potU(solver.UnrestrictedPotential(conf));
-      arma::mat potM(solver.AveragePotential(conf));
-      arma::mat potW(solver.WeightedPotential(conf));
+    // Get the potential
+    solver.set_func(xp_func, cp_func);
+    arma::mat pot(solver.RestrictedPotential(rconf));
 
-      std::ostringstream oss;
+    std::ostringstream oss;
+    oss << "result_" << element_symbols[Z] << ".dat";
+    pot.save(oss.str(),arma::raw_ascii);
 
-      oss.str("");
-      oss << "resultU_" << element_symbols[Z] << ".dat";
-      potU.save(oss.str(),arma::raw_ascii);
+    // Save the orbitals
+    if(saveorb) {
+      rconf.orbs.Save(solver.Basis(), element_symbols[Z]);
+    }
+  } else {
 
-      oss.str("");
-      oss << "resultM_" << element_symbols[Z] << ".dat";
-      potM.save(oss.str(),arma::raw_ascii);
+    printf("Electronic configuration is\n");
+    printf("alpha: %s\n",uconf.orbsa.Characterize().c_str());
+    printf(" beta: %s\n",uconf.orbsb.Characterize().c_str());
 
-      oss.str("");
-      oss << "resultW_" << element_symbols[Z] << ".dat";
-      potW.save(oss.str(),arma::raw_ascii);
+    printf("\nResult in NIST format\n");
+    printf("Etot  = % 18.9f\n",uconf.Econf);
+    printf("Ekin  = % 18.9f\n",uconf.Ekin);
+    printf("Ecoul = % 18.9f\n",uconf.Ecoul);
+    printf("Eenuc = % 18.9f\n",uconf.Epot);
+    printf("Exc   = % 18.9f\n",uconf.Exc);
+    printf("Alpha orbitals\n");
+    uconf.orbsa.Print();
+    printf("Beta  orbitals\n");
+    uconf.orbsb.Print();
 
+    // Get the potential
+    solver.set_func(xp_func, cp_func);
+    arma::mat potU(solver.UnrestrictedPotential(uconf));
+    arma::mat potM(solver.AveragePotential(uconf));
+    arma::mat potW(solver.WeightedPotential(uconf));
+
+    std::ostringstream oss;
+
+    oss.str("");
+    oss << "resultU_" << element_symbols[Z] << ".dat";
+    potU.save(oss.str(),arma::raw_ascii);
+
+    oss.str("");
+    oss << "resultM_" << element_symbols[Z] << ".dat";
+    potM.save(oss.str(),arma::raw_ascii);
+
+    oss.str("");
+    oss << "resultW_" << element_symbols[Z] << ".dat";
+    potW.save(oss.str(),arma::raw_ascii);
+
+    // Save the orbitals
+    if(saveorb) {
+      uconf.orbsa.Save(solver.Basis(), element_symbols[Z] + "_alpha");
+      uconf.orbsb.Save(solver.Basis(), element_symbols[Z] + "_beta");
     }
   }
 

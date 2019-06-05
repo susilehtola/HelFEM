@@ -14,6 +14,7 @@
  * of the License, or (at your option) any later version.
  */
 
+#include "basis.h"
 #include "solver.h"
 #include "../general/scf_helpers.h"
 #include "../general/diis.h"
@@ -126,6 +127,34 @@ namespace helfem {
         printf("%3s %4s %13s\n","nl","nocc","E");
         for(size_t i=0;i<occlist.size();i++) {
           printf("%2i%c %4i % 16.9f\n",occlist[i].n, shtype[occlist[i].l], occlist[i].nocc, occlist[i].E);
+        }
+      }
+
+      void OrbitalChannel::Save(const basis::TwoDBasis & basis, const std::string & symbol) const {
+        std::vector<shell_occupation_t> occlist(GetOccupied());
+        for(size_t io=0;io<occlist.size();io++) {
+          int l = occlist[io].l;
+          int n = occlist[io].n;
+          // Orbital
+          arma::mat Clt(arma::trans(C.slice(l).col(n-l-1)));
+
+          std::ostringstream oss;
+          oss << symbol << "_" << n << shtype[l] << ".dat";
+          FILE *out = fopen(oss.str().c_str(),"w");
+
+          // Loop over elements
+          for(size_t iel=0;iel<basis.get_rad_Nel();iel++) {
+            arma::vec r(basis.get_r(iel));
+            arma::mat bf(basis.eval_bf(iel));
+            arma::uvec bf_idx(basis.bf_list(iel));
+            arma::vec orbval(bf*arma::trans(Clt.cols(bf_idx)));
+
+            for(size_t ir=0;ir<orbval.n_rows;ir++) {
+              fprintf(out,"%e % e\n",r(ir),orbval(ir));
+            }
+          }
+
+          fclose(out);
         }
       }
 
@@ -830,6 +859,10 @@ namespace helfem {
 
         return result;
       }
+    }
+
+    const sadatom::basis::TwoDBasis & solver::SCFSolver::Basis() const {
+      return basis;
     }
   }
 }
