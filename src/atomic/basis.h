@@ -134,6 +134,8 @@ namespace helfem {
 
         /// Evaluate nuclear density
         double nuclear_density(const arma::mat & P) const;
+        /// Evaluate orbitals at nucleus
+        arma::rowvec nuclear_orbital(const arma::mat & C) const;
       };
 
       /// Two-dimensional basis set

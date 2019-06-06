@@ -132,33 +132,74 @@ namespace helfem {
 
       void OrbitalChannel::Save(const basis::TwoDBasis & basis, const std::string & symbol) const {
         std::vector<shell_occupation_t> occlist(GetOccupied());
+
+        // Collect the occupied orbitals
+        std::vector< std::vector<int> > iocc(lmax+1);
+        std::vector< std::vector<int> > occnum(lmax+1);
+        std::vector< std::vector<int> > lval(lmax+1);
+        std::vector< std::vector<double> > Eorb(lmax+1);
+        size_t norb=0;
         for(int l=0;l<=lmax;l++) {
-          // Collect the occupied orbitals
-          std::vector<size_t> iocc;
           for(size_t io=0;io<occlist.size();io++) {
             if(occlist[io].l != l)
               continue;
-            iocc.push_back(occlist[io].n-l-1);
+            iocc[l].push_back(occlist[io].n-l-1);
+            occnum[l].push_back(occlist[io].nocc);
+            Eorb[l].push_back(occlist[io].E);
           }
-          arma::uvec oidx(arma::conv_to<arma::uvec>::from(iocc));
+          norb+=iocc[l].size();
+        }
+
+        // Evaluate the orbitals
+        std::vector<arma::mat> orbval(lmax+1);
+        for(int l=0;l<=lmax;l++) {
+          arma::uvec oidx(arma::conv_to<arma::uvec>::from(iocc[l]));
+          if(!oidx.n_elem)
+            continue;
+
           // Orbital vector
           arma::mat Cl(C.slice(l).cols(oidx));
-
-          arma::vec r(basis.radii());
-          arma::mat orbval(basis.orbitals(Cl));
-
-          std::ostringstream oss;
-          oss << symbol << "_" << shtype[l] << "_orbs.dat";
-          FILE *out = fopen(oss.str().c_str(),"w");
-          for(size_t ir=0;ir<orbval.n_rows;ir++) {
-            fprintf(out,"%e",r(ir));
-            for(size_t ic=0;ic<orbval.n_cols;ic++) {
-              fprintf(out," % e",orbval(ir,ic));
-            }
-            fprintf(out,"\n");
-          }
-          fclose(out);
+          orbval[l]=basis.orbitals(Cl);
         }
+
+        // Save the results
+        arma::vec r(basis.radii());
+
+        std::ostringstream oss;
+        oss << symbol << "_orbs.dat";
+        FILE *out = fopen(oss.str().c_str(),"w");
+
+        // Header: number of radial points and orbitals
+        fprintf(out,"%i %i\n",(int) orbval[0].n_rows,(int) norb);
+
+        // Orbital angular momenta
+        for(int l=0;l<=lmax;l++) {
+          for(size_t io=0;io<Eorb[l].size();io++)
+            fprintf(out," %i",l);
+        }
+        fprintf(out,"\n");
+        // Orbital occupations
+        for(int l=0;l<=lmax;l++) {
+          for(size_t io=0;io<occnum[l].size();io++)
+            fprintf(out," %i",occnum[l][io]);
+        }
+        fprintf(out,"\n");
+        // Orbital energies
+        for(int l=0;l<=lmax;l++) {
+          for(size_t io=0;io<Eorb[l].size();io++)
+            fprintf(out," %e",Eorb[l][io]);
+        }
+        fprintf(out,"\n");
+        // Orbital values
+        for(size_t ir=0;ir<orbval[0].n_rows;ir++) {
+          fprintf(out,"%e",r(ir));
+          for(int l=0;l<=lmax;l++)
+            for(size_t ic=0;ic<orbval[l].n_cols;ic++) {
+              fprintf(out," % e",orbval[l](ir,ic));
+            }
+          fprintf(out,"\n");
+        }
+        fclose(out);
       }
 
       bool OrbitalChannel::operator==(const OrbitalChannel & rh) const {

@@ -526,7 +526,10 @@ namespace helfem {
         return rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq;
       }
 
-      double RadialBasis::nuclear_density(const arma::mat & P) const {
+      double RadialBasis::nuclear_density(const arma::mat & Prad) const {
+        if(Prad.n_rows != Nbf() || Prad.n_cols != Nbf())
+          throw std::logic_error("nuclear_density expects a radial density matrix\n");
+
         // Nuclear coordinate
         arma::vec x(1);
         // Remember that the primitive basis polynomials belong to [-1,1]
@@ -539,10 +542,38 @@ namespace helfem {
         poly->eval(x,func,der);
         der=(get_basis(der,0)/rlen);
 
+        // Radial functions in element
+        size_t ifirst, ilast;
+        get_idx(0,ifirst,ilast);
+        // Density submatrix
+        arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
         // P_uv B_u'(0) B_v'(0)
-        double den(arma::as_scalar(der*P*arma::trans(der)));
+        double den(arma::as_scalar(der*Psub*arma::trans(der)));
 
         return den;
+      }
+
+      arma::rowvec RadialBasis::nuclear_orbital(const arma::mat & C) const {
+        // Nuclear coordinate
+        arma::vec x(1);
+        // Remember that the primitive basis polynomials belong to [-1,1]
+        x(0)=-1.0;
+
+        // Evaluate derivative at nucleus
+        double rlen((bval(1)-bval(0))/2);
+
+        arma::mat func, der;
+        poly->eval(x,func,der);
+        der=(get_basis(der,0)/rlen);
+
+        // Radial functions in element
+        size_t ifirst, ilast;
+        get_idx(0,ifirst,ilast);
+        // Density submatrix
+        arma::mat Csub(C.rows(ifirst,ilast));
+
+        // C_ui B_u'(0)
+        return der*Csub;
       }
 
       TwoDBasis::TwoDBasis() {
@@ -1792,7 +1823,7 @@ namespace helfem {
 #endif
         for(size_t iam=0;iam<lval.n_elem;iam++) {
           // Integration over angles yields extra factor 4 pi that must be removed
-          nucden+=radial.nuclear_density(P.submat(Nrad*iam+ifirst,Nrad*iam+ifirst,Nrad*iam+ilast,Nrad*iam+ilast))/(4.0*M_PI);
+          nucden+=radial.nuclear_density(P.submat(Nrad*iam,Nrad*iam,Nrad*(iam+1)-1,Nrad*(iam+1)-1))/(4.0*M_PI);
         }
 
         arma::vec den(1);

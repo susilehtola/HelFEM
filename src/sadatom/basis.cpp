@@ -303,11 +303,7 @@ namespace helfem {
       }
 
       double TwoDBasis::nuclear_density(const arma::mat & P) const {
-        // Radial functions in first element
-        size_t ifirst, ilast;
-        radial.get_idx(0,ifirst,ilast);
-
-        return radial.nuclear_density(P.submat(ifirst,ifirst,ilast,ilast))/(4.0*M_PI);
+        return radial.nuclear_density(P)/(4.0*M_PI);
       }
 
       arma::vec TwoDBasis::quadrature_weights() const {
@@ -423,18 +419,7 @@ namespace helfem {
         Cv.zeros();
         // Values at the nucleus
         {
-          polynomial_basis::PolynomialBasis * poly(radial.get_poly());
-          arma::vec x(1);
-          x(0)=-1;
-          arma::mat func(poly->eval(x));
-          func=radial.get_basis(func,0);
-
-          // Radial functions in first element
-          size_t ifirst, ilast;
-          radial.get_idx(0,ifirst,ilast);
-          // Density matrix
-          arma::mat Csub(C.rows(ifirst,ilast));
-          Cv.row(0)=func*Csub;
+          Cv.row(0)=radial.nuclear_orbital(C);
         }
         // Other points
         for(size_t iel=0;iel<radial.Nel();iel++) {
@@ -486,30 +471,10 @@ namespace helfem {
         arma::vec n(radial.Nel()*Npts+1);
         n.zeros();
 
-        // Gradient at the nucleus
-        {
-          // Get polynomial basis
-          polynomial_basis::PolynomialBasis * poly(radial.get_poly());
-          arma::vec x(1);
-          x(0)=-1;
-          arma::mat func, der;
-          poly->eval(x,func,der);
-          func=radial.get_basis(func,0);
+        // TODO: implement gradient at the nucleus. This requires
+        // third derivatives of the basis functions...
 
-          arma::vec bval=radial.get_bval();
-          double rmin(bval(0));
-          double rmax(bval(1));
-          double rlen=(rmax-rmin)/2;
-          der=(radial.get_basis(der,0)/rlen);
-
-          // Radial functions in element
-          size_t ifirst, ilast;
-          radial.get_idx(0,ifirst,ilast);
-          // Density matrix
-          arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
-          n(0)=2.0*arma::as_scalar(func*Psub*der.t());
-        }
-        // Other points
+        // The other points
         for(size_t iel=0;iel<radial.Nel();iel++) {
           n.subvec(1+iel*Npts,(iel+1)*Npts)=d[iel];
         }
