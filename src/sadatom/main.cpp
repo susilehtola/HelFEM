@@ -232,6 +232,8 @@ int main(int argc, char **argv) {
         printf(" % .10f",rlist[i].Econf);
         if(i>0)
           printf(" %7.2f",(rlist[i].Econf-rlist[0].Econf)*HARTREEINEV);
+        if(!rlist[i].converged)
+          printf(" convergence failure");
         printf("\n");
       }
 
@@ -325,6 +327,8 @@ int main(int argc, char **argv) {
         printf(" % .10f",totlist[i].Econf);
         if(i>0)
           printf(" %7.2f",(totlist[i].Econf-totlist[0].Econf)*HARTREEINEV);
+        if(!totlist[i].converged)
+          printf(" convergence failure");
         printf("\n");
       }
 

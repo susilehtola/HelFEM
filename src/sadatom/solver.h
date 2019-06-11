@@ -129,6 +129,8 @@ namespace helfem {
         double Ecoul;
         /// Exchange-correlation energy
         double Exc;
+        /// Converged?
+        bool converged;
       } rconf_t;
       /// Checks if orbital occupations match
       bool operator==(const rconf_t & lh, const rconf_t & rh);
@@ -152,6 +154,8 @@ namespace helfem {
         double Ecoul;
         /// Exchange-correlation energy
         double Exc;
+        /// Converged?
+        bool converged;
       } uconf_t;
       /// Checks if orbital occupations match
       bool operator==(const uconf_t & lh, const uconf_t & rh);

@@ -377,6 +377,12 @@ namespace helfem {
         return lh.orbs == rh.orbs;
       }
       bool operator<(const rconf_t & lh, const rconf_t & rh) {
+        // Sort first by convergence
+        if(lh.converged && !rh.converged)
+          return true;
+        if(rh.converged && !lh.converged)
+          return false;
+
         return lh.Econf < rh.Econf;
       }
 
@@ -384,6 +390,12 @@ namespace helfem {
         return (lh.orbsa == rh.orbsa) && (lh.orbsb == rh.orbsb);
       }
       bool operator<(const uconf_t & lh, const uconf_t & rh) {
+        // Sort first by convergence
+        if(lh.converged && !rh.converged)
+          return true;
+        if(rh.converged && !lh.converged)
+          return false;
+
         return lh.Econf < rh.Econf;
       }
 
@@ -607,7 +619,7 @@ namespace helfem {
             fflush(stdout);
           }
           // Have we converged? Note that DIIS error is still wrt full space, not active space.
-          bool convd=(diiserr<convthr) && (std::abs(dE)<convthr);
+          conf.converged=(diiserr<convthr) && (std::abs(dE)<convthr);
 
           // Solve DIIS to get Fock update
           diis.solve_F(Fsuper);
@@ -621,7 +633,7 @@ namespace helfem {
             conf.orbs.UpdateOrbitals(conf.F,Tl,Sinvh);
           }
 
-          if(convd)
+          if(conf.converged)
             break;
         }
         if(iscf > maxit) {
@@ -716,7 +728,7 @@ namespace helfem {
           }
 
           // Have we converged? Note that DIIS error is still wrt full space, not active space.
-          bool convd=(diiserr<convthr) && (std::abs(dE)<convthr);
+          conf.converged=(diiserr<convthr) && (std::abs(dE)<convthr);
 
           // Solve DIIS to get Fock update
           diis.solve_F(Fasuper,Fbsuper);
@@ -733,7 +745,7 @@ namespace helfem {
             conf.orbsa.UpdateOrbitals(conf.Fa,Tl,Sinvh);
             conf.orbsb.UpdateOrbitals(conf.Fb,Tl,Sinvh);
           }
-          if(convd)
+          if(conf.converged)
             break;
         }
         if(iscf > maxit) {
