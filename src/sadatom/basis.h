@@ -50,6 +50,8 @@ namespace helfem {
 
         /// Number of basis functions
         size_t Nbf() const;
+        /// Get charge
+        int charge() const;
 
         /// Form half-inverse overlap matrix
         arma::mat Sinvh() const;

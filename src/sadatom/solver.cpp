@@ -802,7 +802,7 @@ namespace helfem {
         result.col(4)=vcoul;
         result.col(5)=vxc;
         result.col(6)=wt;
-        result.col(7)=Zeff;
+        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }
@@ -838,7 +838,7 @@ namespace helfem {
         result.col(4)=vcoul;
         result.col(5)=vxc;
         result.col(6)=wt;
-        result.col(7)=Zeff;
+        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }
@@ -871,7 +871,7 @@ namespace helfem {
         result.col(4)=vcoul;
         result.col(5)=vxc;
         result.col(6)=wt;
-        result.col(7)=Zeff;
+        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }
@@ -911,7 +911,7 @@ namespace helfem {
         result.col(4)=vcoul;
         result.col(5)=vxc;
         result.col(6)=wt;
-        result.col(7)=Zeff;
+        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }

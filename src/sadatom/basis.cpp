@@ -53,6 +53,10 @@ namespace helfem {
         return radial.Nbf();
       }
 
+      int TwoDBasis::charge() const {
+        return Z;
+      }
+
       arma::mat TwoDBasis::Sinvh() const {
         // Form overlap matrix
         arma::mat S(overlap());
