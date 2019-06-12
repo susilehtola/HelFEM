@@ -48,7 +48,42 @@ arma::ivec initial_occs(int Z, int lmax) {
   return occs;
 }
 
+void hund_rule(const arma::ivec & occs, arma::ivec & occa, arma::ivec & occb) {
+  occa.resize(occs.n_elem);
+  occb.resize(occs.n_elem);
+  // Loop over shells
+  for(size_t l=0;l<occs.n_elem;l++) {
+    // Number of electrons to distribute
+    int numel(occs(l));
+    while(numel>0) {
+      // Populate shell
+      int numsh = std::min(numel, (int) (2*(2*l+1)));
+      int na = std::min(numsh, (int) (2*l+1));
+      int nb = numsh-na;
+      occa(l) += na;
+      occb(l) += nb;
+      numel-=numsh;
+    }
+  }
+}
+
 using namespace helfem;
+
+sadatom::solver::OrbitalChannel restrict_configuration(const sadatom::solver::uconf_t & uconf) {
+  sadatom::solver::OrbitalChannel helper(uconf.orbsa);
+  helper.SetRestricted(true);
+  helper.SetOccs(uconf.orbsa.Occs()+uconf.orbsb.Occs());
+
+  return helper;
+}
+
+void unrestrict_occupations(const sadatom::solver::OrbitalChannel & orbs, sadatom::solver::uconf_t & conf) {
+  // Update occupations
+  arma::ivec occa, occb;
+  hund_rule(orbs.Occs(),occa,occb);
+  conf.orbsa.SetOccs(occa);
+  conf.orbsb.SetOccs(occb);
+}
 
 int main(int argc, char **argv) {
   cmdline::parser parser;
@@ -116,7 +151,7 @@ int main(int argc, char **argv) {
   rcalc[0]="unrestricted";
   rcalc[1]="restricted";
 
-  printf("Running %s %s calculation with Rmax=%e and %i elements.\n",rcalc[restr].c_str(),method.c_str(),Rmax,Nelem);
+  printf("Running %s %s calculation with Rmax=%e and %i elements.\n",rcalc[restr==1].c_str(),method.c_str(),Rmax,Nelem);
 
   // Get primitive basis
   polynomial_basis::PolynomialBasis *poly(polynomial_basis::get_basis(primbas,Nnodes));
@@ -179,7 +214,7 @@ int main(int argc, char **argv) {
       initial.Econf=0.0;
     }
 
-    if(restr) {
+    if(restr==1) {
       // List of configurations
       std::vector<sadatom::solver::rconf_t> rlist;
 
@@ -239,6 +274,91 @@ int main(int argc, char **argv) {
 
       // Save final configuration
       rconf=rlist[0];
+
+    } else if(restr==-1) {
+      // List of configurations
+      std::vector<sadatom::solver::uconf_t> ulist;
+
+      // Initial configuration
+      arma::ivec inocc(initial_occs(Z,lmax));
+      arma::ivec inocca, inoccb;
+      hund_rule(inocc,inocca,inoccb);
+
+      sadatom::solver::uconf_t conf;
+      conf.orbsa=initial.orbs;
+      conf.orbsb=initial.orbs;
+      conf.orbsa.SetRestricted(false);
+      conf.orbsb.SetRestricted(false);
+      conf.orbsa.SetOccs(inocca);
+      conf.orbsb.SetOccs(inoccb);
+      solver.Solve(conf);
+      ulist.push_back(conf);
+
+      // Brute force search for the lowest state
+      while(true) {
+        // Find the lowest energy configuration
+        std::sort(ulist.begin(),ulist.end());
+
+        // Form a helper
+        sadatom::solver::OrbitalChannel helper;
+        helper=restrict_configuration(ulist[0]);
+        helper.AufbauOccupations(numel);
+        unrestrict_occupations(helper,conf);
+
+        // Do we have an Aufbau ground state? Test
+        while(std::find(ulist.begin(), ulist.end(), conf) == ulist.end()) {
+          conf.Econf=solver.Solve(conf);
+          ulist.push_back(conf);
+
+          // Update
+          helper=restrict_configuration(ulist[0]);
+          helper.AufbauOccupations(numel);
+          unrestrict_occupations(helper,conf);
+        }
+        printf("Aufbau search finished\n");
+
+        // Find the lowest energy configuration
+        std::sort(ulist.begin(),ulist.end());
+
+        // Generate new configurations
+        helper=restrict_configuration(ulist[0]);
+        std::vector<sadatom::solver::OrbitalChannel> newconfs(helper.MoveElectrons());
+
+        bool newconf=false;
+        for(size_t i=0;i<newconfs.size();i++) {
+          unrestrict_occupations(newconfs[i],conf);
+          if(std::find(ulist.begin(), ulist.end(), conf) == ulist.end()) {
+            newconf=true;
+            conf.Econf=solver.Solve(conf);
+            ulist.push_back(conf);
+          }
+        }
+        printf("Exhaustive search finished\n");
+        if(!newconf) {
+          break;
+        }
+      }
+
+      // Print occupations
+      printf("\nMinimal energy configurations for %s\n",element_symbols[Z].c_str());
+      for(size_t i=0;i<ulist.size();i++) {
+        arma::ivec occa(ulist[i].orbsa.Occs());
+        arma::ivec occb(ulist[i].orbsb.Occs());
+        printf("%2i:",(int) (ulist[i].orbsa.Nel()-ulist[i].orbsb.Nel()+1));
+        for(size_t j=0;j<occa.n_elem;j++)
+          printf(" %2i",(int) occa(j));
+        for(size_t j=0;j<occb.n_elem;j++)
+          printf(" %2i",(int) occb(j));
+        printf(" % .10f",ulist[i].Econf);
+        if(i>0)
+          printf(" %7.2f",(ulist[i].Econf-ulist[0].Econf)*HARTREEINEV);
+        if(!ulist[i].converged)
+          printf(" convergence failure");
+        printf("\n");
+      }
+
+      // Save final configuration
+      uconf=ulist[0];
 
     } else {
       // List of configurations
@@ -352,25 +472,11 @@ int main(int argc, char **argv) {
         occs=hfoccs;
       } else {
         // Use Hund's rule to determine occupations
-        arma::irowvec occa(lmax+1), occb(lmax+1);
-
-        // Loop over shells
-        for(int l=0;l<=lmax;l++) {
-          // Number of electrons to distribute
-          int numel(hfoccs(l));
-          while(numel>0) {
-            // Populate shell
-            int numsh = std::min(numel, 2*(2*l+1));
-            int na = std::min(numsh, 2*l+1);
-            int nb = numsh-na;
-            occa(l) += na;
-            occb(l) += nb;
-            numel-=numsh;
-          }
-        }
+        arma::ivec occa, occb;
+        hund_rule(hfoccs.t(),occa,occb);
         occs.resize(occa.n_elem+occb.n_elem);
-        occs.subvec(0,occa.n_elem-1)=occa;
-        occs.subvec(occa.n_elem,occs.n_elem-1)=occb;
+        occs.subvec(0,occa.n_elem-1)=occa.t();
+        occs.subvec(occa.n_elem,occs.n_elem-1)=occb.t();
       }
 
     } else {
@@ -402,7 +508,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  if(restr) {
+  if(restr==1) {
     // Print the minimal energy configuration
     printf("\nOccupations for wanted configuration\n");
     rconf.orbs.Occs().t().print();
