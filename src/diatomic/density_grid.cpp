@@ -81,28 +81,40 @@ int main(int argc, char **argv) {
     mu=arma::linspace<arma::vec>(0.0,mumax,Nmu);
     nu=arma::linspace<arma::vec>(0.0,M_PI,Nnu);
   }
+  double dmudnu=(mu(1)-mu(0))*(nu(1)-nu(0));
 
   // Density arrays
   arma::mat dena(Nmu,Nnu);
   dena.zeros();
   arma::mat denb(Nmu,Nnu);
   denb.zeros();
+  arma::mat dV(Nmu,Nnu);
+  dV.zeros();
   for(size_t inu=0;inu<nu.n_elem;inu++)
     for(size_t imu=0;imu<mu.n_elem;imu++) {
       // Evaluate basis functions
-      arma::cx_vec bf(basis.eval_bf(mu(imu), cos(nu(inu)), phi));
+      double muval(mu(imu));
+      double cosnu(cos(nu(inu)));
+      arma::cx_vec bf(basis.eval_bf(muval, cosnu, phi));
 
       // Evaluate density at the point
       dena(imu,inu)=std::real(arma::as_scalar(bf.t()*Pa*bf));
       denb(imu,inu)=std::real(arma::as_scalar(bf.t()*Pb*bf));
+
+      // Volume element is
+      double shmu(sinh(muval));
+      double chmu(cosh(muval));
+      double sinnu(sin(nu(inu)));
+      // Get 2 pi from phi integral (assuming density is symmetric)
+      dV(imu,inu)=2.0*M_PI*std::pow(basis.get_Rhalf(),3)*shmu*(chmu*chmu - cosnu*cosnu)*sinnu*dmudnu;
     }
 
   // Total density
   arma::mat den(dena+denb);
 
-  printf("Norm of Pa on grid is %e\n",arma::sum(arma::sum(dena))*mu(1)*nu(1));
-  printf("Norm of Pb on grid is %e\n",arma::sum(arma::sum(denb))*mu(1)*nu(1));
-  printf("Norm of P on grid is %e\n",arma::sum(arma::sum(den))*mu(1)*nu(1));
+  printf("Norm of Pa on grid is %e\n",arma::sum(arma::sum(dena%dV)));
+  printf("Norm of Pb on grid is %e\n",arma::sum(arma::sum(denb%dV)));
+  printf("Norm of P on grid is %e\n",arma::sum(arma::sum(den%dV)));
 
   Checkpoint savechk(savedens,true);
   savechk.write("mu",mu);
