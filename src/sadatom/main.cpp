@@ -186,11 +186,6 @@ int main(int argc, char **argv) {
     }
   }
 
-  // Fraction of exact exchange
-  double kfrac(exact_exchange(x_func));
-  if(kfrac!=0.0)
-    throw std::logic_error("Hybrid functionals are not supported in the spherically symmetric program.\n");
-
   int xp_func, cp_func;
   ::parse_xc_func(xp_func, cp_func, potmethod);
 

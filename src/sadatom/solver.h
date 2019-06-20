@@ -19,6 +19,7 @@
 
 #include <armadillo>
 #include "dftgrid.h"
+#include "../atomic/basis.h"
 
 namespace helfem {
   namespace sadatom {
@@ -43,8 +44,6 @@ namespace helfem {
         arma::mat E;
         /// Orbital occupations per l channel
         arma::ivec occs;
-        /// Kinetic energy l factors
-        arma::vec lfac;
         /// Restricted occupations?
         bool restr;
         /// Maximum angular channel
@@ -97,13 +96,15 @@ namespace helfem {
         bool operator==(const OrbitalChannel & rh) const;
 
         /// Updates the orbitals by diagonalization
-        void UpdateOrbitals(const arma::mat & F, const arma::mat & Tl, const arma::mat & Sinvh);
+        void UpdateOrbitals(const arma::cube & Fl, const arma::mat & Sinvh);
         /// Updates the orbitals by a damped diagonalization (ov and vo blocks scaled)
-        void UpdateOrbitalsDamped(const arma::mat & F, const arma::mat & Tl, const arma::mat & Sinvh, const arma::mat & S, double dampov);
+        void UpdateOrbitalsDamped(const arma::cube & Fl, const arma::mat & Sinvh, const arma::mat & S, double dampov);
         /// Updates the orbitals by diagonalization with a level shift
-        void UpdateOrbitalsShifted(const arma::mat & F, const arma::mat & Tl, const arma::mat & Sinvh, const arma::mat & S, double shift);
+        void UpdateOrbitalsShifted(const arma::cube & Fl, const arma::mat & Sinvh, const arma::mat & S, double shift);
         /// Computes a new density matrix
         void UpdateDensity(arma::cube & Pl) const;
+        /// Computes a full atomic density matrix
+        arma::mat FullDensity() const;
 
         /// Determines new occupations
         void AufbauOccupations(arma::sword numel);
@@ -111,14 +112,14 @@ namespace helfem {
         std::vector<OrbitalChannel> MoveElectrons() const;
       };
 
-      /// Restricted conifiguration
+      /// Restricted configuration
       typedef struct {
         /// Orbitals
         OrbitalChannel orbs;
-        /// Fock matrix
-        arma::mat F;
         /// Densities
         arma::cube Pl;
+        /// Fock matrix
+        arma::cube Fl;
         /// Total energy of configuration
         double Econf;
         /// Kinetic energy
@@ -140,10 +141,10 @@ namespace helfem {
       typedef struct {
         /// Orbitals
         OrbitalChannel orbsa, orbsb;
-        /// Fock matrices
-        arma::mat Fa, Fb;
         /// Densities
         arma::cube Pal, Pbl;
+        /// Fock matrices
+        arma::cube Fal, Fbl;
         /// Total energy of configuration
         double Econf;
         /// Kinetic energy
@@ -167,11 +168,11 @@ namespace helfem {
       protected:
         /// Maximum l value
         int lmax;
-        /// l(l+1) factors
-        arma::vec lfac;
 
         /// Basis set to use
         sadatom::basis::TwoDBasis basis;
+        /// Basis set to use for computing exact exchange
+        atomic::basis::TwoDBasis atbasis;
 
         /// Overlap matrix
         arma::mat S;
@@ -215,8 +216,16 @@ namespace helfem {
 
         /// Form supermatrix
         arma::mat SuperMat(const arma::mat & M) const;
-        /// Form supermatrix
+        /// Form supermatrix from cube
         arma::mat SuperCube(const arma::cube & M) const;
+        /// Form cube from supermatrix
+        arma::cube MiniMat(const arma::mat & Msuper) const;
+        /// Form l(l+1)/r^2 cube
+        arma::cube KineticCube() const;
+        /// Replicate matrix into a cube
+        arma::cube ReplicateCube(const arma::mat & M) const;
+        /// Exact exchange
+        arma::cube Fxx(const OrbitalChannel & orbs) const;
 
       public:
         /// Constructor

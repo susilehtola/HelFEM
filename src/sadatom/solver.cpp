@@ -16,6 +16,7 @@
 
 #include "basis.h"
 #include "solver.h"
+#include "../general/dftfuncs.h"
 #include "../general/scf_helpers.h"
 #include "../general/diis.h"
 
@@ -68,10 +69,6 @@ namespace helfem {
 
       void OrbitalChannel::SetLmax(int lmax_) {
         lmax=lmax_;
-        // Kinetic energy l factors
-        lfac.zeros(lmax+1);
-        for(arma::sword l=0;l<=lmax;l++)
-          lfac(l)=l*(l+1);
       }
 
       arma::sword OrbitalChannel::Nel() const {
@@ -225,22 +222,22 @@ namespace helfem {
         return nsh;
       }
 
-      void OrbitalChannel::UpdateOrbitals(const arma::mat & F, const arma::mat & Tl, const arma::mat & Sinvh) {
+      void OrbitalChannel::UpdateOrbitals(const arma::cube & F, const arma::mat & Sinvh) {
         E.resize(F.n_rows,lmax+1);
         C.resize(F.n_rows,F.n_rows,lmax+1);
         for(int l=0;l<=lmax;l++) {
           arma::vec El;
-          helfem::scf::eig_gsym(El,C.slice(l),F+lfac(l)*Tl,Sinvh);
+          helfem::scf::eig_gsym(El,C.slice(l),F.slice(l),Sinvh);
           E.col(l)=El;
         }
       }
 
-      void OrbitalChannel::UpdateOrbitalsDamped(const arma::mat & F, const arma::mat & Tl, const arma::mat & Sinvh, const arma::mat & S, double dampov) {
+      void OrbitalChannel::UpdateOrbitalsDamped(const arma::cube & F, const arma::mat & Sinvh, const arma::mat & S, double dampov) {
         E.resize(F.n_rows,lmax+1);
         C.resize(F.n_rows,F.n_rows,lmax+1);
         for(int l=0;l<=lmax;l++) {
           // Fock matrix
-          arma::mat Fl(F+lfac(l)*Tl);
+          arma::mat Fl(F.slice(l));
 
           size_t nsh(CountOccupied(l));
           if(nsh) {
@@ -263,12 +260,12 @@ namespace helfem {
         }
       }
 
-      void OrbitalChannel::UpdateOrbitalsShifted(const arma::mat & F, const arma::mat & Tl, const arma::mat & Sinvh, const arma::mat & S, double shift) {
+      void OrbitalChannel::UpdateOrbitalsShifted(const arma::cube & F, const arma::mat & Sinvh, const arma::mat & S, double shift) {
         E.resize(F.n_rows,lmax+1);
         C.resize(F.n_rows,F.n_rows,lmax+1);
         for(int l=0;l<=lmax;l++) {
           // Fock matrix
-          arma::mat Fl(F+lfac(l)*Tl);
+          arma::mat Fl(F.slice(l));
 
           // Count occupied shells
           size_t nsh(CountOccupied(l));
@@ -311,6 +308,58 @@ namespace helfem {
               break;
           }
         }
+      }
+
+      arma::mat OrbitalChannel::FullDensity() const {
+        // Get the angular basis
+        arma::ivec lval, mval;
+        atomic::basis::angular_basis(lmax,lmax,lval,mval);
+        size_t Nrad=C.n_rows;
+
+        // Initialize
+        arma::mat P;
+        P.zeros(Nrad*lval.n_elem,Nrad*lval.n_elem);
+        for(int l=0;l<=lmax;l++) {
+          // Number of electrons to put in
+          arma::sword numl = occs(l);
+          // Indices
+          arma::uvec lidx(arma::find(lval==l));
+          arma::ivec msub(mval(lidx));
+
+          // Fill shells
+          for(size_t io=0;io<C.n_cols;io++) {
+            arma::sword nocc = std::min(ShellCapacity(l), numl);
+            if(nocc == 0)
+              break;
+
+            // Fractional occupation is
+            double fracocc = nocc*1.0/ShellCapacity(l);
+            // Loop over subchannels
+            for(int m1=-l;m1<=l;m1++) {
+              // Find the correct angular shell
+              arma::uvec m1idx(arma::find(msub==m1));
+              if(m1idx.n_elem != 1)
+                throw std::logic_error("Shell not found!\n");
+              // so the index of the angular shell is
+              arma::uword ang1idx(lidx(m1idx(0)));
+
+              // Loop over subchannels
+              for(int m2=-l;m2<=l;m2++) {
+                // Find the correct angular shell
+                arma::uvec m2idx(arma::find(msub==m2));
+                if(m2idx.n_elem != 1)
+                  throw std::logic_error("Shell not found!\n");
+                // so the index of the angular shell is
+                arma::uword ang2idx(lidx(m2idx(0)));
+
+                P.submat(ang1idx*Nrad,ang2idx*Nrad,(ang1idx+1)*Nrad-1,(ang2idx+1)*Nrad-1) += fracocc * C.slice(l).col(io) * C.slice(l).col(io).t();
+              }
+            }
+            numl -= nocc;
+          }
+        }
+
+        return P;
       }
 
       void OrbitalChannel::AufbauOccupations(arma::sword numel) {
@@ -402,6 +451,8 @@ namespace helfem {
       SCFSolver::SCFSolver(int Z, int lmax_, polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, int igrid, double zexp, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), x_func(x_func_), c_func(c_func_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
         // Form basis
         basis=sadatom::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, lmax, igrid, zexp);
+        // as well as the full atomic basis
+        atbasis=atomic::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, lmax, lmax, igrid, zexp);
         // Form overlap matrix
         S=basis.overlap();
         // Get half-inverse
@@ -420,11 +471,7 @@ namespace helfem {
 
         // Compute two-electron integrals
         basis.compute_tei();
-
-        // Angular factor
-        lfac.resize(lmax+1);
-        for(arma::sword l=0;l<=lmax;l++)
-          lfac(l)=l*(l+1);
+        atbasis.compute_tei(true);
       }
 
       SCFSolver::~SCFSolver() {
@@ -444,7 +491,42 @@ namespace helfem {
 
       void SCFSolver::Initialize(OrbitalChannel & orbs) const {
         orbs.SetLmax(lmax);
-        orbs.UpdateOrbitals(H0,Tl,Sinvh);
+        orbs.UpdateOrbitals(ReplicateCube(H0)+KineticCube(),Sinvh);
+      }
+
+      arma::cube SCFSolver::Fxx(const OrbitalChannel & orbs) const {
+        // Form the exchange matrix
+        arma::mat P(orbs.FullDensity());
+        arma::mat K(atbasis.exchange(P));
+
+        // Get the angular basis
+        arma::ivec lval, mval;
+        atomic::basis::angular_basis(lmax,lmax,lval,mval);
+        size_t Nrad=basis.Nbf();
+
+        // Initialize
+        arma::cube Kl;
+        Kl.zeros(Nrad,Nrad,lmax+1);
+        for(int l=0;l<=lmax;l++) {
+          // Indices
+          arma::uvec lidx(arma::find(lval==l));
+          arma::ivec msub(mval(lidx));
+          // Loop over subchannels
+          for(int m=-l;m<=l;m++) {
+            // Find the correct angular shell
+            arma::uvec midx(arma::find(msub==m));
+            if(midx.n_elem != 1)
+              throw std::logic_error("Shell not found!\n");
+            // so the index of the angular shell is
+            arma::uword angidx(lidx(midx(0)));
+            // Increment exchange
+            Kl.slice(l) += K.submat(angidx*Nrad,angidx*Nrad,(angidx+1)*Nrad-1,(angidx+1)*Nrad-1);
+          }
+          // Average
+          Kl.slice(l) /= (2*l+1);
+        }
+
+        return Kl;
       }
 
       double SCFSolver::FockBuild(rconf_t & conf) {
@@ -458,12 +540,19 @@ namespace helfem {
 
         // Angular factor
         double angfac(4.0*M_PI);
+        // Kinetic energy
+        arma::cube kc(KineticCube());
 
         // Compute energy
         conf.Ekin=arma::trace(P*T);
         for(arma::sword l=0;l<=lmax;l++)
-          conf.Ekin+=lfac(l)*arma::trace(conf.Pl.slice(l)*Tl);
+          conf.Ekin+=arma::trace(conf.Pl.slice(l)*kc.slice(l));
         conf.Epot=arma::trace(P*Vnuc);
+        if(verbose) {
+          printf("Kinetic energy %.10e\n",conf.Ekin);
+          printf("Nuclear attraction energy %.10e\n",conf.Epot);
+          fflush(stdout);
+        }
 
         // Form Coulomb matrix
         arma::mat J(basis.coulomb(P/angfac));
@@ -475,19 +564,42 @@ namespace helfem {
 
         // Exchange-correlation
         conf.Exc=0.0;
+
         arma::mat XC;
         double nelnum;
-        grid.eval_Fxc(x_func, c_func, P/angfac, XC, conf.Exc, nelnum, dftthr);
-        // Potential needs to be divided as well
-        XC/=angfac;
-        if(verbose) {
-          printf("DFT energy %.10e\n",conf.Exc);
-          printf("Error in integrated number of electrons % e\n",nelnum-conf.orbs.Nel());
-          fflush(stdout);
+        if(x_func > 0 || c_func > 0) {
+          grid.eval_Fxc(x_func, c_func, P/angfac, XC, conf.Exc, nelnum, dftthr);
+          // Potential needs to be divided as well
+          XC/=angfac;
+          if(verbose) {
+            printf("DFT energy %.10e\n",conf.Exc);
+            printf("Error in integrated number of electrons % e\n",nelnum-conf.orbs.Nel());
+            fflush(stdout);
+          }
+        }
+
+        // Fraction of exact exchange
+        arma::cube K;
+        double kfrac(exact_exchange(x_func));
+        if(kfrac!=0.0) {
+          K=Fxx(conf.orbs);
+          double Exx=0.0;
+          for(int l=0;l<=lmax;l++)
+            Exx += 0.5*arma::trace(K.slice(l)*conf.Pl.slice(l));
+          Exx *= kfrac;
+          if(verbose) {
+            printf("Exact exchange energy %.10e\n",Exx);
+            fflush(stdout);
+          }
+          conf.Exc += Exx;
         }
 
         // Fock matrices
-        conf.F=H0+J+XC;
+        conf.Fl=ReplicateCube(H0+J)+kc;
+        if(kfrac!=0.0)
+          conf.Fl+=K;
+        if(x_func>0 || c_func>0)
+          conf.Fl+=ReplicateCube(XC);
 
         // Update energy
         conf.Econf=conf.Ekin+conf.Epot+conf.Ecoul+conf.Exc;
@@ -508,10 +620,13 @@ namespace helfem {
         // Angular factor
         double angfac(4.0*M_PI);
 
+        // Kinetic energy
+        arma::cube kc(KineticCube());
+
         // Compute energy
         conf.Ekin=arma::trace(P*T);
         for(arma::sword l=0;l<=lmax;l++)
-          conf.Ekin+=lfac(l)*arma::trace(Pl.slice(l)*Tl);
+          conf.Ekin+=arma::trace(Pl.slice(l)*kc.slice(l));
         conf.Epot=arma::trace(P*Vnuc);
 
         // Form Coulomb matrix
@@ -536,9 +651,30 @@ namespace helfem {
           fflush(stdout);
         }
 
+        // Fraction of exact exchange
+        arma::cube Ka, Kb;
+        double kfrac(exact_exchange(x_func));
+        if(kfrac!=0.0) {
+          Ka=Fxx(conf.orbsa);
+          Kb=Fxx(conf.orbsb);
+          double Exx=0.0;
+          for(int l=0;l<=lmax;l++)
+            Exx += 0.5*arma::trace(Ka.slice(l)*conf.Pal.slice(l)) + 0.5*arma::trace(Kb.slice(l)*conf.Pbl.slice(l));
+          Exx *= kfrac;
+          conf.Exc += Exx;
+        }
+
         // Fock matrices
-        conf.Fa=H0+J+XCa;
-        conf.Fb=H0+J+XCb;
+        conf.Fal=ReplicateCube(H0+J)+kc;
+        conf.Fbl=conf.Fal;
+        if(kfrac!=0.0) {
+          conf.Fal+=Ka;
+          conf.Fbl+=Kb;
+        }
+        if(x_func>0 || c_func>0) {
+          conf.Fal+=ReplicateCube(XCa);
+          conf.Fbl+=ReplicateCube(XCb);
+        }
 
         // Update energy
         conf.Econf=conf.Ekin+conf.Epot+conf.Ecoul+conf.Exc;
@@ -555,6 +691,24 @@ namespace helfem {
         return superM;
       }
 
+      arma::cube SCFSolver::ReplicateCube(const arma::mat & M) const {
+        arma::cube Msuper(M.n_rows,M.n_cols,lmax+1);
+        Msuper.zeros();
+        for(int l=0;l<=lmax;l++) {
+          Msuper.slice(l)=M;
+        }
+        return Msuper;
+      }
+
+      arma::cube SCFSolver::KineticCube() const {
+        // Kinetic energy l factors
+        arma::cube Tc(T.n_rows,T.n_cols,lmax+1);
+        Tc.zeros();
+        for(arma::sword l=0;l<=lmax;l++)
+          Tc.slice(l)=l*(l+1)*Tl;
+        return Tc;
+      }
+
       arma::mat SCFSolver::SuperCube(const arma::cube & M) const {
         arma::mat Msuper(M.n_rows*(lmax+1),M.n_cols*(lmax+1));
         Msuper.zeros();
@@ -562,6 +716,15 @@ namespace helfem {
           Msuper.submat(l*M.n_rows,l*M.n_cols,(l+1)*M.n_rows-1,(l+1)*M.n_cols-1)=M.slice(l);
         }
         return Msuper;
+      }
+
+      arma::cube SCFSolver::MiniMat(const arma::mat & Msuper) const {
+        arma::cube M(Msuper.n_rows/(lmax+1),Msuper.n_cols/(lmax+1),lmax+1);
+        M.zeros();
+        for(int l=0;l<=lmax;l++) {
+          M.slice(l)=Msuper.submat(l*M.n_rows,l*M.n_cols,(l+1)*M.n_rows-1,(l+1)*M.n_cols-1);
+        }
+        return M;
       }
 
       double SCFSolver::Solve(rconf_t & conf) {
@@ -606,10 +769,7 @@ namespace helfem {
 
           // Since Fock operator depends on the l channel, we need to create
           // a supermatrix for DIIS.
-          arma::mat Fsuper(SuperMat(conf.F));
-          for(arma::sword l=0;l<=lmax;l++) {
-            Fsuper.submat(l*conf.F.n_rows,l*conf.F.n_cols,(l+1)*conf.F.n_rows-1,(l+1)*conf.F.n_cols-1)+=lfac(l)*Tl;
-          }
+          arma::mat Fsuper(SuperCube(conf.Fl));
           // Need density for DIIS as well
           arma::mat Psuper(SuperCube(conf.Pl));
           // Update DIIS
@@ -623,14 +783,14 @@ namespace helfem {
 
           // Solve DIIS to get Fock update
           diis.solve_F(Fsuper);
-          conf.F=Fsuper.submat(0,0,conf.F.n_rows-1,conf.F.n_cols-1);
+          conf.Fl=MiniMat(Fsuper);
 
           // Update orbitals and density
           if(diiserr > diisthr) {
             // Since ADIIS is unreliable, we also use a level shift.
-            conf.orbs.UpdateOrbitalsShifted(conf.F,Tl,Sinvh,S,shift);
+            conf.orbs.UpdateOrbitalsShifted(conf.Fl,Sinvh,S,shift);
           } else {
-            conf.orbs.UpdateOrbitals(conf.F,Tl,Sinvh);
+            conf.orbs.UpdateOrbitals(conf.Fl,Sinvh);
           }
 
           if(conf.converged)
@@ -645,7 +805,7 @@ namespace helfem {
           printf("%-21s energy: % .16f\n","Kinetic",conf.Ekin);
           printf("%-21s energy: % .16f\n","Nuclear attraction",conf.Epot);
           printf("%-21s energy: % .16f\n","Coulomb",conf.Ecoul);
-          printf("%-21s energy: % .16f\n","conf.Exchange-correlation",conf.Exc);
+          printf("%-21s energy: % .16f\n","Exchange-correlation",conf.Exc);
           printf("%-21s energy: % .16f\n","Total",conf.Econf);
           printf("%-21s energy: % .16f\n","Virial ratio",-conf.Econf/conf.Ekin);
           printf("\n");
@@ -713,11 +873,7 @@ namespace helfem {
 
           // Since Fock operator depends on the l channel, we need to create
           // a supermatrix for DIIS.
-          arma::mat Fasuper(SuperMat(conf.Fa)), Fbsuper(SuperMat(conf.Fb));
-          for(arma::sword l=0;l<=lmax;l++) {
-            Fasuper.submat(l*conf.Fa.n_rows,l*conf.Fa.n_cols,(l+1)*conf.Fa.n_rows-1,(l+1)*conf.Fa.n_cols-1)+=lfac(l)*Tl;
-            Fbsuper.submat(l*conf.Fb.n_rows,l*conf.Fb.n_cols,(l+1)*conf.Fb.n_rows-1,(l+1)*conf.Fb.n_cols-1)+=lfac(l)*Tl;
-          }
+          arma::mat Fasuper(SuperCube(conf.Fal)), Fbsuper(SuperCube(conf.Fbl));
           arma::mat Pasuper(SuperCube(conf.Pal));
           arma::mat Pbsuper(SuperCube(conf.Pbl));
           // Update DIIS
@@ -732,18 +888,17 @@ namespace helfem {
 
           // Solve DIIS to get Fock update
           diis.solve_F(Fasuper,Fbsuper);
-          conf.Fa=Fasuper.submat(0,0,conf.Fa.n_rows-1,conf.Fa.n_cols-1);
-          conf.Fb=Fbsuper.submat(0,0,conf.Fb.n_rows-1,conf.Fb.n_cols-1);
+          conf.Fal=MiniMat(Fasuper);
+          conf.Fbl=MiniMat(Fbsuper);
 
-          // Update orbitals
           // Update orbitals and density
           if(diiserr > diisthr) {
             // Since ADIIS is unreliable, we also use a level shift
-            conf.orbsa.UpdateOrbitalsShifted(conf.Fa,Tl,Sinvh,S,shift);
-            conf.orbsb.UpdateOrbitalsShifted(conf.Fb,Tl,Sinvh,S,shift);
+            conf.orbsa.UpdateOrbitalsShifted(conf.Fal,Sinvh,S,shift);
+            conf.orbsb.UpdateOrbitalsShifted(conf.Fbl,Sinvh,S,shift);
           } else {
-            conf.orbsa.UpdateOrbitals(conf.Fa,Tl,Sinvh);
-            conf.orbsb.UpdateOrbitals(conf.Fb,Tl,Sinvh);
+            conf.orbsa.UpdateOrbitals(conf.Fal,Sinvh);
+            conf.orbsb.UpdateOrbitals(conf.Fbl,Sinvh);
           }
           if(conf.converged)
             break;
@@ -757,7 +912,7 @@ namespace helfem {
           printf("%-21s energy: % .16f\n","Kinetic",conf.Ekin);
           printf("%-21s energy: % .16f\n","Nuclear attraction",conf.Epot);
           printf("%-21s energy: % .16f\n","Coulomb",conf.Ecoul);
-          printf("%-21s energy: % .16f\n","conf.Exchange-correlation",conf.Exc);
+          printf("%-21s energy: % .16f\n","Exchange-correlation",conf.Exc);
           printf("%-21s energy: % .16f\n","Total",conf.Econf);
           printf("%-21s energy: % .16f\n","Virial ratio",-conf.Econf/conf.Ekin);
           printf("\n");
