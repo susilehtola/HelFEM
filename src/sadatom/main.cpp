@@ -463,6 +463,10 @@ int main(int argc, char **argv) {
         throw std::logic_error("Run with lmax=3 for HF occupation mode.\n");
       hfoccs.print("Saito 2009 table's occupation for "+element_symbols[Z]);
 
+      // restr=0 and restr=-1 work the same way in this case
+      if(restr==-1)
+        restr=0;
+
       if(restr) {
         occs=hfoccs;
       } else {
@@ -472,6 +476,7 @@ int main(int argc, char **argv) {
         occs.resize(occa.n_elem+occb.n_elem);
         occs.subvec(0,occa.n_elem-1)=occa.t();
         occs.subvec(occa.n_elem,occs.n_elem-1)=occb.t();
+        occs.print("Used Hund's rules to translate occupations into");
       }
 
     } else {
@@ -487,14 +492,14 @@ int main(int argc, char **argv) {
     }
 
     if(restr) {
-      rconf.orbs=sadatom::solver::OrbitalChannel(restr);
+      rconf.orbs=sadatom::solver::OrbitalChannel(true);
       solver.Initialize(rconf.orbs);
       rconf.orbs.SetOccs(occs.t());
       solver.Solve(rconf);
 
     } else {
-      uconf.orbsa=sadatom::solver::OrbitalChannel(restr);
-      uconf.orbsb=sadatom::solver::OrbitalChannel(restr);
+      uconf.orbsa=sadatom::solver::OrbitalChannel(false);
+      uconf.orbsb=sadatom::solver::OrbitalChannel(false);
       solver.Initialize(uconf.orbsa);
       solver.Initialize(uconf.orbsb);
       uconf.orbsa.SetOccs(occs.subvec(0,lmax).t());
