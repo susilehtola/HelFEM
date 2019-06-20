@@ -153,9 +153,9 @@ namespace helfem {
           bval(i)=rmax*std::pow(i*1.0/num_el,zexp);
         break;
 
-        // generalized logarithmic grid, monotonic decrease till zexp~2, after that fails to work
+        // generalized exponential grid, monotonic decrease till zexp~2, after that fails to work
       case(4):
-        printf("Using generalized logarithmic grid, zexp = %e\n",zexp);
+        printf("Using generalized exponential grid, zexp = %e\n",zexp);
         bval=arma::exp(arma::pow(arma::linspace<arma::vec>(0,std::pow(log(rmax+1),1.0/zexp),num_el+1),zexp))-arma::ones<arma::vec>(num_el+1);
         break;
 
