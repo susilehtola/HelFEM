@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
   parser.add<int>("mmax", 0, "maximum m quantum number", false, -1);
   parser.add<int>("lpad", 0, "padding for max l for more accurate Qlm recursion", false, 10);
   parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
-  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 1);
+  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 1.0);
   parser.add<int>("nelem", 0, "number of elements", true);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
