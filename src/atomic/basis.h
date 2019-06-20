@@ -138,6 +138,9 @@ namespace helfem {
         arma::rowvec nuclear_orbital(const arma::mat & C) const;
       };
 
+      /// Constructs an angular basis
+      void angular_basis(int lmax, int mmax, arma::ivec & lval, arma::ivec & mval);
+
       /// Two-dimensional basis set
       class TwoDBasis {
         /// Nuclear charge

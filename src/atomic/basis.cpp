@@ -590,6 +590,10 @@ namespace helfem {
         radial=RadialBasis(poly, n_quad, num_el, rmax, igrid, zexp);
 
         // Construct angular basis
+        angular_basis(lmax,mmax,lval,mval);
+      }
+
+      void angular_basis(int lmax, int mmax, arma::ivec & lval, arma::ivec & mval) {
         size_t nang=0;
         for(int l=0;l<=lmax;l++)
           nang+=2*std::min(mmax,l)+1;
@@ -627,30 +631,7 @@ namespace helfem {
         radial=RadialBasis(poly, n_quad, num_el0, Z_, std::max(Zl_,Zr_), Rhalf, num_el, rmax, igrid, zexp);
 
         // Construct angular basis
-        size_t nang=0;
-        for(int l=0;l<=lmax;l++)
-          nang+=2*std::min(mmax,l)+1;
-
-        // Allocate memory
-        lval.zeros(nang);
-        mval.zeros(nang);
-
-        // Store values
-        size_t iang=0;
-        for(int mabs=0;mabs<=mmax;mabs++)
-          for(int l=mabs;l<=lmax;l++) {
-            lval(iang)=l;
-            mval(iang)=mabs;
-            iang++;
-
-            if(mabs>0) {
-              lval(iang)=l;
-              mval(iang)=-mabs;
-              iang++;
-            }
-          }
-        if(iang!=lval.n_elem)
-          throw std::logic_error("Error.\n");
+        angular_basis(lmax,mmax,lval,mval);
       }
 
       TwoDBasis::TwoDBasis(int Z_, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int Zl_, int Zr_, double Rhalf_) {
