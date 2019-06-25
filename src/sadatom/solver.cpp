@@ -67,6 +67,10 @@ namespace helfem {
         return lmax;
       }
 
+      arma::cube OrbitalChannel::Coeffs() const {
+        return C;
+      }
+
       void OrbitalChannel::SetLmax(int lmax_) {
         lmax=lmax_;
       }
@@ -310,22 +314,109 @@ namespace helfem {
         }
       }
 
-      arma::mat OrbitalChannel::FullDensity() const {
+      static arma::mat make_full(const arma::cube & input) {
         // Get the angular basis
         arma::ivec lval, mval;
-        atomic::basis::angular_basis(lmax,lmax,lval,mval);
-        size_t Nrad=C.n_rows;
+        atomic::basis::angular_basis(input.n_slices-1,input.n_slices-1,lval,mval);
+        size_t Nrad=input.n_rows;
 
         // Initialize
-        arma::mat P;
-        P.zeros(Nrad*lval.n_elem,Nrad*lval.n_elem);
-        for(int l=0;l<=lmax;l++) {
-          // Number of electrons to put in
-          arma::sword numl = occs(l);
+        arma::mat output;
+        output.zeros(Nrad*lval.n_elem,Nrad*lval.n_elem);
+
+        for(int l=0;l<(int) input.n_slices;l++) {
           // Indices
           arma::uvec lidx(arma::find(lval==l));
           arma::ivec msub(mval(lidx));
+          // Loop over subchannels
+          for(int m=-l;m<=l;m++) {
+            // Find the correct angular shell
+            arma::uvec midx(arma::find(msub==m));
+            if(midx.n_elem != 1)
+              throw std::logic_error("Shell not found!\n");
+            // so the index of the angular shell is
+            arma::uword angidx(lidx(midx(0)));
 
+            output.submat(angidx*Nrad,angidx*Nrad,(angidx+1)*Nrad-1,(angidx+1)*Nrad-1) = input.slice(l);
+          }
+        }
+
+        return output;
+      }
+
+      static arma::mat full_overlap(const arma::mat & S, int lmax) {
+        // Get the angular basis
+        arma::ivec lval, mval;
+        atomic::basis::angular_basis(lmax,lmax,lval,mval);
+        size_t Nrad=S.n_rows;
+
+        // Initialize
+        arma::mat output;
+        output.zeros(Nrad*lval.n_elem,Nrad*lval.n_elem);
+        for(size_t il=0;il<lval.size();il++) {
+          output.submat(il*Nrad,il*Nrad,(il+1)*Nrad-1,(il+1)*Nrad-1) = S;
+        }
+
+        return output;
+      }
+
+      static arma::mat full_orbs(const arma::cube & C) {
+        // Get the angular basis
+        arma::ivec lval, mval;
+        atomic::basis::angular_basis(C.n_slices-1,C.n_slices-1,lval,mval);
+        size_t Nrad=C.n_rows;
+
+        // Initialize
+        arma::mat output;
+        output.zeros(Nrad*lval.n_elem,Nrad*lval.n_elem);
+        for(size_t il=0;il<lval.n_elem;il++) {
+          output.submat(il*Nrad,il*Nrad,(il+1)*Nrad-1,(il+1)*Nrad-1) = C.slice(lval(il));
+        }
+
+        return output;
+      }
+
+      static arma::cube make_m_average(const arma::mat & input, size_t Nrad, const arma::ivec & lval, const arma::ivec & mval) {
+        // Initialize
+        arma::cube output;
+        output.zeros(Nrad,Nrad,arma::max(lval)+1);
+
+        for(int l=0;l<(int) output.n_slices;l++) {
+          // Indices
+          arma::uvec lidx(arma::find(lval==l));
+          arma::ivec msub(mval(lidx));
+          // Loop over subchannels
+          for(int m=-l;m<=l;m++) {
+            // Find the correct angular shell
+            arma::uvec midx(arma::find(msub==m));
+            if(midx.n_elem != 1)
+              throw std::logic_error("Shell not found!\n");
+            // so the index of the angular shell is
+            arma::uword angidx(lidx(midx(0)));
+            arma::mat subm(input.submat(angidx*Nrad,angidx*Nrad,(angidx+1)*Nrad-1,(angidx+1)*Nrad-1));
+            output.slice(l) += subm;
+          }
+          // Average
+          output.slice(l) /= 2*l+1;
+        }
+
+        return output;
+      }
+
+      arma::mat OrbitalChannel::FullDensity() const {
+        // Return full matrix
+        return make_full(AngularDensity());
+      }
+
+      arma::cube OrbitalChannel::AngularDensity() const {
+        size_t Nrad=C.n_rows;
+
+        // Initialize
+        arma::cube P;
+        P.zeros(Nrad,Nrad,lmax+1);
+        for(int l=0;l<=lmax;l++) {
+          // Number of electrons to put in
+          arma::sword numl = occs(l);
           // Fill shells
           for(size_t io=0;io<C.n_cols;io++) {
             arma::sword nocc = std::min(ShellCapacity(l), numl);
@@ -334,27 +425,7 @@ namespace helfem {
 
             // Fractional occupation is
             double fracocc = nocc*1.0/ShellCapacity(l);
-            // Loop over subchannels
-            for(int m1=-l;m1<=l;m1++) {
-              // Find the correct angular shell
-              arma::uvec m1idx(arma::find(msub==m1));
-              if(m1idx.n_elem != 1)
-                throw std::logic_error("Shell not found!\n");
-              // so the index of the angular shell is
-              arma::uword ang1idx(lidx(m1idx(0)));
-
-              // Loop over subchannels
-              for(int m2=-l;m2<=l;m2++) {
-                // Find the correct angular shell
-                arma::uvec m2idx(arma::find(msub==m2));
-                if(m2idx.n_elem != 1)
-                  throw std::logic_error("Shell not found!\n");
-                // so the index of the angular shell is
-                arma::uword ang2idx(lidx(m2idx(0)));
-
-                P.submat(ang1idx*Nrad,ang2idx*Nrad,(ang1idx+1)*Nrad-1,(ang2idx+1)*Nrad-1) += fracocc * C.slice(l).col(io) * C.slice(l).col(io).t();
-              }
-            }
+            P.slice(l) += fracocc * C.slice(l).col(io) * C.slice(l).col(io).t();
             numl -= nocc;
           }
         }
@@ -451,8 +522,6 @@ namespace helfem {
       SCFSolver::SCFSolver(int Z, int lmax_, polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, int igrid, double zexp, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), x_func(x_func_), c_func(c_func_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
         // Form basis
         basis=sadatom::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, lmax, igrid, zexp);
-        // as well as the full atomic basis
-        atbasis=atomic::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, lmax, lmax, igrid, zexp);
         // Form overlap matrix
         S=basis.overlap();
         // Get half-inverse
@@ -471,7 +540,6 @@ namespace helfem {
 
         // Compute two-electron integrals
         basis.compute_tei();
-        atbasis.compute_tei(true);
       }
 
       SCFSolver::~SCFSolver() {
@@ -492,41 +560,6 @@ namespace helfem {
       void SCFSolver::Initialize(OrbitalChannel & orbs) const {
         orbs.SetLmax(lmax);
         orbs.UpdateOrbitals(ReplicateCube(H0)+KineticCube(),Sinvh);
-      }
-
-      arma::cube SCFSolver::Fxx(const OrbitalChannel & orbs) const {
-        // Form the exchange matrix
-        arma::mat P(orbs.FullDensity());
-        arma::mat K(atbasis.exchange(P));
-
-        // Get the angular basis
-        arma::ivec lval, mval;
-        atomic::basis::angular_basis(lmax,lmax,lval,mval);
-        size_t Nrad=basis.Nbf();
-
-        // Initialize
-        arma::cube Kl;
-        Kl.zeros(Nrad,Nrad,lmax+1);
-        for(int l=0;l<=lmax;l++) {
-          // Indices
-          arma::uvec lidx(arma::find(lval==l));
-          arma::ivec msub(mval(lidx));
-          // Loop over subchannels
-          for(int m=-l;m<=l;m++) {
-            // Find the correct angular shell
-            arma::uvec midx(arma::find(msub==m));
-            if(midx.n_elem != 1)
-              throw std::logic_error("Shell not found!\n");
-            // so the index of the angular shell is
-            arma::uword angidx(lidx(midx(0)));
-            // Increment exchange
-            Kl.slice(l) += K.submat(angidx*Nrad,angidx*Nrad,(angidx+1)*Nrad-1,(angidx+1)*Nrad-1);
-          }
-          // Average
-          Kl.slice(l) /= (2*l+1);
-        }
-
-        return Kl;
       }
 
       double SCFSolver::FockBuild(rconf_t & conf) {
@@ -582,11 +615,10 @@ namespace helfem {
         arma::cube K;
         double kfrac(exact_exchange(x_func));
         if(kfrac!=0.0) {
-          K=Fxx(conf.orbs);
+          K=kfrac*basis.exchange(conf.orbs.AngularDensity());
           double Exx=0.0;
           for(int l=0;l<=lmax;l++)
             Exx += 0.5*arma::trace(K.slice(l)*conf.Pl.slice(l));
-          Exx *= kfrac;
           if(verbose) {
             printf("Exact exchange energy %.10e\n",Exx);
             fflush(stdout);
@@ -655,12 +687,11 @@ namespace helfem {
         arma::cube Ka, Kb;
         double kfrac(exact_exchange(x_func));
         if(kfrac!=0.0) {
-          Ka=Fxx(conf.orbsa);
-          Kb=Fxx(conf.orbsb);
+          Ka=kfrac*basis.exchange(conf.orbsa.AngularDensity());
+          Kb=kfrac*basis.exchange(conf.orbsb.AngularDensity());
           double Exx=0.0;
           for(int l=0;l<=lmax;l++)
             Exx += 0.5*arma::trace(Ka.slice(l)*conf.Pal.slice(l)) + 0.5*arma::trace(Kb.slice(l)*conf.Pbl.slice(l));
-          Exx *= kfrac;
           conf.Exc += Exx;
         }
 

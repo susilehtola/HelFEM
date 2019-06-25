@@ -37,6 +37,8 @@ namespace helfem {
         std::vector<arma::mat> disjoint_L, disjoint_m1L;
         /// Primitive two-electron integrals: <Nel^2 * (2L+1)>
         std::vector<arma::mat> prim_tei;
+        /// Primitive two-electron exchange integrals
+        std::vector<arma::mat> prim_ktei;
 
       public:
         TwoDBasis();
@@ -67,6 +69,8 @@ namespace helfem {
         arma::mat nuclear() const;
         /// Form Coulomb matrix
         arma::mat coulomb(const arma::mat & P) const;
+        /// Form exchange matrix
+        arma::cube exchange(const arma::cube & P) const;
         /// Form Thomas-Fermi matrix
         arma::mat thomasfermi() const;
 
@@ -83,6 +87,9 @@ namespace helfem {
         arma::vec get_wrad(size_t iel) const;
         /// Get r values
         arma::vec get_r(size_t iel) const;
+
+        /// Get primitive integrals
+        std::vector<arma::mat> get_prim_tei() const;
 
         /// Electron density at nucleus
         double nuclear_density(const arma::mat & P) const;

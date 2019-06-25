@@ -77,6 +77,8 @@ namespace helfem {
         int Lmax() const;
         /// Set lmax
         void SetLmax(int lmax);
+        /// Get coefficients
+        arma::cube Coeffs() const;
 
         /// Counts the number of electrons
         arma::sword Nel() const;
@@ -105,6 +107,8 @@ namespace helfem {
         void UpdateDensity(arma::cube & Pl) const;
         /// Computes a full atomic density matrix
         arma::mat FullDensity() const;
+        /// Computes an angular density matrix
+        arma::cube AngularDensity() const;
 
         /// Determines new occupations
         void AufbauOccupations(arma::sword numel);
@@ -171,8 +175,6 @@ namespace helfem {
 
         /// Basis set to use
         sadatom::basis::TwoDBasis basis;
-        /// Basis set to use for computing exact exchange
-        atomic::basis::TwoDBasis atbasis;
 
         /// Overlap matrix
         arma::mat S;
@@ -224,8 +226,6 @@ namespace helfem {
         arma::cube KineticCube() const;
         /// Replicate matrix into a cube
         arma::cube ReplicateCube(const arma::mat & M) const;
-        /// Exact exchange
-        arma::cube Fxx(const OrbitalChannel & orbs) const;
 
       public:
         /// Constructor
