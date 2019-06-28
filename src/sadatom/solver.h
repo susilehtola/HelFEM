@@ -259,6 +259,8 @@ namespace helfem {
         arma::mat AveragePotential(uconf_t & conf);
         /// Compute the effective potential as the density weighted average of spin-unrestricted potentials
         arma::mat WeightedPotential(uconf_t & conf);
+        /// Compute the effective potential for the high-spin case i.e. majority spin
+        arma::mat HighSpinPotential(uconf_t & conf);
 
         /// Get the basis
         const sadatom::basis::TwoDBasis & Basis() const;
