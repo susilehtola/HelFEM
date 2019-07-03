@@ -123,11 +123,32 @@ namespace helfem {
         return oss.str();
       }
 
-      void OrbitalChannel::Print() const {
+      void OrbitalChannel::Print(const std::vector< std::pair<int,arma::mat> > & rmat) const {
         std::vector<shell_occupation_t> occlist(GetOccupied());
-        printf("%3s %4s %13s\n","nl","nocc","E");
-        for(size_t i=0;i<occlist.size();i++) {
-          printf("%2i%c %4i % 16.9f\n",occlist[i].n, shtype[occlist[i].l], occlist[i].nocc, occlist[i].E);
+
+        // Legend
+        printf("%3s %4s %16s","nl","nocc","E");
+        for(size_t ir=0;ir<rmat.size();ir++) {
+          std::ostringstream oss;
+          oss << "<r";
+          if(rmat[ir].first != 1)
+            oss << "^" << rmat[ir].first;
+          oss << ">";
+          printf(" %12s",oss.str().c_str());
+        }
+        printf("\n");
+
+        // Orbital info
+        for(size_t io=0;io<occlist.size();io++) {
+          printf("%2i%c %4i % 16.9f",occlist[io].n, shtype[occlist[io].l], occlist[io].nocc, occlist[io].E);
+
+          // loop over r matrices
+          for(size_t ir=0;ir<rmat.size();ir++) {
+            arma::vec orb(C.slice(occlist[io].l).col(occlist[io].n-occlist[io].l-1));
+            double matel(arma::as_scalar(orb.t()*rmat[ir].second*orb));
+            printf(" %e",std::pow(matel,1.0/rmat[ir].first));
+          }
+          printf("\n");
         }
       }
 
@@ -1140,6 +1161,16 @@ namespace helfem {
 
       const sadatom::basis::TwoDBasis & solver::SCFSolver::Basis() const {
         return basis;
+      }
+
+      std::vector< std::pair<int, arma::mat> > SCFSolver::Rmatrices() const {
+        std::vector< std::pair<int, arma::mat> > rmat;
+        for(int i=-2;i<=3;i++) {
+          if(i==0) continue;
+          std::pair<int, arma::mat> p(i, basis.radial_integral(i));
+          rmat.push_back(p);
+        }
+        return rmat;
       }
     }
   }

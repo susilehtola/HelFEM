@@ -521,7 +521,7 @@ int main(int argc, char **argv) {
     printf("Ecoul = % 18.9f\n",rconf.Ecoul);
     printf("Eenuc = % 18.9f\n",rconf.Epot);
     printf("Exc   = % 18.9f\n",rconf.Exc);
-    rconf.orbs.Print();
+    rconf.orbs.Print(solver.Rmatrices());
 
     // Get the potential
     solver.set_func(xp_func, cp_func);
@@ -548,9 +548,9 @@ int main(int argc, char **argv) {
     printf("Eenuc = % 18.9f\n",uconf.Epot);
     printf("Exc   = % 18.9f\n",uconf.Exc);
     printf("Alpha orbitals\n");
-    uconf.orbsa.Print();
+    uconf.orbsa.Print(solver.Rmatrices());
     printf("Beta  orbitals\n");
-    uconf.orbsb.Print();
+    uconf.orbsb.Print(solver.Rmatrices());
 
     // Get the potential
     solver.set_func(xp_func, cp_func);

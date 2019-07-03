@@ -90,7 +90,7 @@ namespace helfem {
         /// Characterizes the configuration
         std::string Characterize() const;
         /// Print out orbital info
-        void Print() const;
+        void Print(const std::vector< std::pair<int,arma::mat> > & rmat) const;
         /// Save radial part to disk
         void Save(const sadatom::basis::TwoDBasis & basis, const std::string & symbol) const;
 
@@ -264,6 +264,8 @@ namespace helfem {
 
         /// Get the basis
         const sadatom::basis::TwoDBasis & Basis() const;
+        /// Get the radial matrices
+        std::vector< std::pair<int, arma::mat> > Rmatrices() const;
       };
     }
   }
