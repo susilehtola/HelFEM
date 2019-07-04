@@ -130,10 +130,7 @@ namespace helfem {
         printf("%3s %4s %16s","nl","nocc","E");
         for(size_t ir=0;ir<rmat.size();ir++) {
           std::ostringstream oss;
-          oss << "<r";
-          if(rmat[ir].first != 1)
-            oss << "^" << rmat[ir].first;
-          oss << ">";
+          oss << "<r>(" << rmat[ir].first << ")";
           printf(" %12s",oss.str().c_str());
         }
         printf("\n");
