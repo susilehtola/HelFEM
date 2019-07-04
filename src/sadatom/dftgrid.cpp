@@ -201,7 +201,7 @@ namespace helfem {
         exc.zeros(wtot.n_elem);
       }
 
-      void DFTGridWorker::compute_xc(int func_id, bool pot) {
+      void DFTGridWorker::compute_xc(int func_id, const arma::vec & p, bool pot) {
         // Compute exchange-correlation functional
 
         // Which functional is in question?
@@ -249,6 +249,15 @@ namespace helfem {
           std::ostringstream oss;
           oss << "Functional "<<func_id<<" not found!";
           throw std::runtime_error(oss.str());
+        }
+
+        // Set parameters
+        if(p.n_elem) {
+          // Check sanity
+          if(p.n_elem != (arma::uword) xc_func_get_n_ext_params(&func))
+            throw std::logic_error("Incompatible number of parameters!\n");
+          arma::vec phlp(p);
+          xc_func_set_ext_params(&func, phlp.memptr());
         }
 
         // Evaluate functionals.
@@ -504,6 +513,11 @@ namespace helfem {
       DFTGrid::~DFTGrid() {
       }
 
+      void DFTGrid::set_params(const arma::vec & px, const arma::vec & pc) {
+        x_params=px;
+        c_params=pc;
+      }
+
       void DFTGrid::eval_Fxc(int x_func, int c_func, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double thr) {
         H.zeros(P.n_rows,P.n_rows);
 
@@ -528,9 +542,9 @@ namespace helfem {
             if(thr>0.0)
               grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func);
+              grid.compute_xc(x_func,x_params);
             if(c_func>0)
-              grid.compute_xc(c_func);
+              grid.compute_xc(c_func,c_params);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(H);
@@ -547,9 +561,9 @@ namespace helfem {
             if(thr>0.0)
               grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func);
+              grid.compute_xc(x_func,x_params);
             if(c_func>0)
-              grid.compute_xc(c_func);
+              grid.compute_xc(c_func,c_params);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(H);
@@ -586,9 +600,9 @@ namespace helfem {
             if(thr>0.0)
               grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func);
+              grid.compute_xc(x_func,x_params);
             if(c_func>0)
-              grid.compute_xc(c_func);
+              grid.compute_xc(c_func,c_params);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(Ha,Hb,beta);
@@ -605,9 +619,9 @@ namespace helfem {
             if(thr>0.0)
               grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func);
+              grid.compute_xc(x_func,x_params);
             if(c_func>0)
-              grid.compute_xc(c_func);
+              grid.compute_xc(c_func,c_params);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(Ha,Hb,beta);

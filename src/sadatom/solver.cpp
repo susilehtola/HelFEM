@@ -571,6 +571,10 @@ namespace helfem {
         c_func=c_func_;
       }
 
+      void SCFSolver::set_params(const arma::vec & px, const arma::vec & pc) {
+        grid.set_params(px,pc);
+      }
+
       arma::mat SCFSolver::TotalDensity(const arma::cube & Pl) const {
         arma::mat P(Pl.slice(0));
         for(size_t l=1;l<Pl.n_slices;l++)

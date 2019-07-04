@@ -112,6 +112,8 @@ int main(int argc, char **argv) {
   parser.add<int>("diisorder", 0, "length of diis history", false, 10);
   parser.add<bool>("saveorb", 0, "save radial orbitals to disk?", false, false);
   parser.add<std::string>("occupations", 0, "occupations", false, "auto");
+  parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
+  parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   if(!parser.parse(argc, argv))
     throw std::logic_error("Error parsing arguments!\n");
 
@@ -146,6 +148,9 @@ int main(int argc, char **argv) {
   std::string potmethod(parser.get<std::string>("pot"));
   std::string occstr(parser.get<std::string>("occs"));
   bool saveorb(parser.get<bool>("saveorb"));
+
+  std::string xparf(parser.get<std::string>("x_pars"));
+  std::string cparf(parser.get<std::string>("c_pars"));
 
   std::vector<std::string> rcalc(2);
   rcalc[0]="unrestricted";
@@ -191,6 +196,18 @@ int main(int argc, char **argv) {
 
   // Initialize solver
   sadatom::solver::SCFSolver solver(Z, lmax, poly, Nquad, Nelem, Rmax, igrid, zexp, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
+
+  // Set parameters if necessary
+  arma::vec xpars, cpars;
+  if(xparf.size()) {
+    xpars.load(xparf,arma::raw_ascii);
+    xpars.t().print("Exchange functional parameters");
+  }
+  if(cparf.size()) {
+    cpars.load(cparf,arma::raw_ascii);
+    cpars.t().print("Correlation functional parameters");
+  }
+  solver.set_params(xpars,cpars);
 
   // Final configuration (restricted case)
   helfem::sadatom::solver::rconf_t rconf;
@@ -535,6 +552,12 @@ int main(int argc, char **argv) {
     if(saveorb) {
       rconf.orbs.Save(solver.Basis(), element_symbols[Z]);
     }
+
+    // Evaluate HF energy
+    if(c_func != 0 || x_func != -1) {
+      solver.set_func(-1, 0);
+      printf("\nHartree-Fock energy is % .10f\n",solver.FockBuild(rconf));
+    }
   } else {
 
     printf("Electronic configuration is\n");
@@ -581,6 +604,12 @@ int main(int argc, char **argv) {
     if(saveorb) {
       uconf.orbsa.Save(solver.Basis(), element_symbols[Z] + "_alpha");
       uconf.orbsb.Save(solver.Basis(), element_symbols[Z] + "_beta");
+    }
+
+    // Evaluate HF energy
+    if(c_func != 0 || x_func != -1) {
+      solver.set_func(-1, 0);
+      printf("\nHartree-Fock energy is % .10f\n",solver.FockBuild(uconf));
     }
   }
 

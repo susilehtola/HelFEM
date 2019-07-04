@@ -235,6 +235,8 @@ namespace helfem {
 
         /// Set functional
         void set_func(int x_func_, int c_func_);
+        /// Set parameters
+        void set_params(const arma::vec & px, const arma::vec & pc);
 
         /// Build total density
         arma::mat TotalDensity(const arma::cube & Pl) const;
