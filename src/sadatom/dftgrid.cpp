@@ -56,7 +56,7 @@ namespace helfem {
         // Calculate density
         rho.zeros(1,wtot.n_elem);
         for(size_t ip=0;ip<wtot.n_elem;ip++)
-          rho(0,ip)=std::real(arma::dot(Pv.col(ip),bf.col(ip)));
+          rho(0,ip)=arma::dot(Pv.col(ip),bf.col(ip));
 
         // Calculate gradient
         if(do_grad) {
@@ -64,7 +64,7 @@ namespace helfem {
           sigma.zeros(1,wtot.n_elem);
           for(size_t ip=0;ip<wtot.n_elem;ip++) {
             // Calculate values
-            double g_rad=grho(0,ip)=2.0*std::real(arma::dot(Pv.col(ip),bf_rho.col(ip)));
+            double g_rad=grho(0,ip)=2.0*arma::dot(Pv.col(ip),bf_rho.col(ip));
             // Compute sigma as well
             sigma(0,ip)=g_rad*g_rad;
           }
@@ -92,8 +92,8 @@ namespace helfem {
         // Calculate density
         rho.zeros(2,wtot.n_elem);
         for(size_t ip=0;ip<wtot.n_elem;ip++) {
-          rho(0,ip)=std::real(arma::dot(Pav.col(ip),bf.col(ip)));
-          rho(1,ip)=std::real(arma::dot(Pbv.col(ip),bf.col(ip)));
+          rho(0,ip)=arma::dot(Pav.col(ip),bf.col(ip));
+          rho(1,ip)=arma::dot(Pbv.col(ip),bf.col(ip));
         }
 
         // Calculate gradient
@@ -101,8 +101,8 @@ namespace helfem {
           grho.zeros(6,wtot.n_elem);
           sigma.zeros(3,wtot.n_elem);
           for(size_t ip=0;ip<wtot.n_elem;ip++) {
-            double ga_rad=grho(0,ip)=2.0*std::real(arma::dot(Pav.col(ip),bf_rho.col(ip)));
-            double gb_rad=grho(3,ip)=2.0*std::real(arma::dot(Pbv.col(ip),bf_rho.col(ip)));
+            double ga_rad=grho(0,ip)=2.0*arma::dot(Pav.col(ip),bf_rho.col(ip));
+            double gb_rad=grho(3,ip)=2.0*arma::dot(Pbv.col(ip),bf_rho.col(ip));
 
             // Compute sigma as well
             sigma(0,ip)=ga_rad*ga_rad;
