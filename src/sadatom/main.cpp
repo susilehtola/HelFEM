@@ -498,7 +498,7 @@ int main(int argc, char **argv) {
         occs=hfoccs;
       } else {
         // Use Hund's rule to determine occupations
-        occs=translate_occs(hfoccs.t());
+        occs=translate_occs(hfoccs);
       }
 
     } else {
