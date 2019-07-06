@@ -85,6 +85,16 @@ void unrestrict_occupations(const sadatom::solver::OrbitalChannel & orbs, sadato
   conf.orbsb.SetOccs(occb);
 }
 
+arma::irowvec translate_occs(const arma::irowvec & occin) {
+  arma::ivec occa, occb;
+  hund_rule(occin.t(),occa,occb);
+  arma::irowvec occs(occa.n_elem+occb.n_elem);
+  occs.subvec(0,occa.n_elem-1)=occa.t();
+  occs.subvec(occa.n_elem,occs.n_elem-1)=occb.t();
+  occs.print("Used Hund's rules to translate occupations into");
+  return occs;
+}
+
 int main(int argc, char **argv) {
   cmdline::parser parser;
 
@@ -488,24 +498,29 @@ int main(int argc, char **argv) {
         occs=hfoccs;
       } else {
         // Use Hund's rule to determine occupations
-        arma::ivec occa, occb;
-        hund_rule(hfoccs.t(),occa,occb);
-        occs.resize(occa.n_elem+occb.n_elem);
-        occs.subvec(0,occa.n_elem-1)=occa.t();
-        occs.subvec(occa.n_elem,occs.n_elem-1)=occb.t();
-        occs.print("Used Hund's rules to translate occupations into");
+        occs=translate_occs(hfoccs.t());
       }
 
     } else {
       std::istringstream istream(occstr);
-      occs.load(istream);
+      arma::irowvec inocc;
+      inocc.load(istream);
       // Check length
-      arma::uword expected = restr ? lmax+1 : 2*(lmax+1);
-      if(occs.n_elem != expected) {
+      arma::uword expected = (std::abs(restr)==1) ? lmax+1 : 2*(lmax+1);
+      if(inocc.n_elem != expected) {
         std::ostringstream oss;
-        oss << "Invalid occupations: expected length " << expected << ", got " << occs.n_elem << ".\n";
+        oss << "Invalid occupations: expected length " << expected << ", got " << inocc.n_elem << ".\n";
         throw std::logic_error(oss.str());
       }
+
+      // Use Hund's rule to determine occupations
+      if(restr == -1) {
+        occs=translate_occs(inocc);
+        if(restr==-1)
+          // Switch to unrestricted mode
+          restr=0;
+      } else
+        occs=inocc;
     }
 
     if(restr) {
