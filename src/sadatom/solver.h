@@ -268,6 +268,14 @@ namespace helfem {
         const sadatom::basis::TwoDBasis & Basis() const;
         /// Get the radial matrices
         std::vector< std::pair<int, arma::mat> > Rmatrices() const;
+        /// Compute the nuclear density
+        double nuclear_density(const rconf_t & conf) const;
+        /// Compute the nuclear density
+        double nuclear_density(const uconf_t & conf) const;
+        /// Compute the nuclear density gradient
+        double nuclear_density_gradient(const rconf_t & conf) const;
+        /// Compute the nuclear density gradient
+        double nuclear_density_gradient(const uconf_t & conf) const;
       };
     }
   }

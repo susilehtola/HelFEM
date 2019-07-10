@@ -494,6 +494,10 @@ namespace helfem {
         return radial.nuclear_density(P)/(4.0*M_PI);
       }
 
+      double TwoDBasis::nuclear_density_gradient(const arma::mat & P) const {
+        return radial.nuclear_density_gradient(P)/(4.0*M_PI);
+      }
+
       arma::vec TwoDBasis::quadrature_weights() const {
         std::vector<arma::vec> w(radial.Nel());
         size_t ntot=1;

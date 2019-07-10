@@ -1173,6 +1173,22 @@ namespace helfem {
         }
         return rmat;
       }
+
+      double SCFSolver::nuclear_density(const rconf_t & conf) const {
+        return basis.nuclear_density(TotalDensity(conf.Pl));
+      }
+
+      double SCFSolver::nuclear_density(const uconf_t & conf) const {
+        return basis.nuclear_density(TotalDensity(conf.Pal+conf.Pbl));
+      }
+
+      double SCFSolver::nuclear_density_gradient(const rconf_t & conf) const {
+        return basis.nuclear_density_gradient(TotalDensity(conf.Pl));
+      }
+
+      double SCFSolver::nuclear_density_gradient(const uconf_t & conf) const {
+        return basis.nuclear_density_gradient(TotalDensity(conf.Pal+conf.Pbl));
+      }
     }
   }
 }

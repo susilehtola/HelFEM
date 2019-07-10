@@ -553,6 +553,35 @@ namespace helfem {
         return den;
       }
 
+      double RadialBasis::nuclear_density_gradient(const arma::mat & Prad) const {
+        if(Prad.n_rows != Nbf() || Prad.n_cols != Nbf())
+          throw std::logic_error("nuclear_density_gradient expects a radial density matrix\n");
+
+        // Nuclear coordinate
+        arma::vec x(1);
+        // Remember that the primitive basis polynomials belong to [-1,1]
+        x(0)=-1.0;
+
+        // Evaluate derivative at nucleus
+        double rlen((bval(1)-bval(0))/2);
+
+        arma::mat func, der, lapl;
+        poly->eval(x,func,der);
+        der=(get_basis(der,0)/rlen);
+        poly->eval_lapl(x,lapl);
+        lapl=(get_basis(lapl,0)/(rlen*rlen));
+
+        // Radial functions in element
+        size_t ifirst, ilast;
+        get_idx(0,ifirst,ilast);
+        // Density submatrix
+        arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
+        // P_uv B_u'(0) B_v''(0)
+        double den(arma::as_scalar(der*Psub*arma::trans(lapl)));
+
+        return den;
+      }
+
       arma::rowvec RadialBasis::nuclear_orbital(const arma::mat & C) const {
         // Nuclear coordinate
         arma::vec x(1);
@@ -1805,6 +1834,32 @@ namespace helfem {
         for(size_t iam=0;iam<lval.n_elem;iam++) {
           // Integration over angles yields extra factor 4 pi that must be removed
           nucden+=radial.nuclear_density(P.submat(Nrad*iam,Nrad*iam,Nrad*(iam+1)-1,Nrad*(iam+1)-1))/(4.0*M_PI);
+        }
+
+        arma::vec den(1);
+        den(0)=nucden;
+
+        return den;
+      }
+
+      arma::vec TwoDBasis::nuclear_density_gradient(const arma::mat & P0) const {
+        // Radial functions in first element
+        size_t ifirst, ilast;
+        radial.get_idx(0,ifirst,ilast);
+        // Total number of radial functions
+        size_t Nrad(radial.Nbf());
+
+        // Expand density matrix to boundary conditions
+        arma::mat P(expand_boundaries(P0));
+
+        // Loop over angular momentum
+        double nucden=0.0;
+#ifdef _OPENMP
+#pragma omp parallel for reduction(+:nucden)
+#endif
+        for(size_t iam=0;iam<lval.n_elem;iam++) {
+          // Integration over angles yields extra factor 4 pi that must be removed
+          nucden+=radial.nuclear_density_gradient(P.submat(Nrad*iam,Nrad*iam,Nrad*(iam+1)-1,Nrad*(iam+1)-1))/(4.0*M_PI);
         }
 
         arma::vec den(1);

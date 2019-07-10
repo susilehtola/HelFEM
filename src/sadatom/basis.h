@@ -93,6 +93,8 @@ namespace helfem {
 
         /// Electron density at nucleus
         double nuclear_density(const arma::mat & P) const;
+        /// Electron density at nucleus
+        double nuclear_density_gradient(const arma::mat & P) const;
 
         /// Get quadrature weights
         arma::vec quadrature_weights() const;

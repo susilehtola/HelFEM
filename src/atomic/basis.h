@@ -134,6 +134,8 @@ namespace helfem {
 
         /// Evaluate nuclear density
         double nuclear_density(const arma::mat & P) const;
+        /// Evaluate nuclear density gradient
+        double nuclear_density_gradient(const arma::mat & P) const;
         /// Evaluate orbitals at nucleus
         arma::rowvec nuclear_orbital(const arma::mat & C) const;
       };
@@ -304,6 +306,8 @@ namespace helfem {
 
         /// Electron density at nuclei
         arma::vec nuclear_density(const arma::mat & P) const;
+        /// Electron density gradient at nuclei
+        arma::vec nuclear_density_gradient(const arma::mat & P) const;
       };
     }
   }

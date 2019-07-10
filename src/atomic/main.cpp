@@ -885,7 +885,17 @@ int main(int argc, char **argv) {
 
   // Electron density at nucleus
   if(Z!=0) {
-    printf("Electron density at nucleus % .10e % .10e % .10e\n",basis.nuclear_density(Pa)(0),basis.nuclear_density(Pb)(0),basis.nuclear_density(P)(0));
+    double nanuc=basis.nuclear_density(Pa)(0);
+    double nbnuc=basis.nuclear_density(Pb)(0);
+    double nnuc=basis.nuclear_density(P)(0);
+
+    double dnanuc=basis.nuclear_density_gradient(Pa)(0);
+    double dnbnuc=basis.nuclear_density_gradient(Pb)(0);
+    double dnnuc=basis.nuclear_density_gradient(P)(0);
+
+    printf("Electron density          at nucleus % .10e % .10e % .10e\n",nanuc,nbnuc,nnuc);
+    printf("Electron density gradient at nucleus % .10e % .10e % .10e\n",dnanuc,dnbnuc,dnnuc);
+    printf("Cusp condition is %.10f\n",-1.0/(2*Z)*dnnuc/nnuc);
   }
 
   // Calculate <r^2> matrix
