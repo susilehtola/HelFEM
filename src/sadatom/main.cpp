@@ -562,12 +562,14 @@ int main(int argc, char **argv) {
     rconf.orbs.Print(solver.Rmatrices());
 
     // Get the potential
-    solver.set_func(xp_func, cp_func);
-    arma::mat pot(solver.RestrictedPotential(rconf));
+    if(xp_func > 0 || cp_func > 0) {
+      solver.set_func(xp_func, cp_func);
+      arma::mat pot(solver.RestrictedPotential(rconf));
 
-    std::ostringstream oss;
-    oss << "result_" << element_symbols[Z] << ".dat";
-    pot.save(oss.str(),arma::raw_ascii);
+      std::ostringstream oss;
+      oss << "result_" << element_symbols[Z] << ".dat";
+      pot.save(oss.str(),arma::raw_ascii);
+    }
 
     // Save the orbitals
     if(saveorb) {
@@ -603,29 +605,31 @@ int main(int argc, char **argv) {
     uconf.orbsb.Print(solver.Rmatrices());
 
     // Get the potential
-    solver.set_func(xp_func, cp_func);
-    arma::mat potU(solver.UnrestrictedPotential(uconf));
-    arma::mat potM(solver.AveragePotential(uconf));
-    arma::mat potW(solver.WeightedPotential(uconf));
-    arma::mat potS(solver.HighSpinPotential(uconf));
+    if(xp_func > 0 || cp_func > 0) {
+      solver.set_func(xp_func, cp_func);
+      arma::mat potU(solver.UnrestrictedPotential(uconf));
+      arma::mat potM(solver.AveragePotential(uconf));
+      arma::mat potW(solver.WeightedPotential(uconf));
+      arma::mat potS(solver.HighSpinPotential(uconf));
 
-    std::ostringstream oss;
+      std::ostringstream oss;
 
-    oss.str("");
-    oss << "resultU_" << element_symbols[Z] << ".dat";
-    potU.save(oss.str(),arma::raw_ascii);
+      oss.str("");
+      oss << "resultU_" << element_symbols[Z] << ".dat";
+      potU.save(oss.str(),arma::raw_ascii);
 
-    oss.str("");
-    oss << "resultM_" << element_symbols[Z] << ".dat";
-    potM.save(oss.str(),arma::raw_ascii);
+      oss.str("");
+      oss << "resultM_" << element_symbols[Z] << ".dat";
+      potM.save(oss.str(),arma::raw_ascii);
 
-    oss.str("");
-    oss << "resultW_" << element_symbols[Z] << ".dat";
-    potW.save(oss.str(),arma::raw_ascii);
+      oss.str("");
+      oss << "resultW_" << element_symbols[Z] << ".dat";
+      potW.save(oss.str(),arma::raw_ascii);
 
-    oss.str("");
-    oss << "resultS_" << element_symbols[Z] << ".dat";
-    potS.save(oss.str(),arma::raw_ascii);
+      oss.str("");
+      oss << "resultS_" << element_symbols[Z] << ".dat";
+      potS.save(oss.str(),arma::raw_ascii);
+    }
 
     // Save the orbitals
     if(saveorb) {
