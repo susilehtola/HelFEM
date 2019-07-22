@@ -48,14 +48,20 @@ namespace helfem {
     arma::vec bessel_il(const arma::vec & x, int L) {
       arma::vec y(x);
       for(size_t i=0;i<x.n_elem;i++)
-	y(i)=exp(x(i))*gsl_sf_bessel_il_scaled(L, x(i));
+        // GSL calculates exp(-|x|)k_l(x)
+	y(i)=exp(std::abs(x(i)))*gsl_sf_bessel_il_scaled(L, x(i));
       return y;
     }
 
     arma::vec bessel_kl(const arma::vec & x, int L) {
       arma::vec y(x);
       for(size_t i=0;i<x.n_elem;i++)
+        // GSL calculates exp(x)k_l(x)
 	y(i)=exp(-x(i))*gsl_sf_bessel_kl_scaled(L, x(i));
+
+      // The definition in GSL is \sqrt(\pi/(2x)), not \sqrt(2/(\pi x))
+      y /= M_PI_2;
+
       return y;
     }
 
