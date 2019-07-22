@@ -29,6 +29,11 @@ namespace helfem {
     /// inverse sinh
     arma::vec arsinh(const arma::vec & x);
 
+    /// Modified Bessel function
+    arma::vec bessel_il(const arma::vec & x, int L);
+    /// Modified Bessel function
+    arma::vec bessel_kl(const arma::vec & x, int L);
+
     /// Form two-electron integrals from product of large-r and small-r radial moment matrices
     arma::mat product_tei(const arma::mat & big, const arma::mat & small);
 

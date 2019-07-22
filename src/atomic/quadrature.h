@@ -28,9 +28,9 @@ namespace helfem {
      * Input
      *   rmin: start of element boundary
      *   rmax: end of element boundary
-     *       x: integration nodes
-     *      wx: integration weights
-     *      bf: basis functions evaluated at integration nodes.
+     *      x: integration nodes
+     *     wx: integration weights
+     *     bf: basis functions evaluated at integration nodes.
      */
     arma::mat radial_integral(double rmin, double rmax, int n, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
 
@@ -41,14 +41,40 @@ namespace helfem {
     arma::mat derivative_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & dbf);
 
     /**
+     * Computes a radial integral of the type \f$ \int_0^\infty B_1 (r) B_2(r) i_L(\lambda r) dr \f$.
+     *
+     * Input
+     *   rmin: start of element boundary
+     *   rmax: end of element boundary
+     *      L: Bessel function order
+     *      x: integration nodes
+     *     wx: integration weights
+     *     bf: basis functions evaluated at integration nodes.
+     */
+    arma::mat bessel_il_integral(double rmin, double rmax, int L, double lambda, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
+
+    /**
+     * Computes a radial integral of the type \f$ \int_0^\infty B_1 (r) B_2(r) k_L(\lambda r) dr \f$.
+     *
+     * Input
+     *   rmin: start of element boundary
+     *   rmax: end of element boundary
+     *      L: Bessel function order
+     *      x: integration nodes
+     *     wx: integration weights
+     *     bf: basis functions evaluated at integration nodes.
+     */
+    arma::mat bessel_kl_integral(double rmin, double rmax, int L, double lambda, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
+
+    /**
      * Computes a GSZ radial integral \f$ \int_0^\infty Z(r) B_1 (r) B_2(r) / r dr \f$.
      *
      * Input
      *   rmin: start of element boundary
      *   rmax: end of element boundary
-     *       x: integration nodes
-     *      wx: integration weights
-     *      bf: basis functions evaluated at integration nodes.
+     *      x: integration nodes
+     *     wx: integration weights
+     *     bf: basis functions evaluated at integration nodes.
      */
     arma::mat gsz_integral(double Z, double dz, double Hz, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
 
@@ -58,9 +84,9 @@ namespace helfem {
      * Input
      *   rmin: start of element boundary
      *   rmax: end of element boundary
-     *       x: integration nodes
-     *      wx: integration weights
-     *      bf: basis functions evaluated at integration nodes.
+     *      x: integration nodes
+     *     wx: integration weights
+     *     bf: basis functions evaluated at integration nodes.
      */
     arma::mat sap_integral(int Z, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
 
@@ -70,9 +96,9 @@ namespace helfem {
      * Input
      *   rmin: start of element boundary
      *   rmax: end of element boundary
-     *       x: integration nodes
-     *      wx: integration weights
-     *      bf: basis functions evaluated at integration nodes.
+     *      x: integration nodes
+     *     wx: integration weights
+     *     bf: basis functions evaluated at integration nodes.
      */
     arma::mat thomasfermi_integral(int Z, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
 
@@ -88,6 +114,19 @@ namespace helfem {
      * Note that the routine needs the polynomial representation.
      */
     arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L);
+
+    /**
+     * Computes the inner in-element two-electron Yukawa integral:
+     * \f$ \phi(r) = \frac 1 r^{L+1} \int_0^r dr' r'^{L} B_k(r') B_l(r') \f$
+     */
+    arma::mat yukawa_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, double lambda);
+
+    /**
+     * Computes a primitive two-electron in-element Yukawa integral.
+     * Cross-element integrals reduce to products of radial integrals.
+     * Note that the routine needs the polynomial representation.
+     */
+    arma::mat yukawa_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, double lambda);
 
     /**
      * Computes the spherically symmetric potential V(r).

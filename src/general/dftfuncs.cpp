@@ -405,9 +405,7 @@ double exact_exchange(int func_id) {
   return f;
 }
 
-bool is_range_separated(int func_id, bool check) {
-  bool ans=false;
-
+void is_range_separated(int func_id, bool & erf, bool & yukawa, bool check) {
   if(func_id>0) {
     xc_func_type func;
     if(xc_func_init(&func, func_id, XC_UNPOLARIZED) != 0){
@@ -416,7 +414,8 @@ bool is_range_separated(int func_id, bool check) {
       throw std::runtime_error(oss.str());
     }
     // Get flag
-    ans=func.info->flags & XC_FLAGS_HYB_CAM;
+    erf=(func.info->flags & XC_FLAGS_HYB_CAM) || (func.info->flags & XC_FLAGS_HYB_LC);
+    yukawa=(func.info->flags & XC_FLAGS_HYB_CAMY) || (func.info->flags & XC_FLAGS_HYB_LCY);
     // Free functional
     xc_func_end(&func);
   }
@@ -426,13 +425,18 @@ bool is_range_separated(int func_id, bool check) {
     double w, a, b;
     range_separation(func_id,w,a,b);
 
+    bool ans = erf || yukawa;
     if(ans && w==0.0)
       fprintf(stderr,"Error in libxc detected - functional is marked range separated but with vanishing omega!\n");
     else if(!ans && w!=0.0)
       fprintf(stderr,"Error in libxc detected - functional is not marked range separated but has nonzero omega!\n");
   }
+}
 
-  return ans;
+bool is_range_separated(int func_id, bool check) {
+  bool erf, yukawa;
+  is_range_separated(func_id,erf,yukawa,check);
+  return erf || yukawa;
 }
 
 void range_separation(int func_id, double & omega, double & alpha, double & beta, bool check) {

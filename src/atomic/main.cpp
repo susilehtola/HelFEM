@@ -280,11 +280,18 @@ int main(int argc, char **argv) {
   ::print_info(x_func, c_func);
 
   bool dft=(x_func>0 || c_func>0);
-  if(is_range_separated(x_func))
-    throw std::logic_error("Range separated functionals are not supported.\n");
+
+  bool erf, yukawa;
+  is_range_separated(x_func, erf, yukawa);
+  if(erf)
+    throw std::logic_error("Error function range separated functionals are not supported.\n");
   // Fraction of exact exchange
-  double kfrac(exact_exchange(x_func));
-  if(kfrac!=0.0)
+  double kfrac, kshort, omega;
+  range_separation(x_func, omega, kfrac, kshort);
+  if(omega!=0.0) {
+    printf("\nUsing range-separated exchange with range-separation constant omega = % .3f.\n",omega);
+    printf("Using % .3f %% short-range and % .3f %% long-range exchange.\n",(kfrac+kshort)*100,kfrac*100);
+  } else if(kfrac!=0.0)
     printf("\nUsing hybrid exchange with % .3f %% of exact exchange.\n",kfrac*100);
   else
     printf("\nA pure exchange functional used, no exact exchange.\n");
@@ -623,6 +630,8 @@ int main(int argc, char **argv) {
   fflush(stdout);
   timer.set();
   basis.compute_tei(kfrac!=0.0);
+  if(yukawa)
+    basis.compute_yukawa(omega);
   printf("Done in %.6f\n",timer.get());
 
   double Ekin=0.0, Epot=0.0, Ecoul=0.0, Exx=0.0, Exc=0.0, Eefield=0.0, Emfield=0.0, Etot=0.0;
@@ -674,13 +683,20 @@ int main(int argc, char **argv) {
     arma::mat Ka, Kb;
     if(kfrac!=0.0) {
       Ka=kfrac*basis.exchange(Pa);
+      if(omega!=0.0)
+        Ka+=kshort*basis.rs_exchange(Pa);
       if(nelb) {
-        if(restr && nela==nelb)
+        if(restr && nela==nelb) {
           Kb=Ka;
-        else
+        } else {
           Kb=kfrac*basis.exchange(Pb);
-      } else
+          if(omega!=0.0)
+            Kb+=kshort*basis.rs_exchange(Pb);
+        }
+      } else {
         Kb.zeros(Cbocc.n_rows,Cbocc.n_rows);
+      }
+
       double tK(timer.get());
       Exx=0.5*arma::trace(Pa*Ka);
       if(Kb.n_rows == Pb.n_rows && Kb.n_cols == Pb.n_cols)

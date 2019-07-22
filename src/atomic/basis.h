@@ -96,6 +96,12 @@ namespace helfem {
         arma::mat radial_integral(const arma::mat & bf_c, int n, size_t iel) const;
         /// Compute radial matrix elements <r^n> in element (overlap is n=0, nuclear is n=-1)
         arma::mat radial_integral(int n, size_t iel) const;
+
+        /// Compute Bessel i_L integral
+        arma::mat bessel_il_integral(int L, double lambda, size_t iel) const;
+        /// Compute Bessel k_L integral
+        arma::mat bessel_kl_integral(int L, double lambda, size_t iel) const;
+
         /// Compute overlap matrix in element
         arma::mat overlap(size_t iel) const;
         /// Compute primitive kinetic energy matrix in element (excluding l part)
@@ -115,6 +121,8 @@ namespace helfem {
 
         /// Compute primitive two-electron integral
         arma::mat twoe_integral(int L, size_t iel) const;
+        /// Compute primitive Yukawa-screened two-electron integral
+        arma::mat yukawa_integral(int L, double lambda, size_t iel) const;
         /// Compute a spherically symmetric potential
         arma::mat spherical_potential(size_t iel) const;
 
@@ -155,6 +163,11 @@ namespace helfem {
         /// Bond length
         double Rhalf;
 
+        /// Yukawa exchange?
+        bool yukawa;
+        /// Range separation parameter
+        double lambda;
+
         /// Radial basis set
         RadialBasis radial;
         /// Angular basis set: function l values
@@ -164,10 +177,14 @@ namespace helfem {
 
         /// Auxiliary integrals
         std::vector<arma::mat> disjoint_L, disjoint_m1L;
+        /// Auxiliary integrals for Yukawa separation
+        std::vector<arma::mat> disjoint_iL, disjoint_kL;
         /// Primitive two-electron integrals: <Nel^2 * (2L+1)>
         std::vector<arma::mat> prim_tei;
         /// Primitive two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
         std::vector<arma::mat> prim_ktei;
+        /// Primitive range-separated two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
+        std::vector<arma::mat> rs_ktei;
 
         /// Add to radial submatrix
         void add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
@@ -226,6 +243,8 @@ namespace helfem {
 
         /// Compute two-electron integrals
         void compute_tei(bool exchange);
+        /// Compute range-separated two-electron integrals
+        void compute_yukawa(double lambda);
 
         /// Number of basis functions
         size_t Nbf() const;
@@ -275,6 +294,8 @@ namespace helfem {
         arma::mat coulomb(const arma::mat & P) const;
         /// Form exchange matrix
         arma::mat exchange(const arma::mat & P) const;
+        /// Form range-separated exchange matrix
+        arma::mat rs_exchange(const arma::mat & P) const;
 
         /// Get primitive integrals
         std::vector<arma::mat> get_prim_tei() const;

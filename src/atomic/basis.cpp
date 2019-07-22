@@ -274,6 +274,22 @@ namespace helfem {
         return quadrature::radial_integral(Rmin,Rmax,Rexp,xq,wq,get_basis(funcs,iel));
       }
 
+      arma::mat RadialBasis::bessel_il_integral(int L, double lambda, size_t iel) const {
+        double Rmin(bval(iel));
+        double Rmax(bval(iel+1));
+
+        // Integral by quadrature
+        return quadrature::bessel_il_integral(Rmin,Rmax,L,lambda,xq,wq,get_basis(bf,iel));
+      }
+
+      arma::mat RadialBasis::bessel_kl_integral(int L, double lambda, size_t iel) const {
+        double Rmin(bval(iel));
+        double Rmax(bval(iel+1));
+
+        // Integral by quadrature
+        return quadrature::bessel_kl_integral(Rmin,Rmax,L,lambda,xq,wq,get_basis(bf,iel));
+      }
+
       arma::mat RadialBasis::overlap(const RadialBasis & rh) const {
 	// Use the larger number of quadrature points to assure
 	// projection is computed ok
@@ -424,6 +440,18 @@ namespace helfem {
         // Integral by quadrature
         polynomial_basis::PolynomialBasis * p(get_basis(poly,iel));
         arma::mat tei(quadrature::twoe_integral(Rmin,Rmax,xq,wq,p,L));
+        delete p;
+
+        return tei;
+      }
+
+      arma::mat RadialBasis::yukawa_integral(int L, double lambda, size_t iel) const {
+        double Rmin(bval(iel));
+        double Rmax(bval(iel+1));
+
+        // Integral by quadrature
+        polynomial_basis::PolynomialBasis * p(get_basis(poly,iel));
+        arma::mat tei(quadrature::yukawa_integral(Rmin,Rmax,xq,wq,p,L,lambda));
         delete p;
 
         return tei;
@@ -1358,6 +1386,45 @@ namespace helfem {
         }
       }
 
+      void TwoDBasis::compute_yukawa(double lambda_) {
+        lambda=lambda_;
+        yukawa=true;
+
+        // Number of distinct L values is
+        size_t N_L(2*arma::max(lval)+1);
+        size_t Nel(radial.Nel());
+
+        // Compute disjoint integrals
+        disjoint_iL.resize(Nel*N_L);
+        disjoint_kL.resize(Nel*N_L);
+        for(size_t L=0;L<N_L;L++)
+          for(size_t iel=0;iel<Nel;iel++) {
+            disjoint_iL[L*Nel+iel]=radial.bessel_il_integral(L,lambda,iel);
+            disjoint_kL[L*Nel+iel]=radial.bessel_kl_integral(L,lambda,iel);
+          }
+
+        /*
+          The exchange matrix is given by
+          K(jk) = (ij|kl) P(il)
+          i.e. the complex conjugation hits i and l as
+          in the density matrix.
+
+          To get this in the proper order, we permute the integrals
+          K(jk) = (jk;il) P(il)
+          so we don't have to reform the permutations in the exchange routine.
+        */
+        rs_ktei.resize(Nel*Nel*N_L);
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+        for(size_t L=0;L<N_L;L++)
+          for(size_t iel=0;iel<Nel;iel++) {
+            // Diagonal integrals
+            size_t Ni(radial.Nprim(iel));
+            rs_ktei[Nel*Nel*L + iel*Nel + iel]=utils::exchange_tei(radial.yukawa_integral(L,lambda,iel),Ni,Ni,Ni,Ni);
+          }
+      }
+
       arma::mat TwoDBasis::coulomb(const arma::mat & P0) const {
         if(!prim_tei.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
@@ -1658,6 +1725,188 @@ namespace helfem {
                       // Disjoint integrals. When r(iel)>r(jel), iel gets -1-L, jel gets L.
                       const arma::mat & iint=(iel>jel) ? disjoint_m1L[L*Nel+iel] : disjoint_L[L*Nel+iel];
                       const arma::mat & jint=(iel>jel) ? disjoint_L[L*Nel+jel] : disjoint_m1L[L*Nel+jel];
+
+                      // Get density submatrix (Niel x Njel)
+                      arma::mat Psub(mem_Psub[ith].memptr(),Ni,Nj,false,true);
+                      Psub=Rmat[L].submat(ifirst,jfirst,ilast,jlast);
+
+                      // Calculate helper
+                      arma::mat T(mem_T[ith].memptr(),Ni,Nj,false,true);
+                      // (Niel x Njel) = (Niel x Njel) x (Njel x Njel)
+                      T=Psub*arma::trans(jint);
+
+                      // Increment
+                      Ksub+=iint*T;
+                    }
+
+                    K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        return remove_boundaries(K);
+      }
+
+      arma::mat TwoDBasis::rs_exchange(const arma::mat & P0) const {
+        if(!rs_ktei.size())
+          throw std::logic_error("Primitive teis have not been computed!\n");
+
+        // Extend to boundaries
+        arma::mat P(expand_boundaries(P0));
+
+        // Gaunt coefficient table
+        int gmax(std::max(arma::max(lval),arma::max(mval)));
+        gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
+
+        // Number of radial elements
+        size_t Nel(radial.Nel());
+        // Number of radial basis functions
+        size_t Nrad(radial.Nbf());
+
+        // Full exchange matrix
+        arma::mat K(Ndummy(),Ndummy());
+        K.zeros();
+
+        // Helper memory
+#ifdef _OPENMP
+        const int nth(omp_get_max_threads());
+#else
+        const int nth(1);
+#endif
+        std::vector<arma::vec> mem_Ksub(nth);
+        std::vector<arma::vec> mem_Psub(nth);
+        std::vector<arma::vec> mem_T(nth);
+
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+#ifdef _OPENMP
+          const int ith(omp_get_thread_num());
+#else
+          const int ith(0);
+#endif
+          // These are only small submatrices!
+          mem_Psub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
+          mem_Ksub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
+          mem_T[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
+
+          // Increment
+#ifdef _OPENMP
+#pragma omp for collapse(2)
+#endif
+          for(size_t jang=0;jang<lval.n_elem;jang++) {
+            for(size_t kang=0;kang<lval.n_elem;kang++) {
+              int lj(lval(jang));
+              int mj(mval(jang));
+
+              int lk(lval(kang));
+              int mk(mval(kang));
+
+              // Form radial helpers
+              size_t N_L(2*arma::max(lval)+1);
+              std::vector<arma::mat> Rmat(N_L);
+              for(size_t i=0;i<N_L;i++) {
+                Rmat[i].zeros(Nrad,Nrad);
+              }
+              // Is there a coupling to the channel?
+              std::vector<bool> couple(N_L,false);
+
+              // Perform angular sums
+              for(size_t iang=0;iang<lval.n_elem;iang++) {
+                int li(lval(iang));
+                int mi(mval(iang));
+
+                for(size_t lang=0;lang<lval.n_elem;lang++) {
+                  int ll(lval(lang));
+                  int ml(mval(lang));
+
+                  // LH m value
+                  int M(mj-mi);
+                  // RH m value
+                  int Mp(mk-ml);
+                  if(M!=Mp)
+                    continue;
+
+                  // Do we have any density in this block?
+                  double bdens(arma::norm(P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1),"fro"));
+                  //printf("(%i %i) (%i %i) density block norm %e\n",li,mi,ll,ml,bdens);
+                  if(bdens<10*DBL_EPSILON)
+                    continue;
+
+                  // M values match. Loop over possible couplings
+                  int Lmin=std::max(std::max(std::abs(li-lj),std::abs(lk-ll)),abs(M));
+                  int Lmax=std::min(li+lj,lk+ll);
+
+                  for(int L=Lmin;L<=Lmax;L++) {
+                    // Calculate total coupling coefficient
+                    double cpl(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
+                    if(cpl==0.0)
+                      continue;
+
+                    // L factor
+                    double Lfac=4.0*M_PI*lambda;
+                    Rmat[L]+=(Lfac*cpl)*P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1);
+                    couple[L]=true;
+                  }
+                }
+              }
+
+              // Loop over elements: output
+              for(size_t iel=0;iel<Nel;iel++) {
+                size_t ifirst, ilast;
+                radial.get_idx(iel,ifirst,ilast);
+
+                // Input
+                for(size_t jel=0;jel<Nel;jel++) {
+                  size_t jfirst, jlast;
+                  radial.get_idx(jel,jfirst,jlast);
+
+                  // Number of functions in the two elements
+                  size_t Ni(ilast-ifirst+1);
+                  size_t Nj(jlast-jfirst+1);
+
+                  // error function does not factorize
+                  if(!yukawa || iel == jel) {
+                    /*
+                      The exchange matrix is given by
+                      K(jk) = (ij|kl) P(il)
+                      i.e. the complex conjugation hits i and l as
+                      in the density matrix.
+
+                      To get this in the proper order, we permute the integrals
+                      K(jk) = (jk;il) P(il)
+                    */
+
+                    // Exchange submatrix
+                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni*Nj,1,false,true);
+                    Ksub.zeros();
+
+                    for(size_t L=0;L<N_L;L++) {
+                      if(!couple[L])
+                        continue;
+                      Ksub+=rs_ktei[Nel*Nel*L + iel*Nel + jel]*arma::vectorise(Rmat[L].submat(ifirst,jfirst,ilast,jlast));
+                    }
+                    Ksub.reshape(Ni,Nj);
+
+                    // Increment global exchange matrix
+                    K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
+
+                  } else {
+                    // Exchange submatrix
+                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni,Nj,false,true);
+                    Ksub.zeros();
+
+                    for(size_t L=0;L<N_L;L++) {
+                      if(!couple[L])
+                        continue;
+
+                      // Disjoint integrals. When r(iel)>r(jel), iel gets -1-L, jel gets L.
+                      const arma::mat & iint=(iel>jel) ? disjoint_kL[L*Nel+iel] : disjoint_iL[L*Nel+iel];
+                      const arma::mat & jint=(iel>jel) ? disjoint_iL[L*Nel+jel] : disjoint_kL[L*Nel+jel];
 
                       // Get density submatrix (Niel x Njel)
                       arma::mat Psub(mem_Psub[ith].memptr(),Ni,Nj,false,true);
