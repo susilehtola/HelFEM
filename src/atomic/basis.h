@@ -123,6 +123,8 @@ namespace helfem {
         arma::mat twoe_integral(int L, size_t iel) const;
         /// Compute primitive Yukawa-screened two-electron integral
         arma::mat yukawa_integral(int L, double lambda, size_t iel) const;
+        /// Compute primitive complementary error function two-electron integral
+        arma::mat erfc_integral(int L, double lambda, size_t iel, size_t jel) const;
         /// Compute a spherically symmetric potential
         arma::mat spherical_potential(size_t iel) const;
 
@@ -245,6 +247,8 @@ namespace helfem {
         void compute_tei(bool exchange);
         /// Compute range-separated two-electron integrals
         void compute_yukawa(double lambda);
+        /// Compute range-separated two-electron integrals
+        void compute_erfc(double mu);
 
         /// Number of basis functions
         size_t Nbf() const;

@@ -5,10 +5,10 @@ general/timer.cpp general/elements.cpp general/lobatto.cpp
 general/angular.cpp general/scf_helpers.cpp general/lcao.cpp
 general/gsz.cpp general/sap.cpp general/dftfuncs.cpp
 general/checkpoint.cpp atomic/basis.cpp atomic/quadrature.cpp
-atomic/dftgrid.cpp sadatom/basis.cpp sadatom/dftgrid.cpp
-sadatom/solver.cpp sadatom/configurations.cpp general/dftfuncs.cpp
-diatomic/basis.cpp diatomic/quadrature.cpp diatomic/dftgrid.cpp
-diatomic/twodquadrature.cpp)
+atomic/dftgrid.cpp atomic/erfc_expn.cpp sadatom/basis.cpp
+sadatom/dftgrid.cpp sadatom/solver.cpp sadatom/configurations.cpp
+general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
+diatomic/dftgrid.cpp diatomic/twodquadrature.cpp)
 
 add_executable(gensap sadatom/main.cpp)
 target_link_libraries(gensap helfem)

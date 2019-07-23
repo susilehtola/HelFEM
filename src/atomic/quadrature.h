@@ -129,6 +129,12 @@ namespace helfem {
     arma::mat yukawa_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, double lambda);
 
     /**
+     * Computes a primitive two-electron complementary error function
+     * integral. Note that these integrals do not factorize.
+     */
+    arma::mat erfc_integral(double rmini, double rmaxi, const arma::mat & bfi, double rmink, double rmaxk, const arma::mat & bfk, const arma::vec & x, const arma::vec & wx, int L, double mu);
+
+    /**
      * Computes the spherically symmetric potential V(r).
      */
     arma::mat spherical_potential(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly);

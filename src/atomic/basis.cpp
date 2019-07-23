@@ -457,6 +457,18 @@ namespace helfem {
         return tei;
       }
 
+      arma::mat RadialBasis::erfc_integral(int L, double mu, size_t iel, size_t kel) const {
+        double Rmini(bval(iel));
+        double Rmaxi(bval(iel+1));
+        double Rmink(bval(kel));
+        double Rmaxk(bval(kel+1));
+
+        // Integral by quadrature
+        arma::mat tei(quadrature::erfc_integral(Rmini,Rmaxi,get_basis(bf,iel),Rmink,Rmaxk,get_basis(bf,kel),xq,wq,L,mu));
+
+        return tei;
+      }
+
       arma::mat RadialBasis::spherical_potential(size_t iel) const {
         double Rmin(bval(iel));
         double Rmax(bval(iel+1));
@@ -1425,6 +1437,43 @@ namespace helfem {
           }
       }
 
+      void TwoDBasis::compute_erfc(double mu) {
+        lambda=mu;
+        yukawa=false;
+
+        // Number of distinct L values is
+        size_t N_L(2*arma::max(lval)+1);
+        size_t Nel(radial.Nel());
+
+        // No disjoint integrals
+        disjoint_iL.clear();
+        disjoint_kL.clear();
+
+        /*
+          The exchange matrix is given by
+          K(jk) = (ij|kl) P(il)
+          i.e. the complex conjugation hits i and l as
+          in the density matrix.
+
+          To get this in the proper order, we permute the integrals
+          K(jk) = (jk;il) P(il)
+          so we don't have to reform the permutations in the exchange routine.
+        */
+        rs_ktei.resize(Nel*Nel*N_L);
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+        for(size_t L=0;L<N_L;L++)
+          for(size_t iel=0;iel<Nel;iel++) {
+            for(size_t kel=0;kel<Nel;kel++) {
+              // Diagonal integrals
+              size_t Ni(radial.Nprim(iel));
+              size_t Nk(radial.Nprim(kel));
+              rs_ktei[Nel*Nel*L + iel*Nel + kel]=utils::exchange_tei(radial.erfc_integral(L,lambda,iel,kel),Ni,Ni,Nk,Nk);
+            }
+          }
+      }
+
       arma::mat TwoDBasis::coulomb(const arma::mat & P0) const {
         if(!prim_tei.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
@@ -1848,7 +1897,7 @@ namespace helfem {
                       continue;
 
                     // L factor
-                    double Lfac=4.0*M_PI*lambda;
+                    double Lfac = yukawa ? 4.0*M_PI*lambda : 1.0;
                     Rmat[L]+=(Lfac*cpl)*P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1);
                     couple[L]=true;
                   }

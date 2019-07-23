@@ -14,6 +14,7 @@
  * of the License, or (at your option) any later version.
  */
 #include "quadrature.h"
+#include "erfc_expn.h"
 #include "../general/chebyshev.h"
 #include "../general/polynomial.h"
 #include "../general/gsz.h"
@@ -434,6 +435,57 @@ namespace helfem {
       // but we are still missing the second term which can be
       // obtained as simply as
       ints+=arma::trans(ints);
+
+      return ints;
+    }
+
+    arma::mat erfc_integral(double rmini, double rmaxi, const arma::mat & bfi, double rmink, double rmaxk, const arma::mat & bfk, const arma::vec & x, const arma::vec & wx, int L, double mu) {
+#ifndef ARMA_NO_DEBUG
+      if(x.n_elem != wx.n_elem) {
+        std::ostringstream oss;
+        oss << "x and wx not compatible: " << x.n_elem << " vs " << wx.n_elem << "!\n";
+        throw std::logic_error(oss.str());
+      }
+#endif
+      // and half-lengths of the intervals are
+      double rmidi(0.5*(rmaxi+rmini));
+      double rmidk(0.5*(rmaxk+rmink));
+
+      double rleni(0.5*(rmaxi-rmini));
+      double rlenk(0.5*(rmaxk-rmink));
+
+      // Radii
+      arma::vec ri(rmidi*arma::ones<arma::vec>(x.n_elem)+rleni*x);
+      arma::vec rk(rmidk*arma::ones<arma::vec>(x.n_elem)+rlenk*x);
+
+      // Green's function
+      arma::mat Fn(ri.n_elem,rk.n_elem);
+      for(size_t i=0;i<ri.n_elem;i++)
+        for(size_t k=0;k<rk.n_elem;k++) {
+          double rmax = std::max(ri(i),rk(k));
+          double rmin = std::min(ri(i),rk(k));
+          Fn(i,k) = mu*atomic::erfc_expn::Phi(L,mu*rmax,mu*rmin);
+        }
+
+      // Product functions
+      arma::mat bfprodij(bfi.n_rows,bfi.n_cols*bfi.n_cols);
+      for(size_t fi=0;fi<bfi.n_cols;fi++)
+        for(size_t fj=0;fj<bfi.n_cols;fj++)
+          bfprodij.col(fi*bfi.n_cols+fj)=bfi.col(fi)%bfi.col(fj);
+      arma::mat bfprodkl(bfk.n_rows,bfk.n_cols*bfk.n_cols);
+      for(size_t fi=0;fi<bfk.n_cols;fi++)
+        for(size_t fj=0;fj<bfk.n_cols;fj++)
+          bfprodkl.col(fi*bfk.n_cols+fj)=bfk.col(fi)%bfk.col(fj);
+      // Put in the weights
+      arma::vec wpi(wx*rleni);
+      for(size_t i=0;i<bfprodij.n_cols;i++)
+        bfprodij.col(i)%=wpi;
+      arma::vec wpk(wx*rlenk);
+      for(size_t i=0;i<bfprodkl.n_cols;i++)
+        bfprodkl.col(i)%=wpk;
+
+      // Integrals are then
+      arma::mat ints(arma::trans(bfprodij)*Fn*bfprodkl);
 
       return ints;
     }

@@ -281,10 +281,8 @@ int main(int argc, char **argv) {
 
   bool dft=(x_func>0 || c_func>0);
 
-  bool erf, yukawa;
-  is_range_separated(x_func, erf, yukawa);
-  if(erf)
-    throw std::logic_error("Error function range separated functionals are not supported.\n");
+  bool erfc, yukawa;
+  is_range_separated(x_func, erfc, yukawa);
   // Fraction of exact exchange
   double kfrac, kshort, omega;
   range_separation(x_func, omega, kfrac, kshort);
@@ -632,6 +630,8 @@ int main(int argc, char **argv) {
   basis.compute_tei(kfrac!=0.0);
   if(yukawa)
     basis.compute_yukawa(omega);
+  else if(erfc)
+    basis.compute_erfc(omega);
   printf("Done in %.6f\n",timer.get());
 
   double Ekin=0.0, Epot=0.0, Ecoul=0.0, Exx=0.0, Exc=0.0, Eefield=0.0, Emfield=0.0, Etot=0.0;
