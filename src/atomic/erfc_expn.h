@@ -19,6 +19,11 @@
 namespace helfem {
   namespace atomic {
     namespace erfc_expn {
+      /// Short-range helper
+      double Phi_short(unsigned int n, unsigned int k, double Xi, double xi);
+      /// General expansion, unstable in short range
+      double Phi_general(unsigned int n, double Xi, double xi);
+
       /**
        * Computes the complementary error function expansion as
        * described in J. G. Ángyán, I. Gerber and M. Marsman, "Spherical

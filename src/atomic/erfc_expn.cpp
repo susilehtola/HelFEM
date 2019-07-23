@@ -26,21 +26,21 @@ extern "C" {
 namespace helfem {
   namespace atomic {
     namespace erfc_expn {
-      static double double_factorial(unsigned int n) {
+      inline static double double_factorial(unsigned int n) {
         if(n==0)
           return 1.0;
 
         return gsl_sf_doublefact(n);
       }
 
-      static double factorial(unsigned int n) {
+      inline static double factorial(unsigned int n) {
         if(n==0)
           return 1.0;
 
         return gsl_sf_fact(n);
       }
 
-      static double choose(int n, int m) {
+      inline static double choose(int n, int m) {
         // Special cases
         if(n==-1)
           return std::pow(-1.0,m);
@@ -55,12 +55,8 @@ namespace helfem {
         }
       }
 
-      static inline double Fncoeff(int n, int p) {
-        return factorial(n+p)/(factorial(p)*factorial(std::abs(n-p)));
-      }
-
       // Angyan et al, equation (22)
-      double Fn(unsigned int n, double Xi, double xi) {
+      inline static double Fn(unsigned int n, double Xi, double xi) {
         // Exponential factors
         double explus(std::exp(-std::pow(Xi+xi,2)));
         double exminus(std::exp(-std::pow(Xi-xi,2)));
@@ -69,15 +65,16 @@ namespace helfem {
         double prefac(-1.0/(4.0*Xi*xi));
 
         double F=0.0;
-        for(unsigned int p=1;p<=n;p++) {
-          F += std::pow(prefac,p+1) * Fncoeff(n,p) * (std::pow(-1,n-p) * explus - exminus);
+        // Looks like there's a typo in the equation; can't make F_0 match the appendix unless
+        for(unsigned int p=0;p<=n;p++) {
+          F += std::pow(prefac,p+1) * (factorial(n+p)/(factorial(p)*factorial(n-p))) * (std::pow(-1,n-p) * explus - exminus);
         }
         // Apply prefactor
         return 2.0/sqrt(M_PI)*F;
       }
 
       // Angyan et al, equation (24)
-      double Hn(unsigned int n, double Xi, double xi) {
+      inline static double Hn(unsigned int n, double Xi, double xi) {
         if(Xi<xi)
           throw std::logic_error("Xi < xi");
 
@@ -90,22 +87,26 @@ namespace helfem {
 
       // Angyan et al, equation (21)
       double Phi_general(unsigned int n, double Xi, double xi) {
-        double Fnarr[n+1];
-        for(unsigned int i=0;i<=n;i++)
+        // Make sure arguments are in the correct order
+        if(Xi < xi)
+          std::swap(Xi,xi);
+
+        double Fnarr[n];
+        for(unsigned int i=0;i<n;i++)
           Fnarr[i]=Fn(i,Xi,xi);
 
-        double Phi = Fnarr[n] + Hn(n,Xi,xi);
+        double sum = 0.0;
         for(unsigned int m=1;m<=n;m++) {
           double Xim(std::pow(Xi,m));
           double xim(std::pow(xi,m));
-          Phi += Fnarr[n-m]*((Xim*Xim + xim*xim)/(Xim*xim));
+          sum += Fnarr[n-m]*((Xim*Xim + xim*xim)/(Xim*xim));
         }
 
-        return Phi;
+        return Fn(n,Xi,xi) + sum + Hn(n,Xi,xi);
       }
 
       // Angyan et al, equations 28 and 29
-      double Dnk(int n, int k, double Xi) {
+      inline static double Dnk(int n, int k, double Xi) {
         // Prefactor
         double prefac = std::exp(-std::pow(Xi,2))/sqrt(M_PI)*std::pow(2,n+1)*std::pow(Xi,2*n+1);
 
@@ -130,12 +131,16 @@ namespace helfem {
       }
 
       // Angyan et al, equation 30
-      double Phi_short(unsigned int n, double Xi, double xi) {
+      double Phi_short(unsigned int n, unsigned int kmax, double Xi, double xi) {
+        // Make sure arguments are in the correct order
+        if(Xi < xi)
+          std::swap(Xi,xi);
+
         double Phi = 0.0;
-        for(unsigned int k=0; k<=4; k++) {
-          double D = Dnk(n,k,Xi);
-          double term = D*std::pow(xi,n+2*k);
-          Phi += term;
+        double dPhi;
+        for(unsigned int k=0; k<=kmax; k++) {
+          dPhi = Dnk(n,k,Xi)*std::pow(xi,n+2*k);
+          Phi += dPhi;
         }
         return Phi/std::pow(Xi,n+1);
       }
@@ -149,10 +154,10 @@ namespace helfem {
         // See text on top of page 8624 of Angyan et al
         if(xi < 0.4 || (Xi < 0.5 && xi < 2*Xi)) {
           // Short-range Taylor polynomial
-          return Phi_short(n,Xi,xi);
+          return Phi_short(n,2,Xi,xi);
         } else {
-          // General expansion, susceptible to numerical noise for small
-          // arguments
+          // General expansion, susceptible to numerical noise for
+          // small arguments
           return Phi_general(n,Xi,xi);
         }
       }
