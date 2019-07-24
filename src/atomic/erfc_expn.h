@@ -19,6 +19,8 @@
 namespace helfem {
   namespace atomic {
     namespace erfc_expn {
+      /// Damping functions
+      double Dnk(int n, int k, double Xi);
       /// Short-range helper
       double Phi_short(unsigned int n, unsigned int k, double Xi, double xi);
       /// General expansion, unstable in short range

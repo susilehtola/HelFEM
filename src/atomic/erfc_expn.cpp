@@ -16,6 +16,7 @@
 
 #include "erfc_expn.h"
 #include <cmath>
+#include <cfloat>
 #include <stdexcept>
 
 // For factorials
@@ -43,13 +44,24 @@ namespace helfem {
       inline static double choose(int n, int m) {
         // Special cases
         if(n==-1)
+          // choose(-1,m) = (-1)^m
           return std::pow(-1.0,m);
+        if(n==0)
+          // choose(0,m) = 0 except for choose(0,0) = 1
+          return m==0 ? 1.0 : 0.0;
         if(m==0)
+          // choose(n,0) = 1 for all n
           return 1.0;
+        if(m==1)
+          // choose(n,1) = n for all n
+          return n;
+        if(n>0 && m>0 && m>n)
+          // choose(n,m) = 0 for m>n positive
+          return 0.0;
 
         // Negative binomials
         if(n<0) {
-          return gsl_sf_choose(n+m-1,m)*std::pow(-1,m);
+          return choose(n+m-1,m)*std::pow(-1,m);
         } else {
           return gsl_sf_choose(n,m);
         }
@@ -65,7 +77,9 @@ namespace helfem {
         double prefac(-1.0/(4.0*Xi*xi));
 
         double F=0.0;
-        // Looks like there's a typo in the equation; can't make F_0 match the appendix unless
+        // Looks like there's a typo in the equation: I can't make the
+        // function match the equations in the appendix unless the
+        // lower limit is 0 instead of 1.
         for(unsigned int p=0;p<=n;p++) {
           F += std::pow(prefac,p+1) * (factorial(n+p)/(factorial(p)*factorial(n-p))) * (std::pow(-1,n-p) * explus - exminus);
         }
@@ -106,7 +120,7 @@ namespace helfem {
       }
 
       // Angyan et al, equations 28 and 29
-      inline static double Dnk(int n, int k, double Xi) {
+      double Dnk(int n, int k, double Xi) {
         // Prefactor
         double prefac = std::exp(-std::pow(Xi,2))/sqrt(M_PI)*std::pow(2,n+1)*std::pow(Xi,2*n+1);
 
@@ -124,24 +138,34 @@ namespace helfem {
           for(int m=1;m<=k;m++)
             sum += choose(m-k-1,m-1)*std::pow(2*Xi*Xi,k-m)/double_factorial(2*(n+k-m)+1);
 
-          D = prefac * (2*n+1.0)/(2*n + 2*k + 1.0) * sum;
+          D = prefac * (2.0*n+1.0)/(factorial(k)*(2.0*(n+k)+1.0)) * sum;
         }
 
         return D;
       }
 
-      // Angyan et al, equation 30
-      double Phi_short(unsigned int n, unsigned int kmax, double Xi, double xi) {
+      // Angyan et al, equation (30), evaluated to full numerical precision
+      double Phi_short(unsigned int n, double Xi, double xi) {
         // Make sure arguments are in the correct order
         if(Xi < xi)
           std::swap(Xi,xi);
 
         double Phi = 0.0;
         double dPhi;
-        for(unsigned int k=0; k<=kmax; k++) {
-          dPhi = Dnk(n,k,Xi)*std::pow(xi,n+2*k);
+        unsigned int k;
+        double tol=DBL_EPSILON;
+        for(k=0; k<=30; k+=2) {
+          // Unroll odd values so that we don't truncate too soon by
+          // accident
+          dPhi = Dnk(n,k  ,Xi)*std::pow(xi,n+2*k)
+            +    Dnk(n,k+1,Xi)*std::pow(xi,n+2*(k+1));
           Phi += dPhi;
+          if(std::abs(dPhi) < tol*std::abs(Phi)) break;
         }
+        if(std::abs(dPhi) >= tol*std::abs(Phi))
+          fprintf(stderr,"Warning - short-range Phi not converged, ratio %e\n",dPhi/Phi);
+        //fprintf(stderr,"Phi%i(%e,%e) converged in %u iterations\n",n,Xi,xi,k);
+
         return Phi/std::pow(Xi,n+1);
       }
 
@@ -154,7 +178,7 @@ namespace helfem {
         // See text on top of page 8624 of Angyan et al
         if(xi < 0.4 || (Xi < 0.5 && xi < 2*Xi)) {
           // Short-range Taylor polynomial
-          return Phi_short(n,2,Xi,xi);
+          return Phi_short(n,Xi,xi);
         } else {
           // General expansion, susceptible to numerical noise for
           // small arguments
