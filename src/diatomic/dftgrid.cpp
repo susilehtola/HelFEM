@@ -563,9 +563,9 @@ namespace helfem {
           arma::rowvec vt(vtau.row(0));
           vt%=0.5*wtot;
 
-          increment_lda< std::complex<double> >(H,vt/scale_r,bf_rho);
-          increment_lda< std::complex<double> >(H,vt/scale_theta,bf_theta);
-          increment_lda< std::complex<double> >(H,vt/scale_phi,bf_phi);
+          increment_lda< std::complex<double> >(H,vt/arma::square(scale_r),bf_rho);
+          increment_lda< std::complex<double> >(H,vt/arma::square(scale_theta),bf_theta);
+          increment_lda< std::complex<double> >(H,vt/arma::square(scale_phi),bf_phi);
         }
         if(do_mgga_l)
           throw std::logic_error("Laplacian not implemented!\n");
@@ -639,16 +639,16 @@ namespace helfem {
           arma::rowvec vt_a(vtau.row(0));
           vt_a%=0.5*wtot;
 
-          increment_lda< std::complex<double> >(Ha,vt_a/scale_r,bf_rho);
-          increment_lda< std::complex<double> >(Ha,vt_a/scale_theta,bf_theta);
-          increment_lda< std::complex<double> >(Ha,vt_a/scale_phi,bf_phi);
+          increment_lda< std::complex<double> >(Ha,vt_a/arma::square(scale_r),bf_rho);
+          increment_lda< std::complex<double> >(Ha,vt_a/arma::square(scale_theta),bf_theta);
+          increment_lda< std::complex<double> >(Ha,vt_a/arma::square(scale_phi),bf_phi);
           if(beta) {
             arma::rowvec vt_b(vtau.row(1));
             vt_b%=0.5*wtot;
 
-            increment_lda< std::complex<double> >(Hb,vt_b/scale_r,bf_rho);
-            increment_lda< std::complex<double> >(Hb,vt_b/scale_theta,bf_theta);
-            increment_lda< std::complex<double> >(Hb,vt_b/scale_phi,bf_phi);
+            increment_lda< std::complex<double> >(Hb,vt_b/arma::square(scale_r),bf_rho);
+            increment_lda< std::complex<double> >(Hb,vt_b/arma::square(scale_theta),bf_theta);
+            increment_lda< std::complex<double> >(Hb,vt_b/arma::square(scale_phi),bf_phi);
           }
         }
         if(do_mgga_l) {
