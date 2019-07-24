@@ -681,20 +681,23 @@ int main(int argc, char **argv) {
     // Form exchange matrix
     timer.set();
     arma::mat Ka, Kb;
-    if(kfrac!=0.0) {
-      Ka=kfrac*basis.exchange(Pa);
+    if(kfrac!=0.0 || kshort!=0.0) {
+      Ka.zeros(Caocc.n_rows,Caocc.n_rows);
+      Kb.zeros(Caocc.n_rows,Caocc.n_rows);
+      if(kfrac!=0.0)
+        Ka+=kfrac*basis.exchange(Pa);
       if(omega!=0.0)
         Ka+=kshort*basis.rs_exchange(Pa);
+
       if(nelb) {
         if(restr && nela==nelb) {
           Kb=Ka;
         } else {
-          Kb=kfrac*basis.exchange(Pb);
+          if(kfrac!=0.0)
+            Kb+=kfrac*basis.exchange(Pb);
           if(omega!=0.0)
             Kb+=kshort*basis.rs_exchange(Pb);
         }
-      } else {
-        Kb.zeros(Cbocc.n_rows,Cbocc.n_rows);
       }
 
       double tK(timer.get());
