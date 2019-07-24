@@ -461,11 +461,8 @@ namespace helfem {
       // Green's function
       arma::mat Fn(ri.n_elem,rk.n_elem);
       for(size_t i=0;i<ri.n_elem;i++)
-        for(size_t k=0;k<rk.n_elem;k++) {
-          double rmax = std::max(ri(i),rk(k));
-          double rmin = std::min(ri(i),rk(k));
-          Fn(i,k) = mu*atomic::erfc_expn::Phi(L,mu*rmax,mu*rmin);
-        }
+        for(size_t k=0;k<rk.n_elem;k++)
+          Fn(i,k) = atomic::erfc_expn::Phi(L,mu*ri(i),mu*rk(k));
 
       // Product functions
       arma::mat bfprodij(bfi.n_rows,bfi.n_cols*bfi.n_cols);

@@ -1897,7 +1897,7 @@ namespace helfem {
                       continue;
 
                     // L factor
-                    double Lfac = yukawa ? 4.0*M_PI*lambda : 1.0;
+                    double Lfac = yukawa ? 4.0*M_PI*lambda :  4.0*M_PI*lambda/(2*L+1);
                     Rmat[L]+=(Lfac*cpl)*P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1);
                     couple[L]=true;
                   }
