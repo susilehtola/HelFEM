@@ -406,6 +406,8 @@ double exact_exchange(int func_id) {
 }
 
 void is_range_separated(int func_id, bool & erf, bool & yukawa, bool check) {
+  erf = false;
+  yukawa = false;
   if(func_id>0) {
     xc_func_type func;
     if(xc_func_init(&func, func_id, XC_UNPOLARIZED) != 0){
@@ -427,9 +429,9 @@ void is_range_separated(int func_id, bool & erf, bool & yukawa, bool check) {
 
     bool ans = erf || yukawa;
     if(ans && w==0.0)
-      fprintf(stderr,"Error in libxc detected - functional is marked range separated but with vanishing omega!\n");
+      fprintf(stderr,"Error in libxc detected - functional %i is marked range separated but with vanishing omega!\n",func_id);
     else if(!ans && w!=0.0)
-      fprintf(stderr,"Error in libxc detected - functional is not marked range separated but has nonzero omega!\n");
+      fprintf(stderr,"Error in libxc detected - functional %i is not marked range separated but has nonzero omega!\n",func_id);
   }
 }
 
@@ -470,13 +472,10 @@ void range_separation(int func_id, double & omega, double & alpha, double & beta
 
   bool ans=is_range_separated(func_id,false);
   if(check) {
-    if(ans && omega==0.0) {
-      fprintf(stderr,"Error in libxc detected - functional is marked range separated but with vanishing omega!\n");
-      printf("Error in libxc detected - functional is marked range separated but with vanishing omega!\n");
-    } else if(!ans && omega!=0.0) {
-      fprintf(stderr,"Error in libxc detected - functional is not marked range separated but has nonzero omega!\n");
-      printf("Error in libxc detected - functional is not marked range separated but has nonzero omega!\n");
-    }
+    if(ans && omega==0.0)
+      fprintf(stderr,"Error in libxc detected - functional %i is marked range separated but with vanishing omega!\n",func_id);
+    else if(!ans && omega!=0.0)
+      fprintf(stderr,"Error in libxc detected - functional %i is not marked range separated but has nonzero omega!\n",func_id);
   }
 
   // Work around libxc bug
