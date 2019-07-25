@@ -537,7 +537,7 @@ namespace helfem {
         return lh.Econf < rh.Econf;
       }
 
-      SCFSolver::SCFSolver(int Z, int lmax_, polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, int igrid, double zexp, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), x_func(x_func_), c_func(c_func_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
+      SCFSolver::SCFSolver(int Z, int lmax_, polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, int igrid, double zexp, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
         // Form basis
         basis=sadatom::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, lmax, igrid, zexp);
         // Form overlap matrix
@@ -558,6 +558,8 @@ namespace helfem {
 
         // Compute two-electron integrals
         basis.compute_tei();
+        // Range separation?
+        set_func(x_func_, c_func_);
       }
 
       SCFSolver::~SCFSolver() {
@@ -566,6 +568,24 @@ namespace helfem {
       void SCFSolver::set_func(int x_func_, int c_func_) {
         x_func=x_func_;
         c_func=c_func_;
+
+        bool erfc, yukawa;
+        is_range_separated(x_func, erfc, yukawa);
+        // Fraction of exact exchange
+        double kfrac, kshort, omega;
+        range_separation(x_func, omega, kfrac, kshort);
+        if(omega!=0.0) {
+          printf("\nUsing range-separated exchange with range-separation constant omega = % .3f.\n",omega);
+          printf("Using % .3f %% short-range and % .3f %% long-range exchange.\n",(kfrac+kshort)*100,kfrac*100);
+        } else if(kfrac!=0.0)
+          printf("\nUsing hybrid exchange with % .3f %% of exact exchange.\n",kfrac*100);
+        else
+          printf("\nA pure exchange functional used, no exact exchange.\n");
+
+        if(yukawa)
+          basis.compute_yukawa(omega);
+        else if(erfc)
+          basis.compute_erfc(omega);
       }
 
       void SCFSolver::set_params(const arma::vec & px, const arma::vec & pc) {
@@ -635,9 +655,16 @@ namespace helfem {
 
         // Fraction of exact exchange
         arma::cube K;
-        double kfrac(exact_exchange(x_func));
-        if(kfrac!=0.0) {
-          K=kfrac*basis.exchange(conf.orbs.AngularDensity());
+        // Fraction of exact exchange
+        double kfrac, kshort, omega;
+        range_separation(x_func, omega, kfrac, kshort);
+        if(kfrac!=0.0 || kshort!=0.0) {
+          K.zeros(P.n_rows,P.n_rows,lmax+1);
+          if(kfrac!=0.0)
+            K+=kfrac*basis.exchange(conf.orbs.AngularDensity());
+          if(kshort!=0.0)
+            K+=kshort*basis.rs_exchange(conf.orbs.AngularDensity());
+
           double Exx=0.0;
           for(int l=0;l<=lmax;l++)
             Exx += 0.5*arma::trace(K.slice(l)*conf.Pl.slice(l));
@@ -650,7 +677,7 @@ namespace helfem {
 
         // Fock matrices
         conf.Fl=ReplicateCube(H0+J)+kc;
-        if(kfrac!=0.0)
+        if(kfrac!=0.0 || kshort!=0.0)
           conf.Fl+=K;
         if(x_func>0 || c_func>0)
           conf.Fl+=ReplicateCube(XC);
@@ -707,20 +734,35 @@ namespace helfem {
 
         // Fraction of exact exchange
         arma::cube Ka, Kb;
-        double kfrac(exact_exchange(x_func));
-        if(kfrac!=0.0) {
-          Ka=kfrac*basis.exchange(conf.orbsa.AngularDensity());
-          Kb=kfrac*basis.exchange(conf.orbsb.AngularDensity());
+        // Fraction of exact exchange
+        double kfrac, kshort, omega;
+        range_separation(x_func, omega, kfrac, kshort);
+        if(kfrac!=0.0 || kshort!=0.0) {
+          Ka.zeros(P.n_rows,P.n_rows,lmax+1);
+          Kb.zeros(P.n_rows,P.n_rows,lmax+1);
+          if(kfrac!=0.0) {
+            Ka+=kfrac*basis.exchange(conf.orbsa.AngularDensity());
+            Kb+=kfrac*basis.exchange(conf.orbsb.AngularDensity());
+          }
+          if(kshort!=0.0) {
+            Ka+=kshort*basis.rs_exchange(conf.orbsa.AngularDensity());
+            Kb+=kshort*basis.rs_exchange(conf.orbsb.AngularDensity());
+          }
+
           double Exx=0.0;
           for(int l=0;l<=lmax;l++)
             Exx += 0.5*arma::trace(Ka.slice(l)*conf.Pal.slice(l)) + 0.5*arma::trace(Kb.slice(l)*conf.Pbl.slice(l));
+          if(verbose) {
+            printf("Exact exchange energy %.10e\n",Exx);
+            fflush(stdout);
+          }
           conf.Exc += Exx;
         }
 
         // Fock matrices
         conf.Fal=ReplicateCube(H0+J)+kc;
         conf.Fbl=conf.Fal;
-        if(kfrac!=0.0) {
+        if(kfrac!=0.0 || kshort!=0.0) {
           conf.Fal+=Ka;
           conf.Fbl+=Kb;
         }

@@ -204,6 +204,82 @@ namespace helfem {
           }
       }
 
+      void TwoDBasis::compute_yukawa(double lambda_) {
+        lambda=lambda_;
+        yukawa=true;
+
+        // Number of distinct L values is
+        size_t N_L(2*arma::max(lval)+1);
+        size_t Nel(radial.Nel());
+
+        // Compute disjoint integrals
+        disjoint_iL.resize(Nel*N_L);
+        disjoint_kL.resize(Nel*N_L);
+        for(size_t L=0;L<N_L;L++)
+          for(size_t iel=0;iel<Nel;iel++) {
+            disjoint_iL[L*Nel+iel]=radial.bessel_il_integral(L,lambda,iel);
+            disjoint_kL[L*Nel+iel]=radial.bessel_kl_integral(L,lambda,iel);
+          }
+
+        /*
+          The exchange matrix is given by
+          K(jk) = (ij|kl) P(il)
+          i.e. the complex conjugation hits i and l as
+          in the density matrix.
+
+          To get this in the proper order, we permute the integrals
+          K(jk) = (jk;il) P(il)
+          so we don't have to reform the permutations in the exchange routine.
+        */
+        rs_ktei.resize(Nel*Nel*N_L);
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+        for(size_t L=0;L<N_L;L++)
+          for(size_t iel=0;iel<Nel;iel++) {
+            // Diagonal integrals
+            size_t Ni(radial.Nprim(iel));
+            rs_ktei[Nel*Nel*L + iel*Nel + iel]=utils::exchange_tei(radial.yukawa_integral(L,lambda,iel),Ni,Ni,Ni,Ni);
+          }
+      }
+
+      void TwoDBasis::compute_erfc(double mu) {
+        lambda=mu;
+        yukawa=false;
+
+        // Number of distinct L values is
+        size_t N_L(2*arma::max(lval)+1);
+        size_t Nel(radial.Nel());
+
+        // No disjoint integrals
+        disjoint_iL.clear();
+        disjoint_kL.clear();
+
+        /*
+          The exchange matrix is given by
+          K(jk) = (ij|kl) P(il)
+          i.e. the complex conjugation hits i and l as
+          in the density matrix.
+
+          To get this in the proper order, we permute the integrals
+          K(jk) = (jk;il) P(il)
+          so we don't have to reform the permutations in the exchange routine.
+        */
+        rs_ktei.resize(Nel*Nel*N_L);
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+        for(size_t L=0;L<N_L;L++)
+          for(size_t iel=0;iel<Nel;iel++) {
+            for(size_t kel=0;kel<Nel;kel++) {
+              // Diagonal integrals
+              size_t Ni(radial.Nprim(iel));
+              size_t Nk(radial.Nprim(kel));
+              rs_ktei[Nel*Nel*L + iel*Nel + kel]=utils::exchange_tei(radial.erfc_integral(L,lambda,iel,kel),Ni,Ni,Nk,Nk);
+            }
+          }
+      }
+
       arma::mat TwoDBasis::coulomb(const arma::mat & P) const {
         if(!prim_tei.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
@@ -411,6 +487,174 @@ namespace helfem {
                     // Disjoint integrals. When r(iel)>r(jel), iel gets -1-L, jel gets L.
                     const arma::mat & iint=(iel>jel) ? disjoint_m1L[L*Nel+iel] : disjoint_L[L*Nel+iel];
                     const arma::mat & jint=(iel>jel) ? disjoint_L[L*Nel+jel] : disjoint_m1L[L*Nel+jel];
+
+                    // Get density submatrix (Niel x Njel)
+                    arma::mat Psub(mem_Psub[ith].memptr(),Ni,Nj,false,true);
+                    Psub=P_L.submat(ifirst,jfirst,ilast,jlast);
+
+                    // Calculate helper
+                    arma::mat T(mem_T[ith].memptr(),Ni,Nj,false,true);
+                    // (Niel x Njel) = (Niel x Njel) x (Njel x Njel)
+                    T=Psub*arma::trans(jint);
+                    // Exchange submatrix
+                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni,Nj,false,true);
+                    Ksub=iint*T;
+
+                    // Increment global exchange matrix
+                    K.slice(lout).submat(ifirst,jfirst,ilast,jlast)-=Ksub;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        return K;
+      }
+
+      arma::cube TwoDBasis::rs_exchange(const arma::cube & P) const {
+        if(!rs_ktei.size())
+          throw std::logic_error("Primitive teis have not been computed!\n");
+
+        // Gaunt coefficient table
+        int gmax(arma::max(lval));
+        gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
+
+        if(P.n_slices != (arma::uword) gmax+1)
+          throw std::logic_error("Density matrix am does not match basis set!\n");
+
+        // Number of radial elements
+        size_t Nel(radial.Nel());
+        // Number of radial basis functions
+        size_t Nrad(radial.Nbf());
+        if(P.n_rows != Nrad || P.n_cols != Nrad)
+          throw std::logic_error("Density matrix does not match basis set!\n");
+
+        // Full exchange matrix
+        arma::cube K(Nrad,Nrad,gmax+1);
+        K.zeros();
+
+        // Helper memory
+#ifdef _OPENMP
+        const int nth(omp_get_max_threads());
+#else
+        const int nth(1);
+#endif
+        std::vector<arma::vec> mem_Ksub(nth);
+        std::vector<arma::vec> mem_Psub(nth);
+        std::vector<arma::vec> mem_T(nth);
+
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+#ifdef _OPENMP
+          const int ith(omp_get_thread_num());
+#else
+          const int ith(0);
+#endif
+          // These are only small submatrices!
+          mem_Psub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
+          mem_Ksub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
+          mem_T[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
+
+          // Increment
+#ifdef _OPENMP
+#pragma omp for
+#endif
+          // Loop over angular momentum of output
+          for(int lout=0;lout<=gmax;lout++) {
+            // Initialize memory
+            arma::cube Prad;
+            Prad.zeros(Nrad,Nrad,2*gmax+1);
+            // Do we have a coupling
+            std::vector<bool> coupling(2*gmax+1,false);
+
+            // Do angular sums: loop over input angular momentum
+            for(int lin=0;lin<=gmax;lin++) {
+              // Skip if nothing to do
+              if(arma::norm(P.slice(lin),2)==0.0)
+                continue;
+
+              // Possible couplings (lin,lout) => L
+              int Lmin=std::abs(lin-lout);
+              int Lmax=lin+lout;
+
+              arma::vec totcoup;
+              totcoup.zeros(Lmax+1);
+              // Sum over m values: output indices
+              for(int mout=-lout;mout<=lout;mout++) {
+                // and input indices
+                for(int min=-lin;min<=lin;min++) {
+                  // LH m value
+                  int M(mout-min);
+                  for(int L=Lmin;L<=Lmax;L++) {
+                    // Calculate total coupling coefficient
+                    double cpl(gaunt.coeff(lout,mout,L,M,lin,min)*gaunt.coeff(lout,mout,L,M,lin,min));
+                    totcoup(L)+=cpl;
+                  }
+                }
+              }
+              // Averaging wrt output
+              totcoup /= 2*lout+1;
+
+              // Increment radial density matrix
+              for(int L=Lmin;L<=Lmax;L++) {
+                // Check if coupling exists
+                if(totcoup(L)==0.0)
+                  continue;
+
+                // Form density matrix
+                double Lfac = yukawa ? 4.0*M_PI*lambda :  4.0*M_PI*lambda/(2*L+1);
+                Prad.slice(L)+=(Lfac*totcoup(L))*P.slice(lin);
+                coupling[L]=true;
+              }
+            }
+
+            for(size_t L=0;L<coupling.size();L++) {
+              if(!coupling[L])
+                continue;
+
+              // Radial matrix
+              arma::mat P_L(Prad.slice(L));
+
+              // Loop over elements: output
+              for(size_t iel=0;iel<Nel;iel++) {
+                size_t ifirst, ilast;
+                radial.get_idx(iel,ifirst,ilast);
+
+                // Input
+                for(size_t jel=0;jel<Nel;jel++) {
+                  size_t jfirst, jlast;
+                  radial.get_idx(jel,jfirst,jlast);
+
+                  // Number of functions in the two elements
+                  size_t Ni(ilast-ifirst+1);
+                  size_t Nj(jlast-jfirst+1);
+
+                  if(!yukawa || iel == jel) {
+                    /*
+                      The exchange matrix is given by
+                      K(jk) = (ij|kl) P(il)
+                      i.e. the complex conjugation hits i and l as
+                      in the density matrix.
+
+                      To get this in the proper order, we permute the integrals
+                      K(jk) = (jk;il) P(il)
+                    */
+
+                    // Exchange submatrix
+                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni*Nj,1,false,true);
+                    Ksub=rs_ktei[Nel*Nel*L + iel*Nel + jel]*arma::vectorise(P_L.submat(ifirst,jfirst,ilast,jlast));
+                    Ksub.reshape(Ni,Nj);
+
+                    // Increment global exchange matrix
+                    K.slice(lout).submat(ifirst,jfirst,ilast,jlast)-=Ksub;
+
+                  } else {
+                    // Disjoint integrals. When r(iel)>r(jel), iel gets -1-L, jel gets L.
+                    const arma::mat & iint=(iel>jel) ? disjoint_kL[L*Nel+iel] : disjoint_iL[L*Nel+iel];
+                    const arma::mat & jint=(iel>jel) ? disjoint_iL[L*Nel+jel] : disjoint_kL[L*Nel+jel];
 
                     // Get density submatrix (Niel x Njel)
                     arma::mat Psub(mem_Psub[ith].memptr(),Ni,Nj,false,true);

@@ -185,8 +185,6 @@ int main(int argc, char **argv) {
   ::parse_xc_func(x_func, c_func, method);
   ::print_info(x_func, c_func);
 
-  if(is_range_separated(x_func))
-    throw std::logic_error("Range separated functionals are not supported in the spherically symmetric program.\n");
   {
     bool gga, mgga_t, mgga_l;
     if(x_func>0) {

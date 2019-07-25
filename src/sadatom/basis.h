@@ -28,6 +28,11 @@ namespace helfem {
         /// Nuclear charge
         int Z;
 
+        /// Yukawa exchange?
+        bool yukawa;
+        /// Range separation parameter
+        double lambda;
+
         /// Radial basis set
         atomic::basis::RadialBasis radial;
         /// Angular basis set: function l values
@@ -35,10 +40,14 @@ namespace helfem {
 
         /// Auxiliary integrals
         std::vector<arma::mat> disjoint_L, disjoint_m1L;
+        /// Auxiliary integrals, Yukawa
+        std::vector<arma::mat> disjoint_iL, disjoint_kL;
         /// Primitive two-electron integrals: <Nel^2 * (2L+1)>
         std::vector<arma::mat> prim_tei;
         /// Primitive two-electron exchange integrals
         std::vector<arma::mat> prim_ktei;
+        /// Primitive two-electron exchange integrals, range separation
+        std::vector<arma::mat> rs_ktei;
 
       public:
         TwoDBasis();
@@ -49,6 +58,10 @@ namespace helfem {
 
         /// Compute two-electron integrals
         void compute_tei();
+        /// Compute two-electron integrals
+        void compute_yukawa(double lambda);
+        /// Compute two-electron integrals
+        void compute_erfc(double mu);
 
         /// Number of basis functions
         size_t Nbf() const;
@@ -71,6 +84,8 @@ namespace helfem {
         arma::mat coulomb(const arma::mat & P) const;
         /// Form exchange matrix
         arma::cube exchange(const arma::cube & P) const;
+        /// Form exchange matrix
+        arma::cube rs_exchange(const arma::cube & P) const;
         /// Form Thomas-Fermi matrix
         arma::mat thomasfermi() const;
 
