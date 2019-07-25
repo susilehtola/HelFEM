@@ -132,7 +132,7 @@ namespace helfem {
      * Computes a primitive two-electron complementary error function
      * integral. Note that these integrals do not factorize.
      */
-    arma::mat erfc_integral(double rmini, double rmaxi, const arma::mat & bfi, double rmink, double rmaxk, const arma::mat & bfk, const arma::vec & x, const arma::vec & wx, int L, double mu);
+    arma::mat erfc_integral(double rmini, double rmaxi, const arma::mat & bfi, const arma::vec & xi, const arma::vec & wi, double rmink, double rmaxk, const arma::mat & bfk, const arma::vec & xk, const arma::vec & wk, int L, double mu);
 
     /**
      * Computes the spherically symmetric potential V(r).

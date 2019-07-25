@@ -439,11 +439,16 @@ namespace helfem {
       return ints;
     }
 
-    arma::mat erfc_integral(double rmini, double rmaxi, const arma::mat & bfi, double rmink, double rmaxk, const arma::mat & bfk, const arma::vec & x, const arma::vec & wx, int L, double mu) {
+    arma::mat erfc_integral(double rmini, double rmaxi, const arma::mat & bfi, const arma::vec & xi, const arma::vec & wi, double rmink, double rmaxk, const arma::mat & bfk, const arma::vec & xk, const arma::vec & wk, int L, double mu) {
 #ifndef ARMA_NO_DEBUG
-      if(x.n_elem != wx.n_elem) {
+      if(xi.n_elem != wi.n_elem) {
         std::ostringstream oss;
-        oss << "x and wx not compatible: " << x.n_elem << " vs " << wx.n_elem << "!\n";
+        oss << "xi and wi not compatible: " << xi.n_elem << " vs " << wi.n_elem << "!\n";
+        throw std::logic_error(oss.str());
+      }
+      if(xk.n_elem != wk.n_elem) {
+        std::ostringstream oss;
+        oss << "xk and wk not compatible: " << xk.n_elem << " vs " << wk.n_elem << "!\n";
         throw std::logic_error(oss.str());
       }
 #endif
@@ -455,8 +460,8 @@ namespace helfem {
       double rlenk(0.5*(rmaxk-rmink));
 
       // Radii
-      arma::vec ri(rmidi*arma::ones<arma::vec>(x.n_elem)+rleni*x);
-      arma::vec rk(rmidk*arma::ones<arma::vec>(x.n_elem)+rlenk*x);
+      arma::vec ri(rmidi*arma::ones<arma::vec>(xi.n_elem)+rleni*xi);
+      arma::vec rk(rmidk*arma::ones<arma::vec>(xk.n_elem)+rlenk*xk);
 
       // Green's function
       arma::mat Fn(ri.n_elem,rk.n_elem);
@@ -474,10 +479,10 @@ namespace helfem {
         for(size_t fj=0;fj<bfk.n_cols;fj++)
           bfprodkl.col(fi*bfk.n_cols+fj)=bfk.col(fi)%bfk.col(fj);
       // Put in the weights
-      arma::vec wpi(wx*rleni);
+      arma::vec wpi(wi*rleni);
       for(size_t i=0;i<bfprodij.n_cols;i++)
         bfprodij.col(i)%=wpi;
-      arma::vec wpk(wx*rlenk);
+      arma::vec wpk(wk*rlenk);
       for(size_t i=0;i<bfprodkl.n_cols;i++)
         bfprodkl.col(i)%=wpk;
 

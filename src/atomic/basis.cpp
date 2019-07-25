@@ -463,8 +463,45 @@ namespace helfem {
         double Rmink(bval(kel));
         double Rmaxk(bval(kel+1));
 
-        // Integral by quadrature
-        arma::mat tei(quadrature::erfc_integral(Rmini,Rmaxi,get_basis(bf,iel),Rmink,Rmaxk,get_basis(bf,kel),xq,wq,L,mu));
+        size_t N = xq.n_elem;
+        // Number of subintervals
+        size_t Nint;
+
+        if(iel == kel) {
+          // Intraelement integral is harder to converge due to the
+          // electronic cusp, so let's do the same trick as in the
+          // separable case and use a tighter grid for the "inner"
+          // integral.
+          Nint = N;
+
+        } else {
+          // A single interval suffices since there's no cusp.
+          Nint = 1;
+        }
+
+        arma::vec xk(N*Nint);
+        arma::vec wk(N*Nint);
+        for(size_t ii=0;ii<Nint;ii++) {
+          // Interval starts at
+          double istart = ii*2.0/Nint - 1.0;
+          double iend = (ii+1)*2.0/Nint - 1.0;
+          // Midpoint and half-length of interval
+          double imid = 0.5*(iend+istart);
+          double ilen = 0.5*(iend-istart);
+
+          // Place quadrature points at
+          xk.subvec(ii*N,(ii+1)*N-1)=arma::ones<arma::vec>(N)*imid + xq*ilen;
+          // which have the renormalized weights
+          wk.subvec(ii*N,(ii+1)*N-1)=wq*ilen;
+        }
+        // Basis function values
+        arma::mat kbf(poly->eval(xk));
+        // Evaluate integral
+        arma::mat tei(quadrature::erfc_integral(Rmini,Rmaxi,get_basis(bf,iel),xq,wq,Rmink,Rmaxk,get_basis(kbf,kel),xk,wk,L,mu));
+        // Symmetrize just to be sure, since quadrature points were
+        // different
+        if(iel == kel)
+          tei=0.5*(tei+tei.t());
 
         return tei;
       }
