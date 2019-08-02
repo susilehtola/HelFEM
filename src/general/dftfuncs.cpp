@@ -326,6 +326,8 @@ void is_gga_mgga(int func_id, bool & gga, bool & mgga_t, bool & mgga_l) {
   gga=false;
   mgga_t=false;
   mgga_l=false;
+  if(func_id <= 0)
+    return;
 
   // Correlation and exchange functionals
   xc_func_type func;
