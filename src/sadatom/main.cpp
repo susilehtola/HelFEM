@@ -185,22 +185,27 @@ int main(int argc, char **argv) {
   ::parse_xc_func(x_func, c_func, method);
   ::print_info(x_func, c_func);
 
+  // Potential
+  int xp_func, cp_func;
+  ::parse_xc_func(xp_func, cp_func, potmethod);
   {
     bool gga, mgga_t, mgga_l;
     if(x_func>0) {
-      is_gga_mgga(x_func,  gga, mgga_t, mgga_l);
+      is_gga_mgga(xp_func,  gga, mgga_t, mgga_l);
       if(mgga_t || mgga_l)
         throw std::logic_error("Meta-GGA functionals are not supported in the spherically symmetric program.\n");
     }
     if(c_func>0) {
-      is_gga_mgga(c_func,  gga, mgga_t, mgga_l);
+      is_gga_mgga(cp_func,  gga, mgga_t, mgga_l);
       if(mgga_t || mgga_l)
         throw std::logic_error("Meta-GGA functionals are not supported in the spherically symmetric program.\n");
     }
-  }
 
-  int xp_func, cp_func;
-  ::parse_xc_func(xp_func, cp_func, potmethod);
+    double o, a, b;
+    range_separation(xp_func, o, a, b);
+    if(o!=0.0 || a!=0.0 || b!=0.0)
+      throw std::logic_error("Optimized effective potential is not implemented in the spherically symmetric program.\n");
+  }
 
   // Initialize solver
   sadatom::solver::SCFSolver solver(Z, lmax, poly, Nquad, Nelem, Rmax, igrid, zexp, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);

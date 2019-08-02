@@ -20,6 +20,7 @@
 #include <armadillo>
 #include "dftgrid.h"
 #include "../atomic/basis.h"
+#include "../atomic/dftgrid.h"
 
 namespace helfem {
   namespace sadatom {
@@ -92,7 +93,7 @@ namespace helfem {
         /// Print out orbital info
         void Print(const std::vector< std::pair<int,arma::mat> > & rmat) const;
         /// Save radial part to disk
-        void Save(const sadatom::basis::TwoDBasis & basis, const std::string & symbol) const;
+        void Save(const basis::TwoDBasis & basis, const std::string & symbol) const;
 
         /// Checks if the occupations are the same
         bool operator==(const OrbitalChannel & rh) const;
@@ -174,7 +175,19 @@ namespace helfem {
         int lmax;
 
         /// Basis set to use
-        sadatom::basis::TwoDBasis basis;
+        basis::TwoDBasis basis;
+        /// Integration grid
+        dftgrid::DFTGrid grid;
+
+        /// Full atomic basis set for meta-GGAs
+        atomic::basis::TwoDBasis atbasis;
+        /// Full atomic intgeration grid for meta-GGAs
+        atomic::dftgrid::DFTGrid atgrid;
+
+        /// Exchange functional
+        int x_func;
+        /// Correlation functional
+        int c_func;
 
         /// Overlap matrix
         arma::mat S;
@@ -189,13 +202,6 @@ namespace helfem {
         arma::mat Vnuc;
         /// Core Hamiltonian
         arma::mat H0;
-
-        /// Integration grid
-        dftgrid::DFTGrid grid;
-        /// Exchange functional
-        int x_func;
-        /// Correlation functional
-        int c_func;
 
         /// Maximum number of SCF iterations
         int maxit;
@@ -265,7 +271,7 @@ namespace helfem {
         arma::mat HighSpinPotential(uconf_t & conf);
 
         /// Get the basis
-        const sadatom::basis::TwoDBasis & Basis() const;
+        const basis::TwoDBasis & Basis() const;
         /// Get the radial matrices
         std::vector< std::pair<int, arma::mat> > Rmatrices() const;
         /// Compute the nuclear density

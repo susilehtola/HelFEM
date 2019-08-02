@@ -332,7 +332,7 @@ namespace helfem {
         }
       }
 
-      static arma::mat make_full(const arma::cube & input) {
+      static arma::mat full_density(const arma::cube & input) {
         // Get the angular basis
         arma::ivec lval, mval;
         atomic::basis::angular_basis(input.n_slices-1,input.n_slices-1,lval,mval);
@@ -355,7 +355,8 @@ namespace helfem {
             // so the index of the angular shell is
             arma::uword angidx(lidx(midx(0)));
 
-            output.submat(angidx*Nrad,angidx*Nrad,(angidx+1)*Nrad-1,(angidx+1)*Nrad-1) = input.slice(l);
+            // Radial density matrix already has 2l+1 factor
+            output.submat(angidx*Nrad,angidx*Nrad,(angidx+1)*Nrad-1,(angidx+1)*Nrad-1) = input.slice(l)/(2*l+1);
           }
         }
 
@@ -421,9 +422,18 @@ namespace helfem {
         return output;
       }
 
+      static arma::mat slice_average(const arma::cube & input) {
+        // Initialize
+        arma::mat out(input.slice(0));
+        for(int l=1;l<(int) input.n_slices;l++) {
+          out += input.slice(l);
+        }
+        return out/input.n_slices;
+      }
+
       arma::mat OrbitalChannel::FullDensity() const {
         // Return full matrix
-        return make_full(AngularDensity());
+        return full_density(AngularDensity());
       }
 
       arma::cube OrbitalChannel::AngularDensity() const {
@@ -540,6 +550,8 @@ namespace helfem {
       SCFSolver::SCFSolver(int Z, int lmax_, polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, int igrid, double zexp, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
         // Form basis
         basis=sadatom::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, lmax, igrid, zexp);
+        atbasis=atomic::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, lmax, lmax, igrid, zexp);
+
         // Form overlap matrix
         S=basis.overlap();
         // Get half-inverse
@@ -555,6 +567,11 @@ namespace helfem {
 
         // Form DFT grid
         grid=helfem::sadatom::dftgrid::DFTGrid(&basis);
+
+        // Default values
+        int ldft=4*lmax+10;
+        int mdft=4*lmax+5;
+        atgrid=helfem::atomic::dftgrid::DFTGrid(&atbasis,ldft,mdft);
 
         // Compute two-electron integrals
         basis.compute_tei();
@@ -604,6 +621,14 @@ namespace helfem {
         orbs.UpdateOrbitals(ReplicateCube(H0)+KineticCube(),Sinvh);
       }
 
+      bool is_meta(int x_func, int c_func) {
+        bool ggax, mggatx, mggalx;
+        is_gga_mgga(x_func, ggax, mggatx, mggalx);
+        bool ggac, mggatc, mggalc;
+        is_gga_mgga(c_func, ggac, mggatc, mggalc);
+        return mggatx || mggatc || mggalx || mggalc;
+      }
+
       double SCFSolver::FockBuild(rconf_t & conf) {
         // Form density
         conf.orbs.UpdateDensity(conf.Pl);
@@ -640,12 +665,21 @@ namespace helfem {
         // Exchange-correlation
         conf.Exc=0.0;
 
-        arma::mat XC;
+        arma::cube XC;
         double nelnum;
         if(x_func > 0 || c_func > 0) {
-          grid.eval_Fxc(x_func, c_func, P/angfac, XC, conf.Exc, nelnum, dftthr);
-          // Potential needs to be divided as well
-          XC/=angfac;
+          if(is_meta(x_func,c_func)) {
+            arma::mat XCfull;
+            double Ekin;
+            atgrid.eval_Fxc(x_func, c_func, full_density(conf.Pl), XCfull, conf.Exc, nelnum, Ekin, dftthr);
+            XC=make_m_average(XCfull,atbasis.Nrad(),atbasis.get_lval(),atbasis.get_mval());
+          } else {
+            arma::mat XCm;
+            grid.eval_Fxc(x_func, c_func, P/angfac, XCm, conf.Exc, nelnum, dftthr);
+            // Potential needs to be divided as well
+            XCm/=angfac;
+            XC=ReplicateCube(XCm);
+          }
           if(verbose) {
             printf("DFT energy %.10e\n",conf.Exc);
             printf("Error in integrated number of electrons % e\n",nelnum-conf.orbs.Nel());
@@ -680,7 +714,7 @@ namespace helfem {
         if(kfrac!=0.0 || kshort!=0.0)
           conf.Fl+=K;
         if(x_func>0 || c_func>0)
-          conf.Fl+=ReplicateCube(XC);
+          conf.Fl+=XC;
 
         // Update energy
         conf.Econf=conf.Ekin+conf.Epot+conf.Ecoul+conf.Exc;
@@ -720,12 +754,23 @@ namespace helfem {
 
         // Exchange-correlation
         conf.Exc=0.0;
-        arma::mat XCa, XCb;
+        arma::cube XCa, XCb;
         double nelnum;
-        grid.eval_Fxc(x_func, c_func, Pa/angfac, Pb/angfac, XCa, XCb, conf.Exc, nelnum, true, dftthr);
-        // Potential needs to be divided as well
-        XCa/=angfac;
-        XCb/=angfac;
+        if(is_meta(x_func,c_func)) {
+          arma::mat XCafull, XCbfull;
+          double Ekin;
+          atgrid.eval_Fxc(x_func, c_func, full_density(conf.Pal), full_density(conf.Pbl), XCafull, XCbfull, conf.Exc, nelnum, Ekin, true, dftthr);
+          XCa=make_m_average(XCafull,atbasis.Nrad(),atbasis.get_lval(),atbasis.get_mval());
+          XCb=make_m_average(XCbfull,atbasis.Nrad(),atbasis.get_lval(),atbasis.get_mval());
+        } else {
+          arma::mat XCam, XCbm;
+          grid.eval_Fxc(x_func, c_func, Pa/angfac, Pb/angfac, XCam, XCbm, conf.Exc, nelnum, true, dftthr);
+          // Potential needs to be divided as well
+          XCam/=angfac;
+          XCbm/=angfac;
+          XCa=ReplicateCube(XCam);
+          XCb=ReplicateCube(XCbm);
+        }
         if(verbose) {
           printf("DFT energy %.10e\n",conf.Exc);
           printf("Error in integrated number of electrons % e\n",nelnum-conf.orbsa.Nel()-conf.orbsb.Nel());
@@ -767,8 +812,8 @@ namespace helfem {
           conf.Fbl+=Kb;
         }
         if(x_func>0 || c_func>0) {
-          conf.Fal+=ReplicateCube(XCa);
-          conf.Fbl+=ReplicateCube(XCb);
+          conf.Fal+=XCa;
+          conf.Fbl+=XCb;
         }
 
         // Update energy
