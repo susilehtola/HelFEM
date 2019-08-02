@@ -463,7 +463,8 @@ namespace helfem {
         double Rmink(bval(kel));
         double Rmaxk(bval(kel+1));
 
-        size_t N = xq.n_elem;
+        // Number of quadrature points
+        size_t Nq = xq.n_elem;
         // Number of subintervals
         size_t Nint;
 
@@ -472,15 +473,22 @@ namespace helfem {
           // electronic cusp, so let's do the same trick as in the
           // separable case and use a tighter grid for the "inner"
           // integral.
-          Nint = N;
+          Nint = Nq;
 
         } else {
           // A single interval suffices since there's no cusp.
           Nint = 1;
         }
 
-        arma::vec xk(N*Nint);
-        arma::vec wk(N*Nint);
+        // Get lh quadrature points
+        arma::vec xi, wi;
+        chebyshev::chebyshev(Nq,xi,wi);
+        // and basis function values
+        arma::mat ibf(poly->eval(xi));
+
+        // Rh quadrature points
+        arma::vec xk(Nq*Nint);
+        arma::vec wk(Nq*Nint);
         for(size_t ii=0;ii<Nint;ii++) {
           // Interval starts at
           double istart = ii*2.0/Nint - 1.0;
@@ -490,14 +498,15 @@ namespace helfem {
           double ilen = 0.5*(iend-istart);
 
           // Place quadrature points at
-          xk.subvec(ii*N,(ii+1)*N-1)=arma::ones<arma::vec>(N)*imid + xq*ilen;
+          xk.subvec(ii*Nq,(ii+1)*Nq-1)=arma::ones<arma::vec>(Nq)*imid + xi*ilen;
           // which have the renormalized weights
-          wk.subvec(ii*N,(ii+1)*N-1)=wq*ilen;
+          wk.subvec(ii*Nq,(ii+1)*Nq-1)=wi*ilen;
         }
-        // Basis function values
+        // and basis function values
         arma::mat kbf(poly->eval(xk));
+
         // Evaluate integral
-        arma::mat tei(quadrature::erfc_integral(Rmini,Rmaxi,get_basis(bf,iel),xq,wq,Rmink,Rmaxk,get_basis(kbf,kel),xk,wk,L,mu));
+        arma::mat tei(quadrature::erfc_integral(Rmini,Rmaxi,get_basis(ibf,iel),xi,wi,Rmink,Rmaxk,get_basis(kbf,kel),xk,wk,L,mu));
         // Symmetrize just to be sure, since quadrature points were
         // different
         if(iel == kel)
