@@ -14,8 +14,8 @@
  * of the License, or (at your option) any later version.
  */
 
-#ifndef DFTGRID
-#define DFTGRID
+#ifndef SADATOM_DFTGRID_H
+#define SADATOM_DFTGRID_H
 
 #include "basis.h"
 
