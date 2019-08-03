@@ -551,6 +551,7 @@ namespace helfem {
         // Form basis
         basis=sadatom::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, lmax, igrid, zexp);
         atbasis=atomic::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, lmax, lmax, igrid, zexp);
+        printf("Basis set has %i radial functions\n",(int) basis.Nbf());
 
         // Form overlap matrix
         S=basis.overlap();
