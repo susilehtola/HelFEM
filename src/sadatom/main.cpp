@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
   parser.add<double>("shift", 0, "level shift for initial SCF iterations", false, 1.0);
   parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
   parser.add<std::string>("method", 0, "method to use", false, "lda_x");
-  parser.add<std::string>("pot", 0, "method to use to compute potential", false, "lda_x");
+  parser.add<std::string>("pot", 0, "method to use to compute potential", false, "none");
   parser.add<std::string>("occs", 0, "occupations to use", false, "auto");
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.add<int>("restricted", 0, "spin-restricted orbitals", false, 0);
