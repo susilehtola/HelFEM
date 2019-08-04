@@ -592,9 +592,9 @@ int main(int argc, char **argv) {
 
     double nucd=solver.nuclear_density(uconf);
     double gnucd=solver.nuclear_density_gradient(uconf);
-    printf("\nElectron density          at the nucleus is %e\n",nucd);
-    printf("Electron density gradient at the nucleus is %e\n",gnucd);
-    printf("Cusp condition is %f\n",-1.0/(2*Z)*gnucd/nucd);
+    printf("\nElectron density          at the nucleus is % e\n",nucd);
+    printf("Electron density gradient at the nucleus is % e\n",gnucd);
+    printf("Cusp condition is %.10f\n",-1.0/(2*Z)*gnucd/nucd);
 
     printf("\nResult in NIST format\n");
     printf("Etot  = % 18.9f\n",uconf.Econf);
