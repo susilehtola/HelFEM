@@ -115,7 +115,7 @@ int main(int argc, char **argv) {
   parser.add<std::string>("pot", 0, "method to use to compute potential", false, "none");
   parser.add<std::string>("occs", 0, "occupations to use", false, "auto");
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
-  parser.add<int>("restricted", 0, "spin-restricted orbitals", false, 0);
+  parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
   parser.add<double>("diiseps", 0, "when to start mixing in diis", false, 1e-2);
   parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
@@ -291,7 +291,7 @@ int main(int argc, char **argv) {
           printf(" %2i",(int) occs(j));
         printf(" % .10f",rlist[i].Econf);
         if(i>0)
-          printf(" %7.2f",(rlist[i].Econf-rlist[0].Econf)*HARTREEINEV);
+          printf(" %11.6f",(rlist[i].Econf-rlist[0].Econf)*HARTREEINEV);
         if(!rlist[i].converged)
           printf(" convergence failure");
         printf("\n");
@@ -376,7 +376,7 @@ int main(int argc, char **argv) {
           printf(" %2i",(int) occb(j));
         printf(" % .10f",ulist[i].Econf);
         if(i>0)
-          printf(" %7.2f",(ulist[i].Econf-ulist[0].Econf)*HARTREEINEV);
+          printf(" %11.6f",(ulist[i].Econf-ulist[0].Econf)*HARTREEINEV);
         if(!ulist[i].converged)
           printf(" convergence failure");
         printf("\n");
