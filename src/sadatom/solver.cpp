@@ -960,6 +960,7 @@ namespace helfem {
           for(size_t i=0;i<occs.size();i++)
             printf(" %i",(int) occs(i));
           printf("\n");
+          fflush(stdout);
         }
 
         return E;
@@ -1070,6 +1071,7 @@ namespace helfem {
           for(size_t i=0;i<occb.size();i++)
             printf(" %i",(int) occb(i));
           printf("\n");
+          fflush(stdout);
         }
 
         return E;
