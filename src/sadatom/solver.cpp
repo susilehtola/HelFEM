@@ -111,6 +111,29 @@ namespace helfem {
         return occlist;
       }
 
+      arma::vec OrbitalChannel::GetGap() const {
+        arma::vec gap(E.n_cols);
+        for(size_t l=0;l<E.n_cols;l++) {
+          // Number of electrons to put in
+          arma::sword numl = occs(l);
+          for(size_t io=0;io<E.n_rows;io++) {
+            arma::sword nocc = std::min(ShellCapacity(l), numl);
+            numl-=nocc;
+            if(nocc == 0) {
+              if(io==0)
+                // Gap is just orbital energy
+                gap(l)=E(io,l);
+              else
+                // Gap is orbital energy difference
+                gap(l)=E(io,l)-E(io-1,l);
+              break;
+            }
+          }
+        }
+
+        return gap;
+      }
+
       std::string OrbitalChannel::Characterize() const {
         std::vector<shell_occupation_t> occlist(GetOccupied());
         std::ostringstream oss;

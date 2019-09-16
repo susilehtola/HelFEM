@@ -88,6 +88,9 @@ namespace helfem {
         /// Sets the occupations
         void SetOccs(const arma::ivec & occs_);
 
+        /// Get HOMO-LUMO gaps
+        arma::vec GetGap() const;
+
         /// Characterizes the configuration
         std::string Characterize() const;
         /// Print out orbital info
