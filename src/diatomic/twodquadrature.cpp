@@ -119,8 +119,8 @@ namespace helfem {
             r1(0)=Rhalf*(chmu(ir) + cth(ia));
             r2(0)=Rhalf*(chmu(ir) - cth(ia));
 
-	    double V1(arma::as_scalar(utils::sap_potential(Z1,r1)/r1));
-            double V2(arma::as_scalar(utils::sap_potential(Z2,r2)/r2));
+	    double V1(arma::as_scalar(utils::sap_effective_charge(Z1,r1)/r1));
+            double V2(arma::as_scalar(utils::sap_effective_charge(Z2,r2)/r2));
 	    if(std::isnormal(V1))
 	      itg(idx)+=V1;
 	    if(std::isnormal(V2))

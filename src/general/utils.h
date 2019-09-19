@@ -54,9 +54,9 @@ namespace helfem {
     arma::vec get_grid(double rmax, int num_el, int igrid, double zexp);
 
     /**
-     * Calculate SAP potential
+     * Calculate SAP effective charge
      */
-    arma::vec sap_potential(int Z, const arma::vec & r);
+    arma::vec sap_effective_charge(int Z, const arma::vec & r);
 
     /// Case independent string comparison
     int stricmp(const std::string & str1, const std::string & str2);
