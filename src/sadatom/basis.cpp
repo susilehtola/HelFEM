@@ -980,9 +980,6 @@ namespace helfem {
         // Take transpose to get correct order
         sigma_libxc=sigma_libxc.t();
 
-        // Energy
-        arma::vec exc(Npoints);
-        exc.zeros();
         // Potential
         arma::mat vxc(2,Npoints);
         vxc.zeros();
@@ -997,7 +994,6 @@ namespace helfem {
         v2sigma2.zeros();
 
         // Helper arrays
-        arma::vec exc_wrk(Npoints);
         arma::mat vxc_wrk(2,Npoints);
         arma::mat vsigma_wrk(3,Npoints);
         arma::mat v2rho2_wrk(3,Npoints);
@@ -1007,7 +1003,6 @@ namespace helfem {
         bool do_gga=false;
 
         if(x_func>0) {
-          exc_wrk.zeros();
           vxc_wrk.zeros();
           vsigma_wrk.zeros();
           v2rhosigma_wrk.zeros();
@@ -1023,21 +1018,19 @@ namespace helfem {
             throw std::logic_error("Error initializing exchange functional!\n");
           }
           if(gga) {
-            xc_gga(&func, rhoa.n_elem, rho_libxc.memptr(), sigma_libxc.memptr(), exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr(), v2rho2_wrk.memptr(), v2rhosigma_wrk.memptr(), v2sigma2_wrk.memptr(), NULL, NULL, NULL, NULL);
+            xc_gga(&func, rhoa.n_elem, rho_libxc.memptr(), sigma_libxc.memptr(), NULL, vxc_wrk.memptr(), vsigma_wrk.memptr(), v2rho2_wrk.memptr(), v2rhosigma_wrk.memptr(), v2sigma2_wrk.memptr(), NULL, NULL, NULL, NULL);
             do_gga=true;
             vsigma+=vsigma_wrk;
             v2rhosigma+=v2rhosigma_wrk;
             v2sigma2+=v2sigma2_wrk;
           } else {
-            xc_lda_exc_vxc(&func, rhoa.n_elem, rho_libxc.memptr(), exc_wrk.memptr(), vxc_wrk.memptr());
+            xc_lda_vxc(&func, rhoa.n_elem, rho_libxc.memptr(), vxc_wrk.memptr());
           }
           xc_func_end(&func);
 
           vxc+=vxc_wrk;
-          exc+=exc_wrk;
         }
         if(c_func>0) {
-          exc_wrk.zeros();
           vxc_wrk.zeros();
           vsigma_wrk.zeros();
           v2rhosigma_wrk.zeros();
@@ -1053,17 +1046,16 @@ namespace helfem {
             throw std::logic_error("Error initializing correlation functional!\n");
           }
           if(gga) {
-            xc_gga(&func, rhoa.n_elem, rho_libxc.memptr(), sigma_libxc.memptr(), exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr(), v2rho2_wrk.memptr(), v2rhosigma_wrk.memptr(), v2sigma2_wrk.memptr(), NULL, NULL, NULL, NULL);
+            xc_gga(&func, rhoa.n_elem, rho_libxc.memptr(), sigma_libxc.memptr(), NULL, vxc_wrk.memptr(), vsigma_wrk.memptr(), v2rho2_wrk.memptr(), v2rhosigma_wrk.memptr(), v2sigma2_wrk.memptr(), NULL, NULL, NULL, NULL);
             do_gga=true;
             vsigma+=vsigma_wrk;
             v2rhosigma+=v2rhosigma_wrk;
             v2sigma2+=v2sigma2_wrk;
           } else {
-            xc_lda_exc_vxc(&func, rhoa.n_elem, rho_libxc.memptr(), exc_wrk.memptr(), vxc_wrk.memptr());
+            xc_lda_vxc(&func, rhoa.n_elem, rho_libxc.memptr(), vxc_wrk.memptr());
           }
 
           vxc+=vxc_wrk;
-          exc+=exc_wrk;
         }
 
         // Add GGA correction to xc potential.
