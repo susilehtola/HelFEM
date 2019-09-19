@@ -541,6 +541,13 @@ namespace helfem {
           }
         }
 
+        if(ret.size() == 0) {
+          // Dummy list
+          ret.resize(1);
+          ret[0]=*this;
+          ret[0].occs.zeros(lmax+1);
+        }
+
         return ret;
       }
 

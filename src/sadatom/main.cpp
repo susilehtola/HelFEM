@@ -245,6 +245,12 @@ int main(int argc, char **argv) {
 
       // Restricted calculation
       sadatom::solver::rconf_t conf(initial);
+      conf.Econf=solver.Solve(conf);
+      if(Q!=0) {
+        // Initial occupations are wrong for the state
+        conf.orbs.AufbauOccupations(numel);
+        conf.Econf=solver.Solve(conf);
+      }
       rlist.push_back(conf);
 
       // Brute force search for the lowest state
@@ -317,6 +323,14 @@ int main(int argc, char **argv) {
       conf.orbsa.SetOccs(inocca);
       conf.orbsb.SetOccs(inoccb);
       solver.Solve(conf);
+      if(Q!=0) {
+        // Initial occupations are wrong for the state
+        sadatom::solver::OrbitalChannel helper;
+        helper=restrict_configuration(conf);
+        helper.AufbauOccupations(numel);
+        unrestrict_occupations(helper,conf);
+        conf.Econf=solver.Solve(conf);
+      }
       ulist.push_back(conf);
 
       // Brute force search for the lowest state
