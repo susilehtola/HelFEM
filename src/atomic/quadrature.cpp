@@ -210,8 +210,8 @@ namespace helfem {
 
       // Calculate total weight per point
       arma::vec wp(wx*rlen);
-      // Plug in charge
-      wp%=utils::sap_effective_charge(Z,r)/r;
+      // Plug in potential
+      wp%=-utils::sap_effective_charge(Z,r)/r;
 
       // Put in weight
       arma::mat wbf(bf);

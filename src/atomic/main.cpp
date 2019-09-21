@@ -547,7 +547,7 @@ int main(int argc, char **argv) {
         // Use SAP guess
         printf("Guess orbitals from SAP screened nucleus\n");
         {
-          arma::mat Hsap(H0+basis.sap());
+          arma::mat Hsap(H0-Vnuc+basis.sap());
           if(symm)
             scf::eig_gsym_sub(Ea,Ca,Hsap,Sinvh,dsym);
           else

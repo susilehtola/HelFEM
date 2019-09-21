@@ -628,7 +628,7 @@ int main(int argc, char **argv) {
           printf("Error in overlap matrix evaluated on two-dimensional grid is %e\n",Serr);
           fflush(stdout);
 
-          arma::mat Hsap(H0+qgrid.SAP());
+          arma::mat Hsap(H0-Vnuc+qgrid.SAP());
           if(symm)
             scf::eig_gsym_sub(Ea,Ca,Hsap,Sinvh,dsym);
           else
