@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cfloat>
 #include <stdexcept>
+#include <cstdio>
 
 // For factorials
 extern "C" {
@@ -95,7 +96,7 @@ namespace helfem {
         double Xi2np1=std::pow(Xi,2*n+1);
         double xi2np1=std::pow(xi,2*n+1);
 
-        double Hn = (Xi2np1+xi2np1)*std::erfc(Xi+xi) - (Xi2np1-xi2np1)*std::erfc(Xi-xi);
+        double Hn = (Xi2np1+xi2np1)*erfc(Xi+xi) - (Xi2np1-xi2np1)*erfc(Xi-xi);
         return Hn/(2.0*std::pow(xi*Xi,n+1));
       }
 
@@ -131,7 +132,7 @@ namespace helfem {
           for(int m=1;m<=n;m++)
             sum += 1.0/(double_factorial(2*(n-m)+1)*std::pow(2*Xi*Xi,m));
 
-          D = std::erfc(Xi) + prefac*sum;
+          D = erfc(Xi) + prefac*sum;
         } else {
           // Compute the sum
           double sum = 0.0;
