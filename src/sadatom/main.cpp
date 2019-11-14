@@ -631,6 +631,7 @@ int main(int argc, char **argv) {
       arma::mat potM(solver.AveragePotential(uconf));
       arma::mat potW(solver.WeightedPotential(uconf));
       arma::mat potS(solver.HighSpinPotential(uconf));
+      arma::mat pots(solver.LowSpinPotential(uconf));
 
       std::ostringstream oss;
 
@@ -649,6 +650,10 @@ int main(int argc, char **argv) {
       oss.str("");
       oss << "resultS_" << element_symbols[Z] << ".dat";
       potS.save(oss.str(),arma::raw_ascii);
+
+      oss.str("");
+      oss << "results_" << element_symbols[Z] << ".dat";
+      pots.save(oss.str(),arma::raw_ascii);
     }
 
     // Save the orbitals

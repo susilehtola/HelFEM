@@ -272,6 +272,8 @@ namespace helfem {
         arma::mat WeightedPotential(uconf_t & conf);
         /// Compute the effective potential for the high-spin case i.e. majority spin
         arma::mat HighSpinPotential(uconf_t & conf);
+        /// Compute the effective potential for the low-spin case i.e. minority spin
+        arma::mat LowSpinPotential(uconf_t & conf);
 
         /// Get the basis
         const basis::TwoDBasis & Basis() const;

@@ -1280,6 +1280,42 @@ namespace helfem {
         return result;
       }
 
+      arma::mat SCFSolver::LowSpinPotential(uconf_t & conf) {
+        if(!conf.orbsa.OrbitalsInitialized())
+          throw std::logic_error("No orbitals!\n");
+        if(!conf.orbsb.OrbitalsInitialized())
+          throw std::logic_error("No orbitals!\n");
+
+        arma::mat Pa=TotalDensity(conf.Pal);
+        arma::mat Pb=TotalDensity(conf.Pbl);
+        arma::mat Pcoul(Pa+Pb);
+        arma::mat Pxc(2*Pb);
+
+        arma::vec r(basis.radii());
+        arma::vec wt(basis.quadrature_weights());
+        arma::vec vcoul(basis.coulomb_screening(Pcoul));
+        arma::mat vxc(basis.xc_screening(Pxc,x_func,c_func));
+        arma::vec rhoa(basis.electron_density(Pa));
+        arma::vec grhoa(basis.electron_density_gradient(Pa));
+        arma::vec lrhoa(basis.electron_density_laplacian(Pa));
+        arma::vec rhob(basis.electron_density(Pb));
+        arma::vec grhob(basis.electron_density_gradient(Pb));
+        arma::vec lrhob(basis.electron_density_laplacian(Pb));
+        arma::vec Zeff(vcoul+vxc);
+
+        arma::mat result(Zeff.n_rows,8);
+        result.col(0)=r;
+        result.col(1)=rhoa+rhob;
+        result.col(2)=grhoa+grhob;
+        result.col(3)=lrhoa+lrhob;
+        result.col(4)=vcoul;
+        result.col(5)=vxc;
+        result.col(6)=wt;
+        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+
+        return result;
+      }
+
       const sadatom::basis::TwoDBasis & solver::SCFSolver::Basis() const {
         return basis;
       }
