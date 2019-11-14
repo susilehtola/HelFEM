@@ -1018,7 +1018,8 @@ namespace helfem {
             throw std::logic_error("Error initializing exchange functional!\n");
           }
           if(gga) {
-            xc_gga(&func, rhoa.n_elem, rho_libxc.memptr(), sigma_libxc.memptr(), NULL, vxc_wrk.memptr(), vsigma_wrk.memptr(), v2rho2_wrk.memptr(), v2rhosigma_wrk.memptr(), v2sigma2_wrk.memptr(), NULL, NULL, NULL, NULL);
+            xc_gga_vxc(&func, rhoa.n_elem, rho_libxc.memptr(), sigma_libxc.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr());
+            xc_gga_fxc(&func, rhoa.n_elem, rho_libxc.memptr(), sigma_libxc.memptr(), v2rho2_wrk.memptr(), v2rhosigma_wrk.memptr(), v2sigma2_wrk.memptr());
             do_gga=true;
             vsigma+=vsigma_wrk;
             v2rhosigma+=v2rhosigma_wrk;
@@ -1046,7 +1047,8 @@ namespace helfem {
             throw std::logic_error("Error initializing correlation functional!\n");
           }
           if(gga) {
-            xc_gga(&func, rhoa.n_elem, rho_libxc.memptr(), sigma_libxc.memptr(), NULL, vxc_wrk.memptr(), vsigma_wrk.memptr(), v2rho2_wrk.memptr(), v2rhosigma_wrk.memptr(), v2sigma2_wrk.memptr(), NULL, NULL, NULL, NULL);
+            xc_gga_vxc(&func, rhoa.n_elem, rho_libxc.memptr(), sigma_libxc.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr());
+            xc_gga_fxc(&func, rhoa.n_elem, rho_libxc.memptr(), sigma_libxc.memptr(), v2rho2_wrk.memptr(), v2rhosigma_wrk.memptr(), v2sigma2_wrk.memptr());
             do_gga=true;
             vsigma+=vsigma_wrk;
             v2rhosigma+=v2rhosigma_wrk;
