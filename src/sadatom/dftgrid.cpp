@@ -254,7 +254,7 @@ namespace helfem {
         // Set parameters
         if(p.n_elem) {
           // Check sanity
-          if(p.n_elem != (arma::uword) xc_func_get_n_ext_params(&func))
+          if(p.n_elem != (arma::uword) func.info->n_ext_params)
             throw std::logic_error("Incompatible number of parameters!\n");
           arma::vec phlp(p);
           xc_func_set_ext_params(&func, phlp.memptr());
