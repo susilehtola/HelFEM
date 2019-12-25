@@ -59,6 +59,15 @@ void eval(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis 
       break;
     }
 
+  case(2):
+    {
+      int lquad = 4*arma::max(lmmax)+12;
+      helfem::diatomic::twodquad::TwoDGrid qgrid;
+      qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
+      Vnuc=qgrid.SAP();
+      break;
+    }
+
   default:
     throw std::logic_error("Invalid model!\n");
   }
@@ -108,7 +117,7 @@ int main(int argc, char **argv) {
   parser.add<double>("Bz", 0, "magnetic dipole field", false, 0.0);
   parser.add<int>("thresh", 0, "convergence threshold, 10 corresponds to 1e-10", false, 10);
   parser.add<int>("nadd", 0, "number of funcs to add", false, 2);
-  parser.add<int>("imodel", 0, "model potential: bare nucleus (0), GSZ (1)", false, 0);
+  parser.add<int>("imodel", 0, "model potential: bare nucleus (0), GSZ (1), SAP (2)", false, 0);
   parser.parse_check(argc, argv);
 
   // Get parameters
