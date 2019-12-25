@@ -244,7 +244,7 @@ int main(int argc, char **argv) {
         printf("Addition of %i radial elements decreases energy by %e\n",nadd,dEr);
 
         dE=std::min(dEa,dEr);
-        if(std::abs(dE)<thr)
+        if(dE>-thr)
           break;
 
         // Angular loop is not converged
