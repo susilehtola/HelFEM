@@ -945,6 +945,16 @@ namespace helfem {
         return n;
       }
 
+      std::vector< std::pair<int, arma::mat> > TwoDBasis::Rmatrices() const {
+        std::vector< std::pair<int, arma::mat> > rmat;
+        for(int i=-2;i<=3;i++) {
+          if(i==0) continue;
+          std::pair<int, arma::mat> p(i, radial_integral(i));
+          rmat.push_back(p);
+        }
+        return rmat;
+      }
+
       arma::vec TwoDBasis::xc_screening(const arma::mat & Prad, int x_func, int c_func) const {
         arma::mat v(xc_screening(Prad/2,Prad/2,x_func,c_func));
         return 0.5*(v.col(0)+v.col(1));

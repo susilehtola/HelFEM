@@ -94,7 +94,7 @@ namespace helfem {
         /// Characterizes the configuration
         std::string Characterize() const;
         /// Print out orbital info
-        void Print(const std::vector< std::pair<int,arma::mat> > & rmat) const;
+        void Print(const basis::TwoDBasis & basp) const;
         /// Save radial part to disk
         void Save(const basis::TwoDBasis & basis, const std::string & symbol) const;
 
@@ -277,8 +277,6 @@ namespace helfem {
 
         /// Get the basis
         const basis::TwoDBasis & Basis() const;
-        /// Get the radial matrices
-        std::vector< std::pair<int, arma::mat> > Rmatrices() const;
         /// Compute the nuclear density
         double nuclear_density(const rconf_t & conf) const;
         /// Compute the nuclear density

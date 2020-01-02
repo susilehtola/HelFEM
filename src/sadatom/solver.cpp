@@ -146,8 +146,12 @@ namespace helfem {
         return oss.str();
       }
 
-      void OrbitalChannel::Print(const std::vector< std::pair<int,arma::mat> > & rmat) const {
+      void OrbitalChannel::Print(const basis::TwoDBasis & basis) const {
         std::vector<shell_occupation_t> occlist(GetOccupied());
+        arma::vec r(basis.radii());
+
+        // Get r matrices
+        std::vector< std::pair<int, arma::mat> > rmat(basis.Rmatrices());
 
         // Legend
         printf("%3s %4s %16s","nl","nocc","E");
@@ -156,19 +160,33 @@ namespace helfem {
           oss << "<r>(" << rmat[ir].first << ")";
           printf(" %12s",oss.str().c_str());
         }
-        printf("\n");
+        printf(" %12s\n","r(max)");
 
         // Orbital info
         for(size_t io=0;io<occlist.size();io++) {
+          // Orbital coefficients
+          arma::vec orb(C.slice(occlist[io].l).col(occlist[io].n-occlist[io].l-1));
+          // Orbital density matrix
+          arma::mat P(orb*orb.t());
+
           printf("%2i%c %4i % 16.9f",occlist[io].n, shtype[occlist[io].l], occlist[io].nocc, occlist[io].E);
 
           // loop over r matrices
+          arma::vec rpos(rmat.size());
           for(size_t ir=0;ir<rmat.size();ir++) {
-            arma::vec orb(C.slice(occlist[io].l).col(occlist[io].n-occlist[io].l-1));
-            double matel(arma::as_scalar(orb.t()*rmat[ir].second*orb));
-            printf(" %e",std::pow(matel,1.0/rmat[ir].first));
+            rpos(ir)=std::pow(arma::trace(P*rmat[ir].second),1.0/rmat[ir].first);
+            printf(" %e",rpos(ir));
           }
-          printf("\n");
+
+          // Test function: total number of electrons at each value of r
+          arma::vec rho(basis.electron_density(P));
+          arma::vec totel(arma::square(r)%rho);
+
+          // Position of maximum
+          arma::uword ridx;
+          totel.max(ridx);
+
+          printf(" %e\n",r(ridx));
         }
       }
 
@@ -1318,16 +1336,6 @@ namespace helfem {
 
       const sadatom::basis::TwoDBasis & solver::SCFSolver::Basis() const {
         return basis;
-      }
-
-      std::vector< std::pair<int, arma::mat> > SCFSolver::Rmatrices() const {
-        std::vector< std::pair<int, arma::mat> > rmat;
-        for(int i=-2;i<=3;i++) {
-          if(i==0) continue;
-          std::pair<int, arma::mat> p(i, basis.radial_integral(i));
-          rmat.push_back(p);
-        }
-        return rmat;
       }
 
       double SCFSolver::nuclear_density(const rconf_t & conf) const {

@@ -576,7 +576,7 @@ int main(int argc, char **argv) {
     printf("Ecoul = % 18.9f\n",rconf.Ecoul);
     printf("Eenuc = % 18.9f\n",rconf.Epot);
     printf("Exc   = % 18.9f\n",rconf.Exc);
-    rconf.orbs.Print(solver.Rmatrices());
+    rconf.orbs.Print(solver.Basis());
     (HARTREEINEV*rconf.orbs.GetGap()).t().print("HOMO-LUMO gap (eV)");
 
     // Get the potential
@@ -618,10 +618,10 @@ int main(int argc, char **argv) {
     printf("Eenuc = % 18.9f\n",uconf.Epot);
     printf("Exc   = % 18.9f\n",uconf.Exc);
     printf("Alpha orbitals\n");
-    uconf.orbsa.Print(solver.Rmatrices());
+    uconf.orbsa.Print(solver.Basis());
     (HARTREEINEV*uconf.orbsa.GetGap()).t().print("Alpha HOMO-LUMO gap (eV)");
     printf("Beta  orbitals\n");
-    uconf.orbsb.Print(solver.Rmatrices());
+    uconf.orbsb.Print(solver.Basis());
     (HARTREEINEV*uconf.orbsb.GetGap()).t().print("Beta  HOMO-LUMO gap (eV)");
 
     // Get the potential

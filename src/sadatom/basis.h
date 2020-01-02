@@ -116,6 +116,9 @@ namespace helfem {
         /// Compute the Coulomb screening of the nucleus
         arma::vec coulomb_screening(const arma::mat & Prad) const;
 
+        /// Get the radial matrices
+        std::vector< std::pair<int, arma::mat> > Rmatrices() const;
+
         /// Radii
         arma::vec radii() const;
         /// Compute radial orbitals
