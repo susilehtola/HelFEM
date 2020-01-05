@@ -332,12 +332,12 @@ namespace helfem {
 
           // Count occupied shells
           size_t nsh(CountOccupied(l));
-          arma::mat Co;
+          arma::mat Cv;
           if(nsh) {
-            // Apply level shift. Occupied orbitals
-            Co=C.slice(l).cols(0,nsh-1);
+            // Apply level shift to virtual orbitals
+            Cv=C.slice(l).cols(nsh,C.n_cols-1);
             // Shift matrix
-            arma::mat shmat(-shift*S*Co*Co.t()*S);
+            arma::mat shmat(shift*S*Cv*Cv.t()*S);
             // Update orbitals
             arma::vec El;
             helfem::scf::eig_gsym(El,C.slice(l),Fl+shmat,Sinvh);
