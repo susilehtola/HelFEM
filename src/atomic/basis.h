@@ -128,6 +128,8 @@ namespace helfem {
         /// Compute a spherically symmetric potential
         arma::mat spherical_potential(size_t iel) const;
 
+        /// Compute cross-basis integral
+        arma::mat radial_integral(const RadialBasis & rh, int n, bool lhder=false, bool rhder=false) const;
         /// Compute projection
         arma::mat overlap(const RadialBasis & rh) const;
 

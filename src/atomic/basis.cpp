@@ -290,7 +290,7 @@ namespace helfem {
         return quadrature::bessel_kl_integral(Rmin,Rmax,L,lambda,xq,wq,get_basis(bf,iel));
       }
 
-      arma::mat RadialBasis::overlap(const RadialBasis & rh) const {
+      arma::mat RadialBasis::radial_integral(const RadialBasis & rh, int n, bool lhder, bool rhder) const {
 	// Use the larger number of quadrature points to assure
 	// projection is computed ok
 	size_t n_quad(std::max(xq.n_elem,rh.xq.n_elem));
@@ -346,7 +346,7 @@ namespace helfem {
             double intmid(0.5*(intend+intstart));
             double intlen(0.5*(intend-intstart));
 
-	    // r values we're going to use are then
+	    // the r values we're going to use are then
 	    arma::vec r(intmid*arma::ones<arma::vec>(xproj.n_elem)+intlen*xproj);
 
 	    // Basis function indices
@@ -371,11 +371,19 @@ namespace helfem {
 	    // Calculate total weight per point
 	    arma::vec wtot(wproj*intlen);
 	    // Put in weight
-	    arma::mat ibf(poly->eval(xi));
-	    arma::mat jbf(rh.poly->eval(xj));
+            if(n!=0)
+              wtot %= arma::pow(r,n);
+
+            arma::mat ibf, idf;
+            poly->eval(xi, ibf, idf);
+            arma::mat jbf, jdf;
+            rh.poly->eval(xj, jbf, jdf);
+
+            const arma::mat & ifunc = lhder ? idf : ibf;
+            const arma::mat & jfunc = rhder ? jdf : jbf;
 
 	    // Perform quadrature
-            arma::mat s(arma::trans(ibf)*arma::diagmat(wtot)*jbf);
+            arma::mat s(arma::trans(ifunc)*arma::diagmat(wtot)*jfunc);
 
             // Increment overlap matrix
             S.submat(ifirst,jfirst,ilast,jlast)+=s(iidx,jidx);
@@ -383,6 +391,10 @@ namespace helfem {
         }
 
         return S;
+      }
+
+      arma::mat RadialBasis::overlap(const RadialBasis & rh) const {
+        return radial_integral(rh,0);
       }
 
       arma::mat RadialBasis::kinetic(size_t iel) const {
