@@ -374,10 +374,15 @@ namespace helfem {
             if(n!=0)
               wtot %= arma::pow(r,n);
 
+            // Evaluate radial basis functions
             arma::mat ibf, idf;
             poly->eval(xi, ibf, idf);
             arma::mat jbf, jdf;
             rh.poly->eval(xj, jbf, jdf);
+
+            // Need to divide derivatives by the element size
+            idf /= (bval(iel+1)-bval(iel))/2;
+            jdf /= (rh.bval(jel+1)-rh.bval(jel))/2;
 
             const arma::mat & ifunc = lhder ? idf : ibf;
             const arma::mat & jfunc = rhder ? jdf : jbf;
