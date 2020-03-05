@@ -46,6 +46,8 @@ namespace helfem {
 
     /// Form natural orbitals
     void form_NOs(const arma::mat & P, const arma::mat & Sh, const arma::mat & Sinvh, arma::mat & AO_to_NO, arma::mat & NO_to_AO, arma::vec & occs);
+    /// Form half-inverse overlap
+    arma::mat form_Sinvh(arma::mat S, bool chol=false);
 
     /// ROHF update to Fock matrices
     void ROHF_update(arma::mat & Fa_AO, arma::mat & Fb_AO, const arma::mat & P_AO, const arma::mat & Sh, const arma::mat & Sinvh, int nocca, int noccb);

@@ -60,24 +60,7 @@ namespace helfem {
       arma::mat TwoDBasis::Sinvh() const {
         // Form overlap matrix
         arma::mat S(overlap());
-
-        // Get the basis function norms
-        arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
-        // Go to normalized basis
-        S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
-
-        arma::vec Sval;
-        arma::mat Svec;
-        if(!arma::eig_sym(Sval,Svec,S)) {
-          S.save("S.dat",arma::raw_ascii);
-          throw std::logic_error("Diagonalization of overlap matrix failed\n");
-        }
-        printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
-
-        arma::mat Sinvh(Svec*arma::diagmat(arma::pow(Sval,-0.5))*arma::trans(Svec));
-        Sinvh=arma::diagmat(bfnormlz)*Sinvh;
-
-        return Sinvh;
+        return scf::form_Sinvh(S,false);
       }
 
       arma::mat TwoDBasis::radial_integral(int Rexp) const {

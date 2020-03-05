@@ -440,6 +440,30 @@ namespace helfem {
       NO_to_AO=arma::trans(Sh*Pv);
     }
 
+    arma::mat form_Sinvh(arma::mat S, bool chol) {
+      // Get the basis function norms
+      arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
+      // Go to normalized basis
+      S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
+
+      // Half-inverse is
+      arma::mat Sinvh;
+      if(chol) {
+        Sinvh = arma::inv(arma::chol(S));
+      } else {
+        arma::vec Sval;
+        arma::mat Svec;
+        if(!arma::eig_sym(Sval,Svec,S)) {
+          throw std::logic_error("Diagonalization of overlap matrix failed\n");
+        }
+        printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
+
+        Sinvh=Svec*arma::diagmat(arma::pow(Sval,-0.5))*arma::trans(Svec);
+      }
+
+      Sinvh=arma::diagmat(bfnormlz)*Sinvh;
+      return Sinvh;
+    }
 
     void ROHF_update(arma::mat & Fa_AO, arma::mat & Fb_AO, const arma::mat & P_AO, const arma::mat & Sh, const arma::mat & Sinvh, int nocca, int noccb) {
       /*
@@ -575,6 +599,5 @@ namespace helfem {
         }
       }
     }
-
   }
 }

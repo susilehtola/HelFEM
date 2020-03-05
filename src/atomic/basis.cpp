@@ -964,32 +964,25 @@ namespace helfem {
         // Form overlap matrix
         arma::mat S(overlap());
 
-        // Get the basis function norms
-        arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
-        // Go to normalized basis
-        S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
-
         // Half-inverse is
-        if(chol && sym==0) {
-          return arma::diagmat(bfnormlz) * arma::inv(arma::chol(S));
+        if(sym==0) {
+          return scf::form_Sinvh(S,chol);
         } else {
-          arma::vec Sval;
-          arma::mat Svec;
-          if(sym) {
-            // Symmetries
-            std::vector<arma::uvec> midx(get_sym_idx(sym));
-            scf::eig_sym_sub(Sval,Svec,S,midx);
-          } else {
-            if(!arma::eig_sym(Sval,Svec,S)) {
-              S.save("S.dat",arma::raw_ascii);
-              throw std::logic_error("Diagonalization of overlap matrix failed\n");
-            }
+          // Get basis function indices
+          std::vector<arma::uvec> midx(get_sym_idx(sym));
+          // Construct Sinvh in each subblock
+          arma::mat Sinvh(Nbf(),Nbf(),arma::fill::zeros);
+          size_t ioff=0;
+          for(size_t i=0;i<midx.size();i++) {
+            if(!midx[i].n_elem)
+              continue;
+
+            // Column indices
+            arma::uvec cidx(arma::linspace<arma::uvec>(ioff,ioff+midx[i].n_elem-1,midx[i].n_elem));
+            Sinvh(midx[i],cidx)=scf::form_Sinvh(S(midx[i],midx[i]),chol);
+            // Increment offset
+            ioff += midx[i].n_elem;
           }
-          printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
-
-          arma::mat Sinvh(Svec*arma::diagmat(arma::pow(Sval,-0.5))*arma::trans(Svec));
-          Sinvh=arma::diagmat(bfnormlz)*Sinvh;
-
           return Sinvh;
         }
       }
