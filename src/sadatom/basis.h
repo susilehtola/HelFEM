@@ -86,8 +86,6 @@ namespace helfem {
         arma::cube exchange(const arma::cube & P) const;
         /// Form exchange matrix
         arma::cube rs_exchange(const arma::cube & P) const;
-        /// Form Thomas-Fermi matrix
-        arma::mat thomasfermi() const;
 
         /// Evaluate basis functions
         arma::mat eval_bf(size_t iel) const;

@@ -8,7 +8,8 @@ general/checkpoint.cpp atomic/basis.cpp atomic/quadrature.cpp
 atomic/dftgrid.cpp atomic/erfc_expn.cpp sadatom/basis.cpp
 sadatom/dftgrid.cpp sadatom/solver.cpp sadatom/configurations.cpp
 general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
-diatomic/dftgrid.cpp diatomic/twodquadrature.cpp)
+diatomic/dftgrid.cpp diatomic/twodquadrature.cpp
+general/model_potential.cpp)
 
 add_executable(gensap sadatom/main.cpp)
 target_link_libraries(gensap helfem)
@@ -40,10 +41,6 @@ target_link_libraries(harmonic gsl ${LAPACK_LIBRARY} rt hdf5 z)
 add_executable(atomic atomic/main.cpp)
 target_link_libraries(atomic helfem legendre)
 target_link_libraries(atomic gsl ${LAPACK_LIBRARY} rt hdf5 z xc)
-
-add_executable(atomic_gszopt atomic/gszopt.cpp)
-target_link_libraries(atomic_gszopt helfem legendre)
-target_link_libraries(atomic_gszopt gsl ${LAPACK_LIBRARY} rt hdf5 z xc)
 
 add_executable(atomic_itest atomic/inttest.cpp)
 target_link_libraries(atomic_itest helfem legendre)

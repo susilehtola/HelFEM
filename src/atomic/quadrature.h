@@ -18,7 +18,7 @@
 
 #include <armadillo>
 #include "../general/polynomial_basis.h"
-#include "../general/sap.h"
+#include "../general/model_potential.h"
 
 namespace helfem {
   namespace quadrature {
@@ -39,6 +39,18 @@ namespace helfem {
      * r^2 dB_1(r)/dr dB_2/dr dr
      */
     arma::mat derivative_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & dbf);
+
+    /**
+     * Computes a radial integral of the type \f$ \int_0^\infty B_1 (r) B_2(r) Vnuc(r) dr \f$.
+     *
+     * Input
+     *   rmin: start of element boundary
+     *   rmax: end of element boundary
+     *      x: integration nodes
+     *     wx: integration weights
+     *     bf: basis functions evaluated at integration nodes.
+     */
+    arma::mat model_potential_integral(double rmin, double rmax, const modelpotential::ModelPotential * nuc, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
 
     /**
      * Computes a radial integral of the type \f$ \int_0^\infty B_1 (r) B_2(r) i_L(\lambda r) dr \f$.
@@ -65,42 +77,6 @@ namespace helfem {
      *     bf: basis functions evaluated at integration nodes.
      */
     arma::mat bessel_kl_integral(double rmin, double rmax, int L, double lambda, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
-
-    /**
-     * Computes a GSZ radial integral \f$ \int_0^\infty Z(r) B_1 (r) B_2(r) / r dr \f$.
-     *
-     * Input
-     *   rmin: start of element boundary
-     *   rmax: end of element boundary
-     *      x: integration nodes
-     *     wx: integration weights
-     *     bf: basis functions evaluated at integration nodes.
-     */
-    arma::mat gsz_integral(double Z, double dz, double Hz, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
-
-    /**
-     * Computes a SAP radial integral \f$ \int_0^\infty Z(r) B_1 (r) B_2(r) / r dr \f$.
-     *
-     * Input
-     *   rmin: start of element boundary
-     *   rmax: end of element boundary
-     *      x: integration nodes
-     *     wx: integration weights
-     *     bf: basis functions evaluated at integration nodes.
-     */
-    arma::mat sap_integral(int Z, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
-
-    /**
-     * Computes a Thomas Fermi radial integral \f$ \int_0^\infty Z(r) B_1 (r) B_2(r) / r dr \f$.
-     *
-     * Input
-     *   rmin: start of element boundary
-     *   rmax: end of element boundary
-     *      x: integration nodes
-     *     wx: integration weights
-     *     bf: basis functions evaluated at integration nodes.
-     */
-    arma::mat thomasfermi_integral(int Z, double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
 
     /**
      * Computes the inner in-element two-electron integral:

@@ -21,6 +21,7 @@
 #include "../general/timer.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
+#include "../general/model_potential.h"
 #include "basis.h"
 #include "dftgrid.h"
 #include "twodquadrature.h"
@@ -534,137 +535,103 @@ int main(int argc, char **argv) {
       default:
         // Project lowest orbitals
         printf("Guess orbitals from previous calculation\n");
-        {
-	  // Projector
-	  arma::mat P((Sinvh*arma::trans(Sinvh))*S12);
+      {
+        // Projector
+        arma::mat P((Sinvh*arma::trans(Sinvh))*S12);
 
-	  // Orbitals
-	  arma::mat C;
+        // Orbitals
+        arma::mat C;
 
-	  // Alpha orbitals
-	  loadchk.read("Ca",C);
-	  // Project onto new basis: C1 = S11^-1 S12 C2
-	  Ca=P*C;
+        // Alpha orbitals
+        loadchk.read("Ca",C);
+        // Project onto new basis: C1 = S11^-1 S12 C2
+        Ca=P*C;
 
-	  // Beta orbitals
-	  loadchk.read("Cb",C);
-	  Cb=P*C;
+        // Beta orbitals
+        loadchk.read("Cb",C);
+        Cb=P*C;
 
-	  // Run Gram-Schmidt to make sure orbitals are orthonormal
-	  for(int ia=0;ia<nela;ia++) {
-	    for(int ja=0;ja<ia;ja++)
-	      Ca.col(ia)-= Ca.col(ja)*(arma::trans(Ca.col(ja))*S*Ca.col(ia));
-	    Ca.col(ia) /= sqrt(arma::as_scalar(arma::trans(Ca.col(ia))*S*Ca.col(ia)));
-	  }
+        // Run Gram-Schmidt to make sure orbitals are orthonormal
+        for(int ia=0;ia<nela;ia++) {
+          for(int ja=0;ja<ia;ja++)
+            Ca.col(ia)-= Ca.col(ja)*(arma::trans(Ca.col(ja))*S*Ca.col(ia));
+          Ca.col(ia) /= sqrt(arma::as_scalar(arma::trans(Ca.col(ia))*S*Ca.col(ia)));
+        }
 
-	  for(int ib=0;ib<nelb;ib++) {
-	    for(int jb=0;jb<ib;jb++)
-	      Cb.col(ib) -= Cb.col(jb)*(arma::trans(Cb.col(jb))*S*Cb.col(ib));
-	    Cb.col(ib) /= sqrt(arma::as_scalar(arma::trans(Cb.col(ib))*S*Cb.col(ib)));
-	  }
+        for(int ib=0;ib<nelb;ib++) {
+          for(int jb=0;jb<ib;jb++)
+            Cb.col(ib) -= Cb.col(jb)*(arma::trans(Cb.col(jb))*S*Cb.col(ib));
+          Cb.col(ib) /= sqrt(arma::as_scalar(arma::trans(Cb.col(ib))*S*Cb.col(ib)));
+        }
 
-	  // Read in orbital energies
-	  loadchk.read("Ea",Ea);
-	  if(Ea.n_elem<Ca.n_cols)
-	    Ea=Ea.subvec(0,Ca.n_cols-1);
-	  loadchk.read("Eb",Eb);
-	  if(Eb.n_elem<Cb.n_cols)
-	    Eb=Eb.subvec(0,Cb.n_cols-1);
-	}
-	break;
+        // Read in orbital energies
+        loadchk.read("Ea",Ea);
+        if(Ea.n_elem<Ca.n_cols)
+          Ea=Ea.subvec(0,Ca.n_cols-1);
+        loadchk.read("Eb",Eb);
+        if(Eb.n_elem<Cb.n_cols)
+          Eb=Eb.subvec(0,Cb.n_cols-1);
+      }
+      break;
       }
     } else {
+      modelpotential::ModelPotential * p1, * p2;
       switch(iguess) {
       case(0):
         // Use core guess
         printf("Guess orbitals from core Hamiltonian\n");
-        if(symm)
-          scf::eig_gsym_sub(Ea,Ca,H0,Sinvh,dsym);
-        else
-          scf::eig_gsym(Ea,Ca,H0,Sinvh);
+        p1 = new modelpotential::PointNucleus(Z1);
+        p2 = new modelpotential::PointNucleus(Z2);
         break;
 
       case(1):
         // Use GSZ guess
         printf("Guess orbitals from GSZ screened nucleus\n");
-        {
-          // Quadrature grid
-          int lquad = (ldft>0) ? ldft : 4*arma::max(lmmax)+12;
-          helfem::diatomic::twodquad::TwoDGrid qgrid;
-          qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
-
-          arma::mat Sgsz(qgrid.overlap());
-          Sgsz-=S;
-          arma::vec bfnorm(arma::pow(arma::diagvec(S),-0.5));
-          normalize_matrix(Sgsz,bfnorm);
-
-          double Serr(arma::norm(Sgsz,"fro"));
-          printf("Error in overlap matrix evaluated on two-dimensional grid is %e\n",Serr);
-          fflush(stdout);
-
-          arma::mat Hgsz(H0-Vnuc+qgrid.GSZ());
-          if(symm)
-            scf::eig_gsym_sub(Ea,Ca,Hgsz,Sinvh,dsym);
-          else
-            scf::eig_gsym(Ea,Ca,Hgsz,Sinvh);
-          break;
-        }
+        p1 = new modelpotential::GSZAtom(Z1);
+        p2 = new modelpotential::GSZAtom(Z2);
+        break;
 
       case(2):
         // Use SAP guess
-        printf("Guess orbitals from SAP screened nuclei\n");
-        {
-          // Quadrature grid
-          int lquad = (ldft>0) ? ldft : 4*arma::max(lmmax)+12;
-          helfem::diatomic::twodquad::TwoDGrid qgrid;
-          qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
-
-          arma::mat Ssap(qgrid.overlap());
-          Ssap-=S;
-          arma::vec bfnorm(arma::pow(arma::diagvec(S),-0.5));
-          normalize_matrix(Ssap,bfnorm);
-
-          double Serr(arma::norm(Ssap,"fro"));
-          printf("Error in overlap matrix evaluated on two-dimensional grid is %e\n",Serr);
-          fflush(stdout);
-
-          arma::mat Hsap(H0-Vnuc+qgrid.SAP());
-          if(symm)
-            scf::eig_gsym_sub(Ea,Ca,Hsap,Sinvh,dsym);
-          else
-            scf::eig_gsym(Ea,Ca,Hsap,Sinvh);
-          break;
-        }
+        printf("Guess orbitals from SAP screened nucleus\n");
+        p1 = new modelpotential::SAPAtom(Z1);
+        p2 = new modelpotential::SAPAtom(Z2);
+        break;
 
       case(3):
         // Use Thomas-Fermi guess
-        printf("Guess orbitals from Thomas-Fermi nuclei\n");
-        {
-          // Quadrature grid
-          int lquad = (ldft>0) ? ldft : 4*arma::max(lmmax)+12;
-          helfem::diatomic::twodquad::TwoDGrid qgrid;
-          qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
-
-          arma::mat Ssap(qgrid.overlap());
-          Ssap-=S;
-          arma::vec bfnorm(arma::pow(arma::diagvec(S),-0.5));
-          normalize_matrix(Ssap,bfnorm);
-
-          double Serr(arma::norm(Ssap,"fro"));
-          printf("Error in overlap matrix evaluated on two-dimensional grid is %e\n",Serr);
-          fflush(stdout);
-
-          arma::mat Htf(H0-Vnuc+qgrid.thomasfermi());
-          if(symm)
-            scf::eig_gsym_sub(Ea,Ca,Htf,Sinvh,dsym);
-          else
-            scf::eig_gsym(Ea,Ca,Htf,Sinvh);
-          break;
-        }
+        printf("Guess orbitals from Thomas-Fermi nucleus\n");
+        p1 = new modelpotential::TFAtom(Z1);
+        p2 = new modelpotential::TFAtom(Z2);
+        break;
 
       default:
         throw std::logic_error("Unsupported guess\n");
       }
+
+      // Quadrature grid
+      int lquad = (ldft>0) ? ldft : 4*arma::max(lmmax)+12;
+      helfem::diatomic::twodquad::TwoDGrid qgrid;
+      qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
+
+      arma::mat Squad(qgrid.overlap());
+      Squad-=S;
+      arma::vec bfnorm(arma::pow(arma::diagvec(S),-0.5));
+      normalize_matrix(Squad,bfnorm);
+
+      double Serr(arma::norm(Squad,"fro"));
+      printf("Error in overlap matrix evaluated on two-dimensional grid is %e\n",Serr);
+      fflush(stdout);
+
+      arma::mat Hguess(T+Vel+Vmag+qgrid.model_potential(p1,p2));
+      delete p1;
+      delete p2;
+
+      // Diagonalize
+      if(symm)
+        scf::eig_gsym_sub(Ea,Ca,Hguess,Sinvh,dsym);
+      else
+        scf::eig_gsym(Ea,Ca,Hguess,Sinvh);
 
       // Beta guess is the same as the alpha guess
       Cb=Ca;

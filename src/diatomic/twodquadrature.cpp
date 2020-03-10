@@ -17,7 +17,7 @@
 #include "twodquadrature.h"
 #include "../general/chebyshev.h"
 #include "../general/lcao.h"
-#include "../general/gsz.h"
+#include "../general/model_potential.h"
 #include "../general/utils.h"
 
 namespace helfem {
@@ -84,7 +84,7 @@ namespace helfem {
         }
       }
 
-      void TwoDGridWorker::gsz_pot(int Z1, double d1, double H1, int Z2, double d2, double H2) {
+      void TwoDGridWorker::model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2) {
         double Rhalf(basp->get_Rhalf());
         arma::vec chmu(arma::cosh(r));
 
@@ -93,56 +93,11 @@ namespace helfem {
           for(size_t ir=0;ir<wrad.n_elem;ir++) {
             size_t idx=ia*wrad.n_elem+ir;
 
-            arma::vec r1(1), r2(1);
-            r1(0)=Rhalf*(chmu(ir) + cth(ia));
-            r2(0)=Rhalf*(chmu(ir) - cth(ia));
+            double r1=Rhalf*(chmu(ir) + cth(ia));
+            double r2=Rhalf*(chmu(ir) - cth(ia));
 
-	    double V1(-arma::as_scalar(GSZ::Z_GSZ(r1,Z1,d1,H1)/r1));
-	    double V2(-arma::as_scalar(GSZ::Z_GSZ(r2,Z2,d2,H2)/r2));
-	    if(std::isnormal(V1))
-	      itg(idx)+=V1;
-	    if(std::isnormal(V2))
-	      itg(idx)+=V2;
-          }
-      }
-
-      void TwoDGridWorker::sap_pot(int Z1, int Z2) {
-        double Rhalf(basp->get_Rhalf());
-        arma::vec chmu(arma::cosh(r));
-
-        itg.zeros(1,wtot.n_elem);
-        for(size_t ia=0;ia<wang.n_elem;ia++)
-          for(size_t ir=0;ir<wrad.n_elem;ir++) {
-            size_t idx=ia*wrad.n_elem+ir;
-
-            arma::vec r1(1), r2(1);
-            r1(0)=Rhalf*(chmu(ir) + cth(ia));
-            r2(0)=Rhalf*(chmu(ir) - cth(ia));
-
-	    double V1(arma::as_scalar(-utils::sap_effective_charge(Z1,r1)/r1));
-            double V2(arma::as_scalar(-utils::sap_effective_charge(Z2,r2)/r2));
-	    if(std::isnormal(V1))
-	      itg(idx)+=V1;
-	    if(std::isnormal(V2))
-	      itg(idx)+=V2;
-          }
-      }
-
-      void TwoDGridWorker::tf_pot(int Z1, int Z2) {
-        double Rhalf(basp->get_Rhalf());
-        arma::vec chmu(arma::cosh(r));
-
-        itg.zeros(1,wtot.n_elem);
-        for(size_t ia=0;ia<wang.n_elem;ia++)
-          for(size_t ir=0;ir<wrad.n_elem;ir++) {
-            size_t idx=ia*wrad.n_elem+ir;
-
-            arma::vec r1(1), r2(1);
-            r1(0)=Rhalf*(chmu(ir) + cth(ia));
-            r2(0)=Rhalf*(chmu(ir) - cth(ia));
-
-	    double V1(-arma::as_scalar(GSZ::Z_thomasfermi(r1,Z1)/r1));
-	    double V2(-arma::as_scalar(GSZ::Z_thomasfermi(r2,Z2)/r2));
+	    double V1(p1->V(r1));
+	    double V2(p2->V(r2));
 	    if(std::isnormal(V1))
 	      itg(idx)+=V1;
 	    if(std::isnormal(V2))
@@ -254,7 +209,7 @@ namespace helfem {
       TwoDGrid::~TwoDGrid() {
       }
 
-      arma::mat TwoDGrid::GSZ(int Z1, double d1, double H1, int Z2, double d2, double H2) {
+      arma::mat TwoDGrid::model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2) {
         arma::mat H;
         H.zeros(basp->Ndummy(),basp->Ndummy());
 
@@ -268,74 +223,7 @@ namespace helfem {
             for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
               for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
                 grid.compute_bf(iel,irad,muni(im));
-                grid.gsz_pot(Z1, d1, H1, Z2, d2, H2);
-                grid.eval_pot(H);
-              }
-            }
-          }
-        }
-
-        H=basp->remove_boundaries(H);
-
-        return H;
-      }
-
-      arma::mat TwoDGrid::GSZ() {
-        int Z1=basp->get_Z1();
-        int Z2=basp->get_Z2();
-        double d1, H1, d2, H2;
-        GSZ::GSZ_parameters(Z1,d1,H1);
-        GSZ::GSZ_parameters(Z2,d2,H2);
-        return GSZ(Z1, d1, H1, Z2, d2, H2);
-      }
-
-      arma::mat TwoDGrid::SAP() {
-        int Z1=basp->get_Z1();
-        int Z2=basp->get_Z2();
-
-        arma::mat H;
-        H.zeros(basp->Ndummy(),basp->Ndummy());
-
-        // Get unique m values in basis set
-        arma::ivec muni(basp->get_mval());
-        muni=muni(arma::find_unique(muni));
-        {
-          TwoDGridWorker grid(basp,lang);
-
-          for(size_t im=0;im<muni.n_elem;im++) {
-            for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-              for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
-                grid.compute_bf(iel,irad,muni(im));
-                grid.sap_pot(Z1, Z2);
-                grid.eval_pot(H);
-              }
-            }
-          }
-        }
-
-        H=basp->remove_boundaries(H);
-
-        return H;
-      }
-
-      arma::mat TwoDGrid::thomasfermi() {
-        int Z1=basp->get_Z1();
-        int Z2=basp->get_Z2();
-
-        arma::mat H;
-        H.zeros(basp->Ndummy(),basp->Ndummy());
-
-        // Get unique m values in basis set
-        arma::ivec muni(basp->get_mval());
-        muni=muni(arma::find_unique(muni));
-        {
-          TwoDGridWorker grid(basp,lang);
-
-          for(size_t im=0;im<muni.n_elem;im++) {
-            for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-              for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
-                grid.compute_bf(iel,irad,muni(im));
-                grid.tf_pot(Z1, Z2);
+                grid.model_potential(p1, p2);
                 grid.eval_pot(H);
               }
             }

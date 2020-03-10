@@ -521,55 +521,46 @@ int main(int argc, char **argv) {
 	break;
       }
     } else {
+      modelpotential::ModelPotential * model;
       switch(iguess) {
       case(0):
         // Use core guess
         printf("Guess orbitals from core Hamiltonian\n");
-        if(symm)
-          scf::eig_gsym_sub(Ea,Ca,H0,Sinvh,dsym);
-        else
-          scf::eig_gsym(Ea,Ca,H0,Sinvh);
+        model = new modelpotential::PointNucleus(Z);
         break;
 
       case(1):
         // Use GSZ guess
         printf("Guess orbitals from GSZ screened nucleus\n");
-        {
-          arma::mat Hgsz(H0-Vnuc+basis.gsz());
-          if(symm)
-            scf::eig_gsym_sub(Ea,Ca,Hgsz,Sinvh,dsym);
-          else
-            scf::eig_gsym(Ea,Ca,Hgsz,Sinvh);
-          break;
-        }
+        model = new modelpotential::GSZAtom(Z);
+        break;
 
       case(2):
         // Use SAP guess
         printf("Guess orbitals from SAP screened nucleus\n");
-        {
-          arma::mat Hsap(H0-Vnuc+basis.sap());
-          if(symm)
-            scf::eig_gsym_sub(Ea,Ca,Hsap,Sinvh,dsym);
-          else
-            scf::eig_gsym(Ea,Ca,Hsap,Sinvh);
-          break;
-        }
+        model = new modelpotential::SAPAtom(Z);
+        break;
 
       case(3):
         // Use Thomas-Fermi guess
         printf("Guess orbitals from Thomas-Fermi nucleus\n");
-        {
-          arma::mat Htf(H0+basis.thomasfermi()-Vnuc);
-          if(symm)
-            scf::eig_gsym_sub(Ea,Ca,Htf,Sinvh,dsym);
-          else
-            scf::eig_gsym(Ea,Ca,Htf,Sinvh);
-          break;
-        }
+        model = new modelpotential::TFAtom(Z);
+        break;
 
       default:
         throw std::logic_error("Unsupported guess\n");
       }
+
+      // Form guess Hamiltonian
+      arma::mat Hguess(T+Vel+Vmag+basis.model_potential(model));
+      // and free memory
+      delete model;
+
+      // Diagonalize the hamiltonian
+      if(symm)
+        scf::eig_gsym_sub(Ea,Ca,Hguess,Sinvh,dsym);
+      else
+        scf::eig_gsym(Ea,Ca,Hguess,Sinvh);
 
       // Beta guess is the same as the alpha guess
       Cb=Ca;

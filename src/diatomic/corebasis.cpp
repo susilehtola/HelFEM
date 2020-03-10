@@ -18,6 +18,7 @@
 #include "../general/timer.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
+#include "../general/model_potential.h"
 #include "basis.h"
 #include "twodquadrature.h"
 #include <cfloat>
@@ -43,33 +44,46 @@ void eval(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis 
   // Form nuclear attraction energy matrix
   arma::mat Vnuc;
 
-  switch(imodel) {
-  case(0):
-    // Bare nucleus
+  if(imodel==0) {
     Vnuc=basis.nuclear();
-    break;
-
-  case(1):
-    // GSZ
-    {
-      int lquad = 4*arma::max(lmmax)+12;
-      helfem::diatomic::twodquad::TwoDGrid qgrid;
-      qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
-      Vnuc=qgrid.GSZ();
+  } else {
+    modelpotential::ModelPotential * p1, * p2;
+    switch(imodel) {
+    case(0):
+      // Use core guess
+      p1 = new modelpotential::PointNucleus(Z1);
+      p2 = new modelpotential::PointNucleus(Z2);
       break;
+
+    case(1):
+      // Use GSZ guess
+      p1 = new modelpotential::GSZAtom(Z1);
+      p2 = new modelpotential::GSZAtom(Z2);
+      break;
+
+    case(2):
+      // Use SAP guess
+      p1 = new modelpotential::SAPAtom(Z1);
+      p2 = new modelpotential::SAPAtom(Z2);
+      break;
+
+    case(3):
+      // Use Thomas-Fermi guess
+      p1 = new modelpotential::TFAtom(Z1);
+      p2 = new modelpotential::TFAtom(Z2);
+      break;
+
+    default:
+      throw std::logic_error("Unsupported guess\n");
     }
 
-  case(2):
-    {
-      int lquad = 4*arma::max(lmmax)+12;
-      helfem::diatomic::twodquad::TwoDGrid qgrid;
-      qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
-      Vnuc=qgrid.SAP();
-      break;
-    }
-
-  default:
-    throw std::logic_error("Invalid model!\n");
+    // Form model integral
+    int lquad = 4*arma::max(lmmax)+12;
+    helfem::diatomic::twodquad::TwoDGrid qgrid;
+    qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
+    Vnuc=qgrid.model_potential(p1, p2);
+    delete p1;
+    delete p2;
   }
 
   // Form Hamiltonian

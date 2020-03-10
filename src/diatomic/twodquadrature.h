@@ -18,7 +18,7 @@
 #define DIATOMIC_2DQUAD_H
 
 #include "basis.h"
-#include "../general/sap.h"
+#include "../general/model_potential.h"
 
 namespace helfem {
   namespace diatomic {
@@ -71,12 +71,8 @@ namespace helfem {
         /// Free memory
         void free();
 
-        /// Compute SAP potential
-        void sap_pot(int Z1, int Z2);
-        /// Compute GSZ potential
-        void gsz_pot(int Z1, double d1, double H1, int Z2, double d2, double H2);
-        /// Compute Thomas-Fermi potential
-        void tf_pot(int Z1, int Z2);
+        /// Compute model potential
+        void model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2);
         /// Set unit potential
         void unit_pot();
 
@@ -85,7 +81,7 @@ namespace helfem {
         /// Compute STO projection
         void sto(int l, const arma::vec & expn, probe_t p);
 
-        /// Evaluate potential energy matrix elements (for GSZ and SAP)
+        /// Evaluate potential energy matrix elements
         void eval_pot(arma::mat & V) const;
         /// Evaluate basis set projection
         void eval_proj(arma::mat & S) const;
@@ -109,14 +105,8 @@ namespace helfem {
         /// Destructor
         ~TwoDGrid();
 
-        /// Compute GSZ matrix
-        arma::mat GSZ(int Z1, double d1, double H1, int Z2, double d2, double H2);
-        /// Compute GSZ matrix with default parameters
-        arma::mat GSZ();
-        /// Compute SAP matrix
-        arma::mat SAP();
-        /// Compute Thomas-Fermi matrix
-        arma::mat thomasfermi();
+        /// Compute model potential matrix
+        arma::mat model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2);
 
         /// Compute overlap matrix
         arma::mat overlap();

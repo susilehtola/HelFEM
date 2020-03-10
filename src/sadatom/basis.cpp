@@ -133,21 +133,6 @@ namespace helfem {
         return -Z*Vrad;
       }
 
-      arma::mat TwoDBasis::thomasfermi() const {
-        size_t Nrad(radial.Nbf());
-        arma::mat Vrad(Nrad,Nrad);
-        Vrad.zeros();
-        // Loop over elements
-        for(size_t iel=0;iel<radial.Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
-          Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.thomasfermi(Z,iel);
-        }
-
-        return Vrad;
-      }
-
       void TwoDBasis::compute_tei() {
         // Number of distinct L values is
         size_t N_L(2*arma::max(lval)+1);

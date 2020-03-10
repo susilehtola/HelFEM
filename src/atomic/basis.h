@@ -18,6 +18,7 @@
 
 #include <armadillo>
 #include "../general/polynomial_basis.h"
+#include "../general/model_potential.h"
 #include "../general/sap.h"
 
 namespace helfem {
@@ -110,12 +111,8 @@ namespace helfem {
         arma::mat kinetic_l(size_t iel) const;
         /// Compute nuclear attraction matrix in element
         arma::mat nuclear(size_t iel) const;
-        /// Compute gsz matrix in element
-        arma::mat gsz(double Z, double dz, double Hz, size_t iel) const;
-        /// Compute SAP matrix in element
-        arma::mat sap(double Z, size_t iel) const;
-        /// Compute Thomas-Fermi matrix in element
-        arma::mat thomasfermi(double Z, size_t iel) const;
+        /// Compute model potential matrix in element
+        arma::mat model_potential(const modelpotential::ModelPotential * nuc, size_t iel) const;
         /// Compute off-center nuclear attraction matrix in element
         arma::mat nuclear_offcenter(size_t iel, double Rhalf, int L) const;
 
@@ -130,6 +127,8 @@ namespace helfem {
 
         /// Compute cross-basis integral
         arma::mat radial_integral(const RadialBasis & rh, int n, bool lhder=false, bool rhder=false) const;
+        /// Compute cross-basis model potential integral
+        arma::mat model_potential(const RadialBasis & rh, const modelpotential::ModelPotential * model, bool lhder=false, bool rhder=false) const;
         /// Compute projection
         arma::mat overlap(const RadialBasis & rh) const;
 
@@ -274,14 +273,8 @@ namespace helfem {
         arma::mat kinetic() const;
         /// Form nuclear attraction matrix
         arma::mat nuclear() const;
-        /// Form GSZ matrix
-        arma::mat gsz(double dz, double Hz) const;
-	/// Form GSZ matrix with default parameters
-	arma::mat gsz() const;
-	/// Form SAP matrix with default parameters
-	arma::mat sap() const;
-	/// Form Thomas-Fermi matrix with default parameters
-	arma::mat thomasfermi() const;
+	/// Form model potential matrix
+	arma::mat model_potential(const modelpotential::ModelPotential * model) const;
         /// Form dipole coupling matrix
         arma::mat dipole_z() const;
         /// Form quadrupole coupling matrix
