@@ -40,10 +40,7 @@ namespace helfem {
 
     GaussianNucleus::GaussianNucleus(int Z_, double Rrms) : Z(Z_) {
       // Eqn (11) in Visscher-Dyall 1997
-      mu = sqrt(3.0/2.0)/Rrms;
-
-      // Taylor series cutoff: sixth-order term is epsilon
-      Rcut = std::pow(42.0*DBL_EPSILON, 1.0/6.0)/mu;
+      set_mu(sqrt(3.0/2.0)/Rrms);
     }
 
     GaussianNucleus::~GaussianNucleus() {
@@ -54,9 +51,20 @@ namespace helfem {
       if(R <= Rcut) {
         double mur2 = std::pow(mu*R,2);
         return -Z*M_2_SQRTPI*mu*( 1.0 + (-1.0/3.0 + (1.0/10.0 - 1.0/42.0*mur2)*mur2)*mur2);
-          } else {
+      } else {
         return -Z*erf(mu*R)/R;
       }
+    }
+
+    double GaussianNucleus::get_mu() const {
+      return mu;
+    }
+
+    void GaussianNucleus::set_mu(double mu_) {
+      // Set value
+      mu=mu_;
+      // Update Taylor series cutoff: sixth-order term is epsilon
+      Rcut = std::pow(42.0*DBL_EPSILON, 1.0/6.0)/mu;
     }
 
     SphericalNucleus::SphericalNucleus(int Z_, double Rrms) : Z(Z_) {
@@ -75,6 +83,36 @@ namespace helfem {
         // See only charge inside, eqn (7b) in Visscher-Dyall 1997
         return -Z/(2.0*R0)*(3.0-std::pow(r/R0,2));
       }
+    }
+
+    double SphericalNucleus::get_R0() const {
+      return R0;
+    }
+
+    void SphericalNucleus::set_R0(double R0_) {
+      R0=R0_;
+    }
+
+    HollowNucleus::HollowNucleus(int Z_, double R_) : Z(Z_), R(R_) {
+    }
+
+    HollowNucleus::~HollowNucleus() {
+    }
+
+    double HollowNucleus::V(double r) const {
+      if(r>=R) {
+        return -Z/r;
+      } else {
+        return -Z/R;
+      }
+    }
+
+    double HollowNucleus::get_R() const {
+      return R;
+    }
+
+    void HollowNucleus::set_R(double R_) {
+      R=R_;
     }
 
     TFAtom::TFAtom(int Z_) : Z(Z_) {
