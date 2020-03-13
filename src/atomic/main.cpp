@@ -99,6 +99,8 @@ int main(int argc, char **argv) {
   parser.add<double>("perturb", 0, "randomly perturb initial guess", false, 0.0);
   parser.add<int>("seed", 0, "seed for random perturbation", false, 0);
   parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ, 2 for SAP, 3 for TF", false, 2);
+  parser.add<int>("finitenuc", 0, "finite nuclear model", false, 0);
+  parser.add<double>("Rrms", 0, "finite nuclear rms radius", false, 0.0);
   parser.add<std::string>("load", 0, "load guess from checkpoint", false, "");
   parser.add<std::string>("save", 0, "save calculation to checkpoint", false, "helfem.chk");
   parser.parse_check(argc, argv);
@@ -136,6 +138,9 @@ int main(int argc, char **argv) {
   int ldft(parser.get<int>("ldft"));
   int mdft(parser.get<int>("mdft"));
   double dftthr(parser.get<double>("dftthr"));
+
+  int finitenuc(parser.get<int>("finitenuc"));
+  double Rrms(parser.get<double>("Rrms"));
 
   // Nuclear charge
   int Z(get_Z(parser.get<std::string>("Z")));
@@ -208,9 +213,9 @@ int main(int argc, char **argv) {
 
   atomic::basis::TwoDBasis basis;
   if(Rhalf!=0.0)
-    basis=atomic::basis::TwoDBasis(Z, poly, Nquad, Nelem0, Nelem, Rmax, lmax, mmax, igrid, zexp, Zl, Zr, Rhalf);
+    basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, Nquad, Nelem0, Nelem, Rmax, lmax, mmax, igrid, zexp, Zl, Zr, Rhalf);
   else
-    basis=atomic::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
+    basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
   chkpt.write(basis);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
 
@@ -385,7 +390,7 @@ int main(int argc, char **argv) {
   Timer tnuc;
   if(Zl!=0 || Zr !=0)
     printf("Computing nuclear attraction integrals\n");
-  arma::mat Vnuc(basis.nuclear());
+  arma::mat Vnuc=basis.nuclear();
   chkpt.write("Vuc",Vnuc);
   if(Zl!=0 || Zr !=0)
     printf("Done in %.6f\n",tnuc.get());

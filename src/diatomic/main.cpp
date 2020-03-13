@@ -108,6 +108,9 @@ int main(int argc, char **argv) {
   parser.add<double>("Qzz", 0, "electric quadrupole field", false, 0.0);
   parser.add<double>("Bz", 0, "magnetic dipole field", false, 0.0);
   parser.add<bool>("diag", 0, "exact diagonalization", false, 1);
+  parser.add<int>("finitenuc", 0, "finite nuclear model", false, false);
+  parser.add<double>("Rrms1", 0, "nucleus 1 radius", false, 0.0);
+  parser.add<double>("Rrms2", 0, "nucleus 2 radius", false, 0.0);
   parser.add<std::string>("method", 0, "method to use", false, "HF");
   parser.add<int>("ldft", 0, "theta rule for dft quadrature (0 for auto)", false, 0);
   parser.add<int>("mdft", 0, "phi rule for dft quadrature (0 for auto)", false, 0);
@@ -168,6 +171,11 @@ int main(int argc, char **argv) {
   int nelb(parser.get<int>("nelb"));
   int Q(parser.get<int>("Q"));
   int M(parser.get<int>("M"));
+
+  // Finite nucleus
+  int finitenuc(parser.get<int>("finitenuc"));
+  double Rrms1(parser.get<double>("Rrms1"));
+  double Rrms2(parser.get<double>("Rrms2"));
 
   double diiseps=parser.get<double>("diiseps");
   double diisthr=parser.get<double>("diisthr");
@@ -435,7 +443,29 @@ int main(int argc, char **argv) {
 
   // Form nuclear attraction energy matrix
   Timer tnuc;
-  const arma::mat Vnuc(basis.nuclear());
+  arma::mat Vnuc;
+  if(finitenuc==0)
+    Vnuc=basis.nuclear();
+  else {
+    modelpotential::ModelPotential *pot1(modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) (finitenuc-1),Z1,Rrms1));
+    modelpotential::ModelPotential *pot2(modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) (finitenuc-1),Z2,Rrms2));
+    int lquad = (ldft>0) ? ldft : 4*arma::max(lmmax)+12;
+    helfem::diatomic::twodquad::TwoDGrid qgrid;
+    qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
+
+    arma::mat Squad(qgrid.overlap());
+    Squad-=S;
+    arma::vec bfnorm(arma::pow(arma::diagvec(S),-0.5));
+    normalize_matrix(Squad,bfnorm);
+
+    double Serr(arma::norm(Squad,"fro"));
+    printf("Error in overlap matrix evaluated on two-dimensional grid is %e\n",Serr);
+    fflush(stdout);
+
+    Vnuc=qgrid.model_potential(pot1,pot2);
+    delete pot1;
+    delete pot2;
+  }
   chkpt.write("Vnuc",Vnuc);
 
   // Dipole coupling

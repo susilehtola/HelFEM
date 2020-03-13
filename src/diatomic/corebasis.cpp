@@ -25,7 +25,7 @@
 
 using namespace helfem;
 
-void eval(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, const arma::ivec & lmmax, int igrid, double zexp, double Ez, double Qzz, double Bz, int norb, double & E, arma::uword & nang, arma::uword & nrad, arma::vec & Eval, int imodel) {
+void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, const arma::ivec & lmmax, int igrid, double zexp, double Ez, double Qzz, double Bz, int norb, double & E, arma::uword & nang, arma::uword & nrad, arma::vec & Eval, int imodel) {
 
   int lpad=0;
   int symm=1;
@@ -48,32 +48,22 @@ void eval(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis 
     Vnuc=basis.nuclear();
   } else {
     modelpotential::ModelPotential * p1, * p2;
-    switch(imodel) {
-    case(0):
-      // Use core guess
-      p1 = new modelpotential::PointNucleus(Z1);
-      p2 = new modelpotential::PointNucleus(Z2);
-      break;
-
-    case(1):
+    if(imodel == 1) {
       // Use GSZ guess
       p1 = new modelpotential::GSZAtom(Z1);
       p2 = new modelpotential::GSZAtom(Z2);
-      break;
-
-    case(2):
+    } else if(imodel == 2) {
       // Use SAP guess
       p1 = new modelpotential::SAPAtom(Z1);
       p2 = new modelpotential::SAPAtom(Z2);
-      break;
-
-    case(3):
+    } else if(imodel == 3) {
       // Use Thomas-Fermi guess
       p1 = new modelpotential::TFAtom(Z1);
       p2 = new modelpotential::TFAtom(Z2);
-      break;
-
-    default:
+    } else if(imodel < modelpotential::NOSUCH_NUCLEUS+4) {
+      p1 = modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) (imodel-4),Z1,Rrms1);
+      p2 = modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) (imodel-4),Z2,Rrms2);
+    } else {
       throw std::logic_error("Unsupported guess\n");
     }
 
@@ -118,6 +108,8 @@ int main(int argc, char **argv) {
   // full option name, no short option, description, argument required
   parser.add<std::string>("Z1", 0, "first nuclear charge", true);
   parser.add<std::string>("Z2", 0, "second nuclear charge", true);
+  parser.add<double>("Rrms1", 0, "atom 1 rms size", false, 0.0);
+  parser.add<double>("Rrms2", 0, "atom 2 rms size", false, 0.0);
   parser.add<double>("Rbond", 0, "internuclear distance", true);
   parser.add<bool>("angstrom", 0, "input distances in angstrom", false, false);
   parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
@@ -156,6 +148,8 @@ int main(int argc, char **argv) {
   // Nuclear charge
   int Z1(get_Z(parser.get<std::string>("Z1")));
   int Z2(get_Z(parser.get<std::string>("Z2")));
+  double Rrms1(parser.get<double>("Rrms1"));
+  double Rrms2(parser.get<double>("Rrms2"));
   double Rbond(parser.get<double>("Rbond"));
 
   if(parser.get<bool>("angstrom")) {
@@ -228,7 +222,7 @@ int main(int argc, char **argv) {
       double E;
       arma::vec Eval;
       arma::uword Nrad, Nang;
-      eval(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], E, Nrad, Nang, Eval, imodel);
+      eval(Z1, Z2, Rrms1, Rrms2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], E, Nrad, Nang, Eval, imodel);
 
       Eval.t().print("Initial eigenvalues");
 
@@ -249,11 +243,11 @@ int main(int argc, char **argv) {
 
         printf("m=%i iteration %i\n",(int) m,iiter);
 
-        eval(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmtr, igrid, zexp, Ez, Qzz, Bz, norbs[m], Ea, Nra, Naa, Eva, imodel);
+        eval(Z1, Z2, Rrms1, Rrms2, Rbond, poly, Nquad, Nelem, Rmax, lmtr, igrid, zexp, Ez, Qzz, Bz, norbs[m], Ea, Nra, Naa, Eva, imodel);
         double dEa=Ea-E;
         printf("Addition of %i partial waves decreases energy by %e\n",nadd,dEa);
 
-        eval(Z1, Z2, Rbond, poly, Nquad, Nelem+nadd, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], Er, Nrr, Nar, Evr, imodel);
+        eval(Z1, Z2, Rrms1, Rrms2, Rbond, poly, Nquad, Nelem+nadd, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], Er, Nrr, Nar, Evr, imodel);
         double dEr=Er-E;
         printf("Addition of %i radial elements decreases energy by %e\n",nadd,dEr);
 

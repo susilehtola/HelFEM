@@ -5,7 +5,6 @@
 
 namespace helfem {
   namespace modelpotential {
-
     /// Model potential
     class ModelPotential {
     public:
@@ -19,6 +18,17 @@ namespace helfem {
       /// Potential
       arma::vec V(const arma::vec & r) const;
     };
+
+    /// Nuclear model
+    typedef enum {
+          POINT_NUCLEUS,
+          GAUSSIAN_NUCLEUS,
+          SPHERICAL_NUCLEUS,
+          HOLLOW_NUCLEUS,
+          NOSUCH_NUCLEUS
+    } nuclear_model_t;
+    /// Get nuclear model
+    ModelPotential * get_nuclear_model(nuclear_model_t model, int Z, double Rrms);
 
     /// Simple r^n radial potential
     class RadialPotential : public ModelPotential {

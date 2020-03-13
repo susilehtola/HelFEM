@@ -713,15 +713,23 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z_, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp) {
+      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp) {
         // Nuclear charge
         Z=Z_;
         Zl=0;
         Zr=0;
         Rhalf=0.0;
+        model=model_;
+        Rrms=Rrms_;
 
         // Construct radial basis
         radial=RadialBasis(poly, n_quad, num_el, rmax, igrid, zexp);
+        // Add extra node at nuclear radius if necessary
+        if(model == modelpotential::HOLLOW_NUCLEUS) {
+          radial.add_boundary(Rrms);
+        } else if(model == modelpotential::SPHERICAL_NUCLEUS) {
+          radial.add_boundary(sqrt(5.0/3.0)*Rrms);
+        }
 
         // Construct angular basis
         angular_basis(lmax,mmax,lval,mval);
@@ -754,7 +762,7 @@ namespace helfem {
           throw std::logic_error("Error.\n");
       }
 
-      TwoDBasis::TwoDBasis(int Z_, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el0, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int Zl_, int Zr_, double Rhalf_) {
+      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el0, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int Zl_, int Zr_, double Rhalf_) {
         // Nuclear charge
         Z=Z_;
         Zl=Zl_;
@@ -763,12 +771,20 @@ namespace helfem {
 
         // Construct radial basis
         radial=RadialBasis(poly, n_quad, num_el0, Z_, std::max(Zl_,Zr_), Rhalf, num_el, rmax, igrid, zexp);
+        // Add extra node at nuclear radius if necessary
+        if((Zl != 0 || Zr != 0) && model != modelpotential::POINT_NUCLEUS)
+          throw std::logic_error("Finite off-center nuclei not implemented!\n");
+        if(model == modelpotential::HOLLOW_NUCLEUS) {
+          radial.add_boundary(Rrms);
+        } else if(model == modelpotential::SPHERICAL_NUCLEUS) {
+          radial.add_boundary(sqrt(5.0/3.0)*Rrms);
+        }
 
         // Construct angular basis
         angular_basis(lmax,mmax,lval,mval);
       }
 
-      TwoDBasis::TwoDBasis(int Z_, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int Zl_, int Zr_, double Rhalf_) {
+      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int Zl_, int Zr_, double Rhalf_) {
         // Nuclear charge
         Z=Z_;
         Zl=Zl_;
@@ -777,6 +793,14 @@ namespace helfem {
 
         // Construct radial basis
         radial=RadialBasis(poly, n_quad, bval);
+        // Add extra node at nuclear radius if necessary
+        if((Zl != 0 || Zr != 0) && model != modelpotential::POINT_NUCLEUS)
+          throw std::logic_error("Finite off-center nuclei not implemented!\n");
+        if(model == modelpotential::HOLLOW_NUCLEUS) {
+          radial.add_boundary(Rrms);
+        } else if(model == modelpotential::SPHERICAL_NUCLEUS) {
+          radial.add_boundary(sqrt(5.0/3.0)*Rrms);
+        }
 
         // Construct angular basis
         lval=lval_;
@@ -784,6 +808,14 @@ namespace helfem {
       }
 
       TwoDBasis::~TwoDBasis() {
+      }
+
+      int TwoDBasis::get_nuclear_model() const {
+        return model;
+      }
+
+      double TwoDBasis::get_nuclear_size() const {
+        return Rrms;
       }
 
       int TwoDBasis::get_Z() const {
@@ -1078,76 +1110,83 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::nuclear() const {
-        // Full nuclear attraction matrix
-        arma::mat V(Ndummy(),Ndummy());
-        V.zeros();
+        if(model != modelpotential::POINT_NUCLEUS) {
+          modelpotential::ModelPotential *pot=modelpotential::get_nuclear_model(model,Z,Rrms);
+          arma::mat Vnuc(model_potential(pot));
+          delete pot;
+          return Vnuc;
+        } else {
+          // Full nuclear attraction matrix
+          arma::mat V(Ndummy(),Ndummy());
+          V.zeros();
 
-        if(Z!=0.0) {
-          size_t Nrad(radial.Nbf());
-          arma::mat Vrad(Nrad,Nrad);
-          Vrad.zeros();
-          // Loop over elements
-          for(size_t iel=0;iel<radial.Nel();iel++) {
-            // Where are we in the matrix?
-            size_t ifirst, ilast;
-            radial.get_idx(iel,ifirst,ilast);
-            Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(-1,iel);
-          }
-          // Fill elements
-          for(size_t iang=0;iang<lval.n_elem;iang++)
-            set_sub(V,iang,iang,-Z*Vrad);
-        }
-
-        if(Zl != 0.0 || Zr != 0.0) {
-          // Auxiliary matrices
-          size_t Nrad(radial.Nbf());
-          int Lmax(2*arma::max(lval));
-          std::vector<arma::mat> Vaux(Lmax+1);
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-          for(int L=0;L<=Lmax;L++) {
-            Vaux[L].zeros(Nrad,Nrad);
+          if(Z!=0.0) {
+            size_t Nrad(radial.Nbf());
+            arma::mat Vrad(Nrad,Nrad);
+            Vrad.zeros();
+            // Loop over elements
             for(size_t iel=0;iel<radial.Nel();iel++) {
               // Where are we in the matrix?
               size_t ifirst, ilast;
               radial.get_idx(iel,ifirst,ilast);
-              Vaux[L].submat(ifirst,ifirst,ilast,ilast)+=radial.nuclear_offcenter(iel,Rhalf,L);
+              Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(-1,iel);
             }
+            // Fill elements
+            for(size_t iang=0;iang<lval.n_elem;iang++)
+              set_sub(V,iang,iang,-Z*Vrad);
           }
 
-          int gmax(std::max(arma::max(lval),arma::max(mval)));
-          gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
+          if(Zl != 0.0 || Zr != 0.0) {
+            // Auxiliary matrices
+            size_t Nrad(radial.Nbf());
+            int Lmax(2*arma::max(lval));
+            std::vector<arma::mat> Vaux(Lmax+1);
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+            for(int L=0;L<=Lmax;L++) {
+              Vaux[L].zeros(Nrad,Nrad);
+              for(size_t iel=0;iel<radial.Nel();iel++) {
+                // Where are we in the matrix?
+                size_t ifirst, ilast;
+                radial.get_idx(iel,ifirst,ilast);
+                Vaux[L].submat(ifirst,ifirst,ilast,ilast)+=radial.nuclear_offcenter(iel,Rhalf,L);
+              }
+            }
 
-          /// Loop over basis set
+            int gmax(std::max(arma::max(lval),arma::max(mval)));
+            gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
+
+            /// Loop over basis set
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
-          for(size_t iang=0;iang<lval.n_elem;iang++) {
-            for(size_t jang=0;jang<lval.n_elem;jang++) {
-              int li(lval(iang));
-              int mi(mval(iang));
+            for(size_t iang=0;iang<lval.n_elem;iang++) {
+              for(size_t jang=0;jang<lval.n_elem;jang++) {
+                int li(lval(iang));
+                int mi(mval(iang));
 
-              int lj(lval(jang));
-              int mj(mval(jang));
+                int lj(lval(jang));
+                int mj(mval(jang));
 
-              // Zero contribution
-              if(mi!=mj)
-                continue;
-
-              // Loop over L
-              for(int L=std::abs(li-lj);L<=li+lj;L++) {
-                double cpl(gaunt.coeff(li,mi,L,0,lj,mj));
-                if(cpl==0.0)
+                // Zero contribution
+                if(mi!=mj)
                   continue;
 
-                add_sub(V,iang,jang,cpl*(std::pow(-1.0,L)*Zl + Zr)*Vaux[L]);
+                // Loop over L
+                for(int L=std::abs(li-lj);L<=li+lj;L++) {
+                  double cpl(gaunt.coeff(li,mi,L,0,lj,mj));
+                  if(cpl==0.0)
+                    continue;
+
+                  add_sub(V,iang,jang,cpl*(std::pow(-1.0,L)*Zl + Zr)*Vaux[L]);
+                }
               }
             }
           }
-        }
 
-        return remove_boundaries(V);
+          return remove_boundaries(V);
+        }
       }
 
       arma::mat TwoDBasis::model_potential(const modelpotential::ModelPotential * model) const {

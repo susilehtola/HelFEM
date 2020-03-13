@@ -38,11 +38,19 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z_, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int igrid, double zexp) {
+      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int igrid, double zexp) {
         // Nuclear charge
         Z=Z_;
+        model=model_;
+        Rrms=Rrms_;
         // Construct radial basis
         radial=atomic::basis::RadialBasis(poly, n_quad, num_el, rmax, igrid, zexp);
+        // Add extra node at nuclear radius if necessary
+        if(model == modelpotential::HOLLOW_NUCLEUS) {
+          radial.add_boundary(Rrms);
+        } else if(model == modelpotential::SPHERICAL_NUCLEUS) {
+          radial.add_boundary(sqrt(5.0/3.0)*Rrms);
+        }
         // Angular basis
         lval=arma::linspace<arma::ivec>(0,lmax,lmax+1);
       }
@@ -119,6 +127,28 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::nuclear() const {
+        if(model != modelpotential::POINT_NUCLEUS) {
+          modelpotential::ModelPotential * pot = modelpotential::get_nuclear_model(model,Z,Rrms);
+          arma::mat Vrad(model_potential(pot));
+          delete pot;
+          return Vrad;
+        } else {
+          size_t Nrad(radial.Nbf());
+          arma::mat Vrad(Nrad,Nrad);
+          Vrad.zeros();
+          // Loop over elements
+          for(size_t iel=0;iel<radial.Nel();iel++) {
+            // Where are we in the matrix?
+            size_t ifirst, ilast;
+            radial.get_idx(iel,ifirst,ilast);
+            Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(-1,iel);
+          }
+
+          return -Z*Vrad;
+        }
+      }
+
+      arma::mat TwoDBasis::model_potential(const modelpotential::ModelPotential * model) const {
         size_t Nrad(radial.Nbf());
         arma::mat Vrad(Nrad,Nrad);
         Vrad.zeros();
@@ -127,10 +157,9 @@ namespace helfem {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-          Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(-1,iel);
+          Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.model_potential(model,iel);
         }
-
-        return -Z*Vrad;
+        return Vrad;
       }
 
       void TwoDBasis::compute_tei() {

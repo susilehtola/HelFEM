@@ -161,6 +161,10 @@ namespace helfem {
       class TwoDBasis {
         /// Nuclear charge
         int Z;
+        /// Nuclear model
+        modelpotential::nuclear_model_t model;
+        /// Rms radius
+        double Rrms;
 
         /// Left-hand nuclear charge
         int Zl;
@@ -202,11 +206,11 @@ namespace helfem {
       public:
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp);
+        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp);
         /// Constructor
-        TwoDBasis(int Z, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el0, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int Zl, int Zr, double Rhalf);
+        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el0, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int Zl, int Zr, double Rhalf);
         /// Constructor
-        TwoDBasis(int Z, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int Zl, int Zr, double Rhalf);
+        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int Zl, int Zr, double Rhalf);
         /// Destructor
         ~TwoDBasis();
 
@@ -218,6 +222,11 @@ namespace helfem {
         int get_Zr() const;
         /// Get Rhalf
         double get_Rhalf() const;
+
+        /// Get nuclear model
+        int get_nuclear_model() const;
+        /// Get nuclear size
+        double get_nuclear_size() const;
 
         /// Get l values
         arma::ivec get_lval() const;

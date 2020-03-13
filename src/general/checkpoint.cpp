@@ -492,6 +492,9 @@ void Checkpoint::write(const helfem::atomic::basis::TwoDBasis & basis) {
   write("Rhalf",basis.get_Rhalf());
   write("bval",basis.get_bval());
 
+  write("finitenuc",basis.get_nuclear_model());
+  write("Rrms",basis.get_nuclear_size());
+
   write("n_quad",basis.get_nquad());
   write("poly_id",basis.get_poly_id());
   write("poly_order",basis.get_poly_order());
@@ -522,6 +525,11 @@ void Checkpoint::read(helfem::atomic::basis::TwoDBasis & basis) {
   read("Zl",Zl);
   read("Zr",Zr);
 
+  int finitenuc;
+  read("finitenuc",finitenuc);
+  double Rrms;
+  read("Rrms",Rrms);
+
   double Rhalf;
   read("Rhalf",Rhalf);
 
@@ -538,7 +546,7 @@ void Checkpoint::read(helfem::atomic::basis::TwoDBasis & basis) {
   read("mval", mval);
 
   helfem::polynomial_basis::PolynomialBasis *poly(helfem::polynomial_basis::get_basis(poly_id,poly_order));
-  basis=helfem::atomic::basis::TwoDBasis(Z, poly, n_quad, bval, lval, mval, Zl, Zr, Rhalf);
+  basis=helfem::atomic::basis::TwoDBasis(Z, (helfem::modelpotential::nuclear_model_t) finitenuc, Rrms, poly, n_quad, bval, lval, mval, Zl, Zr, Rhalf);
   delete poly;
   
   if(cl) close();

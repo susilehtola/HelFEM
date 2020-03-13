@@ -27,6 +27,10 @@ namespace helfem {
       class TwoDBasis {
         /// Nuclear charge
         int Z;
+        /// Nuclear model
+        modelpotential::nuclear_model_t model;
+        /// Rms radius
+        double Rrms;
 
         /// Yukawa exchange?
         bool yukawa;
@@ -52,7 +56,7 @@ namespace helfem {
       public:
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int igrid, double zexp);
+        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int igrid, double zexp);
         /// Destructor
         ~TwoDBasis();
 
@@ -80,6 +84,8 @@ namespace helfem {
         arma::mat kinetic_l() const;
         /// Form nuclear attraction matrix
         arma::mat nuclear() const;
+        /// Form model potential matrix
+	arma::mat model_potential(const modelpotential::ModelPotential * model) const;
         /// Form Coulomb matrix
         arma::mat coulomb(const arma::mat & P) const;
         /// Form exchange matrix

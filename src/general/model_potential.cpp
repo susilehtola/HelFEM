@@ -5,6 +5,27 @@
 
 namespace helfem {
   namespace modelpotential {
+    ModelPotential * get_nuclear_model(nuclear_model_t model, int Z, double Rrms) {
+      switch(model) {
+      case(POINT_NUCLEUS):
+        printf("Getting point nucleus with Z=%i\n",Z);
+        return new PointNucleus(Z);
+      case(GAUSSIAN_NUCLEUS):
+        printf("Getting Gaussian nucleus with Z=%i Rrms=%e\n",Z,Rrms);
+        return new GaussianNucleus(Z,Rrms);
+      case(HOLLOW_NUCLEUS):
+        printf("Getting hollow spherical nucleus with Z=%i Rrms=%e\n",Z,Rrms);
+        return new HollowNucleus(Z,Rrms);
+      case(SPHERICAL_NUCLEUS):
+        printf("Getting uniformly charged spherical nucleus with Z=%i Rrms=%e\n",Z,Rrms);
+        return new SphericalNucleus(Z,Rrms);
+      case(NOSUCH_NUCLEUS):
+        throw std::logic_error("No such nucleus!\n");
+      }
+
+      throw std::logic_error("Unrecognized model\n");
+    }
+
     ModelPotential::ModelPotential() {
     }
 

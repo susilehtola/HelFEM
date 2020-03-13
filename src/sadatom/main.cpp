@@ -104,6 +104,8 @@ int main(int argc, char **argv) {
   parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
   parser.add<int>("nelem", 0, "number of elements", true);
+  parser.add<int>("finitenuc", 0, "finite nuclear model", false, 0);
+  parser.add<double>("Rrms", 0, "nuclear rms radius", false, 0.0);
   parser.add<int>("Q", 0, "charge of system", false, 0);
   parser.add<int>("lmax", 0, "maximum angular momentum to include", false, 3);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
@@ -145,6 +147,9 @@ int main(int argc, char **argv) {
   // Order of quadrature rule
   int Nquad(parser.get<int>("nquad"));
   double dftthr(parser.get<double>("dftthr"));
+
+  int finitenuc(parser.get<int>("finitenuc"));
+  double Rrms(parser.get<double>("Rrms"));
 
   // Nuclear charge
   int Q(parser.get<int>("Q"));
@@ -209,7 +214,7 @@ int main(int argc, char **argv) {
   }
 
   // Initialize solver
-  sadatom::solver::SCFSolver solver(Z, lmax, poly, Nquad, Nelem, Rmax, igrid, zexp, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
+  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, Nquad, Nelem, Rmax, igrid, zexp, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
 
   // Set parameters if necessary
   arma::vec xpars, cpars;
