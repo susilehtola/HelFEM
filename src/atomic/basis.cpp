@@ -175,6 +175,22 @@ namespace helfem {
         delete poly;
       }
 
+      void RadialBasis::add_boundary(double r) {
+        // Check that r is not in bval
+        bool in_bval=false;
+        for(size_t i=0;i<bval.n_elem;i++)
+          if(bval(i)==r)
+            in_bval=true;
+
+        // Add
+        if(!in_bval) {
+          arma::vec newbval(bval.n_elem+1);
+          newbval.subvec(0,bval.n_elem-1)=bval;
+          newbval(bval.n_elem)=r;
+          bval = arma::sort(newbval, "ascend");
+        }
+      }
+
       /// Get polynomial basis
       polynomial_basis::PolynomialBasis * RadialBasis::get_poly() const {
         return poly->copy();

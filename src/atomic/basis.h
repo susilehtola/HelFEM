@@ -62,6 +62,9 @@ namespace helfem {
         /// Destructor
         ~RadialBasis();
 
+        /// Add an element boundary
+        void add_boundary(double r);
+
         /// Get polynomial basis
         polynomial_basis::PolynomialBasis * get_poly() const;
         /// Get basis functions in element
