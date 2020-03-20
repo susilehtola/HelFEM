@@ -38,27 +38,6 @@ namespace helfem {
       RadialBasis::RadialBasis() {
       }
 
-      RadialBasis::RadialBasis(const polynomial_basis::PolynomialBasis * poly_, int n_quad, int num_el, double rmax, int igrid, double zexp) {
-        // Polynomial basis
-        poly=poly_->copy();
-
-        // Get quadrature rule
-        chebyshev::chebyshev(n_quad,xq,wq);
-        for(size_t i=0;i<xq.n_elem;i++) {
-          if(!std::isfinite(xq[i]))
-            printf("xq[%i]=%e\n",(int) i, xq[i]);
-          if(!std::isfinite(wq[i]))
-            printf("wq[%i]=%e\n",(int) i, wq[i]);
-        }
-
-        // Evaluate polynomials at quadrature points
-        poly->eval(xq,bf,df);
-
-        // Get boundary values
-        bval=utils::get_grid(rmax,num_el,igrid,zexp);
-        //bval.print("Element boundaries");
-      }
-
       RadialBasis::RadialBasis(const polynomial_basis::PolynomialBasis * poly_, int n_quad, const arma::vec & bval_) {
 	// Polynomial basis
         poly=poly_->copy();
@@ -79,18 +58,17 @@ namespace helfem {
         bval=bval_;
       }
 
-      RadialBasis::RadialBasis(const RadialBasis & old) {
-        *this=old;
+      RadialBasis::RadialBasis(const RadialBasis & rh) {
+        *this = rh;
       }
 
-      RadialBasis & RadialBasis::operator=(const RadialBasis & old) {
-        xq=old.xq;
-        wq=old.wq;
-        poly=old.poly->copy();
-        bf=old.bf;
-        df=old.df;
-        bval=old.bval;
-
+      RadialBasis & RadialBasis::operator=(const RadialBasis & rh) {
+        xq=rh.xq;
+        wq=rh.wq;
+        poly=rh.poly->copy();
+        bf=rh.bf;
+        df=rh.df;
+        bval=rh.bval;
         return *this;
       }
 
@@ -129,7 +107,7 @@ namespace helfem {
       }
 
       polynomial_basis::PolynomialBasis * RadialBasis::get_basis(const polynomial_basis::PolynomialBasis * polynom, size_t iel) const {
-        polynomial_basis::PolynomialBasis *p(polynom->copy());
+        polynomial_basis::PolynomialBasis * p(polynom->copy());
         if(iel==bval.n_elem-2) {
           // Boundary condition at infinity
           p->drop_last();
@@ -340,7 +318,7 @@ namespace helfem {
         double mumax(bval(iel+1));
 
         // Integral by quadrature
-        polynomial_basis::PolynomialBasis *p(get_basis(poly,iel));
+        polynomial_basis::PolynomialBasis * p(get_basis(poly,iel));
         arma::mat tei(quadrature::twoe_integral(mumin,mumax,alpha,beta,xq,wq,p,L,M,legtab));
         delete p;
 
@@ -430,24 +408,7 @@ namespace helfem {
         return rmid*arma::ones<arma::vec>(xq.n_elem)+rlen*xq;
       }
 
-      TwoDBasis::TwoDBasis() {
-      }
-
-      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rbond, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, const arma::ivec & lmax, int igrid, double zexp, int lpad, bool legendre) {
-        // Nuclear charge
-        Z1=Z1_;
-        Z2=Z2_;
-        Rhalf=Rbond/2.0;
-
-        // Compute max mu value
-        double mumax=utils::arcosh(rmax/Rhalf);
-
-        if(legendre) printf("rmax = %e yields mumax = %e\n",rmax,mumax);
-
-        // Construct radial basis
-        radial=RadialBasis(poly, n_quad, num_el, mumax, igrid, zexp);
-
-        // Store values
+      void lm_to_l_m(const arma::ivec & lmax, arma::ivec & lval, arma::ivec & mval) {
         {
           std::vector<arma::sword> lv, mv;
           for(size_t mabs=0;mabs<lmax.n_elem;mabs++)
@@ -462,16 +423,25 @@ namespace helfem {
           lval=arma::conv_to<arma::ivec>::from(lv);
           mval=arma::conv_to<arma::ivec>::from(mv);
         }
+      }
 
-        if(legendre) {
-          arma::imat bang(lval.n_elem,2);
-          bang.col(0)=lval;
-          bang.col(1)=mval;
-          bang.print("Angular basis");
-        }
+      TwoDBasis::TwoDBasis() {
+      }
+
+      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rhalf_, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int lpad, bool legendre) {
+        // Nuclear charge
+        Z1=Z1_;
+        Z2=Z2_;
+        Rhalf=Rhalf_;
+
+        // Construct radial basis
+        radial=RadialBasis(poly, n_quad, bval);
+        // Angular basis
+        lval=lval_;
+        mval=mval_;
 
         // Gaunt coefficients
-        int gmax(arma::max(lmax)+2);
+        int gmax(arma::max(lval)+2);
 
         // Legendre function values
         if(legendre) {
@@ -558,19 +528,6 @@ namespace helfem {
 
           gaunt=gaunt::Gaunt(lrval,Mmax,midval,Mmax,lrval,Mmax);
         }
-      }
-
-      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rhalf_, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_) {
-        // Nuclear charge
-        Z1=Z1_;
-        Z2=Z2_;
-        Rhalf=Rhalf_;
-
-        // Construct radial basis
-        radial=RadialBasis(poly, n_quad, bval);
-        // Angular basis
-        lval=lval_;
-        mval=mval_;
       }
 
       TwoDBasis::~TwoDBasis() {

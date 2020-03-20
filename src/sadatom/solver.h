@@ -238,7 +238,7 @@ namespace helfem {
 
       public:
         /// Constructor
-        SCFSolver(int Z, int finitenuc, double Rrms, int lmax, polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, int igrid, double zexp, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_);
+        SCFSolver(int Z, int finitenuc, double Rrms, int lmax, const polynomial_basis::PolynomialBasis * poly, int Nquad, const arma::vec & bval, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_);
         /// Destructor
         ~SCFSolver();
 

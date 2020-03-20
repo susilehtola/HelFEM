@@ -38,22 +38,17 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int igrid, double zexp) {
+      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, int lmax) {
         // Nuclear charge
         Z=Z_;
         model=model_;
         Rrms=Rrms_;
         // Construct radial basis
-        radial=atomic::basis::RadialBasis(poly, n_quad, num_el, rmax, igrid, zexp);
-        // Add extra node at nuclear radius if necessary
-        if(model == modelpotential::HOLLOW_NUCLEUS) {
-          radial.add_boundary(Rrms);
-        } else if(model == modelpotential::SPHERICAL_NUCLEUS) {
-          radial.add_boundary(sqrt(5.0/3.0)*Rrms);
-        }
+        radial=atomic::basis::RadialBasis(poly, n_quad, bval);
         // Angular basis
         lval=arma::linspace<arma::ivec>(0,lmax,lmax+1);
       }
+
       TwoDBasis::~TwoDBasis() {
       }
 
@@ -148,7 +143,7 @@ namespace helfem {
         }
       }
 
-      arma::mat TwoDBasis::model_potential(const modelpotential::ModelPotential * model) const {
+      arma::mat TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {
         size_t Nrad(radial.Nbf());
         arma::mat Vrad(Nrad,Nrad);
         Vrad.zeros();
@@ -157,7 +152,7 @@ namespace helfem {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-          Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.model_potential(model,iel);
+          Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.model_potential(pot,iel);
         }
         return Vrad;
       }

@@ -19,6 +19,7 @@
 #include "../general/diis.h"
 #include "../general/dftfuncs.h"
 #include "../general/timer.h"
+#include "../general/utils.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
 #include "../general/model_potential.h"
@@ -249,8 +250,15 @@ int main(int argc, char **argv) {
     }
     lmmax=arma::conv_to<arma::ivec>::from(lmmaxv);
   }
+  // l and m values
+  arma::ivec lval, mval;
+  diatomic::basis::lm_to_l_m(lmmax,lval,mval);
 
-  diatomic::basis::TwoDBasis basis(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, lpad);
+  double Rhalf(0.5*Rbond);
+  double mumax(utils::arcosh(Rmax/Rhalf));
+  arma::vec bval(atomic::basis::normal_grid(Nelem, mumax, igrid, zexp));
+
+  diatomic::basis::TwoDBasis basis(Z1, Z2, Rbond, poly, Nquad, bval, lval, mval, lpad);
   chkpt.write(basis);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
 

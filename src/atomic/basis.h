@@ -50,16 +50,13 @@ namespace helfem {
         /// Dummy constructor
         RadialBasis();
         /// Construct radial basis
-        RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int igrid, double zexp);
-        /// Construct radial basis
-        RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el0, int Zm, int Zlr, double Rhalf, int num_el, double rmax, int igrid, double zexp);
-        /// Construct radial basis
         RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval);
-        // Copy constructor
-        RadialBasis(const RadialBasis & old);
-        // Assignment
-        RadialBasis & operator=(const RadialBasis & old);
-        /// Destructor
+
+        /// Explicit copy constructor because of shared pointer
+        RadialBasis(const RadialBasis & rh);
+        /// Explicit assignment operator because of shared pointer
+        RadialBasis & operator=(const RadialBasis & rh);
+        /// Explicit destructor because of shared pointer
         ~RadialBasis();
 
         /// Add an element boundary
@@ -154,6 +151,15 @@ namespace helfem {
         arma::rowvec nuclear_orbital(const arma::mat & C) const;
       };
 
+      /// Get the element grid for a normal calculation
+      arma::vec normal_grid(int num_el, double rmax, int igrid, double zexp);
+      /// Get the element grid for a finite nucleus
+      arma::vec finite_nuclear_grid(int num_el, double rmax, int igrid, double zexp, int num_el_nuc, double rnuc, int igrid_nuc, double zexp_nuc);
+      /// Get the element grid in the case of off-center nuclei
+      arma::vec offcenter_nuclear_grid(int num_el0, int Zm, int Zlr, double Rhalf, int num_el, double rmax, int igrid, double zexp);
+      /// Form the grid in the general case, using the above routines
+      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf);
+
       /// Constructs an angular basis
       void angular_basis(int lmax, int mmax, arma::ivec & lval, arma::ivec & mval);
 
@@ -205,10 +211,6 @@ namespace helfem {
 
       public:
         TwoDBasis();
-        /// Constructor
-        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp);
-        /// Constructor
-        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el0, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int Zl, int Zr, double Rhalf);
         /// Constructor
         TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int Zl, int Zr, double Rhalf);
         /// Destructor

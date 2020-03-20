@@ -74,9 +74,11 @@ int main(int argc, char **argv) {
   parser.add<int>("mmax", 0, "maximum m quantum number", true);
   parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
   parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
+  parser.add<int>("grid0", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
-  parser.add<int>("nelem0", 0, "number of elements between center and off-center nuclei", false, 0);
+  parser.add<double>("zexp0", 0, "parameter in radial grid", false, 2.0);
   parser.add<int>("nelem", 0, "number of elements", true);
+  parser.add<int>("nelem0", 0, "number of elements between center and off-center nuclei", false, 0);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
   parser.add<int>("maxit", 0, "maximum number of iterations", false, 50);
@@ -108,7 +110,9 @@ int main(int argc, char **argv) {
   // Get parameters
   double Rmax(parser.get<double>("Rmax"));
   int igrid(parser.get<int>("grid"));
+  int igrid0(parser.get<int>("grid0"));
   double zexp(parser.get<double>("zexp"));
+  double zexp0(parser.get<double>("zexp0"));
   double Ez(parser.get<double>("Ez"));
   double Qzz(parser.get<double>("Qzz"));
   double Bz(parser.get<double>("Bz"));
@@ -211,11 +215,14 @@ int main(int argc, char **argv) {
   printf("Using %i point quadrature rule.\n",Nquad);
   printf("Angular grid spanning from l=0..%i, m=%i..%i.\n",lmax,-mmax,mmax);
 
+  // Construct the angular basis
+  arma::ivec lval, mval;
+  atomic::basis::angular_basis(lmax,mmax,lval,mval);
+  // and the radial one
+  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf);
+
   atomic::basis::TwoDBasis basis;
-  if(Rhalf!=0.0)
-    basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, Nquad, Nelem0, Nelem, Rmax, lmax, mmax, igrid, zexp, Zl, Zr, Rhalf);
-  else
-    basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
+  basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, Nquad, bval, lval, mval, Zl, Zr, Rhalf);
   chkpt.write(basis);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
 

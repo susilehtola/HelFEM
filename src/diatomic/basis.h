@@ -52,14 +52,13 @@ namespace helfem {
         /// Dummy constructor
         RadialBasis();
         /// Construct radial basis
-        RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int igrid, double zexp);
-        /// Construct radial basis
         RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval);
-        // Copy constructor
-        RadialBasis(const RadialBasis & old);
-        // Assignment
-        RadialBasis & operator=(const RadialBasis & old);
-        /// Destructor
+
+        /// Explicit copy constructor because of shared pointer
+        RadialBasis(const RadialBasis & rh);
+        /// Explicit assignment operator because of shared pointer
+        RadialBasis & operator=(const RadialBasis & rh);
+        /// Explicit destructor because of shared pointer
         ~RadialBasis();
 
         /// Get number of quadrature points
@@ -132,6 +131,9 @@ namespace helfem {
       /// Equivalence operator
       bool operator==(const lmidx_t & lh, const lmidx_t & rh);
 
+      /// l(m) array to l, m arrays
+      void lm_to_l_m(const arma::ivec & lmmax, arma::ivec & lval, arma::ivec & mval);
+
       /// Two-dimensional basis set
       class TwoDBasis {
         /// Nuclear charges
@@ -180,9 +182,7 @@ namespace helfem {
         // Dummy constructor
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, const arma::ivec & lmax, int igrid, double zexp, int lpad, bool legendre=true);
-        /// Constructor
-        TwoDBasis(int Z1, int Z2, double Rhalf, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval);
+        TwoDBasis(int Z1, int Z2, double Rhalf, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int lpad=0, bool legendre=true);
         /// Destructor
         ~TwoDBasis();
 

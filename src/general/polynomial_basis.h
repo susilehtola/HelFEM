@@ -76,29 +76,25 @@ namespace helfem {
       arma::mat bf_C;
       /// Primitive polynomial basis expansion, derivative
       arma::mat df_C;
-      /// Identifier
-      int id;
-      /// Order
-      int order;
     public:
       /// Constructor
       HermiteBasis(int n_nodes, int der_order);
       /// Destructor
       ~HermiteBasis();
       /// Get a copy
-      HermiteBasis * copy() const;
+      HermiteBasis * copy() const override;
 
       /// Drop first function
-      void drop_first();
+      void drop_first() override;
       /// Drop last function
-      void drop_last();
+      void drop_last() override;
 
       /// Evaluate polynomials at given points
-      arma::mat eval(const arma::vec & x) const;
+      arma::mat eval(const arma::vec & x) const override;
       /// Evaluate polynomials and derivatives at given points
-      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const;
+      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const override;
       /// Evaluate second derivatives at given points
-      void eval_lapl(const arma::vec & x, arma::mat & lf) const;
+      void eval_lapl(const arma::vec & x, arma::mat & lf) const override;
     };
 
     /// Legendre functions
@@ -113,17 +109,17 @@ namespace helfem {
       /// Destructor
       ~LegendreBasis();
       /// Get a copy
-      LegendreBasis * copy() const;
+      LegendreBasis * copy() const override;
 
       /// Drop first function
-      void drop_first();
+      void drop_first() override;
       /// Drop last function
-      void drop_last();
+      void drop_last() override;
 
       /// Evaluate polynomials at given points
-      arma::mat eval(const arma::vec & x) const;
+      arma::mat eval(const arma::vec & x) const override;
       /// Evaluate polynomials and derivatives at given points
-      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const;
+      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const override;
     };
 
     /// Lagrange interpolating polynomials
@@ -138,19 +134,19 @@ namespace helfem {
       /// Destructor
       ~LIPBasis();
       /// Get a copy
-      LIPBasis * copy() const;
+      LIPBasis * copy() const override;
 
       /// Drop first function
-      void drop_first();
+      void drop_first() override;
       /// Drop last function
-      void drop_last();
+      void drop_last() override;
 
       /// Evaluate polynomials at given points
-      arma::mat eval(const arma::vec & x) const;
+      arma::mat eval(const arma::vec & x) const override;
       /// Evaluate polynomials and derivatives at given points
-      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const;
+      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const override;
       /// Evaluate second derivatives at given points
-      void eval_lapl(const arma::vec & x, arma::mat & lf) const;
+      void eval_lapl(const arma::vec & x, arma::mat & lf) const override;
     };
   }
 }

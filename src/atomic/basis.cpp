@@ -34,8 +34,8 @@ namespace helfem {
       RadialBasis::RadialBasis() {
       }
 
-      RadialBasis::RadialBasis(const polynomial_basis::PolynomialBasis * poly_, int n_quad, int num_el, double rmax, int igrid, double zexp) {
-        // Polynomial basis
+      RadialBasis::RadialBasis(const polynomial_basis::PolynomialBasis * poly_, int n_quad, const arma::vec & bval_) {
+	// Polynomial basis
         poly=poly_->copy();
 
         // Get quadrature rule
@@ -50,10 +50,26 @@ namespace helfem {
         // Evaluate polynomials at quadrature points
         poly->eval(xq,bf,df);
 
-        // Get boundary values
-        bval=utils::get_grid(rmax,num_el,igrid,zexp);
+        // Element boundaries
+        bval=bval_;
+      }
 
-        //bval.print("Element boundaries");
+      RadialBasis::RadialBasis(const RadialBasis & rh) {
+        *this = rh;
+      }
+
+      RadialBasis & RadialBasis::operator=(const RadialBasis & rh) {
+        xq=rh.xq;
+        wq=rh.wq;
+        poly=rh.poly->copy();
+        bf=rh.bf;
+        df=rh.df;
+        bval=rh.bval;
+        return *this;
+      }
+
+      RadialBasis::~RadialBasis() {
+        delete poly;
       }
 
       static arma::vec concatenate_grid(const arma::vec & left, const arma::vec & right) {
@@ -74,22 +90,25 @@ namespace helfem {
         return ret;
       }
 
-      RadialBasis::RadialBasis(const polynomial_basis::PolynomialBasis * poly_, int n_quad, int num_el0, int Zm, int Zlr, double Rhalf, int num_el, double rmax, int igrid, double zexp) {
-	// Polynomial basis
-        poly=poly_->copy();
+      arma::vec normal_grid(int num_el, double rmax, int igrid, double zexp) {
+        return utils::get_grid(rmax,num_el,igrid,zexp);
+      }
 
-        // Get quadrature rule
-        chebyshev::chebyshev(n_quad,xq,wq);
-        for(size_t i=0;i<xq.n_elem;i++) {
-          if(!std::isfinite(xq[i]))
-            printf("xq[%i]=%e\n",(int) i, xq[i]);
-          if(!std::isfinite(wq[i]))
-            printf("wq[%i]=%e\n",(int) i, wq[i]);
+      arma::vec finite_nuclear_grid(int num_el, double rmax, int igrid, double zexp, int num_el_nuc, double rnuc, int igrid_nuc, double zexp_nuc) {
+        if(num_el_nuc) {
+          // Grid for the finite nucleus
+          arma::vec bnuc(utils::get_grid(rnuc,num_el_nuc,igrid_nuc,zexp_nuc));
+          // and the one for the electrons
+          arma::vec belec(utils::get_grid(rmax-rnuc,num_el,igrid,zexp));
+
+          arma::vec bnucel(concatenate_grid(bnuc,bnuc));
+          return concatenate_grid(bnucel,belec);
+        } else {
+          return utils::get_grid(rmax,num_el,igrid,zexp);
         }
+      }
 
-        // Evaluate polynomials at quadrature points
-        poly->eval(xq,bf,df);
-
+      arma::vec offcenter_nuclear_grid(int num_el0, int Zm, int Zlr, double Rhalf, int num_el, double rmax, int igrid, double zexp) {
         // First boundary at
         int b0used = (Zm != 0);
         double b0=Zm*Rhalf/(Zm+Zlr);
@@ -121,6 +140,7 @@ namespace helfem {
         }
         arma::vec bval2=utils::get_grid(b2-b1,num_el,igrid,zexp);
 
+        arma::vec bval;
         if(b0used && b1used) {
           bval=concatenate_grid(bval0,bval1);
         } else if(b0used) {
@@ -133,46 +153,68 @@ namespace helfem {
         } else {
           bval=bval2;
         }
-        bval.print("Element boundaries");
+
+        return bval;
       }
 
-      RadialBasis::RadialBasis(const polynomial_basis::PolynomialBasis * poly_, int n_quad, const arma::vec & bval_) {
-	// Polynomial basis
-        poly=poly_->copy();
+      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf) {
+        // Construct the radial basis
+        arma::vec bval;
+        if(model != modelpotential::POINT_NUCLEUS) {
+          printf("Finite-nucleus grid\n");
 
-        // Get quadrature rule
-        chebyshev::chebyshev(n_quad,xq,wq);
-        for(size_t i=0;i<xq.n_elem;i++) {
-          if(!std::isfinite(xq[i]))
-            printf("xq[%i]=%e\n",(int) i, xq[i]);
-          if(!std::isfinite(wq[i]))
-            printf("wq[%i]=%e\n",(int) i, wq[i]);
+          if(Zl != 0 || Zr != 0)
+            throw std::logic_error("Off-center nuclei not supported in finite nucleus mode!\n");
+
+          double rnuc;
+          if(model == modelpotential::HOLLOW_NUCLEUS)
+            rnuc = Rrms;
+          else if(model == modelpotential::SPHERICAL_NUCLEUS)
+            rnuc = sqrt(5.0/3.0)*Rrms;
+          else if(model == modelpotential::GAUSSIAN_NUCLEUS)
+            rnuc = 3*Rrms;
+          else
+            throw std::logic_error("Nuclear grid not handled!\n");
+
+          bval=atomic::basis::finite_nuclear_grid(Nelem,Rmax,igrid,zexp,Nelem0,rnuc,igrid0,zexp0);
+
+        } else if(Zl != 0 || Zr != 0) {
+          printf("Off-center grid\n");
+          bval=atomic::basis::offcenter_nuclear_grid(Nelem0,Z,std::max(Zl,Zr),Rhalf,Nelem,Rmax,igrid,zexp);
+        } else {
+          printf("Normal grid\n");
+          bval=atomic::basis::normal_grid(Nelem,Rmax,igrid,zexp);
         }
 
-        // Evaluate polynomials at quadrature points
-        poly->eval(xq,bf,df);
+        bval.print("Grid");
 
-        // Element boundaries
-        bval=bval_;
+        return bval;
       }
 
-      RadialBasis::RadialBasis(const RadialBasis & old) {
-        *this=old;
-      }
+      void angular_basis(int lmax, int mmax, arma::ivec & lval, arma::ivec & mval) {
+        size_t nang=0;
+        for(int l=0;l<=lmax;l++)
+          nang+=2*std::min(mmax,l)+1;
 
-      RadialBasis & RadialBasis::operator=(const RadialBasis & old) {
-        xq=old.xq;
-        wq=old.wq;
-        poly=old.poly->copy();
-        bf=old.bf;
-        df=old.df;
-        bval=old.bval;
+        // Allocate memory
+        lval.zeros(nang);
+        mval.zeros(nang);
 
-        return *this;
-      }
-
-      RadialBasis::~RadialBasis() {
-        delete poly;
+        // Store values
+        size_t iang=0;
+        for(int mabs=0;mabs<=mmax;mabs++)
+          for(int l=mabs;l<=lmax;l++) {
+            lval(iang)=l;
+            mval(iang)=mabs;
+            iang++;
+            if(mabs>0) {
+              lval(iang)=l;
+              mval(iang)=-mabs;
+              iang++;
+            }
+          }
+        if(iang!=lval.n_elem)
+          throw std::logic_error("Error.\n");
       }
 
       void RadialBasis::add_boundary(double r) {
@@ -227,7 +269,7 @@ namespace helfem {
       }
 
       polynomial_basis::PolynomialBasis * RadialBasis::get_basis(const polynomial_basis::PolynomialBasis * polynom, size_t iel) const {
-        polynomial_basis::PolynomialBasis *p(polynom->copy());
+        polynomial_basis::PolynomialBasis * p(polynom->copy());
 	if(iel==0)
           p->drop_first();
 	if(iel==bval.n_elem-2)
@@ -713,94 +755,17 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp) {
+      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int Zl_, int Zr_, double Rhalf_) {
         // Nuclear charge
         Z=Z_;
-        Zl=0;
-        Zr=0;
-        Rhalf=0.0;
+        Zl=Zl_;
+        Zr=Zr_;
+        Rhalf=Rhalf_;
         model=model_;
         Rrms=Rrms_;
 
         // Construct radial basis
-        radial=RadialBasis(poly, n_quad, num_el, rmax, igrid, zexp);
-        // Add extra node at nuclear radius if necessary
-        if(model == modelpotential::HOLLOW_NUCLEUS) {
-          radial.add_boundary(Rrms);
-        } else if(model == modelpotential::SPHERICAL_NUCLEUS) {
-          radial.add_boundary(sqrt(5.0/3.0)*Rrms);
-        }
-
-        // Construct angular basis
-        angular_basis(lmax,mmax,lval,mval);
-      }
-
-      void angular_basis(int lmax, int mmax, arma::ivec & lval, arma::ivec & mval) {
-        size_t nang=0;
-        for(int l=0;l<=lmax;l++)
-          nang+=2*std::min(mmax,l)+1;
-
-        // Allocate memory
-        lval.zeros(nang);
-        mval.zeros(nang);
-
-        // Store values
-        size_t iang=0;
-        for(int mabs=0;mabs<=mmax;mabs++)
-          for(int l=mabs;l<=lmax;l++) {
-            lval(iang)=l;
-            mval(iang)=mabs;
-            iang++;
-
-            if(mabs>0) {
-              lval(iang)=l;
-              mval(iang)=-mabs;
-              iang++;
-            }
-          }
-        if(iang!=lval.n_elem)
-          throw std::logic_error("Error.\n");
-      }
-
-      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el0, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int Zl_, int Zr_, double Rhalf_) {
-        // Nuclear charge
-        Z=Z_;
-        Zl=Zl_;
-        Zr=Zr_;
-        Rhalf=Rhalf_;
-
-        // Construct radial basis
-        radial=RadialBasis(poly, n_quad, num_el0, Z_, std::max(Zl_,Zr_), Rhalf, num_el, rmax, igrid, zexp);
-        // Add extra node at nuclear radius if necessary
-        if((Zl != 0 || Zr != 0) && model != modelpotential::POINT_NUCLEUS)
-          throw std::logic_error("Finite off-center nuclei not implemented!\n");
-        if(model == modelpotential::HOLLOW_NUCLEUS) {
-          radial.add_boundary(Rrms);
-        } else if(model == modelpotential::SPHERICAL_NUCLEUS) {
-          radial.add_boundary(sqrt(5.0/3.0)*Rrms);
-        }
-
-        // Construct angular basis
-        angular_basis(lmax,mmax,lval,mval);
-      }
-
-      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int Zl_, int Zr_, double Rhalf_) {
-        // Nuclear charge
-        Z=Z_;
-        Zl=Zl_;
-        Zr=Zr_;
-        Rhalf=Rhalf_;
-
-        // Construct radial basis
         radial=RadialBasis(poly, n_quad, bval);
-        // Add extra node at nuclear radius if necessary
-        if((Zl != 0 || Zr != 0) && model != modelpotential::POINT_NUCLEUS)
-          throw std::logic_error("Finite off-center nuclei not implemented!\n");
-        if(model == modelpotential::HOLLOW_NUCLEUS) {
-          radial.add_boundary(Rrms);
-        } else if(model == modelpotential::SPHERICAL_NUCLEUS) {
-          radial.add_boundary(sqrt(5.0/3.0)*Rrms);
-        }
 
         // Construct angular basis
         lval=lval_;
@@ -1189,7 +1154,7 @@ namespace helfem {
         }
       }
 
-      arma::mat TwoDBasis::model_potential(const modelpotential::ModelPotential * model) const {
+      arma::mat TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {
         // Full nuclear attraction matrix
         arma::mat V(Ndummy(),Ndummy());
         V.zeros();
@@ -1202,7 +1167,7 @@ namespace helfem {
 	  // Where are we in the matrix?
 	  size_t ifirst, ilast;
 	  radial.get_idx(iel,ifirst,ilast);
-	  Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.model_potential(model,iel);
+	  Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.model_potential(pot,iel);
 	}
 	// Fill elements
 	for(size_t iang=0;iang<lval.n_elem;iang++)

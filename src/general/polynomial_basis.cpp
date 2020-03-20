@@ -54,7 +54,7 @@ namespace helfem {
       case(0):
       case(1):
       case(2):
-        poly=new polynomial_basis::HermiteBasis(Nnodes,primbas);
+        poly=new HermiteBasis(Nnodes,primbas);
       printf("Basis set composed of %i nodes with %i:th derivative continuity.\n",Nnodes,primbas);
       printf("This means using primitive polynomials of order %i.\n",Nnodes*(primbas+1)-1);
       break;

@@ -19,6 +19,8 @@
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
 #include "../general/model_potential.h"
+#include "../general/utils.h"
+#include "../atomic/basis.h"
 #include "basis.h"
 #include "twodquadrature.h"
 #include <cfloat>
@@ -29,7 +31,15 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const polyno
 
   int lpad=0;
   int symm=1;
-  diatomic::basis::TwoDBasis basis(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, lpad, false);
+
+  double Rhalf=0.5*Rbond;
+  double mumax(utils::arcosh(Rmax/Rhalf));
+  arma::vec bval(atomic::basis::normal_grid(Nelem, mumax, igrid, zexp));
+
+  arma::ivec lval, mval;
+  diatomic::basis::lm_to_l_m(lmmax,lval,mval);
+
+  diatomic::basis::TwoDBasis basis(Z1, Z2, Rhalf, poly, Nquad, bval, lval, mval, lpad, false);
 
   bool diag=true;
   // Symmetry indices

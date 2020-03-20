@@ -595,10 +595,14 @@ namespace helfem {
         return lh.Econf < rh.Econf;
       }
 
-      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, int igrid, double zexp, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
-        // Form basis
-        basis=sadatom::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, Nquad, Nelem, Rmax, lmax, igrid, zexp);
-        atbasis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, Nquad, Nelem, Rmax, lmax, lmax, igrid, zexp);
+      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const polynomial_basis::PolynomialBasis * poly, int Nquad, const arma::vec & bval, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
+
+        // Construct the angular basis
+        arma::ivec lval, mval;
+        atomic::basis::angular_basis(lmax,lmax,lval,mval);
+
+        basis=sadatom::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, Nquad, bval, lmax);
+        atbasis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, Nquad, bval, lval, mval, 0, 0, 0.0);
         printf("Basis set has %i radial functions\n",(int) basis.Nbf());
 
         // Form overlap matrix

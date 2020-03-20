@@ -102,8 +102,11 @@ int main(int argc, char **argv) {
   parser.add<std::string>("Z", 0, "nuclear charge", true);
   parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
   parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
+  parser.add<int>("grid0", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
+  parser.add<double>("zexp0", 0, "parameter in radial grid", false, 2.0);
   parser.add<int>("nelem", 0, "number of elements", true);
+  parser.add<int>("nelem0", 0, "number of elements", 0, false);
   parser.add<int>("finitenuc", 0, "finite nuclear model", false, 0);
   parser.add<double>("Rrms", 0, "nuclear rms radius", false, 0.0);
   parser.add<int>("Q", 0, "charge of system", false, 0);
@@ -131,7 +134,9 @@ int main(int argc, char **argv) {
   // Get parameters
   double Rmax(parser.get<double>("Rmax"));
   int igrid(parser.get<int>("grid"));
+  int igrid0(parser.get<int>("grid0"));
   double zexp(parser.get<double>("zexp"));
+  double zexp0(parser.get<double>("zexp0"));
   int maxit(parser.get<int>("maxit"));
   int lmax(parser.get<int>("lmax"));
   double convthr(parser.get<double>("convthr"));
@@ -139,6 +144,7 @@ int main(int argc, char **argv) {
   int primbas(parser.get<int>("primbas"));
   // Number of elements
   int Nelem(parser.get<int>("nelem"));
+  int Nelem0(parser.get<int>("nelem0"));
   // Number of nodes
   int Nnodes(parser.get<int>("nnodes"));
 
@@ -213,8 +219,11 @@ int main(int argc, char **argv) {
       throw std::logic_error("Optimized effective potential is not implemented in the spherically symmetric program.\n");
   }
 
+  // Radial basis
+  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0);
+
   // Initialize solver
-  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, Nquad, Nelem, Rmax, igrid, zexp, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
+  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, Nquad, bval, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
 
   // Set parameters if necessary
   arma::vec xpars, cpars;
