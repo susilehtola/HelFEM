@@ -103,6 +103,13 @@ namespace helfem {
       int lmax;
       /// Transformation matrix
       arma::mat T;
+
+      /// Evaluate Legendre polynomials
+      arma::mat f_eval(const arma::vec & x) const;
+      /// Evaluate Legendre polynomials' derivatives
+      arma::mat df_eval(const arma::vec & x) const;
+      /// Evaluate Legendre polynomials' second derivatives
+      arma::mat lf_eval(const arma::vec & x) const;
     public:
       /// Constructor
       LegendreBasis(int nfuncs, int id);
@@ -120,6 +127,8 @@ namespace helfem {
       arma::mat eval(const arma::vec & x) const override;
       /// Evaluate polynomials and derivatives at given points
       void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const override;
+      /// Evaluate second derivatives at given points
+      void eval_lapl(const arma::vec & x, arma::mat & lf) const override;
     };
 
     /// Lagrange interpolating polynomials

@@ -16,6 +16,7 @@
 #include "../general/lobatto.h"
 #include "polynomial_basis.h"
 #include "polynomial.h"
+#include "orthpoly.h"
 #include <cfloat>
 
 // Legendre polynomials
@@ -220,26 +221,47 @@ namespace helfem {
         return x;
     }
 
-    arma::mat LegendreBasis::eval(const arma::vec & x) const {
+    arma::mat LegendreBasis::f_eval(const arma::vec & x) const {
       // Memory for values
-      arma::mat ft(lmax+1,x.n_elem);
+      arma::mat ft(x.n_elem,lmax+1);
       // Fill in array
-      for(size_t i=0;i<x.n_elem;i++) {
-        gsl_sf_legendre_Pl_array(lmax,sanitize_x(x(i)),ft.colptr(i));
-      }
-      return arma::trans(ft)*T;
+      for(int l=0;l<=lmax;l++)
+        for(size_t i=0;i<x.n_elem;i++)
+          ft(i,l) = oomph::Orthpoly::legendre(l, x(i));
+      return ft;
+    }
+
+    arma::mat LegendreBasis::df_eval(const arma::vec & x) const {
+      // Memory for values
+      arma::mat dt(x.n_elem,lmax+1);
+      // Fill in array
+      for(int l=0;l<=lmax;l++)
+        for(size_t i=0;i<x.n_elem;i++)
+          dt(i,l) = oomph::Orthpoly::dlegendre(l, x(i));
+      return dt;
+    }
+
+    arma::mat LegendreBasis::lf_eval(const arma::vec & x) const {
+      // Memory for values
+      arma::mat lt(x.n_elem,lmax+1);
+      // Fill in array
+      for(int l=0;l<=lmax;l++)
+        for(size_t i=0;i<x.n_elem;i++)
+          lt(i,l) = oomph::Orthpoly::ddlegendre(l, x(i));
+      return lt;
+    }
+
+    arma::mat LegendreBasis::eval(const arma::vec & x) const {
+      return f_eval(x)*T;
     }
 
     void LegendreBasis::eval(const arma::vec & x, arma::mat & f, arma::mat & df) const {
-      // Memory for values
-      f.zeros(lmax+1,x.n_elem);
-      df.zeros(lmax+1,x.n_elem);
-      // Fill in array
-      for(size_t i=0;i<x.n_elem;i++)
-        gsl_sf_legendre_Pl_deriv_array(lmax,sanitize_x(x(i)),f.colptr(i),df.colptr(i));
+      f=f_eval(x)*T;
+      df=df_eval(x)*T;
+    }
 
-      f=arma::trans(f)*T;
-      df=arma::trans(df)*T;
+    void LegendreBasis::eval_lapl(const arma::vec & x, arma::mat & lf) const {
+      lf=lf_eval(x)*T;
     }
 
     void LegendreBasis::drop_first() {
