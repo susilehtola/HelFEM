@@ -147,9 +147,6 @@ namespace helfem {
         /// Pointer to basis set
         const helfem::sadatom::basis::TwoDBasis * basp;
 
-        /// Parameters for functional
-        arma::vec x_params, c_params;
-
       public:
         /// Dummy constructor
         DFTGrid();
@@ -159,12 +156,9 @@ namespace helfem {
         ~DFTGrid();
 
         /// Compute Fock matrix, exchange-correlation energy and integrated electron density, restricted case
-        void eval_Fxc(int x_func, int c_func, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double thr);
+        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double thr);
         /// Compute Fock matrix, exchange-correlation energy and integrated electron density, unrestricted case
-        void eval_Fxc(int x_func, int c_func, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, bool beta, double thr);
-
-        /// Set parameters
-        void set_params(const arma::vec & px, const arma::vec & pc);
+        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, bool beta, double thr);
 
         /// Evaluate overlap
         arma::mat eval_overlap();

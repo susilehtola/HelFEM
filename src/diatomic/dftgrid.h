@@ -141,7 +141,7 @@ namespace helfem {
         void init_xc();
         /// Compute XC functional from density and add to total XC
         /// array. Pot toggles evaluation of potential
-        void compute_xc(int func_id, bool pot=true);
+        void compute_xc(int func_id, const arma::vec & params, bool pot=true);
         /// Evaluate exchange/correlation energy
         double eval_Exc() const;
         /// Zero out energy
@@ -177,9 +177,9 @@ namespace helfem {
         ~DFTGrid();
 
         /// Compute Fock matrix, exchange-correlation energy and integrated electron density, restricted case
-        void eval_Fxc(int x_func, int c_func, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double & Ekin, double thr);
+        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double & Ekin, double thr);
         /// Compute Fock matrix, exchange-correlation energy and integrated electron density, unrestricted case
-        void eval_Fxc(int x_func, int c_func, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr);
+        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr);
 
         /// Evaluate overlap
         arma::mat eval_overlap();

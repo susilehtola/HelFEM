@@ -128,6 +128,8 @@ int main(int argc, char **argv) {
   parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ, 2 for SAP, 3 for TF", false, 2);
   parser.add<std::string>("load", 0, "load guess from checkpoint", false, "");
   parser.add<std::string>("save", 0, "save calculation to checkpoint", false, "helfem.chk");
+  parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
+  parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -189,6 +191,20 @@ int main(int argc, char **argv) {
 
   std::string save(parser.get<std::string>("save"));
   std::string load(parser.get<std::string>("load"));
+
+  std::string xparf(parser.get<std::string>("x_pars"));
+  std::string cparf(parser.get<std::string>("c_pars"));
+
+  // Set parameters if necessary
+  arma::vec xpars, cpars;
+  if(xparf.size()) {
+    xpars.load(xparf,arma::raw_ascii);
+    xpars.t().print("Exchange functional parameters");
+  }
+  if(cparf.size()) {
+    cpars.load(cparf,arma::raw_ascii);
+    cpars.t().print("Correlation functional parameters");
+  }
 
   // Open checkpoint in save mode
   Checkpoint chkpt(save,true);
@@ -389,8 +405,11 @@ int main(int argc, char **argv) {
       // for 2*mmax from the density/potential. Add in 5 to make
       // sure quadrature is still accurate for mmax=0
       mdft=4*lmmax.n_elem+5;
-    if(mdft<(int) (2*lmmax.n_elem))
-      throw std::logic_error("Increase mdft to guarantee accuracy of quadrature!\n");
+    if(mdft<(int) (2*lmmax.n_elem)) {
+      std::ostringstream oss;
+      oss << "Increase mdft at least to " << 2*lmmax.n_elem << " to guarantee accuracy of quadrature!\n";
+      throw std::logic_error(oss.str());
+    }
 
     // Form grid
     grid=helfem::diatomic::dftgrid::DFTGrid(&basis,ldft,mdft);
@@ -807,10 +826,10 @@ int main(int argc, char **argv) {
       double nelnum;
       double ekin;
       if(restr && nela==nelb) {
-        grid.eval_Fxc(x_func, c_func, P, XCa, Exc, nelnum, ekin, dftthr);
+        grid.eval_Fxc(x_func, xpars, c_func, cpars, P, XCa, Exc, nelnum, ekin, dftthr);
         XCb=XCa;
       } else {
-        grid.eval_Fxc(x_func, c_func, Pa, Pb, XCa, XCb, Exc, nelnum, ekin, nelb>0, dftthr);
+        grid.eval_Fxc(x_func, xpars, c_func, cpars, Pa, Pb, XCa, XCb, Exc, nelnum, ekin, nelb>0, dftthr);
       }
       double txc(timer.get());
       printf("DFT energy %.10e % .6f\n",Exc,txc);

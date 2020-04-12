@@ -659,7 +659,8 @@ namespace helfem {
       }
 
       void SCFSolver::set_params(const arma::vec & px, const arma::vec & pc) {
-        grid.set_params(px,pc);
+        x_pars = px;
+        c_pars = pc;
       }
 
       arma::mat SCFSolver::TotalDensity(const arma::cube & Pl) const {
@@ -724,11 +725,11 @@ namespace helfem {
           if(is_meta(x_func,c_func)) {
             arma::mat XCfull;
             double Ekin;
-            atgrid.eval_Fxc(x_func, c_func, full_density(conf.Pl), XCfull, conf.Exc, nelnum, Ekin, dftthr);
+            atgrid.eval_Fxc(x_func, x_pars, c_func, c_pars, full_density(conf.Pl), XCfull, conf.Exc, nelnum, Ekin, dftthr);
             XC=make_m_average(XCfull,atbasis.Nrad(),atbasis.get_lval(),atbasis.get_mval());
           } else {
             arma::mat XCm;
-            grid.eval_Fxc(x_func, c_func, P/angfac, XCm, conf.Exc, nelnum, dftthr);
+            grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P/angfac, XCm, conf.Exc, nelnum, dftthr);
             // Potential needs to be divided as well
             XCm/=angfac;
             XC=ReplicateCube(XCm);
@@ -812,12 +813,12 @@ namespace helfem {
         if(is_meta(x_func,c_func)) {
           arma::mat XCafull, XCbfull;
           double Ekin;
-          atgrid.eval_Fxc(x_func, c_func, full_density(conf.Pal), full_density(conf.Pbl), XCafull, XCbfull, conf.Exc, nelnum, Ekin, true, dftthr);
+          atgrid.eval_Fxc(x_func, x_pars, c_func, c_pars, full_density(conf.Pal), full_density(conf.Pbl), XCafull, XCbfull, conf.Exc, nelnum, Ekin, true, dftthr);
           XCa=make_m_average(XCafull,atbasis.Nrad(),atbasis.get_lval(),atbasis.get_mval());
           XCb=make_m_average(XCbfull,atbasis.Nrad(),atbasis.get_lval(),atbasis.get_mval());
         } else {
           arma::mat XCam, XCbm;
-          grid.eval_Fxc(x_func, c_func, Pa/angfac, Pb/angfac, XCam, XCbm, conf.Exc, nelnum, true, dftthr);
+          grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa/angfac, Pb/angfac, XCam, XCbm, conf.Exc, nelnum, true, dftthr);
           // Potential needs to be divided as well
           XCam/=angfac;
           XCbm/=angfac;

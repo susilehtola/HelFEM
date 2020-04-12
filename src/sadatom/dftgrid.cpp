@@ -254,7 +254,7 @@ namespace helfem {
         // Set parameters
         if(p.n_elem) {
           // Check sanity
-          if(p.n_elem != (arma::uword) func.info->n_ext_params)
+          if(p.n_elem != (arma::uword) xc_func_info_get_n_ext_params(func.info))
             throw std::logic_error("Incompatible number of parameters!\n");
           arma::vec phlp(p);
           xc_func_set_ext_params(&func, phlp.memptr());
@@ -513,12 +513,7 @@ namespace helfem {
       DFTGrid::~DFTGrid() {
       }
 
-      void DFTGrid::set_params(const arma::vec & px, const arma::vec & pc) {
-        x_params=px;
-        c_params=pc;
-      }
-
-      void DFTGrid::eval_Fxc(int x_func, int c_func, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double thr) {
+      void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double thr) {
         H.zeros(P.n_rows,P.n_rows);
 
         double exc=0.0;
@@ -542,9 +537,9 @@ namespace helfem {
             if(thr>0.0)
               grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func,x_params);
+              grid.compute_xc(x_func,x_pars);
             if(c_func>0)
-              grid.compute_xc(c_func,c_params);
+              grid.compute_xc(c_func,c_pars);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(H);
@@ -561,9 +556,9 @@ namespace helfem {
             if(thr>0.0)
               grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func,x_params);
+              grid.compute_xc(x_func,x_pars);
             if(c_func>0)
-              grid.compute_xc(c_func,c_params);
+              grid.compute_xc(c_func,c_pars);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(H);
@@ -575,7 +570,7 @@ namespace helfem {
         Nel=nel;
       }
 
-      void DFTGrid::eval_Fxc(int x_func, int c_func, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, bool beta, double thr) {
+      void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, bool beta, double thr) {
         Ha.zeros(Pa.n_rows,Pa.n_rows);
         Hb.zeros(Pb.n_rows,Pb.n_rows);
 
@@ -600,9 +595,9 @@ namespace helfem {
             if(thr>0.0)
               grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func,x_params);
+              grid.compute_xc(x_func,x_pars);
             if(c_func>0)
-              grid.compute_xc(c_func,c_params);
+              grid.compute_xc(c_func,c_pars);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(Ha,Hb,beta);
@@ -619,9 +614,9 @@ namespace helfem {
             if(thr>0.0)
               grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func,x_params);
+              grid.compute_xc(x_func,x_pars);
             if(c_func>0)
-              grid.compute_xc(c_func,c_params);
+              grid.compute_xc(c_func,c_pars);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(Ha,Hb,beta);

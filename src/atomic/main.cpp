@@ -105,6 +105,8 @@ int main(int argc, char **argv) {
   parser.add<double>("Rrms", 0, "finite nuclear rms radius", false, 0.0);
   parser.add<std::string>("load", 0, "load guess from checkpoint", false, "");
   parser.add<std::string>("save", 0, "save calculation to checkpoint", false, "helfem.chk");
+  parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
+  parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -168,6 +170,20 @@ int main(int argc, char **argv) {
 
   std::string save(parser.get<std::string>("save"));
   std::string load(parser.get<std::string>("load"));
+
+  std::string xparf(parser.get<std::string>("x_pars"));
+  std::string cparf(parser.get<std::string>("c_pars"));
+
+  // Set parameters if necessary
+  arma::vec xpars, cpars;
+  if(xparf.size()) {
+    xpars.load(xparf,arma::raw_ascii);
+    xpars.t().print("Exchange functional parameters");
+  }
+  if(cparf.size()) {
+    cpars.load(cparf,arma::raw_ascii);
+    cpars.t().print("Correlation functional parameters");
+  }
 
   // Open checkpoint in save mode
   Checkpoint chkpt(save,true);
@@ -724,10 +740,10 @@ int main(int argc, char **argv) {
       double nelnum;
       double ekin;
       if(restr && nela==nelb) {
-        grid.eval_Fxc(x_func, c_func, P, XCa, Exc, nelnum, ekin, dftthr);
+        grid.eval_Fxc(x_func, xpars, c_func, cpars, P, XCa, Exc, nelnum, ekin, dftthr);
         XCb=XCa;
       } else {
-        grid.eval_Fxc(x_func, c_func, Pa, Pb, XCa, XCb, Exc, nelnum, ekin, nelb>0, dftthr);
+        grid.eval_Fxc(x_func, xpars, c_func, cpars, Pa, Pb, XCa, XCb, Exc, nelnum, ekin, nelb>0, dftthr);
       }
       double txc(timer.get());
       printf("DFT energy %.10e % .6f\n",Exc,txc);

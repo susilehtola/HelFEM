@@ -189,8 +189,12 @@ namespace helfem {
 
         /// Exchange functional
         int x_func;
+        /// Exchange functional parameters
+        arma::vec x_pars;
         /// Correlation functional
         int c_func;
+        /// Correlation functional parameters
+        arma::vec c_pars;
 
         /// Overlap matrix
         arma::mat S;
