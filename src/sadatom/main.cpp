@@ -228,11 +228,11 @@ int main(int argc, char **argv) {
   // Set parameters if necessary
   arma::vec xpars, cpars;
   if(xparf.size()) {
-    xpars.load(xparf,arma::raw_ascii);
+    xpars = scf::parse_xc_params(xparf);
     xpars.t().print("Exchange functional parameters");
   }
   if(cparf.size()) {
-    cpars.load(cparf,arma::raw_ascii);
+    cpars = scf::parse_xc_params(cparf);
     cpars.t().print("Correlation functional parameters");
   }
   solver.set_params(xpars,cpars);

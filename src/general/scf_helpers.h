@@ -56,6 +56,9 @@ namespace helfem {
     std::string memory_size(size_t size);
     /// Parse number of alpha and beta electrons
     void parse_nela_nelb(int & nela, int & nelb, int & Q, int & M, int Z);
+
+    /// Parse xc parameters
+    arma::vec parse_xc_params(const std::string & input);
   }
 }
 

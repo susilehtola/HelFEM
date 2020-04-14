@@ -599,5 +599,26 @@ namespace helfem {
         }
       }
     }
+
+    arma::vec parse_xc_params(const std::string & input) {
+      arma::vec r;
+      if(input.size()) {
+        // Is this a file name?
+        bool isfile;
+        {
+          std::ifstream f(input);
+          isfile = f.good();
+        }
+        if(isfile) {
+          // Load the file
+          r.load(input,arma::raw_ascii);
+        } else {
+          // Assume string input
+          r = arma::vec(input);
+        }
+      }
+
+      return r;
+    }
   }
 }
