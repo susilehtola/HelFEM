@@ -428,11 +428,11 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rhalf_, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int lpad, bool legendre) {
+      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rbond, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int lpad, bool legendre) {
         // Nuclear charge
         Z1=Z1_;
         Z2=Z2_;
-        Rhalf=Rhalf_;
+        Rhalf=0.5*Rbond;
 
         // Construct radial basis
         radial=RadialBasis(poly, n_quad, bval);

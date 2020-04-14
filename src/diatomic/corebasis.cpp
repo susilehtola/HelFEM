@@ -39,7 +39,7 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const polyno
   arma::ivec lval, mval;
   diatomic::basis::lm_to_l_m(lmmax,lval,mval);
 
-  diatomic::basis::TwoDBasis basis(Z1, Z2, Rhalf, poly, Nquad, bval, lval, mval, lpad, false);
+  diatomic::basis::TwoDBasis basis(Z1, Z2, Rbond, poly, Nquad, bval, lval, mval, lpad, false);
 
   bool diag=true;
   // Symmetry indices
