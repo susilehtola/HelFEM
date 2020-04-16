@@ -346,12 +346,16 @@ void is_gga_mgga(int func_id, bool & gga, bool & mgga_t, bool & mgga_l) {
       break;
 
     case XC_FAMILY_GGA:
+#ifdef XC_FAMILY_HYB_GGA
     case XC_FAMILY_HYB_GGA:
+#endif
       gga=true;
       break;
 
     case XC_FAMILY_MGGA:
+#ifdef XC_FAMILY_HYB_MGGA
     case XC_FAMILY_HYB_MGGA:
+#endif
       mgga_t=true;
 #if defined(XC_FLAGS_NEEDS_LAPLACIAN)
       mgga_l=func.info->flags & XC_FLAGS_NEEDS_LAPLACIAN;
@@ -384,19 +388,28 @@ double exact_exchange(int func_id) {
       throw std::runtime_error(oss.str());
     }
 
+#if XC_MAJOR_VERSION < 6
     switch(func.info->family)
       {
 #ifdef XC_FAMILY_HYB_LDA
       case XC_FAMILY_HYB_LDA:
 #endif
+#ifdef XC_FAMILY_HYB_GGA
       case XC_FAMILY_HYB_GGA:
+#endif
+#ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
+#endif
 	// libxc prior to 2.0.0
 	// f=xc_hyb_gga_exx_coef(func.gga);
 	// libxc 2.0.0
 	f=xc_hyb_exx_coef(&func);
 	break;
       }
+#else
+    if(xc_hyb_type(&func) == XC_HYB_HYBRID)
+      f=xc_hyb_exx_coef(&func);
+#endif
 
     xc_func_end(&func);
   } else if(func_id==ID_HF)
@@ -405,6 +418,38 @@ double exact_exchange(int func_id) {
   //  printf("Fraction of exact exchange is %f.\n",f);
 
   return f;
+}
+
+bool is_supported(int func_id) {
+  bool support=true;
+
+  if(func_id>0) {
+    xc_func_type func;
+    if(xc_func_init(&func, func_id, XC_UNPOLARIZED) != 0){
+      std::ostringstream oss;
+      oss << "Functional "<<func_id<<" not found!";
+      throw std::runtime_error(oss.str());
+    }
+    // Get flag
+#if XC_MAJOR_VERSION >= 6
+    switch(xc_hyb_type(&func)) {
+    case(XC_HYB_SEMILOCAL):
+    case(XC_HYB_HYBRID):
+    case(XC_HYB_CAM):
+    case(XC_HYB_CAMY):
+    break;
+
+    default:
+      support=false;
+    }
+#else
+    support=true;
+#endif
+    // Free functional
+    xc_func_end(&func);
+  }
+
+  return support;
 }
 
 void is_range_separated(int func_id, bool & erf, bool & yukawa, bool check) {
@@ -418,8 +463,13 @@ void is_range_separated(int func_id, bool & erf, bool & yukawa, bool check) {
       throw std::runtime_error(oss.str());
     }
     // Get flag
+#if XC_MAJOR_VERSION < 6
     erf=(func.info->flags & XC_FLAGS_HYB_CAM) || (func.info->flags & XC_FLAGS_HYB_LC);
     yukawa=(func.info->flags & XC_FLAGS_HYB_CAMY) || (func.info->flags & XC_FLAGS_HYB_LCY);
+#else
+    erf = (xc_hyb_type(&func) == XC_HYB_CAM);
+    yukawa = (xc_hyb_type(&func) == XC_HYB_CAMY);
+#endif
     // Free functional
     xc_func_end(&func);
   }
@@ -457,16 +507,39 @@ void range_separation(int func_id, double & omega, double & alpha, double & beta
       throw std::runtime_error(oss.str());
     }
 
+#if XC_MAJOR_VERSION >= 6
+    switch(xc_hyb_type(&func)) {
+    case(XC_HYB_SEMILOCAL):
+      break;
+
+    case(XC_HYB_HYBRID):
+      alpha=xc_hyb_exx_coef(&func);
+      break;
+
+    case(XC_HYB_CAM):
+    case(XC_HYB_CAMY):
+      XC(hyb_cam_coef(&func,&omega,&alpha,&beta));
+    break;
+
+    default:
+      throw std::logic_error("Case not handled!\n");
+    }
+#else
     switch(func.info->family)
       {
 #ifdef XC_FAMILY_HYB_LDA
       case XC_FAMILY_HYB_LDA:
 #endif
+#ifdef XC_FAMILY_HYB_GGA
       case XC_FAMILY_HYB_GGA:
+#endif
+#ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
+#endif
 	XC(hyb_cam_coef(&func,&omega,&alpha,&beta));
 	break;
       }
+#endif
 
     xc_func_end(&func);
   } else if(func_id==ID_HF)
@@ -528,9 +601,13 @@ bool gradient_needed(int func_id) {
     switch(func.info->family)
       {
       case XC_FAMILY_GGA:
+#ifdef XC_FAMILY_HYB_GGA
       case XC_FAMILY_HYB_GGA:
+#endif
       case XC_FAMILY_MGGA:
+#ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
+#endif
 	grad=true;
 	break;
       }
@@ -555,7 +632,9 @@ bool tau_needed(int func_id) {
     switch(func.info->family)
       {
       case XC_FAMILY_MGGA:
+#ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
+#endif
 	tau=true;
 	break;
       }
@@ -580,7 +659,9 @@ bool laplacian_needed(int func_id) {
     switch(func.info->family)
       {
       case XC_FAMILY_MGGA:
+#ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
+#endif
 #if defined(XC_FLAGS_NEEDS_LAPLACIAN)
 	lapl=func.info->flags & XC_FLAGS_NEEDS_LAPLACIAN;
 #else

@@ -370,6 +370,10 @@ int main(int argc, char **argv) {
   int x_func, c_func;
   ::parse_xc_func(x_func, c_func, method);
   ::print_info(x_func, c_func);
+  if(!is_supported(x_func))
+    throw std::logic_error("The specified exchange functional is not currently supported in HelFEM.\n");
+  if(!is_supported(c_func))
+    throw std::logic_error("The specified correlation functional is not currently supported in HelFEM.\n");
 
   bool dft=(x_func>0 || c_func>0);
   if(is_range_separated(x_func))
