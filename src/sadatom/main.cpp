@@ -251,7 +251,7 @@ int main(int argc, char **argv) {
     sadatom::solver::rconf_t initial;
     initial.orbs=sadatom::solver::OrbitalChannel(true);
     solver.Initialize(initial.orbs);
-    initial.orbs.SetOccs(initial_occs(Z,lmax));
+    initial.orbs.SetOccs(initial_occs(numel,lmax));
     if(initial.orbs.Nel()) {
       initial.Econf=solver.Solve(initial);
     } else {
@@ -330,7 +330,7 @@ int main(int argc, char **argv) {
       std::vector<sadatom::solver::uconf_t> ulist;
 
       // Initial configuration
-      arma::ivec inocc(initial_occs(Z,lmax));
+      arma::ivec inocc(initial_occs(numel,lmax));
       arma::ivec inocca, inoccb;
       hund_rule(inocc,inocca,inoccb);
 
