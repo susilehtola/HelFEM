@@ -14,7 +14,12 @@
  * of the License, or (at your option) any later version.
  */
 #include "utils.h"
+#include "sap.h"
 #include <cmath>
+
+extern "C" {
+#include <gsl/gsl_sf_bessel.h>
+}
 
 namespace helfem {
   namespace utils {
@@ -22,8 +27,42 @@ namespace helfem {
       return log(x+sqrt(x*x-1.0));
     }
 
+    arma::vec arcosh(const arma::vec & x) {
+      arma::vec y(x);
+      for(size_t i=0;i<x.n_elem;i++)
+	y(i)=arcosh(x(i));
+      return y;
+    }
+
     double arsinh(double x) {
       return log(x+sqrt(x*x+1.0));
+    }
+
+    arma::vec arsinh(const arma::vec & x) {
+      arma::vec y(x);
+      for(size_t i=0;i<x.n_elem;i++)
+	y(i)=arsinh(x(i));
+      return y;
+    }
+
+    arma::vec bessel_il(const arma::vec & x, int L) {
+      arma::vec y(x);
+      for(size_t i=0;i<x.n_elem;i++)
+        // GSL calculates exp(-|x|)k_l(x)
+	y(i)=exp(std::abs(x(i)))*gsl_sf_bessel_il_scaled(L, x(i));
+      return y;
+    }
+
+    arma::vec bessel_kl(const arma::vec & x, int L) {
+      arma::vec y(x);
+      for(size_t i=0;i<x.n_elem;i++)
+        // GSL calculates exp(x)k_l(x)
+	y(i)=exp(-x(i))*gsl_sf_bessel_kl_scaled(L, x(i));
+
+      // The definition in GSL is \sqrt(\pi/(2x)), not \sqrt(2/(\pi x))
+      y /= M_PI_2;
+
+      return y;
     }
 
     arma::mat product_tei(const arma::mat & ijint, const arma::mat & klint) {
@@ -108,6 +147,62 @@ namespace helfem {
               ktei(kk*Nj+jj,ll*Ni+ii)=tei(jj*Ni+ii,ll*Nk+kk);
 
       return ktei;
+    }
+
+    arma::vec get_grid(double rmax, int num_el, int igrid, double zexp) {
+      // Boundary values
+      arma::vec bval;
+
+      // Get boundary values
+      switch(igrid) {
+        // linear grid
+      case(1):
+        printf("Using linear grid\n");
+        bval=arma::linspace<arma::vec>(0,rmax,num_el+1);
+        break;
+
+        // quadratic grid (Schweizer et al 1999)
+      case(2):
+        printf("Using quadratic grid\n");
+        bval.zeros(num_el+1);
+        for(int i=0;i<=num_el;i++)
+          bval(i)=i*i*rmax/(num_el*num_el);
+        break;
+
+        // generalized polynomial grid, monotonic decrease till zexp~3, after that fails to work
+      case(3):
+        printf("Using generalized polynomial grid, zexp = %e\n",zexp);
+        bval.zeros(num_el+1);
+        for(int i=0;i<=num_el;i++)
+          bval(i)=rmax*std::pow(i*1.0/num_el,zexp);
+        break;
+
+        // generalized exponential grid, monotonic decrease till zexp~2, after that fails to work
+      case(4):
+        printf("Using generalized exponential grid, zexp = %e\n",zexp);
+        bval=arma::exp(arma::pow(arma::linspace<arma::vec>(0,std::pow(log(rmax+1),1.0/zexp),num_el+1),zexp))-arma::ones<arma::vec>(num_el+1);
+        break;
+
+      default:
+        throw std::logic_error("Invalid choice for grid\n");
+      }
+
+      // Make sure start and end points are numerically exact
+      bval(0)=0.0;
+      bval(bval.n_elem-1)=rmax;
+
+      return bval;
+    }
+
+    arma::vec sap_effective_charge(int Z, const arma::vec & r) {
+      arma::vec z(r);
+      for(size_t i=0;i<r.n_elem;i++)
+        z(i)=::sap_effective_charge(Z,r(i));
+      return z;
+    }
+
+    int stricmp(const std::string & str1, const std::string & str2) {
+      return strcasecmp(str1.c_str(),str2.c_str());
     }
   }
 }

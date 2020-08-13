@@ -13,8 +13,8 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  */
-#ifndef BASIS_H
-#define BASIS_H
+#ifndef DIATOMIC_BASIS_H
+#define DIATOMIC_BASIS_H
 
 #include <armadillo>
 #include "../general/gaunt.h"
@@ -41,6 +41,8 @@ namespace helfem {
         /// Element boundary values
         arma::vec bval;
 
+	/// Used basis function indices in element
+	arma::uvec basis_indices(size_t iel) const;
         /// Get basis functions in element
         arma::mat get_basis(const arma::mat & b, size_t iel) const;
         /// Get basis functions in element
@@ -50,9 +52,23 @@ namespace helfem {
         /// Dummy constructor
         RadialBasis();
         /// Construct radial basis
-        RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int igrid, double zexp);
-        /// Destructor
+        RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval);
+
+        /// Explicit copy constructor because of shared pointer
+        RadialBasis(const RadialBasis & rh);
+        /// Explicit assignment operator because of shared pointer
+        RadialBasis & operator=(const RadialBasis & rh);
+        /// Explicit destructor because of shared pointer
         ~RadialBasis();
+
+        /// Get number of quadrature points
+        int get_nquad() const;
+        /// Get boundary values
+        arma::vec get_bval() const;
+        /// Get polynomial basis identifier
+        int get_poly_id() const;
+        /// Get polynomial basis order
+        int get_poly_order() const;
 
         /// Get number of overlapping functions
         size_t get_noverlap() const;
@@ -82,6 +98,9 @@ namespace helfem {
         /// Compute primitive kinetic energy matrix
         arma::mat kinetic() const;
 
+        /// Form overlap matrix
+        arma::mat overlap(const RadialBasis & rh, int n) const;
+
         /// Compute Plm integral
         arma::mat Plm_integral(int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
         /// Compute Qlm integral
@@ -95,6 +114,8 @@ namespace helfem {
         arma::mat get_bf(size_t iel) const;
         /// Evaluate basis functions at wanted point in [-1,1]
         arma::mat get_bf(size_t iel, const arma::vec & x) const;
+        /// Evaluate all basis functions at given value of mu
+        arma::mat get_bf(double mu) const;
         /// Evaluate derivatives of basis functions at quadrature points
         arma::mat get_df(size_t iel) const;
         /// Get quadrature weights
@@ -109,6 +130,9 @@ namespace helfem {
       bool operator<(const lmidx_t & lh, const lmidx_t & rh);
       /// Equivalence operator
       bool operator==(const lmidx_t & lh, const lmidx_t & rh);
+
+      /// l(m) array to l, m arrays
+      void lm_to_l_m(const arma::ivec & lmmax, arma::ivec & lval, arma::ivec & mval);
 
       /// Two-dimensional basis set
       class TwoDBasis {
@@ -142,9 +166,6 @@ namespace helfem {
         /// Primitive two-electron integrals: <Nel^2 * N_L> sorted for exchange
         std::vector<arma::mat> prim_ktei00, prim_ktei02, prim_ktei20, prim_ktei22;
 
-        /// Get indices of real basis functions
-        arma::uvec pure_indices() const;
-
         /// Add to radial submatrix
         void add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
         /// Set radial submatrix
@@ -158,11 +179,38 @@ namespace helfem {
         size_t LMind(int L, int M, bool check=true) const;
 
       public:
+        // Dummy constructor
+        TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, const arma::ivec & lmax, int igrid, double zexp, int lpad, bool legendre=true);
+        TwoDBasis(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int lpad=0, bool legendre=true);
         /// Destructor
         ~TwoDBasis();
 
+        /// Get Z1
+        int get_Z1() const;
+        /// Get Z2
+        int get_Z2() const;
+        /// Get Rhalf
+        double get_Rhalf() const;
+
+        /// Get l values
+        arma::ivec get_lval() const;
+        /// Get m values
+        arma::ivec get_mval() const;
+
+        /// Get number of quadrature points
+        int get_nquad() const;
+        /// Get boundary values
+        arma::vec get_bval() const;
+	/// Get maximum mu value
+	double get_mumax() const;
+        /// Get polynomial basis identifier
+        int get_poly_id() const;
+        /// Get polynomial basis order
+        int get_poly_order() const;
+
+        /// Get indices of real basis functions
+        arma::uvec pure_indices() const;
         /// Expand boundary conditions
         arma::mat expand_boundaries(const arma::mat & H) const;
         /// Remove boundary conditions
@@ -205,6 +253,9 @@ namespace helfem {
         /// Form dipole coupling matrix
         arma::mat quadrupole_zz() const;
 
+        /// Form overlap matrix
+        arma::mat overlap(const TwoDBasis & rh) const;
+
         /// Coupling to magnetic field in z direction
         arma::mat Bz_field(double B) const;
 
@@ -236,17 +287,22 @@ namespace helfem {
         /// Get indices for wanted symmetry
         std::vector<arma::uvec> get_sym_idx(int isym) const;
 
-        /// Get Rhalf
-        double get_Rhalf() const;
-
         /// Evaluate basis functions at quadrature points
         arma::cx_mat eval_bf(size_t iel, size_t irad, double cth, double phi) const;
         /// Evaluate basis functions at wanted x value
         arma::cx_mat eval_bf(size_t iel, const arma::vec & x, double cth, double phi) const;
+        /// Evaluate basis functions with m=m at quadrature point
+        arma::mat eval_bf(size_t iel, size_t irad, double cth, int m) const;
+
+	/// Evaluate basis functions at wanted point
+	arma::cx_vec eval_bf(double mu, double cth, double phi) const;
+
         /// Evaluate basis functions derivatives at quadrature points
         void eval_df(size_t iel, size_t irad, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const;
         /// Get list of basis function indices in element
         arma::uvec bf_list(size_t iel) const;
+        /// Get list of basis function indices in element with m=m
+        arma::uvec bf_list(size_t iel, int m) const;
 
         /// Get number of radial elements
         size_t get_rad_Nel() const;

@@ -14,6 +14,7 @@
  * of the License, or (at your option) any later version.
  */
 #include "../general/cmdline.h"
+#include "../general/checkpoint.h"
 #include "../general/constants.h"
 #include "../general/diis.h"
 #include "../general/dftfuncs.h"
@@ -72,10 +73,12 @@ int main(int argc, char **argv) {
   parser.add<int>("lmax", 0, "maximum l quantum number", true);
   parser.add<int>("mmax", 0, "maximum m quantum number", true);
   parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
-  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for logarithmic", false, 4);
+  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
+  parser.add<int>("grid0", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
-  parser.add<int>("nelem0", 0, "number of elements between center and off-center nuclei", false, 0);
+  parser.add<double>("zexp0", 0, "parameter in radial grid", false, 2.0);
   parser.add<int>("nelem", 0, "number of elements", true);
+  parser.add<int>("nelem0", 0, "number of elements between center and off-center nuclei", false, 0);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
   parser.add<int>("maxit", 0, "maximum number of iterations", false, 50);
@@ -97,13 +100,21 @@ int main(int argc, char **argv) {
   parser.add<int>("readocc", 0, "read occupations from file, use until nth build", false, 0);
   parser.add<double>("perturb", 0, "randomly perturb initial guess", false, 0.0);
   parser.add<int>("seed", 0, "seed for random perturbation", false, 0);
-  parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ", false, 1);
+  parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ, 2 for SAP, 3 for TF", false, 2);
+  parser.add<int>("finitenuc", 0, "finite nuclear model", false, 0);
+  parser.add<double>("Rrms", 0, "finite nuclear rms radius", false, 0.0);
+  parser.add<std::string>("load", 0, "load guess from checkpoint", false, "");
+  parser.add<std::string>("save", 0, "save calculation to checkpoint", false, "helfem.chk");
+  parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
+  parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.parse_check(argc, argv);
 
   // Get parameters
   double Rmax(parser.get<double>("Rmax"));
   int igrid(parser.get<int>("grid"));
+  int igrid0(parser.get<int>("grid0"));
   double zexp(parser.get<double>("zexp"));
+  double zexp0(parser.get<double>("zexp0"));
   double Ez(parser.get<double>("Ez"));
   double Qzz(parser.get<double>("Qzz"));
   double Bz(parser.get<double>("Bz"));
@@ -134,6 +145,9 @@ int main(int argc, char **argv) {
   int mdft(parser.get<int>("mdft"));
   double dftthr(parser.get<double>("dftthr"));
 
+  int finitenuc(parser.get<int>("finitenuc"));
+  double Rrms(parser.get<double>("Rrms"));
+
   // Nuclear charge
   int Z(get_Z(parser.get<std::string>("Z")));
   int Zl(get_Z(parser.get<std::string>("Zl")));
@@ -153,6 +167,26 @@ int main(int argc, char **argv) {
 
   double perturb=parser.get<double>("perturb");
   int seed=parser.get<int>("seed");
+
+  std::string save(parser.get<std::string>("save"));
+  std::string load(parser.get<std::string>("load"));
+
+  std::string xparf(parser.get<std::string>("x_pars"));
+  std::string cparf(parser.get<std::string>("c_pars"));
+
+  // Set parameters if necessary
+  arma::vec xpars, cpars;
+  if(xparf.size()) {
+    xpars = scf::parse_xc_params(xparf);
+    xpars.t().print("Exchange functional parameters");
+  }
+  if(cparf.size()) {
+    cpars = scf::parse_xc_params(cparf);
+    cpars.t().print("Correlation functional parameters");
+  }
+
+  // Open checkpoint in save mode
+  Checkpoint chkpt(save,true);
 
   // Read occupations from file?
   int readocc=parser.get<int>("readocc");
@@ -176,6 +210,8 @@ int main(int argc, char **argv) {
     // If number of electrons differs then unrestrict
     restr=(nela==nelb);
   }
+  chkpt.write("nela",nela);
+  chkpt.write("nelb",nelb);
 
   std::vector<std::string> rcalc(2);
   rcalc[0]="unrestricted";
@@ -195,11 +231,15 @@ int main(int argc, char **argv) {
   printf("Using %i point quadrature rule.\n",Nquad);
   printf("Angular grid spanning from l=0..%i, m=%i..%i.\n",lmax,-mmax,mmax);
 
+  // Construct the angular basis
+  arma::ivec lval, mval;
+  atomic::basis::angular_basis(lmax,mmax,lval,mval);
+  // and the radial one
+  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf);
+
   atomic::basis::TwoDBasis basis;
-  if(Rhalf!=0.0)
-    basis=atomic::basis::TwoDBasis(Z, poly, Nquad, Nelem0, Nelem, Rmax, lmax, mmax, igrid, zexp, Zl, Zr, Rhalf);
-  else
-    basis=atomic::basis::TwoDBasis(Z, poly, Nquad, Nelem, Rmax, lmax, mmax, igrid, zexp);
+  basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, Nquad, bval, lval, mval, Zl, Zr, Rhalf);
+  chkpt.write(basis);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
 
   printf("One-electron matrix requires %s\n",scf::memory_size(basis.mem_1el()).c_str());
@@ -266,13 +306,22 @@ int main(int argc, char **argv) {
   int x_func, c_func;
   ::parse_xc_func(x_func, c_func, method);
   ::print_info(x_func, c_func);
+  if(!is_supported(x_func))
+    throw std::logic_error("The specified exchange functional is not currently supported in HelFEM.\n");
+  if(!is_supported(c_func))
+    throw std::logic_error("The specified correlation functional is not currently supported in HelFEM.\n");
 
   bool dft=(x_func>0 || c_func>0);
-  if(is_range_separated(x_func))
-    throw std::logic_error("Range separated functionals are not supported.\n");
+
+  bool erfc, yukawa;
+  is_range_separated(x_func, erfc, yukawa);
   // Fraction of exact exchange
-  double kfrac(exact_exchange(x_func));
-  if(kfrac!=0.0)
+  double kfrac, kshort, omega;
+  range_separation(x_func, omega, kfrac, kshort);
+  if(omega!=0.0) {
+    printf("\nUsing range-separated exchange with range-separation constant omega = % .3f.\n",omega);
+    printf("Using % .3f %% short-range and % .3f %% long-range exchange.\n",(kfrac+kshort)*100,kfrac*100);
+  } else if(kfrac!=0.0)
     printf("\nUsing hybrid exchange with % .3f %% of exact exchange.\n",kfrac*100);
   else
     printf("\nA pure exchange functional used, no exact exchange.\n");
@@ -281,11 +330,13 @@ int main(int argc, char **argv) {
 
   // Form overlap matrix
   arma::mat S(basis.overlap());
+  chkpt.write("S",S);
   // Form kinetic energy matrix
   arma::mat T(basis.kinetic());
+  chkpt.write("T",T);
 
   // Form DFT grid
-  helfem::dftgrid::DFTGrid grid;
+  helfem::atomic::dftgrid::DFTGrid grid;
   if(dft) {
     // These would appear to give reasonably converged values
     if(ldft==0)
@@ -305,7 +356,7 @@ int main(int argc, char **argv) {
       throw std::logic_error("Increase mdft to guarantee accuracy of quadrature!\n");
 
     // Form grid
-    grid=helfem::dftgrid::DFTGrid(&basis,ldft,mdft);
+    grid=helfem::atomic::dftgrid::DFTGrid(&basis,ldft,mdft);
 
     // Basis function norms
     arma::vec bfnorm(arma::pow(arma::diagvec(S),-0.5));
@@ -346,6 +397,7 @@ int main(int argc, char **argv) {
   // Get half-inverse
   timer.set();
   arma::mat Sinvh(basis.Sinvh(!diag,symm));
+  chkpt.write("Sinvh",Sinvh);
   printf("Half-inverse formed in %.6f\n",timer.get());
   {
     arma::mat Smo(Sinvh.t()*S*Sinvh);
@@ -353,6 +405,7 @@ int main(int argc, char **argv) {
     printf("Orbital orthonormality deviation is %e\n",arma::norm(Smo,"fro"));
   }
   arma::mat Sh(basis.Shalf(!diag,symm));
+  chkpt.write("Sh",Sh);
   printf("Half-overlap formed in %.6f\n",timer.get());
   {
     arma::mat Smo(Sh.t()*Sinvh);
@@ -364,21 +417,27 @@ int main(int argc, char **argv) {
   Timer tnuc;
   if(Zl!=0 || Zr !=0)
     printf("Computing nuclear attraction integrals\n");
-  arma::mat Vnuc(basis.nuclear());
+  arma::mat Vnuc=basis.nuclear();
+  chkpt.write("Vuc",Vnuc);
   if(Zl!=0 || Zr !=0)
     printf("Done in %.6f\n",tnuc.get());
 
   // Dipole coupling
   arma::mat dip(basis.dipole_z());
+  chkpt.write("dip",dip);
   // Quadrupole coupling
   arma::mat quad(basis.quadrupole_zz());
+  chkpt.write("quad",quad);
 
   // Electric field coupling (minus sign cancels one from charge)
   arma::mat Vel(Ez*dip + Qzz*quad/3.0);
+  chkpt.write("Vel",Vel);
   // Magnetic field coupling
   arma::mat Vmag(basis.Bz_field(Bz));
+  chkpt.write("Vmag",Vmag);
   // Form Hamiltonian
   arma::mat H0(T+Vnuc+Vel+Vmag);
+  chkpt.write("H0",H0);
 
   printf("One-electron matrices formed in %.6f\n",timer.get());
 
@@ -392,46 +451,161 @@ int main(int argc, char **argv) {
   // Guess orbitals
   timer.set();
   {
-    arma::vec E;
-    arma::mat C;
-    switch(iguess) {
-    case(0):
-      // Use core guess
-      printf("Guess orbitals from core Hamiltonian\n");
-      if(symm)
-	scf::eig_gsym_sub(E,C,H0,Sinvh,dsym);
-      else
-	scf::eig_gsym(E,C,H0,Sinvh);
-      break;
+    arma::mat Ca, Cb;
+    if(load.size()) {
+      printf("Guess orbitals from checkpoint\n");
 
-    case(1):
-      // Use GSZ guess
-      printf("Guess orbitals from GSZ screened nucleus\n");
-      {
-	arma::mat Hgsz(T+basis.gsz()+Vel+Vmag);
-	if(symm)
-	  scf::eig_gsym_sub(E,C,Hgsz,Sinvh,dsym);
-	else
-	  scf::eig_gsym(E,C,Hgsz,Sinvh);
+      // Load checkpoint
+      Checkpoint loadchk(load,false);
+      // Old basis set
+      atomic::basis::TwoDBasis oldbasis;
+      loadchk.read(oldbasis);
+
+      arma::mat oldSinvh;
+      loadchk.read("Sinvh",oldSinvh);
+
+      // Interbasis overlap
+      arma::mat S12(basis.overlap(oldbasis));
+
+      switch(iguess) {
+      case(0):
+        printf("Guess orbitals from Fock matrix projection\n");
+	{
+	  // Convert to orthonormal basis
+	  S12=arma::trans(Sinvh)*S12*oldSinvh;
+	  // Helper
+	  arma::mat SSinvh(S*Sinvh);
+
+	  // Fock matrix
+	  arma::mat F;
+
+	  // Load Fock matrix
+	  loadchk.read("Fa",F);
+	  // Project onto the old orthogonal basis
+	  F=arma::trans(oldSinvh)*F*oldSinvh;
+	  // Project onto the new basis
+	  F=S12*F*arma::trans(S12);
+	  // Go back to original basis
+	  F=SSinvh*F*arma::trans(SSinvh);
+	  // Diagonalize
+	  if(symm)
+	    scf::eig_gsym_sub(Ea,Ca,F,Sinvh,dsym);
+	  else
+	    scf::eig_gsym(Ea,Ca,F,Sinvh);
+
+	  // Load Fock matrix
+	  loadchk.read("Fb",F);
+	  // Project onto the old orthogonal basis
+	  F=arma::trans(oldSinvh)*F*oldSinvh;
+	  // Project onto the new basis
+	  F=S12*F*arma::trans(S12);
+	  // Go back to original basis
+	  F=SSinvh*F*arma::trans(SSinvh);
+	  // Diagonalize
+	  if(symm)
+	    scf::eig_gsym_sub(Eb,Cb,F,Sinvh,dsym);
+	  else
+	    scf::eig_gsym(Eb,Cb,F,Sinvh);
+	}
+        break;
+
+      case(1):
+      default:
+        // Project lowest orbitals
+        printf("Guess orbitals from previous calculation\n");
+        {
+	  // Projector
+	  arma::mat P((Sinvh*arma::trans(Sinvh))*S12);
+
+	  // Orbitals
+	  arma::mat C;
+
+	  // Alpha orbitals
+	  loadchk.read("Ca",C);
+	  // Project onto new basis: C1 = S11^-1 S12 C2
+	  Ca=P*C;
+
+	  // Beta orbitals
+	  loadchk.read("Cb",C);
+	  Cb=P*C;
+
+	  // Run Gram-Schmidt to make sure orbitals are orthonormal
+	  for(int ia=0;ia<nela;ia++) {
+	    for(int ja=0;ja<ia;ja++)
+	      Ca.col(ia)-= Ca.col(ja)*(arma::trans(Ca.col(ja))*S*Ca.col(ia));
+	    Ca.col(ia) /= sqrt(arma::as_scalar(arma::trans(Ca.col(ia))*S*Ca.col(ia)));
+	  }
+
+	  for(int ib=0;ib<nelb;ib++) {
+	    for(int jb=0;jb<ib;jb++)
+	      Cb.col(ib) -= Cb.col(jb)*(arma::trans(Cb.col(jb))*S*Cb.col(ib));
+	    Cb.col(ib) /= sqrt(arma::as_scalar(arma::trans(Cb.col(ib))*S*Cb.col(ib)));
+	  }
+
+	  // Read in orbital energies
+	  loadchk.read("Ea",Ea);
+	  if(Ea.n_elem<Ca.n_cols)
+	    Ea=Ea.subvec(0,Ca.n_cols-1);
+	  loadchk.read("Eb",Eb);
+	  if(Eb.n_elem<Cb.n_cols)
+	    Eb=Eb.subvec(0,Cb.n_cols-1);
+	}
 	break;
       }
+    } else {
+      modelpotential::ModelPotential * model;
+      switch(iguess) {
+      case(0):
+        // Use core guess
+        printf("Guess orbitals from core Hamiltonian\n");
+        model = new modelpotential::PointNucleus(Z);
+        break;
 
-    default:
-      throw std::logic_error("Unsupported guess\n");
-    }
+      case(1):
+        // Use GSZ guess
+        printf("Guess orbitals from GSZ screened nucleus\n");
+        model = new modelpotential::GSZAtom(Z);
+        break;
 
-    Ea=E;
-    arma::mat Ca(C);
-    Eb=E;
-    arma::mat Cb(C);
+      case(2):
+        // Use SAP guess
+        printf("Guess orbitals from SAP screened nucleus\n");
+        model = new modelpotential::SAPAtom(Z);
+        break;
 
-    // Enforce occupation according to specified symmetry
-    if(readocc) {
-      scf::enforce_occupations(Ca,Ea,occnuma,occsym);
-      if(restr && nela==nelb)
-        Cb=Ca;
+      case(3):
+        // Use Thomas-Fermi guess
+        printf("Guess orbitals from Thomas-Fermi nucleus\n");
+        model = new modelpotential::TFAtom(Z);
+        break;
+
+      default:
+        throw std::logic_error("Unsupported guess\n");
+      }
+
+      // Form guess Hamiltonian
+      arma::mat Hguess(T+Vel+Vmag+basis.model_potential(model));
+      // and free memory
+      delete model;
+
+      // Diagonalize the hamiltonian
+      if(symm)
+        scf::eig_gsym_sub(Ea,Ca,Hguess,Sinvh,dsym);
       else
-        scf::enforce_occupations(Cb,Eb,occnumb,occsym);
+        scf::eig_gsym(Ea,Ca,Hguess,Sinvh);
+
+      // Beta guess is the same as the alpha guess
+      Cb=Ca;
+      Eb=Ea;
+
+      // Enforce occupation according to specified symmetry
+      if(readocc) {
+	scf::enforce_occupations(Ca,Ea,S,occnuma,occsym);
+	if(restr && nela==nelb)
+	  Cb=Ca;
+	else
+	  scf::enforce_occupations(Cb,Eb,S,occnumb,occsym);
+      }
     }
 
     // Perturb guess
@@ -449,14 +623,14 @@ int main(int argc, char **argv) {
 
     // Alpha orbitals
     Caocc=Ca.cols(0,nela-1);
-    if(C.n_cols>(size_t) nela)
-      Cavirt=Ca.cols(nela,C.n_cols-1);
+    if(Ca.n_cols>(size_t) nela)
+      Cavirt=Ca.cols(nela,Ca.n_cols-1);
 
     // Beta guess
     if(nelb)
       Cbocc=Cb.cols(0,nelb-1);
-    if(C.n_cols>(size_t) nelb)
-      Cbvirt=Cb.cols(nelb,C.n_cols-1);
+    if(Cb.n_cols>(size_t) nelb)
+      Cbvirt=Cb.cols(nelb,Cb.n_cols-1);
 
     Ea.subvec(0,nena-1).t().print("Alpha orbital energies");
     Eb.subvec(0,nenb-1).t().print("Beta  orbital energies");
@@ -477,6 +651,10 @@ int main(int argc, char **argv) {
   fflush(stdout);
   timer.set();
   basis.compute_tei(kfrac!=0.0);
+  if(yukawa)
+    basis.compute_yukawa(omega);
+  else if(erfc)
+    basis.compute_erfc(omega);
   printf("Done in %.6f\n",timer.get());
 
   double Ekin=0.0, Epot=0.0, Ecoul=0.0, Exx=0.0, Exc=0.0, Eefield=0.0, Emfield=0.0, Etot=0.0;
@@ -499,6 +677,10 @@ int main(int argc, char **argv) {
       Pb.zeros(Pa.n_rows,Pa.n_cols);
     P=Pa+Pb;
 
+    chkpt.write("P",P);
+    chkpt.write("Pa",Pa);
+    chkpt.write("Pb",Pb);
+
     printf("Tr Pa = %f\n",arma::trace(Pa*S));
     if(nelb)
       printf("Tr Pb = %f\n",arma::trace(Pb*S));
@@ -517,18 +699,30 @@ int main(int argc, char **argv) {
     printf("Coulomb energy %.10e % .6f\n",Ecoul,tJ);
     fflush(stdout);
 
+    chkpt.write("J",J);
+
     // Form exchange matrix
     timer.set();
     arma::mat Ka, Kb;
-    if(kfrac!=0.0) {
-      Ka=kfrac*basis.exchange(Pa);
+    if(kfrac!=0.0 || kshort!=0.0) {
+      Ka.zeros(Caocc.n_rows,Caocc.n_rows);
+      Kb.zeros(Caocc.n_rows,Caocc.n_rows);
+      if(kfrac!=0.0)
+        Ka+=kfrac*basis.exchange(Pa);
+      if(omega!=0.0)
+        Ka+=kshort*basis.rs_exchange(Pa);
+
       if(nelb) {
-        if(restr && nela==nelb)
+        if(restr && nela==nelb) {
           Kb=Ka;
-        else
-          Kb=kfrac*basis.exchange(Pb);
-      } else
-        Kb.zeros(Cbocc.n_rows,Cbocc.n_rows);
+        } else {
+          if(kfrac!=0.0)
+            Kb+=kfrac*basis.exchange(Pb);
+          if(omega!=0.0)
+            Kb+=kshort*basis.rs_exchange(Pb);
+        }
+      }
+
       double tK(timer.get());
       Exx=0.5*arma::trace(Pa*Ka);
       if(Kb.n_rows == Pb.n_rows && Kb.n_cols == Pb.n_cols)
@@ -539,6 +733,9 @@ int main(int argc, char **argv) {
     }
     fflush(stdout);
 
+    chkpt.write("Ka",Ka);
+    chkpt.write("Kb",Kb);
+
     // Exchange-correlation
     Exc=0.0;
     arma::mat XCa, XCb;
@@ -547,10 +744,10 @@ int main(int argc, char **argv) {
       double nelnum;
       double ekin;
       if(restr && nela==nelb) {
-        grid.eval_Fxc(x_func, c_func, P, XCa, Exc, nelnum, ekin, dftthr);
+        grid.eval_Fxc(x_func, xpars, c_func, cpars, P, XCa, Exc, nelnum, ekin, dftthr);
         XCb=XCa;
       } else {
-        grid.eval_Fxc(x_func, c_func, Pa, Pb, XCa, XCb, Exc, nelnum, ekin, nelb>0, dftthr);
+        grid.eval_Fxc(x_func, xpars, c_func, cpars, Pa, Pb, XCa, XCb, Exc, nelnum, ekin, nelb>0, dftthr);
       }
       double txc(timer.get());
       printf("DFT energy %.10e % .6f\n",Exc,txc);
@@ -559,6 +756,8 @@ int main(int argc, char **argv) {
         printf("Error in integral of kinetic energy density % e\n",ekin-Ekin);
     }
     fflush(stdout);
+    chkpt.write("XCa",XCb);
+    chkpt.write("XCb",XCb);
 
     // Fock matrices
     arma::mat Fa(H0+J);
@@ -580,10 +779,12 @@ int main(int argc, char **argv) {
       Fa-=Bz*S/2.0;
       Fb+=Bz*S/2.0;
     }
-
     // ROHF update to Fock matrix
     if(restr && nela!=nelb)
       scf::ROHF_update(Fa,Fb,P,Sh,Sinvh,nela,nelb);
+
+    chkpt.write("Fa",Fa);
+    chkpt.write("Fb",Fb);
 
     // Update energy
     Etot=Ekin+Epot+Eefield+Emfield+Ecoul+Exx+Exc+Enucr;
@@ -655,7 +856,7 @@ int main(int argc, char **argv) {
       scf::eig_gsym(Ea,Ca,Fa,Sinvh);
     // Enforce occupation according to specified symmetry
     if(i<readocc) {
-      scf::enforce_occupations(Ca,Ea,occnuma,occsym);
+      scf::enforce_occupations(Ca,Ea,S,occnuma,occsym);
     }
 
     if(restr && nela==nelb) {
@@ -669,8 +870,13 @@ int main(int argc, char **argv) {
     }
     // Enforce occupation according to specified symmetry
     if(i<readocc) {
-      scf::enforce_occupations(Cb,Eb,occnumb,occsym);
+      scf::enforce_occupations(Cb,Eb,S,occnumb,occsym);
     }
+
+    chkpt.write("Ca",Ca);
+    chkpt.write("Cb",Cb);
+    chkpt.write("Ea",Ea);
+    chkpt.write("Eb",Eb);
 
     Caocc=Ca.cols(0,nela-1);
     if(Ca.n_cols>(size_t) nela)
@@ -721,7 +927,17 @@ int main(int argc, char **argv) {
 
   // Electron density at nucleus
   if(Z!=0) {
-    printf("Electron density at nucleus % .10e % .10e % .10e\n",basis.nuclear_density(Pa)(0),basis.nuclear_density(Pb)(0),basis.nuclear_density(P)(0));
+    double nanuc=basis.nuclear_density(Pa)(0);
+    double nbnuc=basis.nuclear_density(Pb)(0);
+    double nnuc=basis.nuclear_density(P)(0);
+
+    double dnanuc=basis.nuclear_density_gradient(Pa)(0);
+    double dnbnuc=basis.nuclear_density_gradient(Pb)(0);
+    double dnnuc=basis.nuclear_density_gradient(P)(0);
+
+    printf("Electron density          at nucleus % .10e % .10e % .10e\n",nanuc,nbnuc,nnuc);
+    printf("Electron density gradient at nucleus % .10e % .10e % .10e\n",dnanuc,dnbnuc,dnnuc);
+    printf("Cusp condition is %.10f\n",-1.0/(2*Z)*dnnuc/nnuc);
   }
 
   // Calculate <r^2> matrix

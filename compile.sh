@@ -8,14 +8,18 @@ if [[ ! -d objdir ]]; then
 fi
 cd objdir
 
-#export CXXFLAGS="-g -O2 -Wall -Wno-implicit-fallthrough -Wno-misleading-indentation -DARMA_NO_DEBUG"
-export CXXFLAGS="-g -O2 -Wall -Wno-implicit-fallthrough -Wno-misleading-indentation -Wshadow"
-#export CXXFLAGS="-g -O0 -Wall -Wno-implicit-fallthrough -Wno-misleading-indentation"
-#export CXXFLAGS="-g -Og -Wall -Wno-implicit-fallthrough -Wno-misleading-indentation"
-
-cmake ..  \
-      -DUSE_OPENMP=ON \
-      -DCMAKE_INSTALL_PREFIX=${target} \
-      -DCMAKE_BUILD_TYPE=Release \
+if(( 1 )); then
+    export CXXFLAGS="-g -O2 -Wall -Wno-implicit-fallthrough -Wno-misleading-indentation -DARMA_NO_DEBUG"
+    cmake ..  \
+          -DUSE_OPENMP=ON \
+          -DCMAKE_INSTALL_PREFIX=${target} \
+          -DCMAKE_BUILD_TYPE=Release
+else
+    export CXXFLAGS="-g -O0 -Wall -Wno-implicit-fallthrough -Wno-misleading-indentation -Wextra -Wshadow"
+    cmake ..  \
+          -DUSE_OPENMP=ON \
+          -DCMAKE_INSTALL_PREFIX=${target} \
+          -DCMAKE_BUILD_TYPE=Debug
+fi
 
 make -j9 VERBOSE=1 install

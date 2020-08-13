@@ -31,13 +31,15 @@ namespace helfem {
       d=d_Z_GSZ[Z];
       H=d*std::pow(Z-1,0.4);
     }
-    
+
+    double Z_GSZ(double r, double Z, double d_Z, double H_Z) {
+      return 1.0 + (Z-1)*1.0/(1.0 + (exp(r/d_Z) - 1.0)*H_Z);
+    }
+
     arma::vec Z_GSZ(const arma::vec & r, double Z, double d_Z, double H_Z) {
-      // Denominator
-      arma::vec Zden(arma::ones<arma::vec>(r.n_elem) + (arma::exp(r/d_Z) - arma::ones<arma::vec>(r.n_elem))*H_Z);
-      // GSZ charge
-      arma::vec Zv(arma::ones<arma::vec>(r.n_elem) + (Z-1)*arma::ones<arma::vec>(r.n_elem)/Zden);
-      
+      arma::vec Zv(r.n_elem);
+      for(size_t i=0;i<r.n_elem;i++)
+        Zv[i]=Z_GSZ(r(i),Z,d_Z,H_Z);
       return Zv;
     }
 
@@ -46,5 +48,23 @@ namespace helfem {
       GSZ_parameters(Z,d,H);
       return Z_GSZ(r,Z,d,H);
     }
+
+    double Z_thomasfermi(double r, int Z) {
+      // arXiv physics/0511017
+      const double alpha = 0.7280642371;
+      const double beta = -0.5430794693;
+      const double gamma = 0.3612163121;
+      double x = r*cbrt(128*Z/(9.0*M_PI*M_PI));
+      return Z*std::pow(1 + alpha*sqrt(x) + beta*x*exp(-gamma*sqrt(x)),2)*exp(-2*alpha*sqrt(x));
+    }
+
+    arma::vec Z_thomasfermi(const arma::vec & r, int Z) {
+      arma::vec Zeff(r.n_elem);
+      for(size_t i=0;i<r.n_elem;i++) {
+        Zeff(i)=Z_thomasfermi(r(i),Z);
+      }
+      return Zeff;
+    }
+
   }
 }

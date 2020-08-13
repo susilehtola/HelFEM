@@ -16,6 +16,7 @@
 #include "../general/lobatto.h"
 #include "polynomial_basis.h"
 #include "polynomial.h"
+#include "orthpoly.h"
 #include <cfloat>
 
 // Legendre polynomials
@@ -45,19 +46,22 @@ namespace helfem {
     }
 
     PolynomialBasis * get_basis(int primbas, int Nnodes) {
+      if(Nnodes<2)
+        throw std::logic_error("Can't have finite element basis with less than two nodes per element.\n");
+
       // Primitive basis
       polynomial_basis::PolynomialBasis * poly;
       switch(primbas) {
       case(0):
       case(1):
       case(2):
-        poly=new polynomial_basis::HermiteBasis(Nnodes,primbas);
+        poly=new HermiteBasis(Nnodes,primbas);
       printf("Basis set composed of %i nodes with %i:th derivative continuity.\n",Nnodes,primbas);
       printf("This means using primitive polynomials of order %i.\n",Nnodes*(primbas+1)-1);
       break;
 
       case(3):
-        poly=new polynomial_basis::LegendreBasis(Nnodes-1);
+        poly=new polynomial_basis::LegendreBasis(Nnodes,primbas);
         printf("Basis set composed of %i-node spectral elements.\n",Nnodes);
         break;
 
@@ -65,7 +69,7 @@ namespace helfem {
         {
           arma::vec x, w;
           ::lobatto_compute(Nnodes,x,w);
-          poly=new polynomial_basis::LIPBasis(x);
+          poly=new polynomial_basis::LIPBasis(x,primbas);
           printf("Basis set composed of %i-node LIPs with Gauss-Lobatto nodes.\n",Nnodes);
           break;
         }
@@ -75,7 +79,7 @@ namespace helfem {
       }
 
       // Print out
-      poly->print();
+      //poly->print();
 
       return poly;
     }
@@ -94,6 +98,14 @@ namespace helfem {
       return noverlap;
     }
 
+    int PolynomialBasis::get_id() const {
+      return id;
+    }
+
+    int PolynomialBasis::get_order() const {
+      return order;
+    }
+
     void PolynomialBasis::print(const std::string & str) const {
       arma::vec x(arma::linspace<arma::vec>(-1.0,1.0,1001));
       arma::mat bf, df;
@@ -108,6 +120,10 @@ namespace helfem {
       df.save(dname,arma::raw_ascii);
     }
 
+    void PolynomialBasis::eval_lapl(const arma::vec & x, arma::mat & lf) const {
+      throw std::logic_error("Laplacians haven't been implemented for the used family of basis polynomials.\n");
+    }
+
     HermiteBasis::HermiteBasis(int n_nodes, int der_order) {
       bf_C=polynomial::hermite_coeffs(n_nodes, der_order);
       df_C=polynomial::derivative_coeffs(bf_C, 1);
@@ -116,6 +132,11 @@ namespace helfem {
       nbf=bf_C.n_cols;
       // Number of overlapping functions is
       noverlap=der_order+1;
+
+      /// Identifier is
+      id=der_order;
+      /// Order is
+      order=n_nodes;
     }
 
     HermiteBasis::~HermiteBasis() {
@@ -132,6 +153,10 @@ namespace helfem {
     void HermiteBasis::eval(const arma::vec & x, arma::mat & f, arma::mat & df) const {
       f=polynomial::polyval(bf_C,x);
       df=polynomial::polyval(df_C,x);
+    }
+
+    void HermiteBasis::eval_lapl(const arma::vec & x, arma::mat & lf) const {
+      lf=polynomial::polyval(polynomial::derivative_coeffs(bf_C, 2), x);
     }
 
     void HermiteBasis::drop_first() {
@@ -154,10 +179,8 @@ namespace helfem {
       nbf=bf_C.n_cols;
     }
 
-    LegendreBasis::LegendreBasis(int lmax_) {
-      if(lmax_<1)
-        throw std::logic_error("Legendre basis requires l>=1.\n");
-      lmax=lmax_;
+    LegendreBasis::LegendreBasis(int n_nodes, int id_) {
+      lmax=n_nodes-1;
 
       // Transformation matrix
       T.zeros(lmax+1,lmax+1);
@@ -178,6 +201,11 @@ namespace helfem {
 
       noverlap=1;
       nbf=T.n_cols;
+
+      /// Identifier is
+      id=id_;
+      /// Order is
+      order=n_nodes;
     }
 
     LegendreBasis::~LegendreBasis() {
@@ -187,32 +215,53 @@ namespace helfem {
       return new LegendreBasis(*this);
     }
 
-    static double sanitize_x(double x) {
+    inline static double sanitize_x(double x) {
         if(x<-1.0) x=-1.0;
         if(x>1.0) x=1.0;
         return x;
     }
 
-    arma::mat LegendreBasis::eval(const arma::vec & x) const {
+    arma::mat LegendreBasis::f_eval(const arma::vec & x) const {
       // Memory for values
-      arma::mat ft(lmax+1,x.n_elem);
+      arma::mat ft(x.n_elem,lmax+1);
       // Fill in array
-      for(size_t i=0;i<x.n_elem;i++) {
-        gsl_sf_legendre_Pl_array(lmax,sanitize_x(x(i)),ft.colptr(i));
-      }
-      return arma::trans(ft)*T;
+      for(int l=0;l<=lmax;l++)
+        for(size_t i=0;i<x.n_elem;i++)
+          ft(i,l) = oomph::Orthpoly::legendre(l, x(i));
+      return ft;
+    }
+
+    arma::mat LegendreBasis::df_eval(const arma::vec & x) const {
+      // Memory for values
+      arma::mat dt(x.n_elem,lmax+1);
+      // Fill in array
+      for(int l=0;l<=lmax;l++)
+        for(size_t i=0;i<x.n_elem;i++)
+          dt(i,l) = oomph::Orthpoly::dlegendre(l, x(i));
+      return dt;
+    }
+
+    arma::mat LegendreBasis::lf_eval(const arma::vec & x) const {
+      // Memory for values
+      arma::mat lt(x.n_elem,lmax+1);
+      // Fill in array
+      for(int l=0;l<=lmax;l++)
+        for(size_t i=0;i<x.n_elem;i++)
+          lt(i,l) = oomph::Orthpoly::ddlegendre(l, x(i));
+      return lt;
+    }
+
+    arma::mat LegendreBasis::eval(const arma::vec & x) const {
+      return f_eval(x)*T;
     }
 
     void LegendreBasis::eval(const arma::vec & x, arma::mat & f, arma::mat & df) const {
-      // Memory for values
-      f.zeros(lmax+1,x.n_elem);
-      df.zeros(lmax+1,x.n_elem);
-      // Fill in array
-      for(size_t i=0;i<x.n_elem;i++)
-        gsl_sf_legendre_Pl_deriv_array(lmax,sanitize_x(x(i)),f.colptr(i),df.colptr(i));
+      f=f_eval(x)*T;
+      df=df_eval(x)*T;
+    }
 
-      f=arma::trans(f)*T;
-      df=arma::trans(df)*T;
+    void LegendreBasis::eval_lapl(const arma::vec & x, arma::mat & lf) const {
+      lf=lf_eval(x)*T;
     }
 
     void LegendreBasis::drop_first() {
@@ -225,7 +274,7 @@ namespace helfem {
       nbf=T.n_cols;
     }
 
-    LIPBasis::LIPBasis(const arma::vec & x) {
+    LIPBasis::LIPBasis(const arma::vec & x, int id_) {
       // Make sure nodes are in order
       x0=arma::sort(x,"ascend");
 
@@ -240,6 +289,11 @@ namespace helfem {
       nbf=x0.n_elem;
       // All functions are enabled
       enabled=arma::linspace<arma::uvec>(0,x0.n_elem-1,x0.n_elem);
+
+      /// Identifier is
+      id=id_;
+      /// Order is
+      order=x.n_elem;
     }
 
     LIPBasis::~LIPBasis() {
@@ -255,8 +309,9 @@ namespace helfem {
 
       // Fill in array
       for(size_t ix=0;ix<x.n_elem;ix++) {
+        // Loop over polynomials: x_i term excluded
         for(size_t fi=0;fi<x0.n_elem;fi++) {
-          // Evaluate
+          // Evaluate the l_i polynomial
           double fval=1.0;
           for(size_t fj=0;fj<x0.n_elem;fj++) {
             // Term not included
@@ -265,6 +320,7 @@ namespace helfem {
             // Compute ratio
             fval *= (x(ix)-x0(fj))/(x0(fi)-x0(fj));
           }
+          // Store value
           bf(ix,fi)=fval;
         }
       }
@@ -281,8 +337,9 @@ namespace helfem {
       // Derivative
       df.zeros(x.n_elem,x0.n_elem);
       for(size_t ix=0;ix<x.n_elem;ix++) {
+        // Loop over polynomials
         for(size_t fi=0;fi<x0.n_elem;fi++) {
-          // Evaluate
+          // Derivative yields a sum over one of the indices
           for(size_t fj=0;fj<x0.n_elem;fj++) {
             if(fi==fj)
               continue;
@@ -303,6 +360,44 @@ namespace helfem {
         }
       }
       df=df.cols(enabled);
+    }
+
+    void LIPBasis::eval_lapl(const arma::vec & x, arma::mat & lf) const {
+      // Second derivative
+      lf.zeros(x.n_elem,x0.n_elem);
+      for(size_t ix=0;ix<x.n_elem;ix++) {
+        // Loop over polynomials
+        for(size_t fi=0;fi<x0.n_elem;fi++) {
+          // Derivative yields a sum over one of the indices
+          for(size_t fj=0;fj<x0.n_elem;fj++) {
+            if(fi==fj)
+              continue;
+            // Second derivative yields another sum over the indices
+            for(size_t fk=0;fk<x0.n_elem;fk++) {
+              if(fi==fk)
+                continue;
+              if(fj==fk)
+                continue;
+
+              double fval=1.0;
+              for(size_t fl=0;fl<x0.n_elem;fl++) {
+                // Term not included
+                if(fi==fl)
+                  continue;
+                if(fj==fl)
+                  continue;
+                if(fk==fl)
+                  continue;
+                // Compute ratio
+                fval *= (x(ix)-x0(fl))/(x0(fi)-x0(fl));
+              }
+              // Increment second derivative
+              lf(ix,fi)+=fval/((x0(fi)-x0(fj))*(x0(fi)-x0(fk)));
+            }
+          }
+        }
+      }
+      lf=lf.cols(enabled);
     }
 
     void LIPBasis::drop_first() {

@@ -13,21 +13,23 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  */
-#ifndef LCAO_H
-#define LCAO_H
+
+#ifndef HELFEM_CONFIGURATION_H
+#define HELFEM_CONFIGURATION_H
 
 #include <armadillo>
 
 namespace helfem {
-  namespace lcao {
-    /// Evaluate radial GTO
-    double radial_GTO(double r, int l, double alpha);
-    /// Evaluate radial GTO
-    arma::mat radial_GTO(const arma::vec & r, int l, const arma::vec & alpha);
-    /// Evaluate radial STO
-    double radial_STO(double r, int l, double zeta);
-    /// Evaluate radial STO
-    arma::mat radial_STO(const arma::vec & r, int l, const arma::vec & zeta);
+  namespace sadatom {
+    /**
+     * Get Hartree-Fock ground-state configuration for 1 <= Z <= 118.
+     *
+     * The configurations are from the paper S. L. Saito,
+     * "Hartree-Fock-Roothaan energies and expectation values for the
+     * neutral atoms He to Uuo: The B-spline expansion method", Atomic
+     * Data and Nuclear Data Tables 95 (2009) 836-870.
+     */
+    arma::ivec get_configuration(int Z);
   }
 }
 

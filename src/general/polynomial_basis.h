@@ -30,6 +30,10 @@ namespace helfem {
       int nbf;
       /// Number of overlapping functions
       int noverlap;
+      /// Identifier
+      int id;
+      /// Order
+      int order;
     public:
       /// Constructor
       PolynomialBasis();
@@ -43,6 +47,11 @@ namespace helfem {
       /// Get number of overlapping functions
       int get_noverlap() const;
 
+      /// Get identifier
+      int get_id() const;
+      /// Get order
+      int get_order() const;
+
       /// Drop first function
       virtual void drop_first()=0;
       /// Drop last function
@@ -52,6 +61,8 @@ namespace helfem {
       virtual arma::mat eval(const arma::vec & x) const=0;
       /// Evaluate polynomials and derivatives at given points
       virtual void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const=0;
+      /// Evaluate second derivatives at given point
+      virtual void eval_lapl(const arma::vec & x, arma::mat & lf) const;
 
       /// Print out the basis functions
       void print(const std::string & str="") const;
@@ -71,17 +82,19 @@ namespace helfem {
       /// Destructor
       ~HermiteBasis();
       /// Get a copy
-      HermiteBasis * copy() const;
+      HermiteBasis * copy() const override;
 
       /// Drop first function
-      void drop_first();
+      void drop_first() override;
       /// Drop last function
-      void drop_last();
+      void drop_last() override;
 
       /// Evaluate polynomials at given points
-      arma::mat eval(const arma::vec & x) const;
+      arma::mat eval(const arma::vec & x) const override;
       /// Evaluate polynomials and derivatives at given points
-      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const;
+      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const override;
+      /// Evaluate second derivatives at given points
+      void eval_lapl(const arma::vec & x, arma::mat & lf) const override;
     };
 
     /// Legendre functions
@@ -90,23 +103,32 @@ namespace helfem {
       int lmax;
       /// Transformation matrix
       arma::mat T;
+
+      /// Evaluate Legendre polynomials
+      arma::mat f_eval(const arma::vec & x) const;
+      /// Evaluate Legendre polynomials' derivatives
+      arma::mat df_eval(const arma::vec & x) const;
+      /// Evaluate Legendre polynomials' second derivatives
+      arma::mat lf_eval(const arma::vec & x) const;
     public:
       /// Constructor
-      LegendreBasis(int lmax);
+      LegendreBasis(int nfuncs, int id);
       /// Destructor
       ~LegendreBasis();
       /// Get a copy
-      LegendreBasis * copy() const;
+      LegendreBasis * copy() const override;
 
       /// Drop first function
-      void drop_first();
+      void drop_first() override;
       /// Drop last function
-      void drop_last();
+      void drop_last() override;
 
       /// Evaluate polynomials at given points
-      arma::mat eval(const arma::vec & x) const;
+      arma::mat eval(const arma::vec & x) const override;
       /// Evaluate polynomials and derivatives at given points
-      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const;
+      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const override;
+      /// Evaluate second derivatives at given points
+      void eval_lapl(const arma::vec & x, arma::mat & lf) const override;
     };
 
     /// Lagrange interpolating polynomials
@@ -117,21 +139,23 @@ namespace helfem {
       arma::uvec enabled;
     public:
       /// Constructor
-      LIPBasis(const arma::vec & x0);
+      LIPBasis(const arma::vec & x0, int id);
       /// Destructor
       ~LIPBasis();
       /// Get a copy
-      LIPBasis * copy() const;
+      LIPBasis * copy() const override;
 
       /// Drop first function
-      void drop_first();
+      void drop_first() override;
       /// Drop last function
-      void drop_last();
+      void drop_last() override;
 
       /// Evaluate polynomials at given points
-      arma::mat eval(const arma::vec & x) const;
+      arma::mat eval(const arma::vec & x) const override;
       /// Evaluate polynomials and derivatives at given points
-      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const;
+      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const override;
+      /// Evaluate second derivatives at given points
+      void eval_lapl(const arma::vec & x, arma::mat & lf) const override;
     };
   }
 }

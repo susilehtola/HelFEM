@@ -18,17 +18,28 @@
 #include "../general/timer.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
+#include "../general/model_potential.h"
+#include "../general/utils.h"
+#include "../atomic/basis.h"
 #include "basis.h"
-#include "dftgrid.h"
+#include "twodquadrature.h"
 #include <cfloat>
 
 using namespace helfem;
 
-void eval(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, const arma::ivec & lmmax, int igrid, double zexp, double Ez, double Qzz, double Bz, int norb, double & E, arma::uword & nang, arma::uword & nrad, arma::vec & Eval) {
+void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, const arma::ivec & lmmax, int igrid, double zexp, double Ez, double Qzz, double Bz, int norb, double & E, arma::uword & nang, arma::uword & nrad, arma::vec & Eval, int imodel) {
 
   int lpad=0;
   int symm=1;
-  diatomic::basis::TwoDBasis basis(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, lpad, false);
+
+  double Rhalf=0.5*Rbond;
+  double mumax(utils::arcosh(Rmax/Rhalf));
+  arma::vec bval(atomic::basis::normal_grid(Nelem, mumax, igrid, zexp));
+
+  arma::ivec lval, mval;
+  diatomic::basis::lm_to_l_m(lmmax,lval,mval);
+
+  diatomic::basis::TwoDBasis basis(Z1, Z2, Rbond, poly, Nquad, bval, lval, mval, lpad, false);
 
   bool diag=true;
   // Symmetry indices
@@ -41,7 +52,40 @@ void eval(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis 
   // Get half-inverse
   arma::mat Sinvh(basis.Sinvh(!diag,symm));
   // Form nuclear attraction energy matrix
-  arma::mat Vnuc(basis.nuclear());
+  arma::mat Vnuc;
+
+  if(imodel==0) {
+    Vnuc=basis.nuclear();
+  } else {
+    modelpotential::ModelPotential * p1, * p2;
+    if(imodel == 1) {
+      // Use GSZ guess
+      p1 = new modelpotential::GSZAtom(Z1);
+      p2 = new modelpotential::GSZAtom(Z2);
+    } else if(imodel == 2) {
+      // Use SAP guess
+      p1 = new modelpotential::SAPAtom(Z1);
+      p2 = new modelpotential::SAPAtom(Z2);
+    } else if(imodel == 3) {
+      // Use Thomas-Fermi guess
+      p1 = new modelpotential::TFAtom(Z1);
+      p2 = new modelpotential::TFAtom(Z2);
+    } else if(imodel < modelpotential::NOSUCH_NUCLEUS+4) {
+      p1 = modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) (imodel-4),Z1,Rrms1);
+      p2 = modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) (imodel-4),Z2,Rrms2);
+    } else {
+      throw std::logic_error("Unsupported guess\n");
+    }
+
+    // Form model integral
+    int lquad = 4*arma::max(lmmax)+12;
+    helfem::diatomic::twodquad::TwoDGrid qgrid;
+    qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
+    Vnuc=qgrid.model_potential(p1, p2);
+    delete p1;
+    delete p2;
+  }
+
   // Form Hamiltonian
   arma::mat H0(T+Vnuc);
   if(Ez!=0.0)
@@ -74,10 +118,12 @@ int main(int argc, char **argv) {
   // full option name, no short option, description, argument required
   parser.add<std::string>("Z1", 0, "first nuclear charge", true);
   parser.add<std::string>("Z2", 0, "second nuclear charge", true);
+  parser.add<double>("Rrms1", 0, "atom 1 rms size", false, 0.0);
+  parser.add<double>("Rrms2", 0, "atom 2 rms size", false, 0.0);
   parser.add<double>("Rbond", 0, "internuclear distance", true);
   parser.add<bool>("angstrom", 0, "input distances in angstrom", false, false);
   parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
-  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for logarithmic", false, 1);
+  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 1.0);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
@@ -87,6 +133,7 @@ int main(int argc, char **argv) {
   parser.add<double>("Bz", 0, "magnetic dipole field", false, 0.0);
   parser.add<int>("thresh", 0, "convergence threshold, 10 corresponds to 1e-10", false, 10);
   parser.add<int>("nadd", 0, "number of funcs to add", false, 2);
+  parser.add<int>("imodel", 0, "model potential: bare nucleus (0), GSZ (1), SAP (2)", false, 0);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -103,6 +150,7 @@ int main(int argc, char **argv) {
   int Nquad(parser.get<int>("nquad"));
   int nadd(parser.get<int>("nadd"));
   int thresh(parser.get<int>("thresh"));
+  int imodel(parser.get<int>("imodel"));
 
   if(nadd%2)
     printf("WARNING - Adding an odd number of functions at a time does not give a balanced description of gerade/ungerade orbitals and may give wrong results.\n");
@@ -110,6 +158,8 @@ int main(int argc, char **argv) {
   // Nuclear charge
   int Z1(get_Z(parser.get<std::string>("Z1")));
   int Z2(get_Z(parser.get<std::string>("Z2")));
+  double Rrms1(parser.get<double>("Rrms1"));
+  double Rrms2(parser.get<double>("Rrms2"));
   double Rbond(parser.get<double>("Rbond"));
 
   if(parser.get<bool>("angstrom")) {
@@ -182,7 +232,7 @@ int main(int argc, char **argv) {
       double E;
       arma::vec Eval;
       arma::uword Nrad, Nang;
-      eval(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], E, Nrad, Nang, Eval);
+      eval(Z1, Z2, Rrms1, Rrms2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], E, Nrad, Nang, Eval, imodel);
 
       Eval.t().print("Initial eigenvalues");
 
@@ -203,16 +253,16 @@ int main(int argc, char **argv) {
 
         printf("m=%i iteration %i\n",(int) m,iiter);
 
-        eval(Z1, Z2, Rbond, poly, Nquad, Nelem, Rmax, lmtr, igrid, zexp, Ez, Qzz, Bz, norbs[m], Ea, Nra, Naa, Eva);
+        eval(Z1, Z2, Rrms1, Rrms2, Rbond, poly, Nquad, Nelem, Rmax, lmtr, igrid, zexp, Ez, Qzz, Bz, norbs[m], Ea, Nra, Naa, Eva, imodel);
         double dEa=Ea-E;
         printf("Addition of %i partial waves decreases energy by %e\n",nadd,dEa);
 
-        eval(Z1, Z2, Rbond, poly, Nquad, Nelem+nadd, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], Er, Nrr, Nar, Evr);
+        eval(Z1, Z2, Rrms1, Rrms2, Rbond, poly, Nquad, Nelem+nadd, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], Er, Nrr, Nar, Evr, imodel);
         double dEr=Er-E;
         printf("Addition of %i radial elements decreases energy by %e\n",nadd,dEr);
 
         dE=std::min(dEa,dEr);
-        if(std::abs(dE)<thr)
+        if(dE>-thr)
           break;
 
         // Angular loop is not converged

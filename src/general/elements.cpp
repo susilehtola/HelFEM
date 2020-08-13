@@ -16,15 +16,12 @@
 
 
 #include "elements.h"
+#include "utils.h"
 #include <cstdio>
 #include <cstdlib>
 #include <strings.h>
 #include <sstream>
 #include <stdexcept>
-
-static int stricmp(const std::string & str1, const std::string & str2) {
-  return strcasecmp(str1.c_str(),str2.c_str());
-}
 
 int get_Z(std::string el) {
   if(!el.size())
@@ -37,7 +34,7 @@ int get_Z(std::string el) {
 
   // Parse for input
   for(int Z=1;Z<(int) (sizeof(element_symbols)/sizeof(element_symbols[0]));Z++)
-    if(stricmp(el,element_symbols[Z])==0)
+    if(helfem::utils::stricmp(el,element_symbols[Z])==0)
       return Z;
 
   std::ostringstream oss;

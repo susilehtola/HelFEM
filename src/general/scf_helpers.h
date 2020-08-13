@@ -22,7 +22,7 @@ namespace helfem {
     /// Form density matrix
     arma::mat form_density(const arma::mat & C, size_t nocc);
     /// Enforce occupation of wanted symmetries
-    void enforce_occupations(arma::mat & C, arma::vec & E, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx);
+    void enforce_occupations(arma::mat & C, arma::vec & E, const arma::mat & S, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx);
 
     /// Solve generalized eigenvalue problem
     void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh);
@@ -46,6 +46,8 @@ namespace helfem {
 
     /// Form natural orbitals
     void form_NOs(const arma::mat & P, const arma::mat & Sh, const arma::mat & Sinvh, arma::mat & AO_to_NO, arma::mat & NO_to_AO, arma::vec & occs);
+    /// Form half-inverse overlap
+    arma::mat form_Sinvh(arma::mat S, bool chol=false);
 
     /// ROHF update to Fock matrices
     void ROHF_update(arma::mat & Fa_AO, arma::mat & Fb_AO, const arma::mat & P_AO, const arma::mat & Sh, const arma::mat & Sinvh, int nocca, int noccb);
@@ -54,6 +56,9 @@ namespace helfem {
     std::string memory_size(size_t size);
     /// Parse number of alpha and beta electrons
     void parse_nela_nelb(int & nela, int & nelb, int & Q, int & M, int Z);
+
+    /// Parse xc parameters
+    arma::vec parse_xc_params(const std::string & input);
   }
 }
 
