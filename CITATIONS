@@ -1,8 +1,12 @@
 The core of the program has been described in two articles focusing on the atomic and diatomic parts, respectively:
 
-S. Lehtola, Fully numerical Hartree‐Fock and density functional calculations. I. Atoms. Int. J. Quantum Chem. 2019, e25945. doi:10.1002/qua.25945. arXiv:1810.11651
+S. Lehtola, Fully numerical Hartree‐Fock and density functional calculations. I. Atoms. Int. J. Quantum Chem. 2019, e25945. DOI: 10.1002/qua.25945. arXiv:1810.11651
 
-S. Lehtola, Fully numerical Hartree‐Fock and density functional calculations. II. Diatomic molecules. Int. J. Quantum Chem. 2019, e25944. doi:10.1002/qua.25944. arXiv:1810.11653
+S. Lehtola, Fully numerical Hartree‐Fock and density functional calculations. II. Diatomic molecules. Int. J. Quantum Chem. 2019, e25944. DOI: 10.1002/qua.25944. arXiv:1810.11653
+
+There's also an article that discusses calculations with spherically averaged densities:
+
+S. Lehtola, Fully numerical calculations on atoms with fractional occupations and range-separated exchange functionals, Phys. Rev. A 101, 012516 (2020). DOI: 10.1103/PhysRevA.101.012516 
 
 Calculations in finite magnetic fields have been described in:
 
@@ -20,3 +24,10 @@ B. Schneider et al, Comput. Phys. Commun. 2018, 225, 192–193.
 Density functionals are evaluated in both the atomic and diatomic program with the libxc library, which has been described in
 
 S. Lehtola et al, SoftwareX 2018, 7, 1–5.
+
+
+In addition to the above papers, thorough calculations of atomic energies have been presented in
+
+S. Lehtola, L. Visscher, and E. Engel, Efficient implementation of the superposition of atomic potentials initial guess for electronic structure calculations in Gaussian basis sets, J. Chem. Phys. 152, 144105 (2020). DOI: 10.1063/5.0004046
+
+S. Lehtola, Polarized Gaussian basis sets from one-electron ions, J. Chem. Phys. 152, 134108 (2020). DOI: 10.1063/1.5144964
