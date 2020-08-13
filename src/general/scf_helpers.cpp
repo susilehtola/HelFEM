@@ -15,6 +15,7 @@
  */
 #include "scf_helpers.h"
 #include "timer.h"
+#include <cfloat>
 
 namespace helfem {
   namespace scf {
@@ -27,7 +28,7 @@ namespace helfem {
         return arma::zeros<arma::mat>(C.n_rows,C.n_rows);
     }
 
-    void enforce_occupations(arma::mat & C, arma::vec & E, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx) {
+    void enforce_occupations(arma::mat & C, arma::vec & E, const arma::mat & S, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx) {
       if(nocc.n_elem != m_idx.size())
         throw std::logic_error("nocc vector and symmetry indices don't match!\n");
 
@@ -57,15 +58,18 @@ namespace helfem {
         if(!nocc(isym))
           continue;
 
-        // Find basis vectors that belong to this symmetry
-        arma::mat Ccmp(C.rows(m_idx[isym]));
+        // C submatrix
+        arma::mat Csub(C.rows(m_idx[isym]));
+        // S submatrix
+        arma::mat Ssub(S.submat(m_idx[isym],m_idx[isym]));
 
-        arma::vec Cnrm(Ccmp.n_cols);
-        for(size_t i=0;i<Cnrm.n_elem;i++)
-          Cnrm(i)=arma::norm(Ccmp.col(i),"fro");
+        // Find basis vectors that belong to this symmetry: compute their norm
+        arma::vec Csubnrm(arma::diagvec(Csub.t()*Ssub*Csub));
+        // Clean up
+        Csubnrm(arma::find(Csubnrm <= 10*DBL_EPSILON)).zeros();
 
         // Column indices of C that have non-zero elements
-        arma::uvec Cind(arma::find(Cnrm));
+        arma::uvec Cind(arma::find(Csubnrm));
 
         // Add to list of occupied orbitals
         for(arma::sword io=0;io<nocc(isym);io++)
@@ -74,6 +78,16 @@ namespace helfem {
 
       // Sort list
       std::sort(occidx.begin(),occidx.end());
+
+      // Make sure orbital vector doesn't have duplicates
+      {
+        arma::uvec iunq(arma::find_unique(arma::conv_to<arma::uvec>::from(occidx)));
+        if(iunq.n_elem != occidx.size()) {
+          arma::conv_to<arma::uvec>::from(occidx).print("Occupied orbital list");
+          fflush(stdout);
+          throw std::logic_error("Duplicates in occupied orbital list!\n");
+        }
+      }
 
       // Add in the rest of the orbitals
       std::vector<arma::uword> virtidx;
@@ -426,6 +440,30 @@ namespace helfem {
       NO_to_AO=arma::trans(Sh*Pv);
     }
 
+    arma::mat form_Sinvh(arma::mat S, bool chol) {
+      // Get the basis function norms
+      arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
+      // Go to normalized basis
+      S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
+
+      // Half-inverse is
+      arma::mat Sinvh;
+      if(chol) {
+        Sinvh = arma::inv(arma::chol(S));
+      } else {
+        arma::vec Sval;
+        arma::mat Svec;
+        if(!arma::eig_sym(Sval,Svec,S)) {
+          throw std::logic_error("Diagonalization of overlap matrix failed\n");
+        }
+        printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
+
+        Sinvh=Svec*arma::diagmat(arma::pow(Sval,-0.5))*arma::trans(Svec);
+      }
+
+      Sinvh=arma::diagmat(bfnormlz)*Sinvh;
+      return Sinvh;
+    }
 
     void ROHF_update(arma::mat & Fa_AO, arma::mat & Fb_AO, const arma::mat & P_AO, const arma::mat & Sh, const arma::mat & Sinvh, int nocca, int noccb) {
       /*
@@ -562,5 +600,25 @@ namespace helfem {
       }
     }
 
+    arma::vec parse_xc_params(const std::string & input) {
+      arma::vec r;
+      if(input.size()) {
+        // Is this a file name?
+        bool isfile;
+        {
+          std::ifstream f(input);
+          isfile = f.good();
+        }
+        if(isfile) {
+          // Load the file
+          r.load(input,arma::raw_ascii);
+        } else {
+          // Assume string input
+          r = arma::vec(input);
+        }
+      }
+
+      return r;
+    }
   }
 }

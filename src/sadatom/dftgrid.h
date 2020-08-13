@@ -14,47 +14,36 @@
  * of the License, or (at your option) any later version.
  */
 
-#ifndef DFTGRID
-#define DFTGRID
+#ifndef SADATOM_DFTGRID_H
+#define SADATOM_DFTGRID_H
 
 #include "basis.h"
 
 namespace helfem {
-  namespace diatomic {
+  namespace sadatom {
     namespace dftgrid {
 
       /// Worker class
       class DFTGridWorker {
       protected:
         /// Basis set
-        const helfem::diatomic::basis::TwoDBasis *basp;
-      
-        /// Angular grid
-        arma::vec cth, phi, wang;
+        const helfem::sadatom::basis::TwoDBasis *basp;
+
         /// Total quadrature weight
         arma::rowvec wtot;
-
-        /// Scale factors
-        arma::rowvec scale_r, scale_theta, scale_phi;
 
         /// List of basis functions in element
         arma::uvec bf_ind;
         /// Values of important functions in grid points, Nbf * Ngrid
-        arma::cx_mat bf;
+        arma::mat bf;
         /// Radial gradient
-        arma::cx_mat bf_rho;
-        /// Theta gradient
-        arma::cx_mat bf_theta;
-        /// Phi gradient
-        arma::cx_mat bf_phi;
-        /// Values of laplacians in grid points, (3*Nbf) * Ngrid
-        arma::cx_mat bf_lapl;
+        arma::mat bf_rho;
 
         /// Density helper matrices: P_{uv} chi_v, and P_{uv} nabla(chi_v)
-        arma::cx_mat Pv, Pv_rho, Pv_theta, Pv_phi;
+        arma::mat Pv, Pv_rho;
         /// Same for spin-polarized
-        arma::cx_mat Pav, Pav_rho, Pav_theta, Pav_phi;
-        arma::cx_mat Pbv, Pbv_rho, Pbv_theta, Pbv_phi;
+        arma::mat Pav, Pav_rho;
+        arma::mat Pbv, Pbv_rho;
 
         /// Is gradient needed?
         bool do_grad;
@@ -107,7 +96,7 @@ namespace helfem {
         /// Dummy constructor
         DFTGridWorker();
         /// Constructor
-        DFTGridWorker(const helfem::diatomic::basis::TwoDBasis * basp, int lang, int mang);
+        DFTGridWorker(const helfem::sadatom::basis::TwoDBasis * basp);
         /// Destructor
         ~DFTGridWorker();
 
@@ -119,11 +108,9 @@ namespace helfem {
         void set_grad_tau_lapl(bool grad, bool tau, bool lapl);
 
         /// Compute basis functions on grid points
-        void compute_bf(size_t iel, size_t irad);
+        void compute_bf(size_t iel);
         /// Free memory
         void free();
-        /// Save data
-        void save(const std::string & info) const;
 
         /// Update values of density, restricted calculation
         void update_density(const arma::mat & P);
@@ -134,8 +121,6 @@ namespace helfem {
 
         /// Compute number of electrons
         double compute_Nel() const;
-        /// Compute kinetic energy
-        double compute_Ekin() const;
 
         /// Initialize XC arrays
         void init_xc();
@@ -146,13 +131,9 @@ namespace helfem {
         double eval_Exc() const;
         /// Zero out energy
         void zero_Exc();
-        /// Numerical clean up of xc
-        void check_xc();
 
         /// Evaluate overlap matrix
         void eval_overlap(arma::mat & S) const;
-        /// Evaluate kinetic energy matrix
-        void eval_kinetic(arma::mat & T) const;
 
         /// Evaluate Fock matrix, restricted calculation
         void eval_Fxc(arma::mat & H) const;
@@ -164,27 +145,23 @@ namespace helfem {
       class DFTGrid {
       private:
         /// Pointer to basis set
-        const helfem::diatomic::basis::TwoDBasis * basp;
-        /// Angular rule
-        int lang, mang;
+        const helfem::sadatom::basis::TwoDBasis * basp;
 
       public:
         /// Dummy constructor
         DFTGrid();
         /// Constructor
-        DFTGrid(const helfem::diatomic::basis::TwoDBasis * basp, int lang, int mang);
+        DFTGrid(const helfem::sadatom::basis::TwoDBasis * basp);
         /// Destructor
         ~DFTGrid();
 
         /// Compute Fock matrix, exchange-correlation energy and integrated electron density, restricted case
-        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double & Ekin, double thr);
+        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double thr);
         /// Compute Fock matrix, exchange-correlation energy and integrated electron density, unrestricted case
-        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr);
+        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, bool beta, double thr);
 
         /// Evaluate overlap
         arma::mat eval_overlap();
-        /// Evaluate kinetic energy matrix
-        arma::mat eval_kinetic();
       };
 
       /// BLAS routine for LDA-type quadrature
@@ -209,11 +186,11 @@ namespace helfem {
       }
 
       /// BLAS routine for GGA-type quadrature
-      template<typename T> void increment_gga(arma::mat & H, const arma::mat & gn, const arma::Mat<T> & f, arma::Mat<T> f_x, arma::Mat<T> f_y, arma::Mat<T> f_z) {
+      template<typename T> void increment_gga(arma::mat & H, const arma::mat & gn, const arma::Mat<T> & f, arma::Mat<T> f_x) {
         if(gn.n_cols!=3) {
           throw std::runtime_error("Grad rho must have three columns!\n");
         }
-        if(f.n_rows != f_x.n_rows || f.n_cols != f_x.n_cols || f.n_rows != f_y.n_rows || f.n_cols != f_y.n_cols || f.n_rows != f_z.n_rows || f.n_cols != f_z.n_cols) {
+        if(f.n_rows != f_x.n_rows || f.n_cols != f_x.n_cols) {
           throw std::runtime_error("Sizes of basis function and derivative matrices doesn't match!\n");
         }
         if(H.n_rows != f.n_rows || H.n_cols != f.n_rows) {
@@ -234,20 +211,6 @@ namespace helfem {
             for(size_t i=0;i<f_x.n_rows;i++)
               f_x(i,j)*=gc(j);
           gamma+=f_x;
-
-          // x gradient
-          gc=arma::strans(gn.col(1));
-          for(size_t j=0;j<f_y.n_cols;j++)
-            for(size_t i=0;i<f_y.n_rows;i++)
-              f_y(i,j)*=gc(j);
-          gamma+=f_y;
-
-          // z gradient
-          gc=arma::strans(gn.col(2));
-          for(size_t j=0;j<f_z.n_cols;j++)
-            for(size_t i=0;i<f_z.n_rows;i++)
-              f_z(i,j)*=gc(j);
-          gamma+=f_z;
         }
 
         // Form Fock matrix

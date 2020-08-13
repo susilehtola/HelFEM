@@ -55,6 +55,10 @@ void is_gga_mgga(int func_id, bool & gga, bool & mgga_t, bool & mgga_l);
 
 /// Get fraction of exact exchange
 double exact_exchange(int func_id);
+/// Is the functional supported in HelFEM?
+bool is_supported(int func_id);
+/// Is the functional range separated?
+void is_range_separated(int func_id, bool & erf, bool & yukawa, bool check=true);
 /// Is the functional range separated?
 bool is_range_separated(int func_id, bool check=true);
 /// Get range separation constants

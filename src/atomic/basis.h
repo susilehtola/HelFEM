@@ -13,11 +13,13 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  */
-#ifndef BASIS_H
-#define BASIS_H
+#ifndef ATOMIC_BASIS_H
+#define ATOMIC_BASIS_H
 
 #include <armadillo>
 #include "../general/polynomial_basis.h"
+#include "../general/model_potential.h"
+#include "../general/sap.h"
 
 namespace helfem {
   namespace atomic {
@@ -42,19 +44,37 @@ namespace helfem {
 	/// Used basis function indices in element
 	arma::uvec basis_indices(size_t iel) const;
         /// Get basis functions in element
-        arma::mat get_basis(const arma::mat & b, size_t iel) const;
-        /// Get basis functions in element
         polynomial_basis::PolynomialBasis * get_basis(const polynomial_basis::PolynomialBasis * poly, size_t iel) const;
 
       public:
         /// Dummy constructor
         RadialBasis();
         /// Construct radial basis
-        RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int igrid, double zexp);
-        /// Construct radial basis
-        RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el0, int Zm, int Zlr, double Rhalf, int num_el, double rmax, int igrid, double zexp);
-        /// Destructor
+        RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval);
+
+        /// Explicit copy constructor because of shared pointer
+        RadialBasis(const RadialBasis & rh);
+        /// Explicit assignment operator because of shared pointer
+        RadialBasis & operator=(const RadialBasis & rh);
+        /// Explicit destructor because of shared pointer
         ~RadialBasis();
+
+        /// Add an element boundary
+        void add_boundary(double r);
+
+        /// Get polynomial basis
+        polynomial_basis::PolynomialBasis * get_poly() const;
+        /// Get basis functions in element
+        arma::mat get_basis(const arma::mat & b, size_t iel) const;
+
+        /// Get number of quadrature points
+        int get_nquad() const;
+        /// Get boundary values
+        arma::vec get_bval() const;
+        /// Get polynomial basis identifier
+        int get_poly_id() const;
+        /// Get polynomial basis order
+        int get_poly_order() const;
 
         /// Get number of overlapping functions
         size_t get_noverlap() const;
@@ -77,6 +97,12 @@ namespace helfem {
         arma::mat radial_integral(const arma::mat & bf_c, int n, size_t iel) const;
         /// Compute radial matrix elements <r^n> in element (overlap is n=0, nuclear is n=-1)
         arma::mat radial_integral(int n, size_t iel) const;
+
+        /// Compute Bessel i_L integral
+        arma::mat bessel_il_integral(int L, double lambda, size_t iel) const;
+        /// Compute Bessel k_L integral
+        arma::mat bessel_kl_integral(int L, double lambda, size_t iel) const;
+
         /// Compute overlap matrix in element
         arma::mat overlap(size_t iel) const;
         /// Compute primitive kinetic energy matrix in element (excluding l part)
@@ -85,18 +111,33 @@ namespace helfem {
         arma::mat kinetic_l(size_t iel) const;
         /// Compute nuclear attraction matrix in element
         arma::mat nuclear(size_t iel) const;
-        /// Compute gsz matrix in element
-        arma::mat gsz(double Z, double dz, double Hz, size_t iel) const;
+        /// Compute model potential matrix in element
+        arma::mat model_potential(const modelpotential::ModelPotential * nuc, size_t iel) const;
         /// Compute off-center nuclear attraction matrix in element
         arma::mat nuclear_offcenter(size_t iel, double Rhalf, int L) const;
 
         /// Compute primitive two-electron integral
         arma::mat twoe_integral(int L, size_t iel) const;
+        /// Compute primitive Yukawa-screened two-electron integral
+        arma::mat yukawa_integral(int L, double lambda, size_t iel) const;
+        /// Compute primitive complementary error function two-electron integral
+        arma::mat erfc_integral(int L, double lambda, size_t iel, size_t jel) const;
+        /// Compute a spherically symmetric potential
+        arma::mat spherical_potential(size_t iel) const;
+
+        /// Compute cross-basis integral
+        arma::mat radial_integral(const RadialBasis & rh, int n, bool lhder=false, bool rhder=false) const;
+        /// Compute cross-basis model potential integral
+        arma::mat model_potential(const RadialBasis & rh, const modelpotential::ModelPotential * model, bool lhder=false, bool rhder=false) const;
+        /// Compute projection
+        arma::mat overlap(const RadialBasis & rh) const;
 
         /// Evaluate basis functions at quadrature points
         arma::mat get_bf(size_t iel) const;
         /// Evaluate derivatives of basis functions at quadrature points
         arma::mat get_df(size_t iel) const;
+        /// Evaluate second derivatives of basis functions at quadrature points
+        arma::mat get_lf(size_t iel) const;
         /// Get quadrature weights
         arma::vec get_wrad(size_t iel) const;
         /// Get r values
@@ -104,12 +145,32 @@ namespace helfem {
 
         /// Evaluate nuclear density
         double nuclear_density(const arma::mat & P) const;
+        /// Evaluate nuclear density gradient
+        double nuclear_density_gradient(const arma::mat & P) const;
+        /// Evaluate orbitals at nucleus
+        arma::rowvec nuclear_orbital(const arma::mat & C) const;
       };
+
+      /// Get the element grid for a normal calculation
+      arma::vec normal_grid(int num_el, double rmax, int igrid, double zexp);
+      /// Get the element grid for a finite nucleus
+      arma::vec finite_nuclear_grid(int num_el, double rmax, int igrid, double zexp, int num_el_nuc, double rnuc, int igrid_nuc, double zexp_nuc);
+      /// Get the element grid in the case of off-center nuclei
+      arma::vec offcenter_nuclear_grid(int num_el0, int Zm, int Zlr, double Rhalf, int num_el, double rmax, int igrid, double zexp);
+      /// Form the grid in the general case, using the above routines
+      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf);
+
+      /// Constructs an angular basis
+      void angular_basis(int lmax, int mmax, arma::ivec & lval, arma::ivec & mval);
 
       /// Two-dimensional basis set
       class TwoDBasis {
         /// Nuclear charge
         int Z;
+        /// Nuclear model
+        modelpotential::nuclear_model_t model;
+        /// Rms radius
+        double Rrms;
 
         /// Left-hand nuclear charge
         int Zl;
@@ -117,6 +178,11 @@ namespace helfem {
         int Zr;
         /// Bond length
         double Rhalf;
+
+        /// Yukawa exchange?
+        bool yukawa;
+        /// Range separation parameter
+        double lambda;
 
         /// Radial basis set
         RadialBasis radial;
@@ -127,13 +193,14 @@ namespace helfem {
 
         /// Auxiliary integrals
         std::vector<arma::mat> disjoint_L, disjoint_m1L;
+        /// Auxiliary integrals for Yukawa separation
+        std::vector<arma::mat> disjoint_iL, disjoint_kL;
         /// Primitive two-electron integrals: <Nel^2 * (2L+1)>
         std::vector<arma::mat> prim_tei;
         /// Primitive two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
         std::vector<arma::mat> prim_ktei;
-
-        /// Get indices of real basis functions
-        arma::uvec pure_indices() const;
+        /// Primitive range-separated two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
+        std::vector<arma::mat> rs_ktei;
 
         /// Add to radial submatrix
         void add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
@@ -145,11 +212,40 @@ namespace helfem {
       public:
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp);
-        TwoDBasis(int Z, const polynomial_basis::PolynomialBasis * poly, int n_quad, int num_el0, int num_el, double rmax, int lmax, int mmax, int igrid, double zexp, int Zl, int Zr, double Rhalf);
+        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int Zl, int Zr, double Rhalf);
         /// Destructor
         ~TwoDBasis();
 
+        /// Get Z
+        int get_Z() const;
+        /// Get Zl
+        int get_Zl() const;
+        /// Get Zr
+        int get_Zr() const;
+        /// Get Rhalf
+        double get_Rhalf() const;
+
+        /// Get nuclear model
+        int get_nuclear_model() const;
+        /// Get nuclear size
+        double get_nuclear_size() const;
+
+        /// Get l values
+        arma::ivec get_lval() const;
+        /// Get m values
+        arma::ivec get_mval() const;
+
+        /// Get number of quadrature points
+        int get_nquad() const;
+        /// Get boundary values
+        arma::vec get_bval() const;
+        /// Get polynomial basis identifier
+        int get_poly_id() const;
+        /// Get polynomial basis order
+        int get_poly_order() const;
+
+        /// Get indices of real basis functions
+        arma::uvec pure_indices() const;
         /// Expand boundary conditions
         arma::mat expand_boundaries(const arma::mat & H) const;
         /// Remove boundary conditions
@@ -164,6 +260,10 @@ namespace helfem {
 
         /// Compute two-electron integrals
         void compute_tei(bool exchange);
+        /// Compute range-separated two-electron integrals
+        void compute_yukawa(double lambda);
+        /// Compute range-separated two-electron integrals
+        void compute_erfc(double mu);
 
         /// Number of basis functions
         size_t Nbf() const;
@@ -187,14 +287,15 @@ namespace helfem {
         arma::mat kinetic() const;
         /// Form nuclear attraction matrix
         arma::mat nuclear() const;
-        /// Form GSZ matrix
-        arma::mat gsz(double dz, double Hz) const;
-	/// Form GSZ matrix with default parameters
-	arma::mat gsz() const;
+	/// Form model potential matrix
+	arma::mat model_potential(const modelpotential::ModelPotential * model) const;
         /// Form dipole coupling matrix
         arma::mat dipole_z() const;
         /// Form quadrupole coupling matrix
         arma::mat quadrupole_zz() const;
+
+        /// Compute overlap matrix
+        arma::mat overlap(const TwoDBasis & rh) const;
 
         /// Coupling to magnetic field in z direction
         arma::mat Bz_field(double B) const;
@@ -206,6 +307,8 @@ namespace helfem {
         arma::mat coulomb(const arma::mat & P) const;
         /// Form exchange matrix
         arma::mat exchange(const arma::mat & P) const;
+        /// Form range-separated exchange matrix
+        arma::mat rs_exchange(const arma::mat & P) const;
 
         /// Get primitive integrals
         std::vector<arma::mat> get_prim_tei() const;
@@ -237,6 +340,8 @@ namespace helfem {
 
         /// Electron density at nuclei
         arma::vec nuclear_density(const arma::mat & P) const;
+        /// Electron density gradient at nuclei
+        arma::vec nuclear_density_gradient(const arma::mat & P) const;
       };
     }
   }

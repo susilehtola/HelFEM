@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include "dftfuncs.h"
+#include "utils.h"
 
 // LibXC
 extern "C" {
@@ -31,10 +32,6 @@ extern "C" {
 #define ID_HF -1
 #define KW_NONE "none"
 #define KW_HF "hyb_x_hf"
-
-static int stricmp(const std::string & str1, const std::string & str2) {
-  return strcasecmp(str1.c_str(),str2.c_str());
-}
 
 // Print keyword corresponding to functional.
 std::string get_keyword(int func_id) {
@@ -70,11 +67,11 @@ int find_func(std::string name) {
     return atoi(name.c_str());
 
   // Check if 'none' was specified. This is internal to ERKALE
-  if(stricmp(name,KW_NONE)==0)
+  if(helfem::utils::stricmp(name,KW_NONE)==0)
     return ID_NONE;
-  else if(stricmp(name,KW_HF)==0)
+  else if(helfem::utils::stricmp(name,KW_HF)==0)
     return ID_HF;
-  else if(stricmp(name,"HF")==0)
+  else if(helfem::utils::stricmp(name,"HF")==0)
     return ID_HF;
 
   // Otherwise, call libxc function.
@@ -329,6 +326,8 @@ void is_gga_mgga(int func_id, bool & gga, bool & mgga_t, bool & mgga_l) {
   gga=false;
   mgga_t=false;
   mgga_l=false;
+  if(func_id <= 0)
+    return;
 
   // Correlation and exchange functionals
   xc_func_type func;
@@ -341,15 +340,22 @@ void is_gga_mgga(int func_id, bool & gga, bool & mgga_t, bool & mgga_l) {
   switch(func.info->family)
     {
     case XC_FAMILY_LDA:
+#ifdef XC_FAMILY_HYB_LDA
+    case XC_FAMILY_HYB_LDA:
+#endif
       break;
 
     case XC_FAMILY_GGA:
+#ifdef XC_FAMILY_HYB_GGA
     case XC_FAMILY_HYB_GGA:
+#endif
       gga=true;
       break;
 
     case XC_FAMILY_MGGA:
+#ifdef XC_FAMILY_HYB_MGGA
     case XC_FAMILY_HYB_MGGA:
+#endif
       mgga_t=true;
 #if defined(XC_FLAGS_NEEDS_LAPLACIAN)
       mgga_l=func.info->flags & XC_FLAGS_NEEDS_LAPLACIAN;
@@ -382,16 +388,28 @@ double exact_exchange(int func_id) {
       throw std::runtime_error(oss.str());
     }
 
+#if XC_MAJOR_VERSION < 6
     switch(func.info->family)
       {
+#ifdef XC_FAMILY_HYB_LDA
+      case XC_FAMILY_HYB_LDA:
+#endif
+#ifdef XC_FAMILY_HYB_GGA
       case XC_FAMILY_HYB_GGA:
+#endif
+#ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
+#endif
 	// libxc prior to 2.0.0
 	// f=xc_hyb_gga_exx_coef(func.gga);
 	// libxc 2.0.0
 	f=xc_hyb_exx_coef(&func);
 	break;
       }
+#else
+    if(xc_hyb_type(&func) == XC_HYB_HYBRID)
+      f=xc_hyb_exx_coef(&func);
+#endif
 
     xc_func_end(&func);
   } else if(func_id==ID_HF)
@@ -402,8 +420,8 @@ double exact_exchange(int func_id) {
   return f;
 }
 
-bool is_range_separated(int func_id, bool check) {
-  bool ans=false;
+bool is_supported(int func_id) {
+  bool support=true;
 
   if(func_id>0) {
     xc_func_type func;
@@ -413,7 +431,45 @@ bool is_range_separated(int func_id, bool check) {
       throw std::runtime_error(oss.str());
     }
     // Get flag
-    ans=func.info->flags & XC_FLAGS_HYB_CAM;
+#if XC_MAJOR_VERSION >= 6
+    switch(xc_hyb_type(&func)) {
+    case(XC_HYB_SEMILOCAL):
+    case(XC_HYB_HYBRID):
+    case(XC_HYB_CAM):
+    case(XC_HYB_CAMY):
+    break;
+
+    default:
+      support=false;
+    }
+#else
+    support=true;
+#endif
+    // Free functional
+    xc_func_end(&func);
+  }
+
+  return support;
+}
+
+void is_range_separated(int func_id, bool & erf, bool & yukawa, bool check) {
+  erf = false;
+  yukawa = false;
+  if(func_id>0) {
+    xc_func_type func;
+    if(xc_func_init(&func, func_id, XC_UNPOLARIZED) != 0){
+      std::ostringstream oss;
+      oss << "Functional "<<func_id<<" not found!";
+      throw std::runtime_error(oss.str());
+    }
+    // Get flag
+#if XC_MAJOR_VERSION < 6
+    erf=(func.info->flags & XC_FLAGS_HYB_CAM) || (func.info->flags & XC_FLAGS_HYB_LC);
+    yukawa=(func.info->flags & XC_FLAGS_HYB_CAMY) || (func.info->flags & XC_FLAGS_HYB_LCY);
+#else
+    erf = (xc_hyb_type(&func) == XC_HYB_CAM);
+    yukawa = (xc_hyb_type(&func) == XC_HYB_CAMY);
+#endif
     // Free functional
     xc_func_end(&func);
   }
@@ -423,13 +479,18 @@ bool is_range_separated(int func_id, bool check) {
     double w, a, b;
     range_separation(func_id,w,a,b);
 
+    bool ans = erf || yukawa;
     if(ans && w==0.0)
-      fprintf(stderr,"Error in libxc detected - functional is marked range separated but with vanishing omega!\n");
+      fprintf(stderr,"Error in libxc detected - functional %i is marked range separated but with vanishing omega!\n",func_id);
     else if(!ans && w!=0.0)
-      fprintf(stderr,"Error in libxc detected - functional is not marked range separated but has nonzero omega!\n");
+      fprintf(stderr,"Error in libxc detected - functional %i is not marked range separated but has nonzero omega!\n",func_id);
   }
+}
 
-  return ans;
+bool is_range_separated(int func_id, bool check) {
+  bool erf, yukawa;
+  is_range_separated(func_id,erf,yukawa,check);
+  return erf || yukawa;
 }
 
 void range_separation(int func_id, double & omega, double & alpha, double & beta, bool check) {
@@ -446,13 +507,39 @@ void range_separation(int func_id, double & omega, double & alpha, double & beta
       throw std::runtime_error(oss.str());
     }
 
+#if XC_MAJOR_VERSION >= 6
+    switch(xc_hyb_type(&func)) {
+    case(XC_HYB_SEMILOCAL):
+      break;
+
+    case(XC_HYB_HYBRID):
+      alpha=xc_hyb_exx_coef(&func);
+      break;
+
+    case(XC_HYB_CAM):
+    case(XC_HYB_CAMY):
+      XC(hyb_cam_coef(&func,&omega,&alpha,&beta));
+    break;
+
+    default:
+      throw std::logic_error("Case not handled!\n");
+    }
+#else
     switch(func.info->family)
       {
+#ifdef XC_FAMILY_HYB_LDA
+      case XC_FAMILY_HYB_LDA:
+#endif
+#ifdef XC_FAMILY_HYB_GGA
       case XC_FAMILY_HYB_GGA:
+#endif
+#ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
+#endif
 	XC(hyb_cam_coef(&func,&omega,&alpha,&beta));
 	break;
       }
+#endif
 
     xc_func_end(&func);
   } else if(func_id==ID_HF)
@@ -460,13 +547,10 @@ void range_separation(int func_id, double & omega, double & alpha, double & beta
 
   bool ans=is_range_separated(func_id,false);
   if(check) {
-    if(ans && omega==0.0) {
-      fprintf(stderr,"Error in libxc detected - functional is marked range separated but with vanishing omega!\n");
-      printf("Error in libxc detected - functional is marked range separated but with vanishing omega!\n");
-    } else if(!ans && omega!=0.0) {
-      fprintf(stderr,"Error in libxc detected - functional is not marked range separated but has nonzero omega!\n");
-      printf("Error in libxc detected - functional is not marked range separated but has nonzero omega!\n");
-    }
+    if(ans && omega==0.0)
+      fprintf(stderr,"Error in libxc detected - functional %i is marked range separated but with vanishing omega!\n",func_id);
+    else if(!ans && omega!=0.0)
+      fprintf(stderr,"Error in libxc detected - functional %i is not marked range separated but has nonzero omega!\n",func_id);
   }
 
   // Work around libxc bug
@@ -517,9 +601,13 @@ bool gradient_needed(int func_id) {
     switch(func.info->family)
       {
       case XC_FAMILY_GGA:
+#ifdef XC_FAMILY_HYB_GGA
       case XC_FAMILY_HYB_GGA:
+#endif
       case XC_FAMILY_MGGA:
+#ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
+#endif
 	grad=true;
 	break;
       }
@@ -544,7 +632,9 @@ bool tau_needed(int func_id) {
     switch(func.info->family)
       {
       case XC_FAMILY_MGGA:
+#ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
+#endif
 	tau=true;
 	break;
       }
@@ -569,7 +659,9 @@ bool laplacian_needed(int func_id) {
     switch(func.info->family)
       {
       case XC_FAMILY_MGGA:
+#ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
+#endif
 #if defined(XC_FLAGS_NEEDS_LAPLACIAN)
 	lapl=func.info->flags & XC_FLAGS_NEEDS_LAPLACIAN;
 #else
