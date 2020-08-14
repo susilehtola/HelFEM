@@ -13,7 +13,10 @@ if(USE_OPENMP)
 endif()
 
 # System specific definitions
-include(CMake.system)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/CMake.system")
+    message("Including user-provided CMake.system")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/CMake.system")
+endif()
 
 # Compile code
 add_subdirectory(src)
