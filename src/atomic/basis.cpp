@@ -23,6 +23,7 @@
 #include "../general/scf_helpers.h"
 #include <cassert>
 #include <cfloat>
+#include <helfem>
 
 #ifdef _OPENMP
 #include <omp.h>

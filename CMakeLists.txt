@@ -35,4 +35,5 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/CMake.system")
 endif()
 
 # Compile code
+add_subdirectory("libhelfem")
 add_subdirectory(src)
