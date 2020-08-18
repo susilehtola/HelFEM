@@ -75,4 +75,4 @@ target_link_libraries(diatomic_dgrid gsl ${LAPACK_LIBRARY} rt hdf5 z)
 
 # Install libraries and main executables
 install (TARGETS helfem-common legendre atomic diatomic diatomic_cbasis
-diatomic_cpl gensap DESTINATION bin)
+diatomic_cpl gensap DESTINATION bin OPTIONAL)

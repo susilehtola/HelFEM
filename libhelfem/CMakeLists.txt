@@ -12,4 +12,5 @@ target_link_libraries(helfem PUBLIC ${ARMADILLO_LIBRARIES})
 
 message("include: ${CMAKE_CURRENT_BINARY_DIR}/include/")
 
-install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/include/" DESTINATION include)
+install(TARGETS helfem DESTINATION lib)

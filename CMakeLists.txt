@@ -2,6 +2,9 @@
 cmake_minimum_required (VERSION 2.6)
 project (helfem CXX Fortran)
 
+# Allow installing only a subset of targets
+set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY true)
+
 # Try to find the Armadillo C++ library
 #
 # If the library is installed in a non-standard location, this prefix path can be passed via
