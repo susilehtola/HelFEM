@@ -195,8 +195,11 @@ int main(int argc, char **argv) {
   arma::imat occs;
   if(readocc) {
     occs.load("occs.dat",arma::raw_ascii);
-    if(occs.n_cols != 4) {
-      throw std::logic_error("Must have four columns in occupation data.\n");
+    if(symm == 2 && occs.n_cols != 4) {
+      throw std::logic_error("Must have four columns in occupation data to use full atomic symmetry.\n");
+    }
+    if(symm == 1 && occs.n_cols != 3) {
+      throw std::logic_error("Must have three columns in occupation data to use axial symmetry.\n");
     }
   }
 
@@ -276,16 +279,19 @@ int main(int argc, char **argv) {
   arma::ivec occnuma, occnumb;
   std::vector<arma::uvec> occsym;
   if(readocc) {
-    if(symm!=2)
-      throw std::logic_error("To enable forced occupation numbers you need to switch to full symmetry.\n");
-
     // Number of occupied alpha orbitals is first column
     occnuma=occs.col(0);
     // Number of occupied beta orbitals is second column
     occnumb=occs.col(1);
     // l and m values are third and fourth column
-    for(size_t i=0;i<occs.n_rows;i++)
-      occsym.push_back(basis.lm_indices(occs(i,2),occs(i,3)));
+    if(symm==1)
+      for(size_t i=0;i<occs.n_rows;i++)
+        occsym.push_back(basis.m_indices(occs(i,2)));
+    else if(symm==2)
+      for(size_t i=0;i<occs.n_rows;i++)
+        occsym.push_back(basis.lm_indices(occs(i,2),occs(i,3)));
+    else
+      throw std::logic_error("Not implemented!\n");
 
     // Check consistency of values
     if(arma::sum(occnuma) != nela) {
