@@ -1,6 +1,6 @@
 add_library(helfem-common
 general/polynomial.cpp general/polynomial_basis.cpp
-general/gaunt.cpp general/chebyshev.cpp general/diis.cpp
+general/gaunt.cpp general/diis.cpp
 general/lbfgs.cpp general/utils.cpp general/spherical_harmonics.cpp
 general/timer.cpp general/elements.cpp general/lobatto.cpp
 general/angular.cpp general/scf_helpers.cpp general/lcao.cpp
@@ -12,6 +12,7 @@ general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
 diatomic/dftgrid.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp)
 target_link_libraries(helfem-common PUBLIC helfem)
+target_include_directories(helfem-common PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../libhelfem/src/")
 
 add_executable(gensap sadatom/main.cpp)
 target_link_libraries(gensap helfem-common)

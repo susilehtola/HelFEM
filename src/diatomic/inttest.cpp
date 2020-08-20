@@ -15,7 +15,7 @@
  */
 #include "quadrature.h"
 #include "../general/polynomial.h"
-#include "../general/chebyshev.h"
+#include "chebyshev.h"
 #include "../general/gaunt.h"
 #include "../general/utils.h"
 

@@ -15,7 +15,7 @@
  */
 #include "../general/polynomial.h"
 #include "../general/polynomial_basis.h"
-#include "../general/chebyshev.h"
+#include "chebyshev.h"
 #include "quadrature.h"
 
 using namespace helfem;
