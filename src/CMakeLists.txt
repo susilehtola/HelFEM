@@ -11,7 +11,6 @@ sadatom/dftgrid.cpp sadatom/solver.cpp sadatom/configurations.cpp
 general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
 diatomic/dftgrid.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp
-general/ModelPotential.cpp
 general/PointNucleus.cpp
 general/RadialPotential.cpp
 general/GaussianNucleus.cpp
