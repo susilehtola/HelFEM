@@ -12,6 +12,7 @@ add_library(helfem STATIC
     src/erfc_expn.cc
     src/polynomial.cc
     src/polynomial_basis.cc
+    src/quadrature.cc
     src/ModelPotential.cc
     src/RadialPotential.cc
 )
