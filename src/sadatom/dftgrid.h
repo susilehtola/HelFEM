@@ -18,6 +18,7 @@
 #define SADATOM_DFTGRID_H
 
 #include "basis.h"
+#include "../atomic/TwoDBasis.h"
 
 namespace helfem {
   namespace sadatom {

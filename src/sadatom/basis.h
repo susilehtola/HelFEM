@@ -19,6 +19,7 @@
 #include <armadillo>
 #include "../general/polynomial_basis.h"
 #include "../atomic/basis.h"
+#include "../atomic/TwoDBasis.h"
 
 namespace helfem {
   namespace sadatom {
