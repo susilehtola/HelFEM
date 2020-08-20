@@ -5,7 +5,7 @@ configure_file("include/helfem.source.hh" "include/helfem")
 
 add_library(helfem STATIC
     src/helfem.cc
-    src/utils.cc
+    src/grid.cc
     src/chebyshev.cc
     src/lobatto.cc
     src/polynomial.cc
