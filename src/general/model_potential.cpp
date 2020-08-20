@@ -26,16 +26,6 @@ namespace helfem {
       throw std::logic_error("Unrecognized model\n");
     }
 
-    PointNucleus::PointNucleus(int Z_) : Z(Z_) {
-    }
-
-    PointNucleus::~PointNucleus() {
-    }
-
-    double PointNucleus::V(double R) const {
-      return -Z/R;
-    }
-
     SphericalNucleus::SphericalNucleus(int Z_, double Rrms) : Z(Z_) {
       // Eqn (4) in Visscher-Dyall 1997
       R0 = sqrt(5.0/3.0)*Rrms;
