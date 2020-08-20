@@ -1,5 +1,4 @@
 add_library(helfem-common
-general/polynomial_basis.cpp
 general/gaunt.cpp general/diis.cpp
 general/lbfgs.cpp general/utils.cpp general/spherical_harmonics.cpp
 general/timer.cpp general/elements.cpp

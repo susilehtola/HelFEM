@@ -14,7 +14,7 @@
  * of the License, or (at your option) any later version.
  */
 #include "polynomial.h"
-#include "../general/polynomial_basis.h"
+#include "polynomial_basis.h"
 #include "chebyshev.h"
 #include "quadrature.h"
 

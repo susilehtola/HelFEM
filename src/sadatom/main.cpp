@@ -18,7 +18,7 @@
 #include "../general/dftfuncs.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
-#include "../general/polynomial_basis.h"
+#include "polynomial_basis.h"
 #include "../general/utils.h"
 #include "dftgrid.h"
 #include "solver.h"

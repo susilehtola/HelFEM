@@ -17,7 +17,7 @@
 #define INTEGRALS_H
 
 #include <armadillo>
-#include "../general/polynomial_basis.h"
+#include "polynomial_basis.h"
 #include "../general/model_potential.h"
 
 namespace helfem {
