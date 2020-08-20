@@ -4,9 +4,10 @@
 #include <armadillo>
 #include "ModelPotential.h"
 #include "PointNucleus.h"
-#include "RadialPotential.h"
+#include "HollowNucleus.h"
 #include "SphericalNucleus.h"
 #include "GaussianNucleus.h"
+#include "RadialPotential.h"
 
 namespace helfem {
   namespace modelpotential {
@@ -20,25 +21,6 @@ namespace helfem {
     } nuclear_model_t;
     /// Get nuclear model
     ModelPotential * get_nuclear_model(nuclear_model_t model, int Z, double Rrms);
-
-    /// Thin hollow nucleus
-    class HollowNucleus : public ModelPotential {
-      /// Charge
-      int Z;
-      /// Size
-      double R;
-    public:
-      /// Constructor
-      HollowNucleus(int Z, double R);
-      /// Destructor
-      ~HollowNucleus();
-      /// Potential
-      double V(double r) const override;
-      /// Get R
-      double get_R() const;
-      /// Set R
-      void set_R(double R);
-    };
 
     /// Thomas-Fermi atom
     class TFAtom : public ModelPotential {
