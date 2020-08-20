@@ -3,6 +3,7 @@
 
 #include <armadillo>
 #include "ModelPotential.h"
+#include "GaussianNucleus.h"
 
 namespace helfem {
   namespace modelpotential {
@@ -41,28 +42,6 @@ namespace helfem {
       ~PointNucleus();
       /// Potential
       double V(double r) const override;
-    };
-
-    /// Gaussian nucleus
-    class GaussianNucleus : public ModelPotential {
-      /// Charge
-      int Z;
-      /// Size
-      double mu;
-
-      /// Cutoff for Taylor series
-      double Rcut;
-    public:
-      /// Constructor
-      GaussianNucleus(int Z, double Rrms);
-      /// Destructor
-      ~GaussianNucleus();
-      /// Potential
-      double V(double r) const override;
-      /// Get mu
-      double get_mu() const;
-      /// Set mu
-      void set_mu(double mu);
     };
 
     /// Uniformly charged spherical nucleus
