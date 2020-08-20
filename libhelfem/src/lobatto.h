@@ -13,8 +13,8 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  */
-#ifndef LOBATTO
-#define LOBATTO
+#ifndef LOBATTO_H
+#define LOBATTO_H
 
 #include <armadillo>
 

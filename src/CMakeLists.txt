@@ -2,7 +2,7 @@ add_library(helfem-common
 general/polynomial.cpp general/polynomial_basis.cpp
 general/gaunt.cpp general/diis.cpp
 general/lbfgs.cpp general/utils.cpp general/spherical_harmonics.cpp
-general/timer.cpp general/elements.cpp general/lobatto.cpp
+general/timer.cpp general/elements.cpp
 general/angular.cpp general/scf_helpers.cpp general/lcao.cpp
 general/gsz.cpp general/sap.cpp general/dftfuncs.cpp
 general/checkpoint.cpp atomic/basis.cpp atomic/quadrature.cpp
