@@ -11,6 +11,7 @@ add_library(helfem STATIC
     src/polynomial.cc
     src/polynomial_basis.cc
     src/ModelPotential.cc
+    src/RadialPotential.cc
 )
 target_include_directories(helfem PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include/" "${ARMADILLO_INCLUDE_DIRS}")
 target_include_directories(helfem PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/src/")

@@ -12,7 +12,6 @@ general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
 diatomic/dftgrid.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp
 general/PointNucleus.cpp
-general/RadialPotential.cpp
 general/GaussianNucleus.cpp
 general/SphericalNucleus.cpp
 general/HollowNucleus.cpp

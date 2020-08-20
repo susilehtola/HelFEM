@@ -3,11 +3,11 @@
 
 #include <armadillo>
 #include "ModelPotential.h"
+#include "RadialPotential.h"
 #include "PointNucleus.h"
 #include "HollowNucleus.h"
 #include "SphericalNucleus.h"
 #include "GaussianNucleus.h"
-#include "RadialPotential.h"
 
 namespace helfem {
   namespace modelpotential {
