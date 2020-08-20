@@ -15,6 +15,7 @@ general/ModelPotential.cpp
 general/PointNucleus.cpp
 general/RadialPotential.cpp
 general/GaussianNucleus.cpp
+general/SphericalNucleus.cpp
 )
 target_link_libraries(helfem-common PUBLIC helfem)
 target_include_directories(helfem-common PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../libhelfem/src/")
