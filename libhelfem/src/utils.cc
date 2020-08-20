@@ -14,7 +14,6 @@
  * of the License, or (at your option) any later version.
  */
 #include "utils.h"
-#include "sap.h"
 #include <cmath>
 
 extern "C" {
@@ -147,13 +146,6 @@ namespace helfem {
               ktei(kk*Nj+jj,ll*Ni+ii)=tei(jj*Ni+ii,ll*Nk+kk);
 
       return ktei;
-    }
-
-    arma::vec sap_effective_charge(int Z, const arma::vec & r) {
-      arma::vec z(r);
-      for(size_t i=0;i<r.n_elem;i++)
-        z(i)=::sap_effective_charge(Z,r(i));
-      return z;
     }
 
     int stricmp(const std::string & str1, const std::string & str2) {

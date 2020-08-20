@@ -17,7 +17,7 @@
 #include "../general/checkpoint.h"
 #include "../general/constants.h"
 #include "../general/timer.h"
-#include "../general/utils.h"
+#include "utils.h"
 #include "basis.h"
 #include <cfloat>
 #include <climits>

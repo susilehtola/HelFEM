@@ -19,7 +19,7 @@
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
 #include "../general/model_potential.h"
-#include "../general/utils.h"
+#include "utils.h"
 #include "../atomic/basis.h"
 #include "basis.h"
 #include "twodquadrature.h"

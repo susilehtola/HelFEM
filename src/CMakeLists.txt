@@ -1,6 +1,6 @@
 add_library(helfem-common
 general/gaunt.cpp general/diis.cpp
-general/lbfgs.cpp general/utils.cpp general/spherical_harmonics.cpp
+general/lbfgs.cpp general/spherical_harmonics.cpp
 general/timer.cpp general/elements.cpp
 general/angular.cpp general/scf_helpers.cpp general/lcao.cpp
 general/gsz.cpp general/sap.cpp general/dftfuncs.cpp

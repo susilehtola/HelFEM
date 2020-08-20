@@ -29987,3 +29987,10 @@ double sap_effective_charge(int Z, double x) {
     }
   }
 }
+
+arma::vec helfem::utils::sap_effective_charge(int Z, const arma::vec & r) {
+  arma::vec z(r);
+  for(size_t i=0;i<r.n_elem;i++)
+    z(i)=::sap_effective_charge(Z,r(i));
+  return z;
+}

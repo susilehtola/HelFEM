@@ -19,7 +19,7 @@
 #include "../general/diis.h"
 #include "../general/dftfuncs.h"
 #include "../general/timer.h"
-#include "../general/utils.h"
+#include "utils.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
 #include "../general/model_potential.h"

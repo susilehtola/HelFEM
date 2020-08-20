@@ -43,11 +43,6 @@ namespace helfem {
     /// Permute indices (ij|kl) -> (jk|il)
     arma::mat exchange_tei(const arma::mat & tei, size_t Ni, size_t Nj, size_t Nk, size_t Nl);
 
-    /**
-     * Calculate SAP effective charge
-     */
-    arma::vec sap_effective_charge(int Z, const arma::vec & r);
-
     /// Case independent string comparison
     int stricmp(const std::string & str1, const std::string & str2);
   }

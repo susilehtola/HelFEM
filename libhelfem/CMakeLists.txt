@@ -8,6 +8,7 @@ add_library(helfem STATIC
     src/grid.cc
     src/chebyshev.cc
     src/lobatto.cc
+    src/utils.cc
     src/polynomial.cc
     src/polynomial_basis.cc
     src/ModelPotential.cc

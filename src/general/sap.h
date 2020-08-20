@@ -28,6 +28,9 @@
 */
 
 #ifndef SAP_POTENTIAL
+
+#include <armadillo>
+
 /*
   Routines for the implementation of the superposition of atomic
   potentials guess for electronic structure calculations, see
@@ -48,8 +51,18 @@
   using accurate finite-element calculations as described in
 
   S. Lehtola, "Fully numerical Hartree-Fock and density functional
-  calculations. I. Atoms", Int J Quantum Chem. e25945 (2019). 
+  calculations. I. Atoms", Int J Quantum Chem. e25945 (2019).
   DOI: 10.1002/qua.25945
 */
 double sap_effective_charge(int Z, double r);
+
+namespace helfem {
+  namespace utils {
+    /**
+     * Calculate SAP effective charge
+     */
+    arma::vec sap_effective_charge(int Z, const arma::vec & r);
+  }
+}
+
 #endif

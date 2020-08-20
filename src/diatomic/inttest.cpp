@@ -17,7 +17,7 @@
 #include "polynomial.h"
 #include "chebyshev.h"
 #include "../general/gaunt.h"
-#include "../general/utils.h"
+#include "utils.h"
 
 using namespace helfem;
 

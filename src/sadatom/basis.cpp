@@ -19,7 +19,7 @@
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
 #include "../general/gsz.h"
-#include "../general/utils.h"
+#include "utils.h"
 #include "../general/scf_helpers.h"
 #include "../general/dftfuncs.h"
 #include <cassert>

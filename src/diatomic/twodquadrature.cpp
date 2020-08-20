@@ -18,7 +18,7 @@
 #include "chebyshev.h"
 #include "../general/lcao.h"
 #include "../general/model_potential.h"
-#include "../general/utils.h"
+#include "utils.h"
 
 namespace helfem {
   namespace diatomic {

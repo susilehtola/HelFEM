@@ -19,7 +19,7 @@
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
 #include "polynomial_basis.h"
-#include "../general/utils.h"
+#include "utils.h"
 #include "dftgrid.h"
 #include "solver.h"
 #include "configurations.h"
