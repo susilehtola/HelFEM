@@ -21,6 +21,12 @@ if(NOT (${ARMADILLO_VERSION_MAJOR} EQUAL "9"))
     message(FATAL_ERROR "Invalid Armadillo version, expected 9.")
 endif()
 
+# Try to find the GSL library
+find_package(GSL REQUIRED)
+message("Found GSL ${GSL_VERSION}")
+message("GSL_INCLUDE_DIRS: ${GSL_INCLUDE_DIRS}")
+message("GSL_LIBRARIES:    ${GSL_LIBRARIES}")
+
 option(USE_OPENMP "Compile OpenMP enabled version (for parallel calculations)?" ON)
 # Find OpenMP support
 if(USE_OPENMP)
