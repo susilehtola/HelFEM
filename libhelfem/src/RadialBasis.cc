@@ -16,6 +16,7 @@
 #include "RadialBasis.h"
 #include "quadrature.h"
 #include "chebyshev.h"
+#include "RadialPotential.h"
 
 #ifdef _OPENMP
 #include <omp.h>

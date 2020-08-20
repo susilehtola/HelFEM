@@ -5,7 +5,7 @@ general/timer.cpp general/elements.cpp
 general/angular.cpp general/scf_helpers.cpp general/lcao.cpp
 general/gsz.cpp general/sap.cpp general/dftfuncs.cpp
 general/checkpoint.cpp atomic/basis.cpp
-atomic/RadialBasis.cpp atomic/TwoDBasis.cpp
+atomic/TwoDBasis.cpp
 atomic/dftgrid.cpp sadatom/basis.cpp
 sadatom/dftgrid.cpp sadatom/solver.cpp sadatom/configurations.cpp
 general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp

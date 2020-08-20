@@ -18,7 +18,7 @@
 
 #include <armadillo>
 #include "polynomial_basis.h"
-#include "../general/model_potential.h"
+#include "ModelPotential.h"
 
 namespace helfem {
   namespace atomic {

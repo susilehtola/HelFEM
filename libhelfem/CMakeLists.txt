@@ -15,6 +15,7 @@ add_library(helfem STATIC
     src/quadrature.cc
     src/ModelPotential.cc
     src/RadialPotential.cc
+    src/RadialBasis.cc
 )
 target_include_directories(helfem PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include/" "${ARMADILLO_INCLUDE_DIRS}")
 target_include_directories(helfem PRIVATE "${GSL_INCLUDE_DIRS}" "${CMAKE_CURRENT_BINARY_DIR}/src/")
