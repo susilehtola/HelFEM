@@ -3,6 +3,7 @@
 
 #include <armadillo>
 #include "ModelPotential.h"
+#include "RadialPotential.h"
 #include "GaussianNucleus.h"
 
 namespace helfem {
@@ -17,19 +18,6 @@ namespace helfem {
     } nuclear_model_t;
     /// Get nuclear model
     ModelPotential * get_nuclear_model(nuclear_model_t model, int Z, double Rrms);
-
-    /// Simple r^n radial potential
-    class RadialPotential : public ModelPotential {
-      /// Exponent
-      int n;
-    public:
-      /// Constructor
-      RadialPotential(int n);
-      /// Destructor
-      ~RadialPotential();
-      /// Potential
-      double V(double r) const override;
-    };
 
     /// Point nucleus
     class PointNucleus : public ModelPotential {

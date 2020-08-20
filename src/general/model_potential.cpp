@@ -26,16 +26,6 @@ namespace helfem {
       throw std::logic_error("Unrecognized model\n");
     }
 
-    RadialPotential::RadialPotential(int n_) : n(n_) {
-    }
-
-    RadialPotential::~RadialPotential() {
-    }
-
-    double RadialPotential::V(double R) const {
-      return std::pow(R,n);
-    }
-
     PointNucleus::PointNucleus(int Z_) : Z(Z_) {
     }
 
