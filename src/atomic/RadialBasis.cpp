@@ -15,15 +15,7 @@
  */
 #include "RadialBasis.h"
 #include "quadrature.h"
-#include "../general/polynomial_basis.h"
 #include "chebyshev.h"
-#include "../general/spherical_harmonics.h"
-#include "../general/gaunt.h"
-#include "../general/utils.h"
-#include "../general/scf_helpers.h"
-#include <cassert>
-#include <cfloat>
-#include <helfem>
 
 #ifdef _OPENMP
 #include <omp.h>
