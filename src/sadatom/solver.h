@@ -20,7 +20,6 @@
 #include <armadillo>
 #include "dftgrid.h"
 #include "../atomic/basis.h"
-#include "../atomic/TwoDBasis.h"
 #include "../atomic/dftgrid.h"
 
 namespace helfem {

@@ -19,7 +19,6 @@
 
 #include <armadillo>
 #include "../atomic/basis.h"
-#include "../atomic/TwoDBasis.h"
 #include "../diatomic/basis.h"
 
 // Use C routines, since C++ routines don't seem to add any ease of use.
