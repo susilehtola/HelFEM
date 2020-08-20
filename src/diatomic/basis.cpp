@@ -15,7 +15,7 @@
  */
 #include "basis.h"
 #include "quadrature.h"
-#include "../general/polynomial.h"
+#include "polynomial.h"
 #include "../general/polynomial_basis.h"
 #include "chebyshev.h"
 #include "../general/spherical_harmonics.h"

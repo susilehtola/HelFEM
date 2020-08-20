@@ -15,7 +15,7 @@
  */
 #include "quadrature.h"
 #include "chebyshev.h"
-#include "../general/polynomial.h"
+#include "polynomial.h"
 
 namespace helfem {
   namespace diatomic {
