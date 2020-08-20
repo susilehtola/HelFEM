@@ -2,23 +2,10 @@
 #define NUCLEAR_MODEL_H
 
 #include <armadillo>
+#include "ModelPotential.h"
 
 namespace helfem {
   namespace modelpotential {
-    /// Model potential
-    class ModelPotential {
-    public:
-      /// Constructor
-      ModelPotential();
-      /// Destructor
-      virtual ~ModelPotential();
-
-      /// Potential
-      virtual double V(double r) const=0;
-      /// Potential
-      arma::vec V(const arma::vec & r) const;
-    };
-
     /// Nuclear model
     typedef enum {
           POINT_NUCLEUS,

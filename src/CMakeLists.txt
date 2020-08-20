@@ -10,7 +10,9 @@ atomic/dftgrid.cpp atomic/erfc_expn.cpp sadatom/basis.cpp
 sadatom/dftgrid.cpp sadatom/solver.cpp sadatom/configurations.cpp
 general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
 diatomic/dftgrid.cpp diatomic/twodquadrature.cpp
-general/model_potential.cpp)
+general/model_potential.cpp
+general/ModelPotential.cpp
+)
 target_link_libraries(helfem-common PUBLIC helfem)
 target_include_directories(helfem-common PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../libhelfem/src/")
 
