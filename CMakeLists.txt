@@ -27,6 +27,9 @@ message("Found GSL ${GSL_VERSION}")
 message("GSL_INCLUDE_DIRS: ${GSL_INCLUDE_DIRS}")
 message("GSL_LIBRARIES:    ${GSL_LIBRARIES}")
 
+include_directories("${ARMADILLO_INCLUDE_DIRS}" "${GSL_INCLUDE_DIRS}")
+link_libraries("${GSL_LIBRARIES}" "${ARMADILLO_LIBRARIES}")
+
 option(USE_OPENMP "Compile OpenMP enabled version (for parallel calculations)?" ON)
 # Find OpenMP support
 if(USE_OPENMP)
