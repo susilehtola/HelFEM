@@ -20,7 +20,7 @@
 #include "polynomial_basis.h"
 #include "../general/model_potential.h"
 #include "../general/sap.h"
-#include "RadialBasis.h"
+#include <helfem/RadialBasis.h>
 
 namespace helfem {
   namespace atomic {

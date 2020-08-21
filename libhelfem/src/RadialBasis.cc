@@ -13,7 +13,7 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  */
-#include "RadialBasis.h"
+#include "helfem/RadialBasis.h"
 #include "RadialPotential.h"
 #include "chebyshev.h"
 #include "quadrature.h"
