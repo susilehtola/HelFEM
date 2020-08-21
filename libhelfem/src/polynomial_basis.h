@@ -16,19 +16,16 @@
 #ifndef POLYNOMIAL_BASIS_H
 #define POLYNOMIAL_BASIS_H
 
-#include <helfem/PolynomialBasis.h>
 #include "LegendreBasis.h"
 #include "HermiteBasis.h"
 #include "LIPBasis.h"
 #include <armadillo>
+#include "helfem.h"
 
 namespace helfem {
   namespace polynomial_basis {
     /// Get primitive indices for a basis with n nodes and n overlapping functions.
     arma::uvec primitive_indices(int nnodes, int noverlap, bool drop_first, bool drop_last);
-
-    /// Get the wanted basis
-    PolynomialBasis * get_basis(int primbas, int Nnodes);
   }
 }
 #endif

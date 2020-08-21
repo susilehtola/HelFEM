@@ -51,11 +51,17 @@ namespace utils {
  */
 arma::vec get_grid(double rmax, int num_el, int igrid, double zexp);
 } // namespace utils
-
 } // namespace helfem
 
 #include "helfem/ModelPotential.h"
 #include "helfem/PolynomialBasis.h"
 #include "helfem/RadialBasis.h"
+
+namespace helfem {
+namespace polynomial_basis {
+/// Get the wanted basis
+PolynomialBasis *get_basis(int primbas, int Nnodes);
+} // namespace polynomial_basis
+} // namespace helfem
 
 #endif

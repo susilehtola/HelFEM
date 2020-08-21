@@ -16,6 +16,7 @@
 #ifndef POLYNOMIAL_BASIS_HERMITEBASIS_H
 #define POLYNOMIAL_BASIS_HERMITEBASIS_H
 
+#include "helfem/PolynomialBasis.h"
 #include <armadillo>
 
 namespace helfem {
