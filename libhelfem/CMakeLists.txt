@@ -3,6 +3,7 @@ set(LIBHELFEM_VERSION "v0.0.1-alpha")
 # Version information
 configure_file("include/helfem.source.hh" "include/helfem.h")
 configure_file("include/ModelPotential.h" "include/helfem/ModelPotential.h" COPYONLY)
+configure_file("include/PolynomialBasis.h" "include/helfem/PolynomialBasis.h" COPYONLY)
 
 add_library(helfem STATIC
     src/helfem.cc

@@ -16,7 +16,7 @@
 #ifndef POLYNOMIAL_BASIS_H
 #define POLYNOMIAL_BASIS_H
 
-#include "PolynomialBasis.h"
+#include <helfem/PolynomialBasis.h>
 #include "LegendreBasis.h"
 #include "HermiteBasis.h"
 #include "LIPBasis.h"
