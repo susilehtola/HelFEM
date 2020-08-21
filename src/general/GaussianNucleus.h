@@ -1,7 +1,7 @@
 #ifndef MODELPOTENTIAL_GAUSSIANNUCLEUS_H
 #define MODELPOTENTIAL_GAUSSIANNUCLEUS_H
 
-#include "ModelPotential.h"
+#include <helfem/ModelPotential.h>
 
 namespace helfem {
   namespace modelpotential {

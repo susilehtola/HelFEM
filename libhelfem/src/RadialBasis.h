@@ -16,7 +16,7 @@
 #ifndef ATOMIC_BASIS_RADIALBASIS_H
 #define ATOMIC_BASIS_RADIALBASIS_H
 
-#include "ModelPotential.h"
+#include <helfem/ModelPotential.h>
 #include "polynomial_basis.h"
 #include <armadillo>
 

@@ -1,4 +1,4 @@
-#include "ModelPotential.h"
+#include <helfem/ModelPotential.h>
 
 namespace helfem {
   namespace modelpotential {

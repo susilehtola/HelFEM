@@ -2,7 +2,7 @@
 #define NUCLEAR_MODEL_H
 
 #include <armadillo>
-#include "ModelPotential.h"
+#include <helfem/ModelPotential.h>
 #include "RadialPotential.h"
 #include "PointNucleus.h"
 #include "HollowNucleus.h"

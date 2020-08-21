@@ -54,4 +54,6 @@ arma::vec get_grid(double rmax, int num_el, int igrid, double zexp);
 
 } // namespace helfem
 
+#include "helfem/ModelPotential.h"
+
 #endif
