@@ -13,7 +13,7 @@
  * Software Foundation; either version 2 * of the License, or (at your option)
  * any later version.
  */
-#include <helfem>
+#include <helfem.h>
 
 arma::vec helfem::utils::get_grid(double rmax, int num_el, int igrid, double zexp) {
   // Boundary values
