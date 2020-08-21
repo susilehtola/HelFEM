@@ -130,6 +130,7 @@ int main(int argc, char **argv) {
   parser.add<std::string>("save", 0, "save calculation to checkpoint", false, "helfem.chk");
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
+  parser.add<bool>("maverage", 0, "average Fock matrix over m values", false, false);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -147,6 +148,7 @@ int main(int argc, char **argv) {
   int restr(parser.get<int>("restricted"));
   int symm(parser.get<int>("symmetry"));
   int iguess(parser.get<int>("iguess"));
+  bool maverage(parser.get<bool>("maverage"));
 
   int primbas(parser.get<int>("primbas"));
   // Number of elements
@@ -317,6 +319,17 @@ int main(int argc, char **argv) {
   }
   if(symm)
     dsym=basis.get_sym_idx(symm);
+
+  // For m averaging
+  std::vector< std::vector<arma::uvec> > mavg_idx;
+  for(int m=0;m<=arma::max(arma::abs(basis.get_mval()));m++) {
+    // Construct set of indices to average over
+    std::vector<arma::uvec> entry;
+    entry.push_back(basis.m_indices(m));
+    if(m>0)
+      entry.push_back(basis.m_indices(-m));
+    mavg_idx.push_back(entry);
+  }
 
   // Forced occupations?
   arma::ivec occnuma, occnumb;
@@ -865,6 +878,17 @@ int main(int argc, char **argv) {
       // Add in the B*Sz term
       Fa-=Bz*S/2.0;
       Fb+=Bz*S/2.0;
+    }
+
+    // m averaging?
+    if(maverage) {
+      Fa=scf::fock_symmetry_average(Fa,mavg_idx);
+      Fb=scf::fock_symmetry_average(Fb,mavg_idx);
+    }
+    // Enforce symmetry of Fock matrix
+    if(symm) {
+      Fa=scf::enforce_fock_symmetry(Fa,dsym);
+      Fb=scf::enforce_fock_symmetry(Fb,dsym);
     }
 
     // ROHF update to Fock matrix

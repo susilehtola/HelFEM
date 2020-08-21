@@ -24,6 +24,11 @@ namespace helfem {
     /// Enforce occupation of wanted symmetries
     void enforce_occupations(arma::mat & C, arma::vec & E, const arma::mat & S, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx);
 
+    /// Enforce wanted symmetry in the Fock matrix (zero out off-diagonal blocks)
+    arma::mat enforce_fock_symmetry(const arma::mat & Fin, const std::vector<arma::uvec> & m_idx);
+    /// Average out the Fock matrix
+    arma::mat fock_symmetry_average(const arma::mat & Fin, const std::vector< std::vector<arma::uvec> > & sym_idx);
+
     /// Solve generalized eigenvalue problem
     void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh);
     /// Solve generalized eigenvalue problem in subspaces

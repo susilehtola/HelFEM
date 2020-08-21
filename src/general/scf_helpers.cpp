@@ -145,7 +145,6 @@ namespace helfem {
 
       size_t iidx=0;
       // Loop over symmetries
-      double res=0.0;
       for(size_t isym=0;isym<m_idx.size();isym++) {
         // Find basis vectors that belong to this symmetry
         arma::mat Scmp(Sinvh.rows(m_idx[isym]));
@@ -171,12 +170,6 @@ namespace helfem {
         Esub.t().print();
 #endif
 
-        // Check residual
-        if(iidx>0) {
-          arma::mat Foff(C.cols(0,iidx-1).t()*F*Csub);
-          res+=arma::norm(Foff,"fro");
-        }
-
         // Increment offset
         iidx+=Esub.n_elem;
       }
@@ -185,9 +178,6 @@ namespace helfem {
         oss << "Symmetry mismatch: expected " << F.n_rows << " vectors but got " << iidx << "!\n";
         throw std::logic_error(oss.str());
       }
-
-      if(verbose)
-	printf("Cross-symmetry residual %e\n",res);
 
       // Sort energies
       arma::uvec Eord=arma::sort_index(E,"ascend");
@@ -254,6 +244,43 @@ namespace helfem {
       // Update occupied and virtual orbitals
       Cocc=C.cols(0,Cocc.n_cols-1);
       Cvirt.cols(0,Nact-Cocc.n_cols-1)=C.cols(Cocc.n_cols,Nact-1);
+    }
+
+    arma::mat enforce_fock_symmetry(const arma::mat & Fin, const std::vector<arma::uvec> & m_idx) {
+      arma::mat Fout;
+      Fout.zeros(Fin.n_rows,Fin.n_rows);
+
+      // Loop over symmetries
+      for(size_t isym=0;isym<m_idx.size();isym++) {
+        // Find basis vectors that belong to this symmetry
+        arma::uvec idx(m_idx[isym]);
+        Fout(idx,idx)=Fin(idx,idx);
+      }
+
+      return Fout;
+    }
+
+    arma::mat fock_symmetry_average(const arma::mat & Fin, const std::vector< std::vector<arma::uvec> > & sym_idx) {
+      arma::mat Fout(Fin);
+
+      // Loop over symmetries
+      for(size_t isym=0;isym<sym_idx.size();isym++) {
+        // Form averaged Fock matrix
+        arma::mat Fmean(sym_idx[isym][0].n_elem, sym_idx[isym][0].n_elem, arma::fill::zeros);
+        for(size_t ic=0;ic<sym_idx[isym].size();ic++) {
+          const arma::uvec & idx(sym_idx[isym][ic]);
+          Fmean += Fin(idx,idx);
+        }
+        Fmean /= sym_idx[isym].size();
+
+        // Write out the averaged matrix
+        for(size_t ic=0;ic<sym_idx[isym].size();ic++) {
+          const arma::uvec & idx(sym_idx[isym][ic]);
+          Fout(idx,idx)=Fmean;
+        }
+      }
+
+      return Fout;
     }
 
     void sort_eig(arma::vec & Eorb, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & Fao, size_t Nact, int maxit, double convthr) {
