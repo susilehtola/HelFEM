@@ -50,6 +50,11 @@ namespace utils {
  *        3 for generalized exponential grid with parameter zexp
  */
 arma::vec get_grid(double rmax, int num_el, int igrid, double zexp);
+
+/**
+ * Calculates the half-inverse of a matrix.
+ */
+arma::mat invh(arma::mat S, bool chol);
 } // namespace utils
 } // namespace helfem
 

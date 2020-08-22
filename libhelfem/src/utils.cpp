@@ -151,5 +151,30 @@ namespace helfem {
     int stricmp(const std::string & str1, const std::string & str2) {
       return strcasecmp(str1.c_str(),str2.c_str());
     }
+
+    arma::mat invh(arma::mat S, bool chol) {
+      // Get the basis function norms
+      arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
+      // Go to normalized basis
+      S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
+
+      // Half-inverse is
+      arma::mat Sinvh;
+      if(chol) {
+        Sinvh = arma::inv(arma::chol(S));
+      } else {
+        arma::vec Sval;
+        arma::mat Svec;
+        if(!arma::eig_sym(Sval,Svec,S)) {
+          throw std::logic_error("Diagonalization of overlap matrix failed\n");
+        }
+        printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
+
+        Sinvh=Svec*arma::diagmat(arma::pow(Sval,-0.5))*arma::trans(Svec);
+      }
+
+      Sinvh=arma::diagmat(bfnormlz)*Sinvh;
+      return Sinvh;
+    }
   }
 }
