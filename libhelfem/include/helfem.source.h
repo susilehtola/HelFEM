@@ -54,6 +54,10 @@ arma::vec get_grid(double rmax, int num_el, int igrid, double zexp);
 } // namespace helfem
 
 #include "helfem/ModelPotential.h"
+#include "helfem/GaussianNucleus.h"
+#include "helfem/HollowNucleus.h"
+#include "helfem/PointNucleus.h"
+#include "helfem/SphericalNucleus.h"
 #include "helfem/PolynomialBasis.h"
 #include "helfem/RadialBasis.h"
 

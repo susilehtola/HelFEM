@@ -2,9 +2,19 @@ set(LIBHELFEM_VERSION "v0.0.1-alpha")
 
 # Version information
 configure_file("include/helfem.source.h" "include/helfem.h")
-configure_file("include/ModelPotential.h" "include/helfem/ModelPotential.h" COPYONLY)
-configure_file("include/PolynomialBasis.h" "include/helfem/PolynomialBasis.h" COPYONLY)
-configure_file("include/RadialBasis.h" "include/helfem/RadialBasis.h" COPYONLY)
+list(APPEND LIBHELFEM_PUBLIC_HEADERS
+    "ModelPotential.h"
+    "GaussianNucleus.h"
+    "HollowNucleus.h"
+    "ModelPotential.h"
+    "PointNucleus.h"
+    "PolynomialBasis.h"
+    "RadialBasis.h"
+    "SphericalNucleus.h"
+)
+foreach(header IN LISTS LIBHELFEM_PUBLIC_HEADERS)
+    configure_file("include/${header}" "include/helfem/${header}" COPYONLY)
+endforeach()
 
 add_library(helfem STATIC
     src/helfem.cpp
@@ -18,6 +28,10 @@ add_library(helfem STATIC
     src/quadrature.cpp
     src/ModelPotential.cpp
     src/RadialPotential.cpp
+    src/GaussianNucleus.cpp
+    src/HollowNucleus.cpp
+    src/PointNucleus.cpp
+    src/SphericalNucleus.cpp
     src/RadialBasis.cpp
 )
 target_include_directories(helfem PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include/" "${ARMADILLO_INCLUDE_DIRS}")

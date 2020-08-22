@@ -1,4 +1,4 @@
-#include "SphericalNucleus.h"
+#include "helfem/SphericalNucleus.h"
 
 namespace helfem {
   namespace modelpotential {

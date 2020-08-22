@@ -1,4 +1,4 @@
-#include "HollowNucleus.h"
+#include "helfem/HollowNucleus.h"
 
 namespace helfem {
   namespace modelpotential {

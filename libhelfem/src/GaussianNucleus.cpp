@@ -1,4 +1,4 @@
-#include "GaussianNucleus.h"
+#include "helfem/GaussianNucleus.h"
 #include <cfloat>
 
 namespace helfem {

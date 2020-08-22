@@ -1,4 +1,4 @@
-#include "PointNucleus.h"
+#include "helfem/PointNucleus.h"
 
 namespace helfem {
   namespace modelpotential {
