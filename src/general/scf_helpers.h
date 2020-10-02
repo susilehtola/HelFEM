@@ -49,7 +49,7 @@ namespace helfem {
     void form_NOs(const arma::mat & P, const arma::mat & Sh, const arma::mat & Sinvh, arma::mat & AO_to_NO, arma::mat & NO_to_AO, arma::vec & occs);
     /// Form half-inverse overlap
     inline arma::mat form_Sinvh(arma::mat S, bool chol=false) {
-      utils::invh(S, chol);
+      return utils::invh(S, chol);
     }
 
     /// ROHF update to Fock matrices
