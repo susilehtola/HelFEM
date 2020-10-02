@@ -21,56 +21,56 @@
 #define __HELFEM_VERSION__ "${LIBHELFEM_VERSION}"
 
 namespace helfem {
-/**
- * Global boolean indicating whether the library is in verbose or non-verbose mode. * By
- * default, the library is in the non-verbose mode.
- *
- * This variable is not part of the public API. The verbosity should be enabled or disabled
- * using helfem::set_verbosity.
- */
-extern bool verbose;
+  /**
+   * Global boolean indicating whether the library is in verbose or non-verbose
+   * mode. * By default, the library is in the non-verbose mode.
+   *
+   * This variable is not part of the public API. The verbosity should be
+   * enabled or disabled using helfem::set_verbosity.
+   */
+  extern bool verbose;
 
-/**
- * Set the global verbosity flag for the libhelfem library.
- *
- * @param verbose whether to enable or disable verbosity.
- */
-void set_verbosity(bool verbosity);
+  /**
+   * Set the global verbosity flag for the libhelfem library.
+   *
+   * @param verbose whether to enable or disable verbosity.
+   */
+  void set_verbosity(bool verbosity);
 
-std::string version();
+  std::string version();
 
-// Utilities
-namespace utils {
-/**
- * Form radial grid for a calculation, ranging from r=0 to r=rmax.
- *
- * igrid: 0 for linear grid
- *        1 for quadratic grid
- *        2 for generalized polynomial grid with exponent zexp
- *        3 for generalized exponential grid with parameter zexp
- */
-arma::vec get_grid(double rmax, int num_el, int igrid, double zexp);
+  // Utilities
+  namespace utils {
+    /**
+     * Form radial grid for a calculation, ranging from r=0 to r=rmax.
+     *
+     * igrid: 0 for linear grid
+     *        1 for quadratic grid
+     *        2 for generalized polynomial grid with exponent zexp
+     *        3 for generalized exponential grid with parameter zexp
+     */
+    arma::vec get_grid(double rmax, int num_el, int igrid, double zexp);
 
-/**
- * Calculates the half-inverse of a matrix.
- */
-arma::mat invh(arma::mat S, bool chol);
-} // namespace utils
+    /**
+     * Calculates the half-inverse of a matrix.
+     */
+    arma::mat invh(arma::mat S, bool chol);
+  } // namespace utils
 } // namespace helfem
 
-#include "helfem/ModelPotential.h"
 #include "helfem/GaussianNucleus.h"
 #include "helfem/HollowNucleus.h"
+#include "helfem/ModelPotential.h"
 #include "helfem/PointNucleus.h"
-#include "helfem/SphericalNucleus.h"
 #include "helfem/PolynomialBasis.h"
 #include "helfem/RadialBasis.h"
+#include "helfem/SphericalNucleus.h"
 
 namespace helfem {
-namespace polynomial_basis {
-/// Get the wanted basis
-PolynomialBasis *get_basis(int primbas, int Nnodes);
-} // namespace polynomial_basis
+  namespace polynomial_basis {
+    /// Get the wanted basis
+    PolynomialBasis *get_basis(int primbas, int Nnodes);
+  } // namespace polynomial_basis
 } // namespace helfem
 
 #endif
