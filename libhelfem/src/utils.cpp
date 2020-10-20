@@ -14,7 +14,6 @@
  * of the License, or (at your option) any later version.
  */
 #include "utils.h"
-#include "sap.h"
 #include <cmath>
 
 extern "C" {
@@ -149,60 +148,33 @@ namespace helfem {
       return ktei;
     }
 
-    arma::vec get_grid(double rmax, int num_el, int igrid, double zexp) {
-      // Boundary values
-      arma::vec bval;
-
-      // Get boundary values
-      switch(igrid) {
-        // linear grid
-      case(1):
-        printf("Using linear grid\n");
-        bval=arma::linspace<arma::vec>(0,rmax,num_el+1);
-        break;
-
-        // quadratic grid (Schweizer et al 1999)
-      case(2):
-        printf("Using quadratic grid\n");
-        bval.zeros(num_el+1);
-        for(int i=0;i<=num_el;i++)
-          bval(i)=i*i*rmax/(num_el*num_el);
-        break;
-
-        // generalized polynomial grid, monotonic decrease till zexp~3, after that fails to work
-      case(3):
-        printf("Using generalized polynomial grid, zexp = %e\n",zexp);
-        bval.zeros(num_el+1);
-        for(int i=0;i<=num_el;i++)
-          bval(i)=rmax*std::pow(i*1.0/num_el,zexp);
-        break;
-
-        // generalized exponential grid, monotonic decrease till zexp~2, after that fails to work
-      case(4):
-        printf("Using generalized exponential grid, zexp = %e\n",zexp);
-        bval=arma::exp(arma::pow(arma::linspace<arma::vec>(0,std::pow(log(rmax+1),1.0/zexp),num_el+1),zexp))-arma::ones<arma::vec>(num_el+1);
-        break;
-
-      default:
-        throw std::logic_error("Invalid choice for grid\n");
-      }
-
-      // Make sure start and end points are numerically exact
-      bval(0)=0.0;
-      bval(bval.n_elem-1)=rmax;
-
-      return bval;
-    }
-
-    arma::vec sap_effective_charge(int Z, const arma::vec & r) {
-      arma::vec z(r);
-      for(size_t i=0;i<r.n_elem;i++)
-        z(i)=::sap_effective_charge(Z,r(i));
-      return z;
-    }
-
     int stricmp(const std::string & str1, const std::string & str2) {
       return strcasecmp(str1.c_str(),str2.c_str());
+    }
+
+    arma::mat invh(arma::mat S, bool chol) {
+      // Get the basis function norms
+      arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
+      // Go to normalized basis
+      S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
+
+      // Half-inverse is
+      arma::mat Sinvh;
+      if(chol) {
+        Sinvh = arma::inv(arma::chol(S));
+      } else {
+        arma::vec Sval;
+        arma::mat Svec;
+        if(!arma::eig_sym(Sval,Svec,S)) {
+          throw std::logic_error("Diagonalization of overlap matrix failed\n");
+        }
+        printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
+
+        Sinvh=Svec*arma::diagmat(arma::pow(Sval,-0.5))*arma::trans(Svec);
+      }
+
+      Sinvh=arma::diagmat(bfnormlz)*Sinvh;
+      return Sinvh;
     }
   }
 }

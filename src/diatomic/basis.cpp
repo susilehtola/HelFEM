@@ -15,13 +15,13 @@
  */
 #include "basis.h"
 #include "quadrature.h"
-#include "../general/polynomial.h"
-#include "../general/polynomial_basis.h"
-#include "../general/chebyshev.h"
+#include "polynomial.h"
+#include "polynomial_basis.h"
+#include "chebyshev.h"
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
 #include "../general/gsz.h"
-#include "../general/utils.h"
+#include "utils.h"
 #include "../general/timer.h"
 #include "../general/scf_helpers.h"
 #include <algorithm>

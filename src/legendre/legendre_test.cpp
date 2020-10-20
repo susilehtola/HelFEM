@@ -1,6 +1,6 @@
 #include "Legendre_Wrapper.h"
 #include "../general/spherical_harmonics.h"
-#include "../general/polynomial.h"
+#include "polynomial.h"
 
 void get_coord(double Rh, double mu, double eta, double phi, double & x, double & y, double & z) {
   x=Rh*sinh(mu)*sin(eta)*cos(phi);

@@ -14,10 +14,10 @@
  * of the License, or (at your option) any later version.
  */
 #include "quadrature.h"
-#include "../general/polynomial.h"
-#include "../general/chebyshev.h"
+#include "polynomial.h"
+#include "chebyshev.h"
 #include "../general/gaunt.h"
-#include "../general/utils.h"
+#include "utils.h"
 
 using namespace helfem;
 

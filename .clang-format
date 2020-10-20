@@ -1,0 +1,3 @@
+BasedOnStyle: LLVM
+ColumnLimit: 80
+NamespaceIndentation: All

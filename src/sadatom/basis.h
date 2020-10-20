@@ -17,7 +17,7 @@
 #define SADATOM_BASIS_H
 
 #include <armadillo>
-#include "../general/polynomial_basis.h"
+#include "polynomial_basis.h"
 #include "../atomic/basis.h"
 
 namespace helfem {

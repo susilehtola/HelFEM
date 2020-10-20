@@ -2,23 +2,15 @@
 #define NUCLEAR_MODEL_H
 
 #include <armadillo>
+#include <helfem/ModelPotential.h>
+#include <helfem/PointNucleus.h>
+#include <helfem/HollowNucleus.h>
+#include <helfem/SphericalNucleus.h>
+#include <helfem/GaussianNucleus.h>
+#include "RadialPotential.h"
 
 namespace helfem {
   namespace modelpotential {
-    /// Model potential
-    class ModelPotential {
-    public:
-      /// Constructor
-      ModelPotential();
-      /// Destructor
-      virtual ~ModelPotential();
-
-      /// Potential
-      virtual double V(double r) const=0;
-      /// Potential
-      arma::vec V(const arma::vec & r) const;
-    };
-
     /// Nuclear model
     typedef enum {
           POINT_NUCLEUS,
@@ -29,92 +21,6 @@ namespace helfem {
     } nuclear_model_t;
     /// Get nuclear model
     ModelPotential * get_nuclear_model(nuclear_model_t model, int Z, double Rrms);
-
-    /// Simple r^n radial potential
-    class RadialPotential : public ModelPotential {
-      /// Exponent
-      int n;
-    public:
-      /// Constructor
-      RadialPotential(int n);
-      /// Destructor
-      ~RadialPotential();
-      /// Potential
-      double V(double r) const override;
-    };
-
-    /// Point nucleus
-    class PointNucleus : public ModelPotential {
-      /// Charge
-      int Z;
-    public:
-      /// Constructor
-      PointNucleus(int Z);
-      /// Destructor
-      ~PointNucleus();
-      /// Potential
-      double V(double r) const override;
-    };
-
-    /// Gaussian nucleus
-    class GaussianNucleus : public ModelPotential {
-      /// Charge
-      int Z;
-      /// Size
-      double mu;
-
-      /// Cutoff for Taylor series
-      double Rcut;
-    public:
-      /// Constructor
-      GaussianNucleus(int Z, double Rrms);
-      /// Destructor
-      ~GaussianNucleus();
-      /// Potential
-      double V(double r) const override;
-      /// Get mu
-      double get_mu() const;
-      /// Set mu
-      void set_mu(double mu);
-    };
-
-    /// Uniformly charged spherical nucleus
-    class SphericalNucleus : public ModelPotential {
-      /// Charge
-      int Z;
-      /// Size
-      double R0;
-    public:
-      /// Constructor
-      SphericalNucleus(int Z, double Rrms);
-      /// Destructor
-      ~SphericalNucleus();
-      /// Potential
-      double V(double r) const override;
-      /// Get R0
-      double get_R0() const;
-      /// Set R0
-      void set_R0(double R0);
-    };
-
-    /// Thin hollow nucleus
-    class HollowNucleus : public ModelPotential {
-      /// Charge
-      int Z;
-      /// Size
-      double R;
-    public:
-      /// Constructor
-      HollowNucleus(int Z, double R);
-      /// Destructor
-      ~HollowNucleus();
-      /// Potential
-      double V(double r) const override;
-      /// Get R
-      double get_R() const;
-      /// Set R
-      void set_R(double R);
-    };
 
     /// Thomas-Fermi atom
     class TFAtom : public ModelPotential {

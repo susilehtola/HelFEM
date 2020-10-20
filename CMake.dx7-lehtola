@@ -7,4 +7,5 @@ add_definitions(-DARMA_64BIT_WORD -DARMA_BLAS_LONG)
 add_definitions(-DMKL_ILP64)
 
 # Lapack libraries
-set(LAPACK_LIBRARY mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
+link_libraries(mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
+link_libraries(gsl rt hdf5 z)
