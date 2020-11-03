@@ -13,12 +13,12 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  */
-#ifndef INTEGRALS_H
-#define INTEGRALS_H
+#ifndef QUADRATURE_H
+#define QUADRATURE_H
 
 #include <armadillo>
-#include "../general/polynomial_basis.h"
-#include "../general/model_potential.h"
+#include "polynomial_basis.h"
+#include <helfem/ModelPotential.h>
 
 namespace helfem {
   namespace quadrature {

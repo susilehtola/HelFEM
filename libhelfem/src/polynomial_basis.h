@@ -13,12 +13,19 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  */
-#ifndef LOBATTO
-#define LOBATTO
+#ifndef POLYNOMIAL_BASIS_H
+#define POLYNOMIAL_BASIS_H
 
+#include "LegendreBasis.h"
+#include "HermiteBasis.h"
+#include "LIPBasis.h"
 #include <armadillo>
+#include "helfem.h"
 
-/// Compute a Gauss-Lobatto quadrature rule for \f$ \int_{-1}^1 f(x)dx \approx \frac 2 {n(n-1)} \left[ f(-1) + f(1) \right] + \sum_{i=2}^{n-1} w_i f(x_i) \f$
-void lobatto_compute ( int n, arma::vec & x, arma::vec & w);
-
+namespace helfem {
+  namespace polynomial_basis {
+    /// Get primitive indices for a basis with n nodes and n overlapping functions.
+    arma::uvec primitive_indices(int nnodes, int noverlap, bool drop_first, bool drop_last);
+  }
+}
 #endif

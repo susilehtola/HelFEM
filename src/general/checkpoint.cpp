@@ -15,7 +15,7 @@
  */
 
 #include "checkpoint.h"
-#include "../general/polynomial_basis.h"
+#include "polynomial_basis.h"
 #include <istream>
 
 // Helper macros

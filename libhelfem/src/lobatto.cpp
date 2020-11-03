@@ -13,7 +13,7 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  */
-#include <armadillo>
+#include "lobatto.h"
 #include <cfloat>
 
 void lobatto_set(int order, arma::vec & xtab, arma::vec & weight)
@@ -741,4 +741,3 @@ void lobatto_compute (int n, arma::vec & x, arma::vec & w)
   }
 }
 /******************************************************************************/
-

@@ -14,8 +14,8 @@
  * of the License, or (at your option) any later version.
  */
 #include "quadrature.h"
-#include "../general/chebyshev.h"
-#include "../general/polynomial.h"
+#include "chebyshev.h"
+#include "polynomial.h"
 
 namespace helfem {
   namespace diatomic {

@@ -15,9 +15,9 @@
  */
 #include "quadrature.h"
 #include "erfc_expn.h"
-#include "../general/chebyshev.h"
-#include "../general/polynomial.h"
-#include "../general/utils.h"
+#include "chebyshev.h"
+#include "polynomial.h"
+#include "utils.h"
 
 namespace helfem {
   namespace quadrature {
