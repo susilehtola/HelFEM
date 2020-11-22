@@ -31,13 +31,14 @@ namespace helfem {
       int id;
       /// Order
       int order;
+
     public:
       /// Constructor
       PolynomialBasis();
       /// Destructor
       virtual ~PolynomialBasis();
       /// Get a copy
-      virtual PolynomialBasis * copy() const=0;
+      virtual PolynomialBasis *copy() const = 0;
 
       /// Get number of basis functions
       int get_nbf() const;
@@ -50,20 +51,21 @@ namespace helfem {
       int get_order() const;
 
       /// Drop first function
-      virtual void drop_first()=0;
+      virtual void drop_first() = 0;
       /// Drop last function
-      virtual void drop_last()=0;
+      virtual void drop_last() = 0;
 
       /// Evaluate polynomials at given points
-      virtual arma::mat eval(const arma::vec & x) const=0;
+      virtual arma::mat eval(const arma::vec &x) const = 0;
       /// Evaluate polynomials and derivatives at given points
-      virtual void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const=0;
+      virtual void eval(const arma::vec &x, arma::mat &f,
+                        arma::mat &df) const = 0;
       /// Evaluate second derivatives at given point
-      virtual void eval_lapl(const arma::vec & x, arma::mat & lf) const;
+      virtual void eval_lapl(const arma::vec &x, arma::mat &lf) const;
 
       /// Print out the basis functions
-      void print(const std::string & str="") const;
+      void print(const std::string &str = "") const;
     };
-  }
-}
+  } // namespace polynomial_basis
+} // namespace helfem
 #endif

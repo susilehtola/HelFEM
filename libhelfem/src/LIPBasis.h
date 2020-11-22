@@ -22,18 +22,19 @@
 namespace helfem {
   namespace polynomial_basis {
     /// Lagrange interpolating polynomials
-    class LIPBasis: public PolynomialBasis {
+    class LIPBasis : public PolynomialBasis {
       /// Control nodes
       arma::vec x0;
       /// Indices of enabled functions
       arma::uvec enabled;
+
     public:
       /// Constructor
-      LIPBasis(const arma::vec & x0, int id);
+      LIPBasis(const arma::vec &x0, int id);
       /// Destructor
       ~LIPBasis();
       /// Get a copy
-      LIPBasis * copy() const override;
+      LIPBasis *copy() const override;
 
       /// Drop first function
       void drop_first() override;
@@ -41,12 +42,12 @@ namespace helfem {
       void drop_last() override;
 
       /// Evaluate polynomials at given points
-      arma::mat eval(const arma::vec & x) const override;
+      arma::mat eval(const arma::vec &x) const override;
       /// Evaluate polynomials and derivatives at given points
-      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const override;
+      void eval(const arma::vec &x, arma::mat &f, arma::mat &df) const override;
       /// Evaluate second derivatives at given points
-      void eval_lapl(const arma::vec & x, arma::mat & lf) const override;
+      void eval_lapl(const arma::vec &x, arma::mat &lf) const override;
     };
-  }
-}
+  } // namespace polynomial_basis
+} // namespace helfem
 #endif

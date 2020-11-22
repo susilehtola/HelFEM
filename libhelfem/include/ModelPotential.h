@@ -29,11 +29,11 @@ namespace helfem {
       virtual ~ModelPotential();
 
       /// Potential
-      virtual double V(double r) const=0;
+      virtual double V(double r) const = 0;
       /// Potential
-      arma::vec V(const arma::vec & r) const;
+      arma::vec V(const arma::vec &r) const;
     };
-  }
-}
+  } // namespace modelpotential
+} // namespace helfem
 
 #endif
