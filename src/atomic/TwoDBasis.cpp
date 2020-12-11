@@ -1376,6 +1376,33 @@ namespace helfem {
         }
       }
 
+      arma::cx_mat TwoDBasis::eval_lf(size_t iel, double cth, double phi) const {
+        // Evaluate spherical harmonics
+        arma::cx_vec sph(lval.n_elem);
+        for(size_t i=0;i<lval.n_elem;i++)
+          sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
+
+        // Evaluate radial functions
+        arma::vec r(radial.get_r(iel));
+        arma::mat frad(radial.get_bf(iel));
+        arma::mat drad(radial.get_df(iel));
+        arma::mat lrad(radial.get_lf(iel));
+
+        // Form supermatrix
+        arma::cx_mat lf(frad.n_rows,lval.n_elem*frad.n_cols,arma::fill::zeros);
+        // Loop over basis function indices
+        for(size_t iang=0;iang<lval.n_elem;iang++)
+          for(size_t irad=0;irad<frad.n_cols;irad++)
+            // Loop over grid-point indices
+            for(size_t igrid=0;igrid<frad.n_rows;igrid++)
+              lf(igrid,iang*frad.n_cols+irad) = (r(igrid)*r(igrid)*lrad(igrid,irad) + 2*r(igrid)*drad(igrid,irad) - lval(iang)*(lval(iang)+1)*frad(igrid,irad))*sph(iang)/(r(igrid)*r(igrid));
+
+        //for(size_t i=0;i<lval.n_elem;i++)
+        //lf.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=(arma::square(r)%lrad + 2*r%drad - lval(i)*(lval(i)+1)*frad) / arma::square(r) * sph(i);
+
+        return lf;
+      }
+
       arma::uvec TwoDBasis::bf_list(size_t iel) const {
         // Radial functions in element
         size_t ifirst, ilast;

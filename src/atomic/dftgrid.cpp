@@ -81,7 +81,7 @@ namespace helfem {
         }
 
         // Calculate laplacian and kinetic energy density
-        if(do_tau) {
+        if(do_tau || do_lapl) {
           // Adjust size of grid
           tau.zeros(1,wtot.n_elem);
 
@@ -101,10 +101,25 @@ namespace helfem {
             // Store values
             tau(0,ip)=0.5*kin;
           }
-        }
 
-        if(do_lapl)
-          throw std::logic_error("Laplacian not implemented!\n");
+          if(do_lapl) {
+            // Adjust size of grid
+            lapl.zeros(1,wtot.n_elem);
+            // Calculate values
+            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+              // Gradient term
+              double kinrho(std::real(arma::dot(Pv_rho.col(ip),bf_rho.col(ip)))/std::pow(scale_r(ip),2));
+              double kintheta(std::real(arma::dot(Pv_theta.col(ip),bf_theta.col(ip)))/std::pow(scale_theta(ip),2));
+              double kinphi(std::real(arma::dot(Pv_phi.col(ip),bf_phi.col(ip)))/std::pow(scale_phi(ip),2));
+              double kin(kinrho + kintheta + kinphi);
+              // Laplacian term
+              double lap(std::real(arma::dot(Pv.col(ip),bf_lapl.col(ip))));
+
+              // Store values
+              lapl(0,ip)=2.0*(kin + lap);
+            }
+          }
+        }
       }
 
       void DFTGridWorker::update_density(const arma::mat & Pa0, const arma::mat & Pb0) {
@@ -158,7 +173,7 @@ namespace helfem {
         }
 
         // Calculate kinetic energy density
-        if(do_tau) {
+        if(do_tau || do_lapl) {
           // Adjust size of grid
           tau.resize(2,wtot.n_elem);
 
@@ -188,8 +203,31 @@ namespace helfem {
             tau(0,ip)=0.5*kina;
             tau(1,ip)=0.5*kinb;
           }
-          if(do_lapl)
-            throw std::logic_error("Laplacian not implemented!\n");
+          if(do_lapl) {
+            // Adjust size of grid
+            lapl.zeros(2,wtot.n_elem);
+            // Calculate values
+            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+              // Gradient term
+              double kinar=std::real(arma::dot(Pav_rho.col(ip),bf_rho.col(ip)))/std::pow(scale_r(ip),2);
+              double kinath=std::real(arma::dot(Pav_theta.col(ip),bf_theta.col(ip)))/std::pow(scale_theta(ip),2);
+              double kinaphi=std::real(arma::dot(Pav_phi.col(ip),bf_phi.col(ip)))/std::pow(scale_phi(ip),2);
+              double kina(kinar + kinath + kinaphi);
+
+              double kinbr=std::real(arma::dot(Pbv_rho.col(ip),bf_rho.col(ip)))/std::pow(scale_r(ip),2);
+              double kinbth=std::real(arma::dot(Pbv_theta.col(ip),bf_theta.col(ip)))/std::pow(scale_theta(ip),2);
+              double kinbphi=std::real(arma::dot(Pbv_phi.col(ip),bf_phi.col(ip)))/std::pow(scale_phi(ip),2);
+              double kinb(kinbr + kinbth + kinbphi);
+
+              // Laplacian term
+              double lapa(std::real(arma::dot(Pav.col(ip),bf_lapl.col(ip))));
+              double lapb(std::real(arma::dot(Pbv.col(ip),bf_lapl.col(ip))));
+
+              // Store values
+              lapl(0,ip)=2.0*(kina + lapa);
+              lapl(1,ip)=2.0*(kinb + lapb);
+            }
+          }
         }
       }
 
@@ -238,6 +276,21 @@ namespace helfem {
         }
 
         return nel;
+      }
+
+      double DFTGridWorker::compute_laplsum() const {
+        double sum=0.0;
+        if(lapl.n_cols == wtot.n_elem) {
+          if(!polarized) {
+            for(size_t ip=0;ip<wtot.n_elem;ip++)
+              sum+=wtot(ip)*lapl(0,ip);
+          } else {
+            for(size_t ip=0;ip<wtot.n_elem;ip++)
+              sum+=wtot(ip)*(lapl(0,ip)+lapl(1,ip));
+          }
+        }
+
+        return sum;
       }
 
       double DFTGridWorker::compute_Ekin() const {
@@ -533,16 +586,22 @@ namespace helfem {
           increment_gga< std::complex<double> >(H,gr,bf,bf_rho,bf_theta,bf_phi);
         }
 
-        if(do_mgga_t) {
-          arma::rowvec vt(vtau.row(0));
-          vt%=0.5*wtot;
+        if(do_mgga_t || do_mgga_l) {
+          arma::rowvec vtl(wtot.n_elem, arma::fill::zeros);
+          if(do_mgga_t)
+            vtl += 0.5*vtau.row(0);
+          if(do_mgga_l)
+            vtl += 2.0*vlapl.row(0);
+          vtl %= wtot;
 
-          increment_lda< std::complex<double> >(H,vt/arma::square(scale_r),bf_rho);
-          increment_lda< std::complex<double> >(H,vt/arma::square(scale_theta),bf_theta);
-          increment_lda< std::complex<double> >(H,vt/arma::square(scale_phi),bf_phi);
+          increment_lda< std::complex<double> >(H,vtl/arma::square(scale_r),bf_rho);
+          increment_lda< std::complex<double> >(H,vtl/arma::square(scale_theta),bf_theta);
+          increment_lda< std::complex<double> >(H,vtl/arma::square(scale_phi),bf_phi);
         }
-        if(do_mgga_l)
-          throw std::logic_error("Laplacian not implemented!\n");
+        if(do_mgga_l) {
+          arma::rowvec vl(vlapl.row(0)%wtot);
+          increment_mgga_lapl< std::complex<double> >(H,vl,bf,bf_lapl);
+        }
 
         Ho(bf_ind,bf_ind)+=H;
       }
@@ -610,23 +669,34 @@ namespace helfem {
 
 
         if(do_mgga_t) {
-          arma::rowvec vt_a(vtau.row(0));
-          vt_a%=0.5*wtot;
+          arma::rowvec vtl_a(wtot.n_elem, arma::fill::zeros);
+          if(do_mgga_t)
+            vtl_a += 0.5*vtau.row(0);
+          if(do_mgga_l)
+            vtl_a += 2.0*vlapl.row(0);
+          vtl_a %= wtot;
 
-          increment_lda< std::complex<double> >(Ha,vt_a/arma::square(scale_r),bf_rho);
-          increment_lda< std::complex<double> >(Ha,vt_a/arma::square(scale_theta),bf_theta);
-          increment_lda< std::complex<double> >(Ha,vt_a/arma::square(scale_phi),bf_phi);
+          increment_lda< std::complex<double> >(Ha,vtl_a/arma::square(scale_r),bf_rho);
+          increment_lda< std::complex<double> >(Ha,vtl_a/arma::square(scale_theta),bf_theta);
+          increment_lda< std::complex<double> >(Ha,vtl_a/arma::square(scale_phi),bf_phi);
           if(beta) {
-            arma::rowvec vt_b(vtau.row(1));
-            vt_b%=0.5*wtot;
+            arma::rowvec vtl_b(wtot.n_elem, arma::fill::zeros);
+            if(do_mgga_t)
+              vtl_b += 0.5*vtau.row(1);
+            if(do_mgga_l)
+              vtl_b += 2.0*vlapl.row(1);
+            vtl_b %= wtot;
 
-            increment_lda< std::complex<double> >(Hb,vt_b/arma::square(scale_r),bf_rho);
-            increment_lda< std::complex<double> >(Hb,vt_b/arma::square(scale_theta),bf_theta);
-            increment_lda< std::complex<double> >(Hb,vt_b/arma::square(scale_phi),bf_phi);
+            increment_lda< std::complex<double> >(Hb,vtl_b/arma::square(scale_r),bf_rho);
+            increment_lda< std::complex<double> >(Hb,vtl_b/arma::square(scale_theta),bf_theta);
+            increment_lda< std::complex<double> >(Hb,vtl_b/arma::square(scale_phi),bf_phi);
           }
         }
         if(do_mgga_l) {
-          throw std::logic_error("Laplacian not implemented!\n");
+          arma::rowvec vl_a(vlapl.row(0)%wtot);
+          arma::rowvec vl_b(vlapl.row(1)%wtot);
+          increment_mgga_lapl< std::complex<double> >(Ha,vl_a,bf,bf_lapl);
+          increment_mgga_lapl< std::complex<double> >(Hb,vl_b,bf,bf_lapl);
         }
 
         Hao(bf_ind,bf_ind)+=Ha;
@@ -741,7 +811,19 @@ namespace helfem {
         }
 
         if(do_lapl) {
-          throw std::logic_error("Laplacian not implemented.\n");
+          bf_lapl.zeros(bf_ind.n_elem,wtot.n_elem);
+          // Loop over angular grid
+          for(size_t ia=0;ia<cth.n_elem;ia++) {
+            // Evaluate basis functions at angular point
+            arma::cx_mat alf(basp->eval_lf(iel, cth(ia), phi(ia)));
+            if(alf.n_cols != bf_ind.n_elem) {
+              std::ostringstream oss;
+              oss << "Mismatch! Have " << bf_ind.n_elem << " basis function indices but " << alf.n_cols << " basis functions!\n";
+              throw std::logic_error(oss.str());
+            }
+            // Store functions
+            bf_lapl.cols(ia*wrad.n_elem,(ia+1)*wrad.n_elem-1)=arma::trans(alf);
+          }
         }
       }
 
@@ -763,8 +845,9 @@ namespace helfem {
         double exc=0.0;
         double ekin=0.0;
         double nel=0.0;
+        double lapl=0;
 #ifdef _OPENMP
-#pragma omp parallel reduction(+:exc,nel)
+#pragma omp parallel reduction(+:exc,nel,lapl)
 #endif
         {
           DFTGridWorker grid(basp,lang,mang);
@@ -778,6 +861,7 @@ namespace helfem {
             grid.update_density(P);
             nel+=grid.compute_Nel();
             ekin+=grid.compute_Ekin();
+            lapl+=grid.compute_laplsum();
 
             grid.init_xc();
             if(thr>0.0)
@@ -798,6 +882,7 @@ namespace helfem {
             grid.update_density(P);
             nel+=grid.compute_Nel();
             ekin+=grid.compute_Ekin();
+            lapl+=grid.compute_laplsum();
 
             grid.init_xc();
             if(thr>0.0)
@@ -816,6 +901,8 @@ namespace helfem {
         Exc=exc;
         Ekin=ekin;
         Nel=nel;
+
+        printf("Integral over laplacian %e\n",lapl);
       }
 
       void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr) {
