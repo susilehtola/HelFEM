@@ -24,6 +24,7 @@ namespace helfem {
     class PointNucleus : public ModelPotential {
       /// Charge
       int Z;
+
     public:
       /// Constructor
       PointNucleus(int Z);
@@ -32,7 +33,7 @@ namespace helfem {
       /// Potential
       double V(double r) const override;
     };
-  }
-}
+  } // namespace modelpotential
+} // namespace helfem
 
 #endif

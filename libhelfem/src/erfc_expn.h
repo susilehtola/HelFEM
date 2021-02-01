@@ -33,8 +33,8 @@ namespace helfem {
        * interactions", J. Phys. A: Math. Gen. 39, 8613 (2006).
        */
       double Phi(unsigned int n, double Xi, double xi);
-    }
-  }
-}
+    } // namespace erfc_expn
+  }   // namespace atomic
+} // namespace helfem
 
 #endif

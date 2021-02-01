@@ -25,25 +25,25 @@ namespace helfem {
      *   f(x)  = c_0 + c_1 x + c_2 x^2 + ... + c_n x^n
      * at a given point
      */
-    double polyval(const arma::vec & c, double x);
+    double polyval(const arma::vec &c, double x);
     /**
      * Evaluates the polynomial expansion
      *   f(x)  = c_0 + c_1 x + c_2 x^2 + ... + c_n x^n
      * at given point(s) x
      */
-    arma::mat polyval(const arma::mat & c, const arma::vec & x);
+    arma::mat polyval(const arma::mat &c, const arma::vec &x);
 
     /**
      * Evaluates the Lagrange interpolating polynomial
      *   f(x)  = \prod_{k=1}^{n-1} \frac {x - x_k} {x_0 - x_k}
      * at a given point x.
      */
-    double lipval(const arma::vec & x0, double x);
+    double lipval(const arma::vec &x0, double x);
     /**
      * Evaluates Lagrange interpolating polynomials at wanted points
      * x.
      */
-    arma::mat lipval(const arma::mat & x0, const arma::vec & x);
+    arma::mat lipval(const arma::mat &x0, const arma::vec &x);
 
     /**
      * Calculate factorial n! = n*(n-1)*...*2*1
@@ -69,8 +69,8 @@ namespace helfem {
      *
      * The coefficients are assumed to be stored column-wise.
      */
-    arma::mat derivative_coeffs(const arma::mat & c, int der_order);
-    
+    arma::mat derivative_coeffs(const arma::mat &c, int der_order);
+
     /**
      * Get the coefficient matrix for a Lagrange (der_order = 0) or
      * Hermite (der_order>0) interpolating polynomial basis.
@@ -91,9 +91,8 @@ namespace helfem {
      * into an expansion in an element
      *   f(r)  = c_0 + c_1 r + c_2 r^2 + ... + c_n r^n
      */
-    arma::mat convert_coeffs(const arma::mat & c, double rmin, double rmax);
-  }
-}
+    arma::mat convert_coeffs(const arma::mat &c, double rmin, double rmax);
+  } // namespace polynomial
+} // namespace helfem
 
 #endif
-

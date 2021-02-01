@@ -29,6 +29,7 @@ namespace helfem {
 
       /// Cutoff for Taylor series
       double Rcut;
+
     public:
       /// Constructor
       GaussianNucleus(int Z, double Rrms);
@@ -41,7 +42,7 @@ namespace helfem {
       /// Set mu
       void set_mu(double mu);
     };
-  }
-}
+  } // namespace modelpotential
+} // namespace helfem
 
 #endif

@@ -24,6 +24,7 @@ namespace helfem {
     class RadialPotential : public ModelPotential {
       /// Exponent
       int n;
+
     public:
       /// Constructor
       RadialPotential(int n);
@@ -32,7 +33,7 @@ namespace helfem {
       /// Potential
       double V(double r) const override;
     };
-  }
-}
+  } // namespace modelpotential
+} // namespace helfem
 
 #endif

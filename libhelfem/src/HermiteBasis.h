@@ -22,18 +22,19 @@
 namespace helfem {
   namespace polynomial_basis {
     /// Primitive polynomials with Hermite
-    class HermiteBasis: public PolynomialBasis {
+    class HermiteBasis : public PolynomialBasis {
       /// Primitive polynomial basis expansion
       arma::mat bf_C;
       /// Primitive polynomial basis expansion, derivative
       arma::mat df_C;
+
     public:
       /// Constructor
       HermiteBasis(int n_nodes, int der_order);
       /// Destructor
       ~HermiteBasis();
       /// Get a copy
-      HermiteBasis * copy() const override;
+      HermiteBasis *copy() const override;
 
       /// Drop first function
       void drop_first() override;
@@ -41,12 +42,12 @@ namespace helfem {
       void drop_last() override;
 
       /// Evaluate polynomials at given points
-      arma::mat eval(const arma::vec & x) const override;
+      arma::mat eval(const arma::vec &x) const override;
       /// Evaluate polynomials and derivatives at given points
-      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const override;
+      void eval(const arma::vec &x, arma::mat &f, arma::mat &df) const override;
       /// Evaluate second derivatives at given points
-      void eval_lapl(const arma::vec & x, arma::mat & lf) const override;
+      void eval_lapl(const arma::vec &x, arma::mat &lf) const override;
     };
-  }
-}
+  } // namespace polynomial_basis
+} // namespace helfem
 #endif

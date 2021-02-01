@@ -26,6 +26,7 @@ namespace helfem {
       int Z;
       /// Size
       double R0;
+
     public:
       /// Constructor
       SphericalNucleus(int Z, double Rrms);
@@ -38,7 +39,7 @@ namespace helfem {
       /// Set R0
       void set_R0(double R0);
     };
-  }
-}
+  } // namespace modelpotential
+} // namespace helfem
 
 #endif

@@ -15,7 +15,8 @@
  */
 #include <helfem.h>
 
-arma::vec helfem::utils::get_grid(double rmax, int num_el, int igrid, double zexp) {
+arma::vec helfem::utils::get_grid(double rmax, int num_el, int igrid,
+                                  double zexp) {
   // Boundary values
   arma::vec bval;
 
@@ -38,7 +39,8 @@ arma::vec helfem::utils::get_grid(double rmax, int num_el, int igrid, double zex
     break;
 
   case (3):
-    // generalized polynomial grid, monotonic decrease till zexp~3, after that fails to work
+    // generalized polynomial grid, monotonic decrease till zexp~3, after that
+    // fails to work
     if (helfem::verbose)
       printf("Using generalized polynomial grid, zexp = %e\n", zexp);
     bval.zeros(num_el + 1);
@@ -46,13 +48,15 @@ arma::vec helfem::utils::get_grid(double rmax, int num_el, int igrid, double zex
       bval(i) = rmax * std::pow(i * 1.0 / num_el, zexp);
     break;
 
-  // generalized exponential grid, monotonic decrease till zexp~2, after that fails to work
+  // generalized exponential grid, monotonic decrease till zexp~2, after that
+  // fails to work
   case (4):
     if (helfem::verbose)
       printf("Using generalized exponential grid, zexp = %e\n", zexp);
-    bval = arma::exp(arma::pow(arma::linspace<arma::vec>(
-                                   0, std::pow(log(rmax + 1), 1.0 / zexp), num_el + 1),
-                               zexp)) -
+    bval = arma::exp(arma::pow(
+               arma::linspace<arma::vec>(0, std::pow(log(rmax + 1), 1.0 / zexp),
+                                         num_el + 1),
+               zexp)) -
            arma::ones<arma::vec>(num_el + 1);
     break;
 

@@ -17,14 +17,10 @@
 
 namespace helfem {
   namespace modelpotential {
-    RadialPotential::RadialPotential(int n_) : n(n_) {
-    }
+    RadialPotential::RadialPotential(int n_) : n(n_) {}
 
-    RadialPotential::~RadialPotential() {
-    }
+    RadialPotential::~RadialPotential() {}
 
-    double RadialPotential::V(double R) const {
-      return std::pow(R,n);
-    }
-  }
-}
+    double RadialPotential::V(double R) const { return std::pow(R, n); }
+  } // namespace modelpotential
+} // namespace helfem

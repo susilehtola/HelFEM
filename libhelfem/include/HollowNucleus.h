@@ -26,6 +26,7 @@ namespace helfem {
       int Z;
       /// Size
       double R;
+
     public:
       /// Constructor
       HollowNucleus(int Z, double R);
@@ -38,7 +39,7 @@ namespace helfem {
       /// Set R
       void set_R(double R);
     };
-  }
-}
+  } // namespace modelpotential
+} // namespace helfem
 
 #endif
