@@ -194,7 +194,7 @@ arma::mat RadialBasis::model_potential(const RadialBasis &rh,
   chebyshev::chebyshev(n_quad, xproj, wproj);
 
   // Form list of overlapping elements
-  std::vector<std::vector<size_t>> overlap(bval.n_elem - 1);
+  std::vector< std::vector<size_t> > overlap(bval.n_elem - 1);
   for (size_t iel = 0; iel < bval.n_elem - 1; iel++) {
     // Range of element i
     double istart(bval(iel));
