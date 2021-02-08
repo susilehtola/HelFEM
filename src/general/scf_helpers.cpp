@@ -608,7 +608,7 @@ namespace helfem {
         // Is this a file name?
         bool isfile;
         {
-          std::ifstream f(input);
+          std::ifstream f(input.c_str());
           isfile = f.good();
         }
         if(isfile) {
