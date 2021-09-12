@@ -39,11 +39,6 @@ if(HELFEM_CMAKE_SYSTEM AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/CMake.system")
     include("${CMAKE_CURRENT_SOURCE_DIR}/CMake.system")
 endif()
 
-# Workaround CMake bug
-if(BUILD_SHARED_LIBS)
-  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-endif()
-
 # Try to automatically find and configure all the dependent libraries, if the user specified
 # the HELFEM_FIND_DEPS option.
 #

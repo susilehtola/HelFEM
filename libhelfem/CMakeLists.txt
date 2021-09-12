@@ -16,7 +16,7 @@ foreach(header IN LISTS LIBHELFEM_PUBLIC_HEADERS)
     configure_file("include/${header}" "include/helfem/${header}" COPYONLY)
 endforeach()
 
-add_library(helfem STATIC
+add_library(helfem
     src/helfem.cpp
     src/grid.cpp
     src/chebyshev.cpp
