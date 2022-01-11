@@ -43,9 +43,22 @@ namespace helfem {
       DFTGridWorker::~DFTGridWorker() {
       }
 
-      void DFTGridWorker::update_density(const arma::mat & P0) {
-        // Update values of density
-        arma::mat P(P0(bf_ind,bf_ind));
+      void DFTGridWorker::update_density(const arma::cube & Pc0) {
+        // In-element cube
+        arma::cube Pc(bf_ind.n_elem, bf_ind.n_elem, Pc0.n_slices);
+        for(size_t islice=0; islice<Pc0.n_slices;islice++) {
+          Pc.slice(islice) = Pc0.slice(islice)(bf_ind, bf_ind);
+        }
+        // Total density matrix
+        arma::mat P(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
+        for(size_t islice=0; islice<Pc.n_slices;islice++) {
+          P += Pc.slice(islice);
+        }
+        // and the one multiplied by l(l+1)
+        arma::mat Pl(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
+        for(size_t islice=0; islice<Pc.n_slices;islice++) {
+          Pl += islice*(islice+1)*Pc.slice(islice);
+        }
 
         // Non-polarized calculation.
         polarized=false;
@@ -70,17 +83,57 @@ namespace helfem {
           }
         }
 
-        // Calculate laplacian and kinetic energy density
-        if(do_tau || do_lapl)
-          throw std::logic_error("Meta-GGAs not implemented!\n");
+        // Calculate kinetic energy density
+        if(do_tau) {
+          arma::mat Plv(Pl*arma::conj(bf));
+          arma::mat Pvp(P*arma::conj(bf_rho));
+
+          tau.zeros(1,wtot.n_elem);
+          for(size_t ip=0;ip<wtot.n_elem;ip++) {
+            // First term: P(u,v) * \chi_u' \chi_v'
+            double term1 = arma::dot(Pvp.col(ip), bf_rho.col(ip));
+            // Second term: l(l+1) Pl(u,v) \chi_u \chi_v / r^2
+            double term2 = arma::dot(Plv.col(ip), bf.col(ip))/(r(ip)*r(ip));
+            tau(0,ip) = 0.5*(term1 + term2);
+          }
+        }
+
+        if(do_lapl)
+          throw std::logic_error("Laplacian meta-GGAs not implemented!\n");
       }
 
-      void DFTGridWorker::update_density(const arma::mat & Pa0, const arma::mat & Pb0) {
-        if(!Pa0.n_elem || !Pb0.n_elem) {
+      void DFTGridWorker::update_density(const arma::cube & Pac0, const arma::cube & Pbc0) {
+        if(!Pac0.n_elem || !Pbc0.n_elem) {
           throw std::runtime_error("Error - density matrix is empty!\n");
         }
-        arma::mat Pa(Pa0(bf_ind,bf_ind));
-        arma::mat Pb(Pb0(bf_ind,bf_ind));
+
+        // In-element cube
+        arma::cube Pac(bf_ind.n_elem, bf_ind.n_elem, Pac0.n_slices);
+        for(size_t islice=0; islice<Pac0.n_slices;islice++) {
+          Pac.slice(islice) = Pac0.slice(islice)(bf_ind, bf_ind);
+        }
+        arma::cube Pbc(bf_ind.n_elem, bf_ind.n_elem, Pbc0.n_slices);
+        for(size_t islice=0; islice<Pbc0.n_slices;islice++) {
+          Pbc.slice(islice) = Pbc0.slice(islice)(bf_ind, bf_ind);
+        }
+        // Total density matrix
+        arma::mat Pa(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
+        for(size_t islice=0; islice<Pac.n_slices;islice++) {
+          Pa += Pac.slice(islice);
+        }
+        arma::mat Pb(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
+        for(size_t islice=0; islice<Pbc.n_slices;islice++) {
+          Pb += Pbc.slice(islice);
+        }
+        // and the one multiplied by l(l+1)
+        arma::mat Pal(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
+        for(size_t islice=0; islice<Pac.n_slices;islice++) {
+          Pal += islice*(islice+1)*Pac.slice(islice);
+        }
+        arma::mat Pbl(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
+        for(size_t islice=0; islice<Pbc.n_slices;islice++) {
+          Pbl += islice*(islice+1)*Pbc.slice(islice);
+        }
 
         // Polarized calculation.
         polarized=true;
@@ -112,8 +165,28 @@ namespace helfem {
         }
 
         // Calculate kinetic energy density
-        if(do_tau || do_lapl)
-          throw std::logic_error("Meta-GGA not implemented!\n");
+        if(do_tau) {
+          arma::mat Palv(Pal*arma::conj(bf));
+          arma::mat Pavp(Pa*arma::conj(bf_rho));
+          arma::mat Pblv(Pbl*arma::conj(bf));
+          arma::mat Pbvp(Pb*arma::conj(bf_rho));
+
+          tau.zeros(2,wtot.n_elem);
+          for(size_t ip=0;ip<wtot.n_elem;ip++) {
+            // First term: P(u,v) * \chi_u' \chi_v'
+            double term1a = arma::dot(Pavp.col(ip), bf_rho.col(ip));
+            double term1b = arma::dot(Pbvp.col(ip), bf_rho.col(ip));
+            // Second term: l(l+1) Pl(u,v) \chi_u \chi_v / r^2
+            double term2a = arma::dot(Palv.col(ip), bf.col(ip))/(r(ip)*r(ip));
+            double term2b = arma::dot(Pblv.col(ip), bf.col(ip))/(r(ip)*r(ip));
+            tau(0,ip) = 0.5*(term1a + term2a);
+            tau(1,ip) = 0.5*(term1b + term2b);
+          }
+        }
+
+        // Calculate kinetic energy density
+        if(do_lapl)
+          throw std::logic_error("Laplacian meta-GGAs not implemented!\n");
       }
 
       void DFTGridWorker::screen_density(double thr) {
@@ -333,7 +406,7 @@ namespace helfem {
         So.submat(bf_ind,bf_ind)+=S;
       }
 
-      void DFTGridWorker::eval_Fxc(arma::mat & Ho) const {
+      void DFTGridWorker::eval_Fxc(arma::cube & Ho) const {
         if(polarized) {
           throw std::runtime_error("Refusing to compute restricted Fock matrix with unrestricted density.\n");
         }
@@ -341,6 +414,10 @@ namespace helfem {
         // Work matrix
         arma::mat H(bf_ind.n_elem,bf_ind.n_elem);
         H.zeros();
+
+        // l-dependent term
+        arma::mat Hl(bf_ind.n_elem,bf_ind.n_elem);
+        Hl.zeros();
 
         {
           // LDA potential
@@ -369,15 +446,22 @@ namespace helfem {
           arma::rowvec vt(vtau.row(0));
           vt%=0.5*wtot;
 
+          // Base term
           increment_lda<double>(H,vt,bf_rho);
+          // l(l+1) term
+          vt=vtau.row(0)%(0.5*wrad*4.0*M_PI);
+          increment_lda<double>(Hl,vt,bf);
         }
         if(do_mgga_l)
           throw std::logic_error("Laplacian not implemented!\n");
 
-        Ho(bf_ind,bf_ind)+=H;
+        // Collect results
+        for(size_t islice=0;islice<Ho.n_slices;islice++) {
+          Ho.slice(islice)(bf_ind,bf_ind) += H + islice*(islice+1)*Hl;
+        }
       }
 
-      void DFTGridWorker::eval_Fxc(arma::mat & Hao, arma::mat & Hbo, bool beta) const {
+      void DFTGridWorker::eval_Fxc(arma::cube & Hao, arma::cube & Hbo, bool beta) const {
         if(!polarized) {
           throw std::runtime_error("Refusing to compute unrestricted Fock matrix with restricted density.\n");
         }
@@ -386,6 +470,11 @@ namespace helfem {
         Ha.zeros(bf_ind.n_elem,bf_ind.n_elem);
         if(beta)
           Hb.zeros(bf_ind.n_elem,bf_ind.n_elem);
+
+        arma::mat Hal, Hbl;
+        Hal.zeros(bf_ind.n_elem,bf_ind.n_elem);
+        if(beta)
+          Hbl.zeros(bf_ind.n_elem,bf_ind.n_elem);
 
         {
           // LDA potential
@@ -434,13 +523,33 @@ namespace helfem {
           }
         }
 
-        if(do_mgga_t || do_mgga_l) {
-          throw std::logic_error("Meta-GGA not implemented!\n");
-        }
+        if(do_mgga_t) {
+          arma::rowvec vat(vtau.row(0));
+          vat%=0.5*wtot;
+          arma::rowvec vbt(vtau.row(1));
+          vbt%=0.5*wtot;
 
-        Hao(bf_ind,bf_ind)+=Ha;
-        if(beta)
-          Hbo(bf_ind,bf_ind)+=Hb;
+          // Base term
+          increment_lda<double>(Ha,vat,bf_rho);
+          increment_lda<double>(Hb,vbt,bf_rho);
+          // l(l+1) term
+          vat=vtau.row(0)%(0.5*wrad*4.0*M_PI);
+          vbt=vtau.row(1)%(0.5*wrad*4.0*M_PI);
+          increment_lda<double>(Hal,vat,bf);
+          increment_lda<double>(Hbl,vbt,bf);
+        }
+        if(do_mgga_l)
+          throw std::logic_error("Laplacian not implemented!\n");
+
+        // Collect results
+        for(size_t islice=0;islice<Hao.n_slices;islice++) {
+          Hao.slice(islice)(bf_ind,bf_ind) += Ha + islice*(islice+1)*Hal;
+        }
+        if(beta) {
+          for(size_t islice=0;islice<Hbo.n_slices;islice++) {
+            Hbo.slice(islice)(bf_ind,bf_ind) += Hb + islice*(islice+1)*Hbl;
+          }
+        }
       }
 
       void DFTGridWorker::check_grad_tau_lapl(int x_func, int c_func) {
@@ -481,10 +590,10 @@ namespace helfem {
       void DFTGridWorker::compute_bf(size_t iel) {
         // Update function list
         bf_ind=basp->bf_list(iel);
-
-        // Get radii and radial weights
-        arma::vec r(basp->get_r(iel));
-        arma::vec wrad(basp->get_wrad(iel));
+        // Get radii
+        r=basp->get_r(iel);
+        // Get radial weights
+        wrad=basp->get_wrad(iel);
 
         // Update total weights
         wtot.zeros(wrad.n_elem);
@@ -513,8 +622,8 @@ namespace helfem {
       DFTGrid::~DFTGrid() {
       }
 
-      void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double thr) {
-        H.zeros(P.n_rows,P.n_rows);
+      void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::cube & H, double & Exc, double & Nel, double thr) {
+        H.zeros(P.n_rows,P.n_rows,P.n_slices);
 
         double exc=0.0;
         double nel=0.0;
@@ -570,9 +679,9 @@ namespace helfem {
         Nel=nel;
       }
 
-      void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, bool beta, double thr) {
-        Ha.zeros(Pa.n_rows,Pa.n_rows);
-        Hb.zeros(Pb.n_rows,Pb.n_rows);
+      void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::cube & Ha, arma::cube & Hb, double & Exc, double & Nel, bool beta, double thr) {
+        Ha.zeros(Pa.n_rows,Pa.n_rows,Pa.n_slices);
+        Hb.zeros(Pb.n_rows,Pb.n_rows,Pb.n_slices);
 
         double exc=0.0;
         double nel=0.0;

@@ -29,6 +29,10 @@ namespace helfem {
         /// Basis set
         const helfem::sadatom::basis::TwoDBasis *basp;
 
+        /// Distance from nucleus
+        arma::vec r;
+        /// Radial quadrature weight
+        arma::rowvec wrad;
         /// Total quadrature weight
         arma::rowvec wtot;
 
@@ -113,9 +117,9 @@ namespace helfem {
         void free();
 
         /// Update values of density, restricted calculation
-        void update_density(const arma::mat & P);
+        void update_density(const arma::cube & P);
         /// Update values of density, unrestricted calculation
-        void update_density(const arma::mat & Pa, const arma::mat & Pb);
+        void update_density(const arma::cube & Pa, const arma::cube & Pb);
         /// Screen out small densities
         void screen_density(double thr);
 
@@ -136,9 +140,9 @@ namespace helfem {
         void eval_overlap(arma::mat & S) const;
 
         /// Evaluate Fock matrix, restricted calculation
-        void eval_Fxc(arma::mat & H) const;
+        void eval_Fxc(arma::cube & H) const;
         /// Evaluate Fock matrix, unrestricted calculation
-        void eval_Fxc(arma::mat & Ha, arma::mat & Hb, bool beta=true) const;
+        void eval_Fxc(arma::cube & Ha, arma::cube & Hb, bool beta=true) const;
       };
 
       /// Wrapper routine
@@ -156,9 +160,9 @@ namespace helfem {
         ~DFTGrid();
 
         /// Compute Fock matrix, exchange-correlation energy and integrated electron density, restricted case
-        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double thr);
+        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::cube & H, double & Exc, double & Nel, double thr);
         /// Compute Fock matrix, exchange-correlation energy and integrated electron density, unrestricted case
-        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, bool beta, double thr);
+        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::cube & Ha, arma::cube & Hb, double & Exc, double & Nel, bool beta, double thr);
 
         /// Evaluate overlap
         arma::mat eval_overlap();

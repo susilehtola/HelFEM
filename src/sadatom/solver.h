@@ -182,11 +182,6 @@ namespace helfem {
         /// Integration grid
         dftgrid::DFTGrid grid;
 
-        /// Full atomic basis set for meta-GGAs
-        atomic::basis::TwoDBasis atbasis;
-        /// Full atomic intgeration grid for meta-GGAs
-        atomic::dftgrid::DFTGrid atgrid;
-
         /// Exchange functional
         int x_func;
         /// Exchange functional parameters

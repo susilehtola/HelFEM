@@ -595,7 +595,6 @@ namespace helfem {
         atomic::basis::angular_basis(lmax,lmax,lval,mval);
 
         basis=sadatom::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, Nquad, bval, lmax);
-        atbasis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, Nquad, bval, lval, mval, 0, 0, 0.0);
         printf("Basis set has %i radial functions\n",(int) basis.Nbf());
 
         // Form overlap matrix
@@ -613,11 +612,6 @@ namespace helfem {
 
         // Form DFT grid
         grid=helfem::sadatom::dftgrid::DFTGrid(&basis);
-
-        // Default values
-        int ldft=4*lmax+10;
-        int mdft=4*lmax+5;
-        atgrid=helfem::atomic::dftgrid::DFTGrid(&atbasis,ldft,mdft);
 
         // Compute two-electron integrals
         basis.compute_tei();
@@ -715,18 +709,9 @@ namespace helfem {
         arma::cube XC;
         double nelnum;
         if(x_func > 0 || c_func > 0) {
-          if(is_meta(x_func,c_func)) {
-            arma::mat XCfull;
-            double Ekin;
-            atgrid.eval_Fxc(x_func, x_pars, c_func, c_pars, full_density(conf.Pl), XCfull, conf.Exc, nelnum, Ekin, dftthr);
-            XC=make_m_average(XCfull,atbasis.Nrad(),atbasis.get_lval(),atbasis.get_mval());
-          } else {
-            arma::mat XCm;
-            grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P/angfac, XCm, conf.Exc, nelnum, dftthr);
-            // Potential needs to be divided as well
-            XCm/=angfac;
-            XC=ReplicateCube(XCm);
-          }
+          grid.eval_Fxc(x_func, x_pars, c_func, c_pars, conf.Pl/angfac, XC, conf.Exc, nelnum, dftthr);
+          // Potential needs to be divided as well
+          XC/=angfac;
           if(verbose) {
             printf("DFT energy %.10e\n",conf.Exc);
             printf("Error in integrated number of electrons % e\n",nelnum-conf.orbs.Nel());
@@ -803,21 +788,10 @@ namespace helfem {
         conf.Exc=0.0;
         arma::cube XCa, XCb;
         double nelnum;
-        if(is_meta(x_func,c_func)) {
-          arma::mat XCafull, XCbfull;
-          double Ekin;
-          atgrid.eval_Fxc(x_func, x_pars, c_func, c_pars, full_density(conf.Pal), full_density(conf.Pbl), XCafull, XCbfull, conf.Exc, nelnum, Ekin, true, dftthr);
-          XCa=make_m_average(XCafull,atbasis.Nrad(),atbasis.get_lval(),atbasis.get_mval());
-          XCb=make_m_average(XCbfull,atbasis.Nrad(),atbasis.get_lval(),atbasis.get_mval());
-        } else {
-          arma::mat XCam, XCbm;
-          grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa/angfac, Pb/angfac, XCam, XCbm, conf.Exc, nelnum, true, dftthr);
-          // Potential needs to be divided as well
-          XCam/=angfac;
-          XCbm/=angfac;
-          XCa=ReplicateCube(XCam);
-          XCb=ReplicateCube(XCbm);
-        }
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, conf.Pal/angfac, conf.Pbl/angfac, XCa, XCb, conf.Exc, nelnum, true, dftthr);
+        // Potential needs to be divided as well
+        XCa/=angfac;
+        XCb/=angfac;
         if(verbose) {
           printf("DFT energy %.10e\n",conf.Exc);
           printf("Error in integrated number of electrons % e\n",nelnum-conf.orbsa.Nel()-conf.orbsb.Nel());
