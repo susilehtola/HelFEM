@@ -236,6 +236,19 @@ namespace helfem {
         return nel;
       }
 
+      double DFTGridWorker::compute_tau() const {
+        double t=0.0;
+        if(!polarized) {
+          for(size_t ip=0;ip<wtot.n_elem;ip++)
+            t+=wtot(ip)*tau(0,ip);
+        } else {
+          for(size_t ip=0;ip<wtot.n_elem;ip++)
+            t+=wtot(ip)*(tau(0,ip)+tau(1,ip));
+        }
+
+        return t;
+      }
+
       void DFTGridWorker::init_xc() {
         // Size of grid.
         const size_t N=wtot.n_elem;
@@ -627,6 +640,7 @@ namespace helfem {
 
         double exc=0.0;
         double nel=0.0;
+
 #ifdef _OPENMP
 #pragma omp parallel reduction(+:exc,nel)
 #endif

@@ -125,6 +125,8 @@ namespace helfem {
 
         /// Compute number of electrons
         double compute_Nel() const;
+        /// Compute kinetic energy density
+        double compute_tau() const;
 
         /// Initialize XC arrays
         void init_xc();
