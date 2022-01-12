@@ -1011,7 +1011,7 @@ namespace helfem {
           conf.orbsb.Occs().t().print();
         }
 
-        // S supermatrix
+        // DIIS object. ADIIS doesn't work for (significant) fractional occupation
         bool combine=false, usediis=true, useadiis=true;
         uDIIS diis(SuperMat(S),SuperMat(Sinvh),combine, usediis,diiseps,diisthr,useadiis,verbose,diisorder);
         double diiserr;
