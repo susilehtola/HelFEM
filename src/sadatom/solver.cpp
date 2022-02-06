@@ -634,6 +634,11 @@ namespace helfem {
         if(omega!=0.0) {
           printf("\nUsing range-separated exchange with range-separation constant omega = % .3f.\n",omega);
           printf("Using % .3f %% short-range and % .3f %% long-range exchange.\n",(kfrac+kshort)*100,kfrac*100);
+          if(yukawa) {
+            printf("Using the Yukawa kernel for range separation.\n");
+          } else {
+            printf("Using the error function kernel for range separation.\n");
+          }
         } else if(kfrac!=0.0)
           printf("\nUsing hybrid exchange with % .3f %% of exact exchange.\n",kfrac*100);
         else
