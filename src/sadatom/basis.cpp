@@ -1021,6 +1021,51 @@ namespace helfem {
         return n;
       }
 
+      arma::vec TwoDBasis::kinetic_energy_density(const arma::cube & Pl0) const {
+        // Radial density matrices
+        arma::mat P(Pl0.n_rows, Pl0.n_cols, arma::fill::zeros);
+        arma::mat Pl(Pl0.n_rows, Pl0.n_cols, arma::fill::zeros);
+        for(size_t l=0; l<Pl0.n_slices; l++) {
+          P += Pl0.slice(l);
+          Pl += l*(l+1)*Pl0.slice(l);
+        }
+
+        std::vector<arma::vec> t(radial.Nel());
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          // Radial functions in element
+          size_t ifirst, ilast;
+          radial.get_idx(iel,ifirst,ilast);
+
+          // Radii
+          arma::vec r(radial.get_r(iel));
+
+          // Density matrix
+          arma::mat Psub(P.submat(ifirst,ifirst,ilast,ilast));
+          arma::mat Psubl(Pl.submat(ifirst,ifirst,ilast,ilast));
+
+          // Basis function
+          arma::mat bf(radial.get_bf(iel));
+          // Basis function derivative
+          arma::mat bf_rho(radial.get_df(iel));
+
+          arma::mat Plv(Psubl*bf);
+          arma::mat Pvp(Psub*bf_rho);
+
+          t[iel] = 0.5*(arma::diagvec(bf_rho * Psub * bf_rho.t()) + arma::diagvec(bf * Psubl * bf.t())/arma::square(r));
+        }
+
+        size_t Npts=t[0].n_elem;
+        arma::vec tn(radial.Nel()*Npts+1);
+        tn.zeros();
+
+        // Skip the value at the nucleus at least for now...
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          tn.subvec(1+iel*Npts,(iel+1)*Npts)=t[iel];
+        }
+
+        return tn;
+      }
+
       std::vector< std::pair<int, arma::mat> > TwoDBasis::Rmatrices() const {
         std::vector< std::pair<int, arma::mat> > rmat;
         for(int i=-2;i<=3;i++) {

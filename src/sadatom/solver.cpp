@@ -1111,16 +1111,18 @@ namespace helfem {
         arma::vec rho(basis.electron_density(P));
         arma::vec grho(basis.electron_density_gradient(P));
         arma::vec lrho(basis.electron_density_laplacian(P));
+        arma::vec tau(basis.kinetic_energy_density(conf.Pl));
 
-        arma::mat result(Zeff.n_rows,8);
+        arma::mat result(Zeff.n_rows,9);
         result.col(0)=r;
         result.col(1)=rho;
         result.col(2)=grho;
         result.col(3)=lrho;
-        result.col(4)=vcoul;
-        result.col(5)=vxc;
-        result.col(6)=wt;
-        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+        result.col(4)=tau;
+        result.col(5)=vcoul;
+        result.col(6)=vxc;
+        result.col(7)=wt;
+        result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }
@@ -1135,6 +1137,9 @@ namespace helfem {
         arma::mat Pb=TotalDensity(conf.Pbl);
         arma::mat P(Pa+Pb);
 
+        // Total density
+        arma::cube Pl(conf.Pal+conf.Pbl);
+
         arma::vec r(basis.radii());
         arma::vec wt(basis.quadrature_weights());
         arma::vec vcoul(basis.coulomb_screening(P));
@@ -1145,18 +1150,20 @@ namespace helfem {
         arma::vec rho(basis.electron_density(P));
         arma::vec grho(basis.electron_density_gradient(P));
         arma::vec lrho(basis.electron_density_laplacian(P));
+        arma::vec tau(basis.kinetic_energy_density(Pl));
 
         printf("Electron density by quadrature: %e\n",arma::sum(wt%rho%r%r));
 
-        arma::mat result(r.n_elem,8);
+        arma::mat result(r.n_elem,9);
         result.col(0)=r;
         result.col(1)=rho;
         result.col(2)=grho;
         result.col(3)=lrho;
-        result.col(4)=vcoul;
-        result.col(5)=vxc;
-        result.col(6)=wt;
-        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+        result.col(4)=tau;
+        result.col(5)=vcoul;
+        result.col(6)=vxc;
+        result.col(7)=wt;
+        result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }
@@ -1180,16 +1187,18 @@ namespace helfem {
         arma::vec rho(basis.electron_density(P));
         arma::vec grho(basis.electron_density_gradient(P));
         arma::vec lrho(basis.electron_density_laplacian(P));
+        arma::vec tau(basis.kinetic_energy_density(conf.Pal+conf.Pbl));
 
-        arma::mat result(Zeff.n_rows,8);
+        arma::mat result(Zeff.n_rows,9);
         result.col(0)=r;
         result.col(1)=rho;
         result.col(2)=grho;
         result.col(3)=lrho;
-        result.col(4)=vcoul;
-        result.col(5)=vxc;
-        result.col(6)=wt;
-        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+        result.col(4)=tau;
+        result.col(5)=vcoul;
+        result.col(6)=vxc;
+        result.col(7)=wt;
+        result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }
@@ -1214,6 +1223,9 @@ namespace helfem {
         arma::vec rhob(basis.electron_density(Pb));
         arma::vec grhob(basis.electron_density_gradient(Pb));
         arma::vec lrhob(basis.electron_density_laplacian(Pb));
+        arma::vec taua(basis.kinetic_energy_density(conf.Pal));
+        arma::vec taub(basis.kinetic_energy_density(conf.Pbl));
+
         // Averaged potential
         arma::vec vxc((vxcm.col(0)%rhoa + vxcm.col(1)%rhob)/(rhoa+rhob));
         // Set areas of small electron density to zero
@@ -1221,15 +1233,16 @@ namespace helfem {
         vxc(arma::find(n<dftthr)).zeros();
         arma::vec Zeff(vcoul+vxc);
 
-        arma::mat result(Zeff.n_rows,8);
+        arma::mat result(Zeff.n_rows,9);
         result.col(0)=r;
         result.col(1)=rhoa+rhob;
         result.col(2)=grhoa+grhob;;
         result.col(3)=lrhoa+lrhob;
-        result.col(4)=vcoul;
-        result.col(5)=vxc;
-        result.col(6)=wt;
-        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+        result.col(4)=taua+taub;
+        result.col(5)=vcoul;
+        result.col(6)=vxc;
+        result.col(7)=wt;
+        result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }
@@ -1255,17 +1268,20 @@ namespace helfem {
         arma::vec rhob(basis.electron_density(Pb));
         arma::vec grhob(basis.electron_density_gradient(Pb));
         arma::vec lrhob(basis.electron_density_laplacian(Pb));
+        arma::vec taua(basis.kinetic_energy_density(conf.Pal));
+        arma::vec taub(basis.kinetic_energy_density(conf.Pbl));
         arma::vec Zeff(vcoul+vxc);
 
-        arma::mat result(Zeff.n_rows,8);
+        arma::mat result(Zeff.n_rows,9);
         result.col(0)=r;
         result.col(1)=rhoa+rhob;
         result.col(2)=grhoa+grhob;
         result.col(3)=lrhoa+lrhob;
-        result.col(4)=vcoul;
-        result.col(5)=vxc;
-        result.col(6)=wt;
-        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+        result.col(4)=taua+taub;
+        result.col(5)=vcoul;
+        result.col(6)=vxc;
+        result.col(7)=wt;
+        result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }
@@ -1291,17 +1307,20 @@ namespace helfem {
         arma::vec rhob(basis.electron_density(Pb));
         arma::vec grhob(basis.electron_density_gradient(Pb));
         arma::vec lrhob(basis.electron_density_laplacian(Pb));
+        arma::vec taua(basis.kinetic_energy_density(conf.Pal));
+        arma::vec taub(basis.kinetic_energy_density(conf.Pbl));
         arma::vec Zeff(vcoul+vxc);
 
-        arma::mat result(Zeff.n_rows,8);
+        arma::mat result(Zeff.n_rows,9);
         result.col(0)=r;
         result.col(1)=rhoa+rhob;
         result.col(2)=grhoa+grhob;
         result.col(3)=lrhoa+lrhob;
-        result.col(4)=vcoul;
-        result.col(5)=vxc;
-        result.col(6)=wt;
-        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+        result.col(4)=taua+taub;
+        result.col(5)=vcoul;
+        result.col(6)=vxc;
+        result.col(7)=wt;
+        result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }

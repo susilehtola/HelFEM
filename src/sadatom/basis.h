@@ -140,6 +140,9 @@ namespace helfem {
         arma::vec electron_density_gradient(const arma::mat & Prad) const;
         /// Compute the electron density laplacian
         arma::vec electron_density_laplacian(const arma::mat & Prad) const;
+        /// Compute the kinetic energy density
+        arma::vec kinetic_energy_density(const arma::cube & Pl0) const;
+
         /// Compute the exchange-correlation screening
         arma::vec xc_screening(const arma::mat & Prad, int x_func, int c_func) const;
         /// Compute the exchange-correlation screening
