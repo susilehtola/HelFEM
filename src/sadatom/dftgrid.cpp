@@ -440,6 +440,8 @@ namespace helfem {
           // Increment matrix
           increment_lda<double>(H,vrho,bf);
         }
+        if(H.has_nan())
+          fprintf(stderr,"NaN in Hamiltonian after LDA!\n");
 
         if(do_gga) {
           // Get vsigma
@@ -453,6 +455,8 @@ namespace helfem {
           }
           // Increment matrix
           increment_gga<double>(H,gr,bf,bf_rho);
+          if(H.has_nan())
+            fprintf(stderr,"NaN in Hamiltonian after GGA!\n");
         }
 
         if(do_mgga_t) {
@@ -464,6 +468,8 @@ namespace helfem {
           // l(l+1) term
           vt=vtau.row(0)%(0.5*wrad*4.0*M_PI);
           increment_lda<double>(Hl,vt,bf);
+          if(H.has_nan())
+            fprintf(stderr,"NaN in Hamiltonian after mGGA!\n");
         }
         if(do_mgga_l)
           throw std::logic_error("Laplacian not implemented!\n");
@@ -505,7 +511,7 @@ namespace helfem {
         }
         if(Ha.has_nan() || (beta && Hb.has_nan()))
           //throw std::logic_error("NaN encountered!\n");
-          fprintf(stderr,"NaN in Hamiltonian!\n");
+          fprintf(stderr,"NaN in Hamiltonian after LDA!\n");
 
         if(do_gga) {
           // Get vsigma
@@ -534,6 +540,9 @@ namespace helfem {
             }
             increment_gga<double>(Hb,gr_b,bf,bf_rho);
           }
+          if(Ha.has_nan() || (beta && Hb.has_nan()))
+            //throw std::logic_error("NaN encountered!\n");
+            fprintf(stderr,"NaN in Hamiltonian after GGA!\n");
         }
 
         if(do_mgga_t) {
@@ -544,12 +553,17 @@ namespace helfem {
 
           // Base term
           increment_lda<double>(Ha,vat,bf_rho);
-          increment_lda<double>(Hb,vbt,bf_rho);
           // l(l+1) term
           vat=vtau.row(0)%(0.5*wrad*4.0*M_PI);
-          vbt=vtau.row(1)%(0.5*wrad*4.0*M_PI);
           increment_lda<double>(Hal,vat,bf);
-          increment_lda<double>(Hbl,vbt,bf);
+          if(beta) {
+            increment_lda<double>(Hb,vbt,bf_rho);
+            vbt=vtau.row(1)%(0.5*wrad*4.0*M_PI);
+            increment_lda<double>(Hbl,vbt,bf);
+          }
+          if(Ha.has_nan() || (beta && Hb.has_nan()))
+            //throw std::logic_error("NaN encountered!\n");
+            fprintf(stderr,"NaN in Hamiltonian after mGGA!\n");
         }
         if(do_mgga_l)
           throw std::logic_error("Laplacian not implemented!\n");
