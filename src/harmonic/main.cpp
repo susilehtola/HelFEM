@@ -183,8 +183,8 @@ int main(int argc, char **argv) {
   chebyshev::chebyshev(Nquad,x,wx);
 
   // Evaluate polynomials at quadrature points
-  arma::mat bf, dbf;
-  poly->eval(x,bf,dbf,1.0);
+  arma::mat bf(poly->eval_f(x, 1.0));
+  arma::mat dbf(poly->eval_df(x, 1.0));
 
   x.save("x.dat",arma::raw_ascii);
   bf.save("bf.dat",arma::raw_ascii);

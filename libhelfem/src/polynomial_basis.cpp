@@ -55,9 +55,7 @@ namespace helfem {
       case(0):
       case(1):
       case(2):
-        poly=new HermiteBasis(Nnodes,primbas);
-      printf("Basis set composed of %i nodes with %i:th derivative continuity.\n",Nnodes,primbas);
-      printf("This means using primitive polynomials of order %i.\n",Nnodes*(primbas+1)-1);
+        throw std::runtime_error("Deprecated primitive basis, use 3, 4, or 5.\n");
       break;
 
       case(3):
@@ -94,6 +92,7 @@ namespace helfem {
     }
 
     PolynomialBasis::PolynomialBasis() {
+      printf("In PolynomialBasis::PolynomialBasis\n");
     }
 
     PolynomialBasis::~PolynomialBasis() {
@@ -104,7 +103,7 @@ namespace helfem {
     }
 
     int PolynomialBasis::get_nbf() const {
-      return nbf;
+      return enabled.n_elem;
     }
 
     int PolynomialBasis::get_noverlap() const {
@@ -122,7 +121,8 @@ namespace helfem {
     void PolynomialBasis::print(const std::string & str) const {
       arma::vec x(arma::linspace<arma::vec>(-1.0,1.0,1001));
       arma::mat bf, df;
-      eval(x,bf,df,1.0);
+      eval_f(x,bf,1.0);
+      eval_df(x,df,1.0);
 
       bf.insert_cols(0,x);
       df.insert_cols(0,x);
@@ -133,78 +133,80 @@ namespace helfem {
       df.save(dname,arma::raw_ascii);
     }
 
-    void PolynomialBasis::eval_lapl(const arma::vec & x, arma::mat & lf, double element_length) const {
-      (void) x;
-      (void) lf;
-      (void) element_length;
-      throw std::logic_error("Laplacians haven't been implemented for the used family of basis polynomials.\n");
+    arma::mat PolynomialBasis::eval_f(const arma::vec & x, double element_length) const {
+      arma::mat f;
+      eval_f(x, f, element_length);
+      return f;
     }
 
-    HermiteBasis::HermiteBasis(int n_nodes, int der_order) {
-      bf_C=polynomial::hermite_coeffs(n_nodes, der_order);
-      df_C=polynomial::derivative_coeffs(bf_C, 1);
-
-      // Number of basis functions is
-      nprim=nbf=bf_C.n_cols;
-      // Number of overlapping functions is
-      noverlap=der_order+1;
-
-      /// Identifier is
-      id=der_order;
-      /// Order is
-      order=n_nodes;
+    arma::mat PolynomialBasis::eval_df(const arma::vec & x, double element_length) const {
+      arma::mat df;
+      eval_df(x, df, element_length);
+      return df;
     }
 
-    HermiteBasis::~HermiteBasis() {
+    arma::mat PolynomialBasis::eval_d2f(const arma::vec & x, double element_length) const {
+      arma::mat d2f;
+      eval_d2f(x, d2f, element_length);
+      return d2f;
     }
 
-    HermiteBasis * HermiteBasis::copy() const {
-      return new HermiteBasis(*this);
+    arma::mat PolynomialBasis::eval_d3f(const arma::vec & x, double element_length) const {
+      arma::mat d3f;
+      eval_d3f(x, d3f, element_length);
+      return d3f;
     }
 
-    arma::mat HermiteBasis::eval(const arma::vec & x, double element_length) const {
-      (void) x;
-      (void) element_length;
-      throw std::runtime_error("HermiteBasis has not been fixed\n");
-      //return polynomial::polyval(bf_C,x);
-    }
-
-    void HermiteBasis::eval(const arma::vec & x, arma::mat & f, arma::mat & df, double element_length) const {
+    void PolynomialBasis::eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const {
       (void) x;
       (void) f;
+      (void) element_length;
+      throw std::logic_error("Values haven't been implemented for the used family of basis polynomials.\n");
+    }
+
+    void PolynomialBasis::eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const {
+      (void) x;
       (void) df;
       (void) element_length;
-      throw std::runtime_error("HermiteBasis has not been fixed\n");
-      //f=polynomial::polyval(bf_C,x);
-      //df=polynomial::polyval(df_C,x);
+      throw std::logic_error("Derivatives haven't been implemented for the used family of basis polynomials.\n");
     }
 
-    void HermiteBasis::eval_lapl(const arma::vec & x, arma::mat & lf, double element_length) const {
+    void PolynomialBasis::eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const {
       (void) x;
-      (void) lf;
+      (void) d2f;
       (void) element_length;
-      throw std::runtime_error("HermiteBasis has not been fixed\n");
-      //lf=polynomial::polyval(polynomial::derivative_coeffs(bf_C, 2), x);
+      throw std::logic_error("Second derivatives haven't been implemented for the used family of basis polynomials.\n");
     }
 
-    void HermiteBasis::drop_first() {
-      // Only drop function value, not derivatives
-      arma::uvec idx(arma::linspace<arma::uvec>(0,bf_C.n_cols-1,bf_C.n_cols));
-      polynomial_basis::drop_first(idx);
-
-      bf_C=bf_C.cols(idx);
-      df_C=df_C.cols(idx);
-      nbf=bf_C.n_cols;
+    void PolynomialBasis::eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const {
+      (void) x;
+      (void) d3f;
+      (void) element_length;
+      throw std::logic_error("Third derivatives haven't been implemented for the used family of basis polynomials.\n");
     }
 
-    void HermiteBasis::drop_last() {
-      // Only drop function value, not derivatives
-      arma::uvec idx(arma::linspace<arma::uvec>(0,bf_C.n_cols-1,bf_C.n_cols));
-      polynomial_basis::drop_last(idx, noverlap);
+    void PolynomialBasis::eval_f(const arma::vec & x, arma::mat & f, double element_length) const {
+      eval_prim_f(x, f, element_length);
+      // No scaling needed here
+      f = f.cols(enabled);
+    }
 
-      bf_C=bf_C.cols(idx);
-      df_C=df_C.cols(idx);
-      nbf=bf_C.n_cols;
+    void PolynomialBasis::eval_df(const arma::vec & x, arma::mat & df, double element_length) const {
+      eval_prim_df(x, df, element_length);
+      // Derivative is scaled by element length
+      df = df.cols(enabled) / element_length;
+    }
+
+    void PolynomialBasis::eval_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const {
+      eval_prim_d2f(x, d2f, element_length);
+      // Second derivative is scaled by element length squared
+      d2f = d2f.cols(enabled) / std::pow(element_length, 2);
+    }
+
+    void PolynomialBasis::eval_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const {
+      eval_prim_d3f(x, d3f, element_length);
+      // Third derivative is scaled by element length cubed
+      d3f = d3f.cols(enabled) / std::pow(element_length, 3);
     }
 
     LegendreBasis::LegendreBasis(int n_nodes, int id_) {
@@ -228,12 +230,13 @@ namespace helfem {
       }
 
       noverlap=1;
-      nprim=nbf=T.n_cols;
+      nprim=T.n_cols;
+      enabled=arma::linspace<arma::uvec>(0,T.n_cols-1,T.n_cols);
 
       /// Identifier is
       id=id_;
       /// Order is
-      order=n_nodes;
+      order=enabled.n_elem;
     }
 
     LegendreBasis::~LegendreBasis() {
@@ -269,7 +272,7 @@ namespace helfem {
       return dt;
     }
 
-    arma::mat LegendreBasis::lf_eval(const arma::vec & x) const {
+    arma::mat LegendreBasis::d2f_eval(const arma::vec & x) const {
       // Memory for values
       arma::mat lt(x.n_elem,lmax+1);
       // Fill in array
@@ -279,30 +282,29 @@ namespace helfem {
       return lt;
     }
 
-    arma::mat LegendreBasis::eval(const arma::vec & x, double element_length) const {
-      (void) element_length;
-      return f_eval(x)*T;
-    }
-
-    void LegendreBasis::eval(const arma::vec & x, arma::mat & f, arma::mat & df, double element_length) const {
+    void LegendreBasis::eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const {
       (void) element_length;
       f=f_eval(x)*T;
+    }
+
+    void LegendreBasis::eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const {
+      (void) element_length;
       df=df_eval(x)*T;
     }
 
-    void LegendreBasis::eval_lapl(const arma::vec & x, arma::mat & lf, double element_length) const {
+    void LegendreBasis::eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const {
       (void) element_length;
-      lf=lf_eval(x)*T;
+      d2f=d2f_eval(x)*T;
     }
 
-    void LegendreBasis::drop_first() {
-      T=T.cols(1,T.n_cols-1);
-      nbf=T.n_cols;
+    void LegendreBasis::drop_first(bool deriv) {
+      (void) deriv;
+      enabled=enabled(1,T.n_cols-1);
     }
 
-    void LegendreBasis::drop_last() {
-      T=T.cols(0,T.n_cols-2);
-      nbf=T.n_cols;
+    void LegendreBasis::drop_last(bool deriv) {
+      (void) deriv;
+      enabled=enabled(0,T.n_cols-2);
     }
 
     LIPBasis::LIPBasis(const arma::vec & x, int id_) {
@@ -317,14 +319,14 @@ namespace helfem {
 
       // One overlapping function
       noverlap=1;
-      nprim=nbf=x0.n_elem;
+      nprim=x0.n_elem;
       // All functions are enabled
       enabled=arma::linspace<arma::uvec>(0,x0.n_elem-1,x0.n_elem);
 
       /// Identifier is
       id=id_;
       /// Order is
-      order=x.n_elem;
+      order=enabled.n_elem;
     }
 
     LIPBasis::~LIPBasis() {
@@ -334,7 +336,7 @@ namespace helfem {
       return new LIPBasis(*this);
     }
 
-    void LIPBasis::eval_bf_raw(const arma::vec & x, arma::mat & bf) const {
+    void LIPBasis::eval_f_raw(const arma::vec & x, arma::mat & bf) const {
       // Memory for values
       bf.zeros(x.n_elem,x0.n_elem);
 
@@ -385,9 +387,9 @@ namespace helfem {
       }
     }
 
-    void LIPBasis::eval_d2f_raw(const arma::vec & x, arma::mat & lf) const {
+    void LIPBasis::eval_d2f_raw(const arma::vec & x, arma::mat & d2f) const {
       // Second derivative
-      lf.zeros(x.n_elem,x0.n_elem);
+      d2f.zeros(x.n_elem,x0.n_elem);
       for(size_t ix=0;ix<x.n_elem;ix++) {
         // Loop over polynomials
         for(size_t fi=0;fi<x0.n_elem;fi++) {
@@ -415,7 +417,7 @@ namespace helfem {
                 fval *= (x(ix)-x0(fl))/(x0(fi)-x0(fl));
               }
               // Increment second derivative
-              lf(ix,fi)+=fval/((x0(fi)-x0(fj))*(x0(fi)-x0(fk)));
+              d2f(ix,fi)+=fval/((x0(fi)-x0(fj))*(x0(fi)-x0(fk)));
             }
           }
         }
@@ -470,55 +472,44 @@ namespace helfem {
       }
     }
 
-    arma::mat LIPBasis::eval(const arma::vec & x, double element_length) const {
+    void LIPBasis::eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const {
       (void) element_length;
-
-      arma::mat bf;
-      eval_bf_raw(x, bf);
-      bf=bf.cols(enabled);
-
-      return bf;
+      eval_f_raw(x, f);
     }
 
-    void LIPBasis::eval(const arma::vec & x, arma::mat & f, arma::mat & df, double element_length) const {
+    void LIPBasis::eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const {
       (void) element_length;
-
-      // Function values
-      f=LIPBasis::eval(x, element_length);
       eval_df_raw(x, df);
-      df=df.cols(enabled);
     }
 
-    void LIPBasis::eval_lapl(const arma::vec & x, arma::mat & lf, double element_length) const {
+    void LIPBasis::eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const {
       (void) element_length;
-      eval_d2f_raw(x, lf);
-      lf=lf.cols(enabled);
+      eval_d2f_raw(x, d2f);
     }
 
-    void LIPBasis::eval_d3(const arma::vec & x, arma::mat & d3f, double element_length) const {
+    void LIPBasis::eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const {
       (void) element_length;
       eval_d3f_raw(x, d3f);
-      d3f=d3f.cols(enabled);
     }
 
-    void LIPBasis::drop_first() {
+    void LIPBasis::drop_first(bool deriv) {
+      (void) deriv;
       enabled=enabled.subvec(1,enabled.n_elem-1);
-      nbf=enabled.n_elem;
     }
 
-    void LIPBasis::drop_last() {
+    void LIPBasis::drop_last(bool deriv) {
+      (void) deriv;
       enabled=enabled.subvec(0,enabled.n_elem-2);
-      nbf=enabled.n_elem;
     }
 
     HIPBasis::HIPBasis(const arma::vec & x, int id_) : LIPBasis(x, id_) {
       // Two overlapping functions
       noverlap=2;
-      nprim=nbf=2*x0.n_elem;
+      nprim=2*x0.n_elem;
       // All functions are enabled
       enabled=arma::linspace<arma::uvec>(0,2*x0.n_elem-1,2*x0.n_elem);
       /// Order is
-      order=2*x.n_elem-1;
+      order=enabled.n_elem;
 
       // Evaluate derivatives at nodes
       arma::mat dlip;
@@ -533,42 +524,29 @@ namespace helfem {
       return new HIPBasis(*this);
     }
 
-    arma::mat HIPBasis::eval(const arma::vec & x, double element_length) const {
+    void HIPBasis::eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const {
       // Evaluate LIP basis
       arma::mat lip, dlip;
-      LIPBasis::eval_bf_raw(x, lip);
-      LIPBasis::eval_df_raw(x, dlip);
-
-      // Basis function values
-      arma::mat hip(x.n_elem, 2*x0.n_elem);
-      for(size_t ix=0;ix<x.n_elem;ix++) {
-        for(size_t fi=0;fi<x0.n_elem;fi++) {
-          hip(ix,2*fi)   = (1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi)) * std::pow(lip(ix,fi),2);
-          hip(ix,2*fi+1) = (x(ix) - x0(fi)) * std::pow(lip(ix,fi),2) / element_length;
-        }
-      }
-      hip=hip.cols(enabled);
-
-      return hip;
-    }
-
-    void HIPBasis::eval(const arma::vec & x, arma::mat & f, arma::mat & df, double element_length) const {
-      // Evaluate LIP basis
-      arma::mat lip, dlip;
-      LIPBasis::eval_bf_raw(x, lip);
+      LIPBasis::eval_f_raw(x, lip);
       LIPBasis::eval_df_raw(x, dlip);
 
       // Basis function values
       f.zeros(x.n_elem, 2*x0.n_elem);
       for(size_t ix=0;ix<x.n_elem;ix++) {
         for(size_t fi=0;fi<x0.n_elem;fi++) {
-          f(ix,2*fi)   = (1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi)) * std::pow(lip(ix,fi),2);
-          f(ix,2*fi+1) = (x(ix) - x0(fi)) * std::pow(lip(ix,fi),2) / element_length;
+          double dx = x(ix)-x0(fi);
+          f(ix,2*fi)   = (1.0 - 2.0*dx*lipxi(fi)) * std::pow(lip(ix,fi),2);
+          f(ix,2*fi+1) = dx * std::pow(lip(ix,fi),2) / element_length;
         }
       }
-      f=f.cols(enabled);
+    }
 
-      // Derivatives
+    void HIPBasis::eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const {
+      // Evaluate LIP basis
+      arma::mat lip, dlip;
+      LIPBasis::eval_f_raw(x, lip);
+      LIPBasis::eval_df_raw(x, dlip);
+
       df.zeros(x.n_elem, 2*x0.n_elem);
       for(size_t ix=0;ix<x.n_elem;ix++) {
         for(size_t fi=0;fi<x0.n_elem;fi++) {
@@ -576,37 +554,42 @@ namespace helfem {
           df(ix,2*fi+1) = (std::pow(lip(ix,fi),2) + 2.0*(x(ix)-x0(fi))*lip(ix,fi)*dlip(ix,fi)) / element_length;
         }
       }
-      df=f.cols(enabled);
     }
 
-    void HIPBasis::eval_lapl(const arma::vec & x, arma::mat & lf, double element_length) const {
+    void HIPBasis::eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const {
       // Evaluate LIP basis
       arma::mat lip, dlip, d2lip, d3lip;
-      LIPBasis::eval_bf_raw(x, lip);
+      LIPBasis::eval_f_raw(x, lip);
       LIPBasis::eval_df_raw(x, dlip);
       LIPBasis::eval_d2f_raw(x, d2lip);
       LIPBasis::eval_d3f_raw(x, d3lip);
 
-      lf.zeros(x.n_elem, 2*x0.n_elem);
+      d2f.zeros(x.n_elem, 2*x0.n_elem);
       for(size_t ix=0;ix<x.n_elem;ix++) {
         for(size_t fi=0;fi<x0.n_elem;fi++) {
-          lf(ix,2*fi)   = 2.0*(d2lip(ix,fi)*lip(ix,fi) + std::pow(dlip(ix,fi),2))*(1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi)) - 8.0*lip(ix,fi)*dlip(ix,fi)*lipxi(fi);
-          lf(ix,2*fi+1) = (4.0*lip(ix,fi)*dlip(ix,fi) + 2.0*(x(ix)-x0(fi))*(d2lip(ix,fi)*lip(ix,fi) + std::pow(dlip(ix,fi),2))) / element_length;
+          d2f(ix,2*fi)   = 2.0*(d2lip(ix,fi)*lip(ix,fi) + std::pow(dlip(ix,fi),2))*(1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi)) - 8.0*lip(ix,fi)*dlip(ix,fi)*lipxi(fi);
+          d2f(ix,2*fi+1) = (4.0*lip(ix,fi)*dlip(ix,fi) + 2.0*(x(ix)-x0(fi))*(d2lip(ix,fi)*lip(ix,fi) + std::pow(dlip(ix,fi),2))) / element_length;
         }
       }
-      lf=lf.cols(enabled);
     }
 
-    void HIPBasis::drop_first() {
-      // It's fine to have a slope at the nucleus
-      enabled=enabled.subvec(1,enabled.n_elem-1);
-      nbf=enabled.n_elem;
+    void HIPBasis::drop_first(bool deriv) {
+      if(deriv) {
+        enabled=enabled.subvec(1,enabled.n_elem-1);
+      } else {
+        enabled=enabled.subvec(2,enabled.n_elem-1);
+      }
     }
 
-    void HIPBasis::drop_last() {
-      // Set both function value and derivative to zero at practical infinity
-      enabled=enabled.subvec(0,enabled.n_elem-3);
-      nbf=enabled.n_elem;
+    void HIPBasis::drop_last(bool deriv) {
+      if(deriv) {
+        enabled=enabled.subvec(0,enabled.n_elem-3);
+      } else {
+        arma::uvec new_enabled(enabled.n_elem-2);
+        new_enabled.subvec(0,enabled.n_elem-3) = enabled.subvec(0,enabled.n_elem-3);
+        new_enabled(enabled.n_elem-2) = enabled(enabled.n_elem-1);
+        enabled = new_enabled;
+      }
     }
   }
 }

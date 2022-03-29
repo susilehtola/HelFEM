@@ -17,6 +17,7 @@
 #include "polynomial_basis.h"
 #include "polynomial.h"
 #include "chebyshev.h"
+#include "lobatto.h"
 
 using namespace helfem;
 
@@ -24,7 +25,9 @@ void run(double R, int n_quad) {
   // Basis functions on [0, R]: x/R, (R-x)/R.
 
   // Get primitive polynomial representation for LIP
-  polynomial_basis::HermiteBasis pbas(2,0);
+  arma::vec x, w;
+  ::lobatto_compute(2,x,w);
+  polynomial_basis::LIPBasis pbas(x,0);
 
   // Get quadrature rule
   arma::vec xq, wq;

@@ -147,7 +147,8 @@ namespace helfem {
         double rlen((bval(iel+1)-bval(iel))/2);
 
         arma::mat bf, df;
-        poly->eval(xq, bf, df, rlen);
+        poly->eval_f(xq, bf, rlen);
+        poly->eval_df(xq, df, rlen);
 
         return radial_integral(bf,m,n,iel);
       }
@@ -260,8 +261,8 @@ namespace helfem {
 	    if(n!=0)
 	      wtot%=arma::pow(arma::cosh(mu),n);
 	    // Put in weight
-	    arma::mat ibf(poly->eval(xi, ilen));
-	    arma::mat jbf(rh.poly->eval(xj, jlen));
+	    arma::mat ibf(poly->eval_f(xi, ilen));
+	    arma::mat jbf(rh.poly->eval_f(xj, jlen));
 
 	    // Perform quadrature
             arma::mat s(arma::trans(ibf)*arma::diagmat(wtot)*jbf);
@@ -281,7 +282,8 @@ namespace helfem {
         double rlen((bval(iel+1)-bval(iel))/2);
 
         arma::mat bf, df;
-        poly->eval(xq, bf, df, rlen);
+        poly->eval_f(xq, bf, rlen);
+        poly->eval_df(xq, df, rlen);
 
         // Integral by quadrature
         return diatomic::quadrature::Plm_radial_integral(mumin,mumax,k,xq,wq,get_basis(bf,iel),L,M,legtab);
@@ -294,7 +296,8 @@ namespace helfem {
         double rlen((bval(iel+1)-bval(iel))/2);
 
         arma::mat bf, df;
-        poly->eval(xq, bf, df, rlen);
+        poly->eval_f(xq, bf, rlen);
+        poly->eval_df(xq, df, rlen);
 
         // Integral by quadrature
         return diatomic::quadrature::Qlm_radial_integral(mumin,mumax,k,xq,wq,get_basis(bf,iel),L,M,legtab);
@@ -305,7 +308,8 @@ namespace helfem {
         double rlen((bval(iel+1)-bval(iel))/2);
 
         arma::mat f, df;
-        poly->eval(xq, f, df, rlen);
+        poly->eval_f(xq, f, rlen);
+        poly->eval_df(xq, df, rlen);
 
         return radial_integral(df,1,0,iel)/(rlen*rlen);
       }
@@ -385,7 +389,7 @@ namespace helfem {
         double rmax(bval(iel+1));
         double rlen=(rmax-rmin)/2;
 
-        arma::mat val(poly->eval(x, rlen));
+        arma::mat val(poly->eval_f(x, rlen));
         val=get_basis(val,iel);
 
         return val;
@@ -399,7 +403,8 @@ namespace helfem {
 
         // Element function values at quadrature points are
         arma::mat bf, df;
-        poly->eval(xq, bf, df, rlen);
+        poly->eval_f(xq, bf, rlen);
+        poly->eval_df(xq, df, rlen);
         arma::mat dval(get_basis(df,iel));
 
         // Derivative is then
@@ -805,6 +810,7 @@ namespace helfem {
         arma::mat O(Ndummy(),Ndummy());
         O.zeros();
 
+        (void) Rexp;
         throw std::logic_error("not implemented.!\n");
 
         return remove_boundaries(O);
