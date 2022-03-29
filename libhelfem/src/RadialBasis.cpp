@@ -148,7 +148,7 @@ arma::mat RadialBasis::radial_integral(int Rexp, size_t iel) const {
   double Rmin(bval(iel));
   double Rmax(bval(iel + 1));
   double Rlen(Rmax-Rmin);
-  arma::mat bf(poly->eval(xq, Rlen));
+  arma::mat bf(poly->eval_f(xq, Rlen));
   return radial_integral(bf, Rexp, iel);
 }
 
@@ -156,7 +156,7 @@ arma::mat RadialBasis::radial_integral(const arma::mat &funcs, int Rexp, size_t 
   double Rmin(bval(iel));
   double Rmax(bval(iel + 1));
   double Rlen(Rmax-Rmin);
-  arma::mat bf(poly->eval(xq, Rlen));
+  arma::mat bf(poly->eval_f(xq, Rlen));
 
   // Integral by quadrature
   return quadrature::radial_integral(Rmin, Rmax, Rexp, xq, wq, get_basis(funcs, iel));
@@ -166,7 +166,7 @@ arma::mat RadialBasis::bessel_il_integral(int L, double lambda, size_t iel) cons
   double Rmin(bval(iel));
   double Rmax(bval(iel + 1));
   double Rlen(Rmax-Rmin);
-  arma::mat bf(poly->eval(xq, Rlen));
+  arma::mat bf(poly->eval_f(xq, Rlen));
 
   // Integral by quadrature
   return quadrature::bessel_il_integral(Rmin, Rmax, L, lambda, xq, wq, get_basis(bf, iel));
@@ -176,7 +176,7 @@ arma::mat RadialBasis::bessel_kl_integral(int L, double lambda, size_t iel) cons
   double Rmin(bval(iel));
   double Rmax(bval(iel + 1));
   double Rlen(Rmax-Rmin);
-  arma::mat bf(poly->eval(xq, Rlen));
+  arma::mat bf(poly->eval_f(xq, Rlen));
 
   // Integral by quadrature
   return quadrature::bessel_kl_integral(Rmin, Rmax, L, lambda, xq, wq, get_basis(bf, iel));
@@ -275,9 +275,11 @@ arma::mat RadialBasis::model_potential(const RadialBasis &rh,
 
       // Evaluate radial basis functions
       arma::mat ibf, idf;
-      poly->eval(xi, ibf, idf, ilen);
+      poly->eval_f(xi, ibf, ilen);
+      poly->eval_df(xi, idf, ilen);
       arma::mat jbf, jdf;
-      rh.poly->eval(xj, jbf, jdf, jlen);
+      rh.poly->eval_f(xj, jbf, jlen);
+      rh.poly->eval_df(xj, jdf, jlen);
 
       // Need to divide derivatives by the element size
       idf /= (bval(iel + 1) - bval(iel)) / 2;
@@ -302,12 +304,12 @@ arma::mat RadialBasis::overlap(const RadialBasis &rh) const {
 }
 
 arma::mat RadialBasis::kinetic(size_t iel) const {
-  // We get 1/rlen^2 from the derivatives
   double rlen((bval(iel + 1) - bval(iel)) / 2);
 
   arma::mat f, df;
-  poly->eval(xq, f, df, rlen);
-  return 0.5 * radial_integral(df, 0, iel) / (rlen * rlen);
+  poly->eval_f(xq, f, rlen);
+  poly->eval_df(xq, df, rlen);
+  return 0.5 * radial_integral(df, 0, iel);
 }
 
 arma::mat RadialBasis::kinetic_l(size_t iel) const {
@@ -321,7 +323,7 @@ arma::mat RadialBasis::model_potential(const modelpotential::ModelPotential *mod
   double Rmin(bval(iel));
   double Rmax(bval(iel + 1));
   double Rlen(Rmax-Rmin);
-  arma::mat bf(poly->eval(xq, Rlen));
+  arma::mat bf(poly->eval_f(xq, Rlen));
 
   // Integral by quadrature
   return quadrature::model_potential_integral(Rmin, Rmax, model, xq, wq,
@@ -392,7 +394,7 @@ arma::mat RadialBasis::erfc_integral(int L, double mu, size_t iel, size_t kel) c
   arma::vec xi, wi;
   chebyshev::chebyshev(Nq, xi, wi);
   // and basis function values
-  arma::mat ibf(poly->eval(xi, Rleni));
+  arma::mat ibf(poly->eval_f(xi, Rleni));
 
   // Rh quadrature points
   arma::vec xk(Nq * Nint);
@@ -411,7 +413,7 @@ arma::mat RadialBasis::erfc_integral(int L, double mu, size_t iel, size_t kel) c
     wk.subvec(ii * Nq, (ii + 1) * Nq - 1) = wi * ilen;
   }
   // and basis function values
-  arma::mat kbf(poly->eval(xk, Rlenk));
+  arma::mat kbf(poly->eval_f(xk, Rlenk));
 
   // Evaluate integral
   arma::mat tei(quadrature::erfc_integral(Rmini, Rmaxi, get_basis(ibf, iel), xi, wi, Rmink,
@@ -443,7 +445,7 @@ arma::mat RadialBasis::get_bf(size_t iel) const {
   double rlen = (rmax - rmin) / 2;
 
   // Element function values at quadrature points are
-  arma::mat bf(poly->eval(xq, rlen));
+  arma::mat bf(poly->eval_f(xq, rlen));
   arma::mat val(get_basis(bf, iel));
 
   // but we also need to put in the 1/r factor
@@ -464,7 +466,8 @@ arma::mat RadialBasis::get_df(size_t iel) const {
 
   // Element function values at quadrature points are
   arma::mat bf, df;
-  poly->eval(xq, bf, df, rlen);
+  poly->eval_f(xq, bf, rlen);
+  poly->eval_df(xq, df, rlen);
   arma::mat fval(get_basis(bf, iel));
   arma::mat dval(get_basis(df, iel));
 
@@ -474,8 +477,7 @@ arma::mat RadialBasis::get_df(size_t iel) const {
   arma::mat der(fval);
   for (size_t j = 0; j < fval.n_cols; j++)
     for (size_t i = 0; i < fval.n_rows; i++)
-      // Get one rlen from derivative
-      der(i, j) = dval(i, j) / (rlen * r(i)) - fval(i, j) / (r(i) * r(i));
+      der(i, j) = dval(i, j) / r(i) - fval(i, j) / (r(i) * r(i));
 
   return der;
 }
@@ -489,12 +491,13 @@ arma::mat RadialBasis::get_lf(size_t iel) const {
 
   // Element function values at quadrature points are
   arma::mat bf, df;
-  poly->eval(xq, bf, df, rlen);
+  poly->eval_f(xq, bf, rlen);
+  poly->eval_df(xq, df, rlen);
   arma::mat fval(get_basis(bf, iel));
   arma::mat dval(get_basis(df, iel));
 
   arma::mat lf;
-  poly->eval_lapl(xq, lf, rlen);
+  poly->eval_d2f(xq, lf, rlen);
   arma::mat lval(get_basis(lf, iel));
 
   arma::vec r(rmid * arma::ones<arma::vec>(xq.n_elem) + rlen * xq);
@@ -503,9 +506,8 @@ arma::mat RadialBasis::get_lf(size_t iel) const {
   arma::mat lapl(fval);
   for (size_t j = 0; j < fval.n_cols; j++)
     for (size_t i = 0; i < fval.n_rows; i++)
-      // Get one rlen from each derivative
-      lapl(i, j) = lval(i, j) / (rlen * rlen * r(i)) -
-                   2.0 * dval(i, j) / (rlen * r(i) * r(i)) +
+      lapl(i, j) = lval(i, j) / r(i) -
+                   2.0 * dval(i, j) / (r(i) * r(i)) +
                    2.0 * fval(i, j) / (r(i) * r(i) * r(i));
 
   return lapl;
@@ -544,8 +546,9 @@ double RadialBasis::nuclear_density(const arma::mat &Prad) const {
   double rlen((bval(1) - bval(0)) / 2);
 
   arma::mat func, der;
-  poly->eval(x, func, der, rlen);
-  der = (get_basis(der, 0) / rlen);
+  poly->eval_f(x, func, rlen);
+  poly->eval_df(x, der, rlen);
+  der = get_basis(der, 0);
 
   // Radial functions in element
   size_t ifirst, ilast;
@@ -571,10 +574,11 @@ double RadialBasis::nuclear_density_gradient(const arma::mat &Prad) const {
   double rlen((bval(1) - bval(0)) / 2);
 
   arma::mat func, der, lapl;
-  poly->eval(x, func, der, rlen);
-  der = (get_basis(der, 0) / rlen);
-  poly->eval_lapl(x, lapl, rlen);
-  lapl = (get_basis(lapl, 0) / (rlen * rlen));
+  poly->eval_f(x, func, rlen);
+  poly->eval_df(x, der, rlen);
+  poly->eval_d2f(x, lapl, rlen);
+  der = get_basis(der, 0);
+  lapl = get_basis(lapl, 0);
 
   // Radial functions in element
   size_t ifirst, ilast;
@@ -597,8 +601,9 @@ arma::rowvec RadialBasis::nuclear_orbital(const arma::mat &C) const {
   double rlen((bval(1) - bval(0)) / 2);
 
   arma::mat func, der;
-  poly->eval(x, func, der, rlen);
-  der = (get_basis(der, 0) / rlen);
+  poly->eval_f(x, func, rlen);
+  poly->eval_df(x, der, rlen);
+  der = get_basis(der, 0);
 
   // Radial functions in element
   size_t ifirst, ilast;

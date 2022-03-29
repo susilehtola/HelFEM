@@ -17,7 +17,6 @@
 #define POLYNOMIAL_BASIS_H
 
 #include "LegendreBasis.h"
-#include "HermiteBasis.h"
 #include "LIPBasis.h"
 #include "HIPBasis.h"
 #include <armadillo>

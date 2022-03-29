@@ -26,11 +26,9 @@ namespace helfem {
     protected:
       /// Control nodes
       arma::vec x0;
-      /// Indices of enabled functions
-      arma::uvec enabled;
 
       /// Evaluate functions
-      void eval_bf_raw(const arma::vec & x, arma::mat & f) const;
+      void eval_f_raw(const arma::vec & x, arma::mat & f) const;
       /// Evaluate derivatives
       void eval_df_raw(const arma::vec & x, arma::mat & f) const;
       /// Evaluate second derivatives
@@ -46,18 +44,18 @@ namespace helfem {
       LIPBasis * copy() const override;
 
       /// Drop first function
-      void drop_first() override;
+      void drop_first(bool deriv) override;
       /// Drop last function
-      void drop_last() override;
+      void drop_last(bool deriv) override;
 
       /// Evaluate polynomials at given points
-      arma::mat eval(const arma::vec & x, double element_length) const override;
-      /// Evaluate polynomials and derivatives at given points
-      void eval(const arma::vec & x, arma::mat & f, arma::mat & df, double element_length) const override;
-      /// Evaluate second derivatives at given points
-      void eval_lapl(const arma::vec & x, arma::mat & lf, double element_length) const override;
-      /// Evaluate third derivatives at given points
-      void eval_d3(const arma::vec & x, arma::mat & d3f, double element_length) const;
+      void eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const override;
+      /// Evaluate derivatives of polynomials at given points
+      void eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const override;
+      /// Evaluate second derivatives of polynomials at given points
+      void eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const override;
+      /// Evaluate third derivatives of polynomials at given points
+      void eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const override;
     };
   }
 }

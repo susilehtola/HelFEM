@@ -25,14 +25,24 @@ namespace helfem {
     protected:
       /// Number of primitive functions
       int nprim;
-      /// Number of basis functions (nprim or smaller)
-      int nbf;
+      /// List of enabled functions
+      arma::uvec enabled;
       /// Number of overlapping functions
       int noverlap;
       /// Identifier
       int id;
       /// Order
       int order;
+
+      /// Evaluate primitive polynomials at given points
+      virtual void eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const;
+      /// Evaluate derivatives of primitive polynomials at given points
+      virtual void eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const;
+      /// Evaluate second derivatives of primitive polynomials at given points
+      virtual void eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const;
+      /// Evaluate third derivatives of primitive polynomials at given points
+      virtual void eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const;
+
     public:
       /// Constructor
       PolynomialBasis();
@@ -53,17 +63,28 @@ namespace helfem {
       /// Get order
       int get_order() const;
 
-      /// Drop first function
-      virtual void drop_first()=0;
-      /// Drop last function
-      virtual void drop_last()=0;
+      /// Drop first function(s); deriv: also set derivatives to zero
+      virtual void drop_first(bool deriv=false)=0;
+      /// Drop last function(s); deriv: also set derivatives to zero
+      virtual void drop_last(bool deriv=true)=0;
 
       /// Evaluate polynomials at given points
-      virtual arma::mat eval(const arma::vec & x, double element_length) const=0;
-      /// Evaluate polynomials and derivatives at given points
-      virtual void eval(const arma::vec & x, arma::mat & f, arma::mat & df, double element_length) const=0;
-      /// Evaluate second derivatives at given point
-      virtual void eval_lapl(const arma::vec & x, arma::mat & lf, double element_length) const;
+      void eval_f(const arma::vec & x, arma::mat & f, double element_length) const;
+      /// Evaluate derivatives of polynomials at given points
+      void eval_df(const arma::vec & x, arma::mat & df, double element_length) const;
+      /// Evaluate second derivatives of polynomials at given points
+      void eval_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const;
+      /// Evaluate third derivatives of polynomials at given points
+      void eval_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const;
+
+      /// Evaluate polynomials at given points
+      arma::mat eval_f(const arma::vec & x, double element_length) const;
+      /// Evaluate derivatives of polynomials at given points
+      arma::mat eval_df(const arma::vec & x, double element_length) const;
+      /// Evaluate second derivatives of polynomials at given points
+      arma::mat eval_d2f(const arma::vec & x, double element_length) const;
+      /// Evaluate third derivatives of polynomials at given points
+      arma::mat eval_d3f(const arma::vec & x, double element_length) const;
 
       /// Print out the basis functions
       void print(const std::string & str="") const;

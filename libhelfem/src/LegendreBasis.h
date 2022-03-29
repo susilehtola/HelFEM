@@ -22,6 +22,7 @@
 namespace helfem {
   namespace polynomial_basis {/// Legendre functions
     class LegendreBasis: public PolynomialBasis {
+    protected:
       /// Maximum order
       int lmax;
       /// Transformation matrix
@@ -32,7 +33,7 @@ namespace helfem {
       /// Evaluate Legendre polynomials' derivatives
       arma::mat df_eval(const arma::vec & x) const;
       /// Evaluate Legendre polynomials' second derivatives
-      arma::mat lf_eval(const arma::vec & x) const;
+      arma::mat d2f_eval(const arma::vec & x) const;
     public:
       /// Constructor
       LegendreBasis(int nfuncs, int id);
@@ -42,16 +43,16 @@ namespace helfem {
       LegendreBasis * copy() const override;
 
       /// Drop first function
-      void drop_first() override;
+      void drop_first(bool deriv) override;
       /// Drop last function
-      void drop_last() override;
+      void drop_last(bool deriv) override;
 
       /// Evaluate polynomials at given points
-      arma::mat eval(const arma::vec & x, double element_length) const override;
-      /// Evaluate polynomials and derivatives at given points
-      void eval(const arma::vec & x, arma::mat & f, arma::mat & df, double element_length) const override;
-      /// Evaluate second derivatives at given points
-      void eval_lapl(const arma::vec & x, arma::mat & lf, double element_length) const override;
+      void eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const override;
+      /// Evaluate derivatives of polynomials at given points
+      void eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const override;
+      /// Evaluate second derivatives of polynomials at given points
+      void eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const override;
     };
   }
 }

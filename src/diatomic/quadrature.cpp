@@ -160,7 +160,7 @@ namespace helfem {
         // Calculate x values the polynomials should be evaluated at
         arma::vec xpoly((mu-mumid0*arma::ones<arma::vec>(x.n_elem))/mulen0);
         // Evaluate the polynomials at these points
-        arma::mat bf(poly->eval(xpoly, mulen0));
+        arma::mat bf(poly->eval_f(xpoly, mulen0));
 
         // Put in weight
         arma::mat wbf(bf);
@@ -211,7 +211,7 @@ namespace helfem {
         arma::mat inner(twoe_inner_integral(mumin, mumax, l, x, wx, poly, L, M, tab));
 
         // Evaluate basis functions at quadrature points
-        arma::mat bf(poly->eval(x, mulen));
+        arma::mat bf(poly->eval_f(x, mulen));
 
         // Product functions
         arma::mat bfprod(bf.n_rows,bf.n_cols*bf.n_cols);
