@@ -47,11 +47,11 @@ namespace helfem {
       void drop_last() override;
 
       /// Evaluate polynomials at given points
-      arma::mat eval(const arma::vec & x) const override;
+      arma::mat eval(const arma::vec & x, double element_length) const override;
       /// Evaluate polynomials and derivatives at given points
-      void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const override;
+      void eval(const arma::vec & x, arma::mat & f, arma::mat & df, double element_length) const override;
       /// Evaluate second derivatives at given points
-      void eval_lapl(const arma::vec & x, arma::mat & lf) const override;
+      void eval_lapl(const arma::vec & x, arma::mat & lf, double element_length) const override;
     };
   }
 }
