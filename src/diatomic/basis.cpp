@@ -51,9 +51,6 @@ namespace helfem {
             printf("wq[%i]=%e\n",(int) i, wq[i]);
         }
 
-        // Evaluate polynomials at quadrature points
-        poly->eval(xq,bf,df);
-
         // Element boundaries
         bval=bval_;
       }
@@ -66,8 +63,6 @@ namespace helfem {
         xq=rh.xq;
         wq=rh.wq;
         poly=rh.poly->copy();
-        bf=rh.bf;
-        df=rh.df;
         bval=rh.bval;
         return *this;
       }
@@ -96,7 +91,7 @@ namespace helfem {
 	// Number of overlapping functions
 	int noverlap(get_noverlap());
 	// Number of primitive functions
-	int nprim(bf.n_cols);
+	int nprim(poly->get_nprim());
 
 	return polynomial_basis::primitive_indices(nprim, noverlap, false, iel==bval.n_elem-2);
       }
@@ -127,7 +122,7 @@ namespace helfem {
 
       size_t RadialBasis::Nbf() const {
         // Number of basis functions is Nbf*Nel - (Nel-1)*Noverlap - Noverlap
-        return Nel()*bf.n_cols-Nel()*get_noverlap();
+        return Nel()*poly->get_nprim()-Nel()*get_noverlap();
       }
 
       size_t RadialBasis::Nprim(size_t iel) const {
@@ -135,20 +130,25 @@ namespace helfem {
       }
 
       size_t RadialBasis::max_Nprim() const {
-        return bf.n_cols;
+        return poly->get_nprim();
       }
 
       void RadialBasis::get_idx(size_t iel, size_t & ifirst, size_t & ilast) const {
         // The first function in the element will be
-        ifirst=iel*(bf.n_cols-get_noverlap());
+        ifirst=iel*(poly->get_nprim()-get_noverlap());
         // and the last one will be
-        ilast=ifirst+bf.n_cols-1;
+        ilast=ifirst+poly->get_nprim()-1;
         // Last element does not have trailing functions
         if(iel==bval.n_elem-2)
           ilast-=get_noverlap();
       }
 
       arma::mat RadialBasis::radial_integral(int m, int n, size_t iel) const {
+        double rlen((bval(iel+1)-bval(iel))/2);
+
+        arma::mat bf, df;
+        poly->eval(xq, bf, df, rlen);
+
         return radial_integral(bf,m,n,iel);
       }
 
@@ -260,8 +260,8 @@ namespace helfem {
 	    if(n!=0)
 	      wtot%=arma::pow(arma::cosh(mu),n);
 	    // Put in weight
-	    arma::mat ibf(poly->eval(xi));
-	    arma::mat jbf(rh.poly->eval(xj));
+	    arma::mat ibf(poly->eval(xi, ilen));
+	    arma::mat jbf(rh.poly->eval(xj, jlen));
 
 	    // Perform quadrature
             arma::mat s(arma::trans(ibf)*arma::diagmat(wtot)*jbf);
@@ -278,6 +278,11 @@ namespace helfem {
         double mumin(bval(iel));
         double mumax(bval(iel+1));
 
+        double rlen((bval(iel+1)-bval(iel))/2);
+
+        arma::mat bf, df;
+        poly->eval(xq, bf, df, rlen);
+
         // Integral by quadrature
         return diatomic::quadrature::Plm_radial_integral(mumin,mumax,k,xq,wq,get_basis(bf,iel),L,M,legtab);
       }
@@ -286,6 +291,11 @@ namespace helfem {
         double mumin(bval(iel));
         double mumax(bval(iel+1));
 
+        double rlen((bval(iel+1)-bval(iel))/2);
+
+        arma::mat bf, df;
+        poly->eval(xq, bf, df, rlen);
+
         // Integral by quadrature
         return diatomic::quadrature::Qlm_radial_integral(mumin,mumax,k,xq,wq,get_basis(bf,iel),L,M,legtab);
       }
@@ -293,6 +303,9 @@ namespace helfem {
       arma::mat RadialBasis::kinetic(size_t iel) const {
         // We get 1/rlen^2 from the derivatives
         double rlen((bval(iel+1)-bval(iel))/2);
+
+        arma::mat f, df;
+        poly->eval(xq, f, df, rlen);
 
         return radial_integral(df,1,0,iel)/(rlen*rlen);
       }
@@ -363,26 +376,31 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::get_bf(size_t iel) const {
-        // Element function values at quadrature points are
-        arma::mat val(get_basis(bf,iel));
-
-        return val;
+        return get_bf(iel, xq);
       }
 
       arma::mat RadialBasis::get_bf(size_t iel, const arma::vec & x) const {
-        arma::mat val(poly->eval(x));
+        // Interval length
+        double rmin(bval(iel));
+        double rmax(bval(iel+1));
+        double rlen=(rmax-rmin)/2;
+
+        arma::mat val(poly->eval(x, rlen));
         val=get_basis(val,iel);
 
         return val;
       }
 
       arma::mat RadialBasis::get_df(size_t iel) const {
-        // Element function values at quadrature points are
-        arma::mat dval(get_basis(df,iel));
         // Interval length
         double rmin(bval(iel));
         double rmax(bval(iel+1));
         double rlen=(rmax-rmin)/2;
+
+        // Element function values at quadrature points are
+        arma::mat bf, df;
+        poly->eval(xq, bf, df, rlen);
+        arma::mat dval(get_basis(df,iel));
 
         // Derivative is then
         return dval/rlen;

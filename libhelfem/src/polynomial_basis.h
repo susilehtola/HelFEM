@@ -19,6 +19,7 @@
 #include "LegendreBasis.h"
 #include "HermiteBasis.h"
 #include "LIPBasis.h"
+#include "HIPBasis.h"
 #include <armadillo>
 #include "helfem.h"
 

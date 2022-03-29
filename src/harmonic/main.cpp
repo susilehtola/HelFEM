@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
 
   // Evaluate polynomials at quadrature points
   arma::mat bf, dbf;
-  poly->eval(x,bf,dbf);
+  poly->eval(x,bf,dbf,1.0);
 
   x.save("x.dat",arma::raw_ascii);
   bf.save("bf.dat",arma::raw_ascii);

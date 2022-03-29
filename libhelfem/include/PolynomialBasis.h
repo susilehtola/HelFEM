@@ -23,7 +23,9 @@ namespace helfem {
     /// Template for a primitive basis
     class PolynomialBasis {
     protected:
-      /// Number of basis functions
+      /// Number of primitive functions
+      int nprim;
+      /// Number of basis functions (nprim or smaller)
       int nbf;
       /// Number of overlapping functions
       int noverlap;
@@ -39,6 +41,8 @@ namespace helfem {
       /// Get a copy
       virtual PolynomialBasis * copy() const=0;
 
+      /// Get number of primitive functions
+      int get_nprim() const;
       /// Get number of basis functions
       int get_nbf() const;
       /// Get number of overlapping functions
@@ -55,11 +59,11 @@ namespace helfem {
       virtual void drop_last()=0;
 
       /// Evaluate polynomials at given points
-      virtual arma::mat eval(const arma::vec & x) const=0;
+      virtual arma::mat eval(const arma::vec & x, double element_length) const=0;
       /// Evaluate polynomials and derivatives at given points
-      virtual void eval(const arma::vec & x, arma::mat & f, arma::mat & df) const=0;
+      virtual void eval(const arma::vec & x, arma::mat & f, arma::mat & df, double element_length) const=0;
       /// Evaluate second derivatives at given point
-      virtual void eval_lapl(const arma::vec & x, arma::mat & lf) const;
+      virtual void eval_lapl(const arma::vec & x, arma::mat & lf, double element_length) const;
 
       /// Print out the basis functions
       void print(const std::string & str="") const;

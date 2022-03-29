@@ -13,27 +13,26 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  */
-#ifndef POLYNOMIAL_BASIS_HERMITEBASIS_H
-#define POLYNOMIAL_BASIS_HERMITEBASIS_H
+#ifndef POLYNOMIAL_BASIS_HIPBASIS_H
+#define POLYNOMIAL_BASIS_HIPBASIS_H
 
 #include "helfem/PolynomialBasis.h"
 #include <armadillo>
 
 namespace helfem {
   namespace polynomial_basis {
-    /// Primitive polynomials with Hermite
-    class HermiteBasis: public PolynomialBasis {
-      /// Primitive polynomial basis expansion
-      arma::mat bf_C;
-      /// Primitive polynomial basis expansion, derivative
-      arma::mat df_C;
+    /// Hermite interpolating polynomials
+    class HIPBasis: public LIPBasis {
+    protected:
+      /// LIP derivatives at nodes
+      arma::vec lipxi;
     public:
       /// Constructor
-      HermiteBasis(int n_nodes, int der_order);
+      HIPBasis(const arma::vec & x0, int id);
       /// Destructor
-      ~HermiteBasis();
+      ~HIPBasis();
       /// Get a copy
-      HermiteBasis * copy() const override;
+      HIPBasis * copy() const override;
 
       /// Drop first function
       void drop_first() override;

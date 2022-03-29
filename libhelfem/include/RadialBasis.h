@@ -32,12 +32,6 @@ namespace helfem {
 
         /// Polynomial basis
         const polynomial_basis::PolynomialBasis *poly;
-        /// Primitive polynomial basis functions evaluated on the quadrature
-        /// grid
-        arma::mat bf;
-        /// Primitive polynomial basis function derivatives evaluated on the
-        /// quadrature grid
-        arma::mat df;
 
         /// Element boundary values
         arma::vec bval;
