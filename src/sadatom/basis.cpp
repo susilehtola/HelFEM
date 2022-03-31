@@ -44,7 +44,8 @@ namespace helfem {
         model=model_;
         Rrms=Rrms_;
         // Construct radial basis
-        polynomial_basis::FiniteElementBasis fem(poly, bval);
+        bool zero_deriv_left=false;
+        polynomial_basis::FiniteElementBasis fem(poly, bval, zero_deriv_left);
         radial=atomic::basis::RadialBasis(fem, n_quad);
         // Angular basis
         lval=arma::linspace<arma::ivec>(0,lmax,lmax+1);

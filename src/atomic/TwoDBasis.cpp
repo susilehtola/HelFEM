@@ -46,7 +46,8 @@ namespace helfem {
         Rrms=Rrms_;
 
         // Construct radial basis
-        polynomial_basis::FiniteElementBasis fem(poly, bval);
+        bool zero_deriv_left=false;
+        polynomial_basis::FiniteElementBasis fem(poly, bval, zero_deriv_left);
         radial=RadialBasis(fem, n_quad);
 
         // Construct angular basis
