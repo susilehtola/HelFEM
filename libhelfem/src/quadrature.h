@@ -82,27 +82,27 @@ namespace helfem {
      * Computes the inner in-element two-electron integral:
      * \f$ \phi(r) = \frac 1 r^{L+1} \int_0^r dr' r'^{L} B_k(r') B_l(r') \f$
      */
-    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L);
+    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L);
 
     /**
      * Computes a primitive two-electron in-element integral.
      * Cross-element integrals reduce to products of radial integrals.
      * Note that the routine needs the polynomial representation.
      */
-    arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L);
+    arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L);
 
     /**
      * Computes the inner in-element two-electron Yukawa integral:
      * \f$ \phi(r) = \frac 1 r^{L+1} \int_0^r dr' r'^{L} B_k(r') B_l(r') \f$
      */
-    arma::mat yukawa_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, double lambda);
+    arma::mat yukawa_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, double lambda);
 
     /**
      * Computes a primitive two-electron in-element Yukawa integral.
      * Cross-element integrals reduce to products of radial integrals.
      * Note that the routine needs the polynomial representation.
      */
-    arma::mat yukawa_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, double lambda);
+    arma::mat yukawa_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, double lambda);
 
     /**
      * Computes a primitive two-electron complementary error function
@@ -113,7 +113,7 @@ namespace helfem {
     /**
      * Computes the spherically symmetric potential V(r).
      */
-    arma::mat spherical_potential(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly);
+    arma::mat spherical_potential(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly);
   }
 }
 

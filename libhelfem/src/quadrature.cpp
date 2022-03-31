@@ -185,7 +185,7 @@ namespace helfem {
       return arma::trans(wbf)*bf;
     }
 
-    static arma::vec twoe_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L) {
+    static arma::vec twoe_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is
@@ -217,7 +217,7 @@ namespace helfem {
       return inner;
     }
 
-    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L) {
+    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is
@@ -240,7 +240,7 @@ namespace helfem {
       return inner;
     }
 
-    arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L) {
+    arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L) {
 #ifndef ARMA_NO_DEBUG
       if(x.n_elem != wx.n_elem) {
         std::ostringstream oss;
@@ -276,7 +276,7 @@ namespace helfem {
       return ints;
     }
 
-    static arma::vec yukawa_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, double lambda) {
+    static arma::vec yukawa_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, double lambda) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is
@@ -308,7 +308,7 @@ namespace helfem {
       return inner;
     }
 
-    arma::mat yukawa_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, double lambda) {
+    arma::mat yukawa_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, double lambda) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is
@@ -331,7 +331,7 @@ namespace helfem {
       return inner;
     }
 
-    arma::mat yukawa_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, double lambda) {
+    arma::mat yukawa_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, double lambda) {
 #ifndef ARMA_NO_DEBUG
       if(x.n_elem != wx.n_elem) {
         std::ostringstream oss;
@@ -420,7 +420,7 @@ namespace helfem {
       return ints;
     }
 
-    arma::mat spherical_potential(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly) {
+    arma::mat spherical_potential(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is

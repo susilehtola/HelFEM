@@ -88,12 +88,13 @@ namespace helfem {
       }
 
       arma::uvec RadialBasis::basis_indices(size_t iel) const {
-	// Number of overlapping functions
-	int noverlap(get_noverlap());
-	// Number of primitive functions
-	int nprim(poly->get_nprim());
+        polynomial_basis::PolynomialBasis *p(poly->copy());
+        if (iel == 0)
+          p->drop_first();
+        if (iel == bval.n_elem - 2)
+          p->drop_last();
 
-	return polynomial_basis::primitive_indices(nprim, noverlap, false, iel==bval.n_elem-2);
+        return p->get_enabled();
       }
 
       arma::mat RadialBasis::get_basis(const arma::mat & bas, size_t iel) const {

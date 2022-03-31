@@ -225,7 +225,7 @@ int main(int argc, char **argv) {
   printf("Running %s %s calculation with Rmax=%e and %i elements.\n",rcalc[restr].c_str(),method.c_str(),Rmax,Nelem);
 
   // Get primitive basis
-  polynomial_basis::PolynomialBasis *poly(polynomial_basis::get_basis(primbas,Nnodes));
+  auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::get_basis(primbas,Nnodes)));
 
   if(Nquad==0)
     // Set default value

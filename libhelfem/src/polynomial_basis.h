@@ -22,10 +22,4 @@
 #include <armadillo>
 #include "helfem.h"
 
-namespace helfem {
-  namespace polynomial_basis {
-    /// Get primitive indices for a basis with n nodes and n overlapping functions.
-    arma::uvec primitive_indices(int nnodes, int noverlap, bool drop_first, bool drop_last);
-  }
-}
 #endif
