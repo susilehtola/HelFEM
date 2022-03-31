@@ -396,7 +396,7 @@ namespace helfem {
         x(0) = -1.0;
 
         // Evaluate derivative at nucleus
-        arma::mat der(fem.eval_f(x, 0));
+        arma::mat der(fem.eval_df(x, 0));
 
         // Radial functions in element
         size_t ifirst, ilast;
