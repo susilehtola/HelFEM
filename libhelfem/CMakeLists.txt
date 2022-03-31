@@ -25,7 +25,7 @@ add_library(helfem
     src/utils.cpp
     src/erfc_expn.cpp
     src/polynomial.cpp
-    src/polynomial_basis.cpp
+    src/PolynomialBasis.cpp
     src/LIPBasis.cpp
     src/HIPBasis.cpp
     src/LegendreBasis.cpp
