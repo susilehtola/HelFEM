@@ -595,7 +595,7 @@ namespace helfem {
         return lh.Econf < rh.Econf;
       }
 
-      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const polynomial_basis::PolynomialBasis * poly, int Nquad, const arma::vec & bval, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
+      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int Nquad, const arma::vec & bval, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
 
         // Construct the angular basis
         arma::ivec lval, mval;

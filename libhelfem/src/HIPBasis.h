@@ -17,6 +17,7 @@
 #define POLYNOMIAL_BASIS_HIPBASIS_H
 
 #include "helfem/PolynomialBasis.h"
+#include "LIPBasis.h"
 #include <armadillo>
 
 namespace helfem {

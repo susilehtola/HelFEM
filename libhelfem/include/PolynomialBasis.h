@@ -63,6 +63,8 @@ namespace helfem {
       /// Get order
       int get_order() const;
 
+      /// Get list of enabled primitives
+      arma::uvec get_enabled() const;
       /// Drop first function(s); deriv: also set derivatives to zero
       virtual void drop_first(bool deriv=false)=0;
       /// Drop last function(s); deriv: also set derivatives to zero
