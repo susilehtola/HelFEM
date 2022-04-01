@@ -44,24 +44,29 @@ namespace helfem {
       return y;
     }
 
-    arma::vec bessel_il(const arma::vec & x, int L) {
-      arma::vec y(x);
-      for(size_t i=0;i<x.n_elem;i++)
-        // GSL calculates exp(-|x|)k_l(x)
-	y(i)=exp(std::abs(x(i)))*gsl_sf_bessel_il_scaled(L, x(i));
-      return y;
+    double bessel_il(double r, int L) {
+      // GSL calculates exp(-|x|)k_l(x)
+      return exp(std::abs(r))*gsl_sf_bessel_il_scaled(L, r);
     }
 
-    arma::vec bessel_kl(const arma::vec & x, int L) {
-      arma::vec y(x);
-      for(size_t i=0;i<x.n_elem;i++)
-        // GSL calculates exp(x)k_l(x)
-	y(i)=exp(-x(i))*gsl_sf_bessel_kl_scaled(L, x(i));
+    arma::vec bessel_il(const arma::vec & r, int L) {
+      arma::vec ret(r.n_elem);
+      for(size_t i=0; i<ret.n_elem; i++)
+        ret(i) = bessel_il(r(i), L);
+      return ret;
+    }
 
-      // The definition in GSL is \sqrt(\pi/(2x)), not \sqrt(2/(\pi x))
-      y /= M_PI_2;
+    double bessel_kl(double r, int L) {
+      // GSL calculates exp(-|x|)k_l(x). Also, the definition in GSL
+      // is \sqrt(\pi/(2x)), not \sqrt(2/(\pi x))
+      return exp(std::abs(r))*gsl_sf_bessel_kl_scaled(L, r) / M_PI_2;
+    }
 
-      return y;
+    arma::vec bessel_kl(const arma::vec & r, int L) {
+      arma::vec ret(r.n_elem);
+      for(size_t i=0; i<ret.n_elem; i++)
+        ret(i) = bessel_kl(r(i), L);
+      return ret;
     }
 
     arma::mat product_tei(const arma::mat & ijint, const arma::mat & klint) {

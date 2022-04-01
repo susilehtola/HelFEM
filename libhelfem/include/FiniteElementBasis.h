@@ -16,6 +16,7 @@
 #ifndef POLYNOMIAL_BASIS_FINITEELEMENTBASIS_H
 #define POLYNOMIAL_BASIS_FINITEELEMENTBASIS_H
 
+#include <functional>
 #include <armadillo>
 #include <memory>
 #include "PolynomialBasis.h"
@@ -124,9 +125,9 @@ namespace helfem {
        * wq:    quadrature weights
        * f(r):  additional weight function, use nullptr for unit weight
        */
-      arma::mat matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, double (*f)(double)) const;
+      arma::mat matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
       /// Same as above, but only in a single element
-      arma::mat matrix_element(size_t iel, bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, double (*f)(double)) const;
+      arma::mat matrix_element(size_t iel, bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
 
       /// Print out the basis functions
       void print(const std::string & str="") const;
