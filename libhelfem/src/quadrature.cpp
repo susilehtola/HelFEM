@@ -16,7 +16,6 @@
 #include "quadrature.h"
 #include "erfc_expn.h"
 #include "chebyshev.h"
-#include "polynomial.h"
 #include "utils.h"
 
 namespace helfem {
@@ -204,7 +203,7 @@ namespace helfem {
       // Calculate x values the polynomials should be evaluated at
       arma::vec xpoly((r-rmid0*arma::ones<arma::vec>(x.n_elem))/rlen0);
       // Evaluate the polynomials at these points
-      arma::mat bf(poly->eval_f(xpoly,rlen));
+      arma::mat bf(poly->eval_f(xpoly,rlen0));
 
       // Put in weight
       arma::mat wbf(bf);

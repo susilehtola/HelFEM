@@ -13,141 +13,28 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  */
-#include "polynomial.h"
-#include "polynomial_basis.h"
+
+#include "helfem/PolynomialBasis.h"
+#include "helfem/FiniteElementBasis.h"
 #include "chebyshev.h"
 #include "quadrature.h"
 
 using namespace helfem;
 
-size_t get_Nbf(const arma::vec & r, const arma::mat & bf, int noverlap) {
-  // Number of elements is
-  size_t Nelem=r.n_elem-1;
-  // Count the number of basis functions
-  size_t Nbf=bf.n_cols*Nelem;
-  // .. minus the number of functions that overlap between elements
-  Nbf-=(Nelem-1)*noverlap;
-
-  return Nbf;
+arma::mat overlap(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
+  return fem.matrix_element(false, false, x, wx, nullptr);
 }
 
-void get_functions(size_t iel, const arma::mat & bf, int noverlap, size_t & ifirst, size_t & ilast) {
-  // The first function will be
-  ifirst=iel*(bf.n_cols-noverlap);
-  // and the last one
-  ilast=ifirst+bf.n_cols-1;
+double square_potential(double r) {
+  return r*r;
 }
 
-/*
-arma::mat l2n2_element_overlap(double xmin, double h) {
-  arma::mat S(2,2);
-  S(0,0)=S(1,1)=h/3;
-  S(0,1)=S(1,0)=h/6;
-  return S;
+arma::mat potential(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
+  return fem.matrix_element(false, false, x, wx, square_potential);
 }
 
-arma::mat l2n2_element_kinetic(double xmin, double h) {
-  arma::mat T(2,2);
-  T(0,0)=T(1,1)=1/h;
-  T(0,1)=T(1,0)=-1/h;
-  return T;
-}
-
-arma::mat l2n2_element_potential(double xmin, double h) {
-  arma::mat V0(2,2);
-  V0(0,0)=V0(1,1)=1.0/3.0;
-  V0(0,1)=V0(1,0)=1.0/6.0;
-
-  arma::mat V1(2,2);
-  V1(0,0)=V1(0,1)=V1(1,0)=1.0/6.0;
-  V1(1,1)=1.0/2.0;
-
-  arma::mat V2(2,2);
-  V2(0,0)=1.0/30.0;
-  V2(0,1)=V2(1,0)=1.0/20.0;
-  V2(1,1)=1.0/5.0;
-
-  return V0*h*xmin*xmin + V1*h*h*xmin + V2*h*h*h;
-}
-*/
-
-arma::mat overlap(const arma::vec & r, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int noverlap) {
-  // Build overlap matrix
-  size_t Nbf(get_Nbf(r,bf,noverlap));
-  arma::mat S(Nbf,Nbf);
-  S.zeros();
-
-  // Loop over elements
-  for(size_t iel=0;iel<r.n_elem-1;iel++) {
-    // Get the primitive overlap matrix
-    arma::mat Sel(quadrature::radial_integral(r(iel),r(iel+1),0,x,wx,bf));
-
-    // Where are we in the matrix?
-    size_t ifirst, ilast;
-    get_functions(iel,bf,noverlap,ifirst,ilast);
-    S.submat(ifirst,ifirst,ilast,ilast)+=Sel;
-
-    //printf("Element %i: functions %i - %i\n",(int) iel,(int) ifirst, (int) ilast);
-  }
-
-  return S;
-}
-
-arma::mat potential(const arma::vec & r, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, int noverlap) {
-  // Build nuclear attraction matrix
-  size_t Nbf(get_Nbf(r,bf,noverlap));
-  arma::mat V(Nbf,Nbf);
-  V.zeros();
-
-  // Loop over elements
-  for(size_t iel=0;iel<r.n_elem-1;iel++) {
-    // Get the primitive overlap matrix
-    arma::mat Vel(quadrature::radial_integral(r(iel),r(iel+1),2,x,wx,bf));
-
-    // Where are we in the matrix?
-    size_t ifirst, ilast;
-    get_functions(iel,bf,noverlap,ifirst,ilast);
-    V.submat(ifirst,ifirst,ilast,ilast)+=Vel;
-  }
-
-  return V;
-}
-
-arma::mat kinetic(const arma::vec & r, const arma::vec & x, const arma::vec & wx, const arma::mat & bf, const arma::mat & dbf, int noverlap) {
-  // Build kinetic energy matrix
-  size_t Nbf(get_Nbf(r,bf,noverlap));
-  arma::mat T(Nbf,Nbf);
-  T.zeros();
-
-  // Loop over elements
-  for(size_t iel=0;iel<r.n_elem-1;iel++) {
-    // Get the primitive overlap matrix
-    arma::mat Tel(quadrature::derivative_integral(r(iel),r(iel+1),x,wx,dbf));
-
-    // Where are we in the matrix?
-    size_t ifirst, ilast;
-    get_functions(iel,bf,noverlap,ifirst,ilast);
-    T.submat(ifirst,ifirst,ilast,ilast)+=Tel;
-  }
-
-  return T;
-}
-
-arma::mat remove_edges(const arma::mat & M, int noverlap) {
-  // Full list of functions is
-  arma::uvec idx(arma::linspace<arma::uvec>(0,M.n_cols-1,M.n_cols));
-
-  // Drop first function
-  idx=idx.subvec(1,idx.n_elem-1);
-  // Drop last function
-  arma::uvec newidx(idx.n_elem-1);
-  newidx.subvec(0,idx.n_elem-noverlap-1)=idx.subvec(0,idx.n_elem-noverlap-1);
-  if(noverlap>1)
-    newidx.subvec(idx.n_elem-noverlap,newidx.n_elem-1)=idx.subvec(idx.n_elem-noverlap+1,idx.n_elem-1);
-  idx=newidx;
-
-  // Return submatrix
-  return M(idx,idx);
+arma::mat kinetic(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
+  return fem.matrix_element(true, true, x, wx, nullptr);
 }
 
 int main(int argc, char **argv) {
@@ -169,45 +56,41 @@ int main(int argc, char **argv) {
   int Nquad=atoi(argv[5]);
 
   printf("Running calculation with xmax=%e and %i elements.\n",xmax,Nelem);
-
-  // Get primitive basis
-  polynomial_basis::PolynomialBasis *poly(polynomial_basis::get_basis(primbas,Nnodes));
-  int noverlap=poly->get_noverlap();
-
   printf("Using %i point quadrature rule.\n",Nquad);
+
+  // Get polynomial basis
+  auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(primbas, Nnodes)));
+
   // Radial grid
   arma::vec r(arma::linspace<arma::vec>(-xmax,xmax,Nelem+1));
 
+  // Finite element basis
+  helfem::polynomial_basis::FiniteElementBasis fem(poly, r);
+
   // Quadrature rule
-  arma::vec x, wx;
-  chebyshev::chebyshev(Nquad,x,wx);
+  arma::vec xq, wq;
+  chebyshev::chebyshev(Nquad,xq,wq);
 
   // Evaluate polynomials at quadrature points
-  arma::mat bf(poly->eval_f(x, 1.0));
-  arma::mat dbf(poly->eval_df(x, 1.0));
+  arma::mat bf(poly->eval_f(xq, 1.0));
+  arma::mat dbf(poly->eval_df(xq, 1.0));
 
-  x.save("x.dat",arma::raw_ascii);
+  xq.save("x.dat",arma::raw_ascii);
   bf.save("bf.dat",arma::raw_ascii);
   dbf.save("dbf.dat",arma::raw_ascii);
 
-  size_t Nbf(get_Nbf(r,bf,noverlap));
+  size_t Nbf(fem.get_nbf());
   printf("Basis set contains %i functions\n",(int) Nbf);
 
   // Form overlap matrix
-  arma::mat S(overlap(r,x,wx,bf,noverlap));
+  arma::mat S(overlap(fem, xq, wq));
   // Form potential matrix
-  arma::mat V(potential(r,x,wx,bf,noverlap));
+  arma::mat V(potential(fem, xq, wq));
   // Form kinetic energy matrix
-  arma::mat T(kinetic(r,x,wx,bf,dbf,noverlap));
+  arma::mat T(kinetic(fem, xq, wq));
 
   // Form Hamiltonian
   arma::mat H(T+V);
-
-  // Get rid of the spurious trail elements
-  S=remove_edges(S,noverlap);
-  T=remove_edges(T,noverlap);
-  V=remove_edges(V,noverlap);
-  H=remove_edges(H,noverlap);
 
   //S.print("Overlap");
   //T.print("Kinetic");

@@ -17,9 +17,9 @@
 #define DIATOMIC_BASIS_H
 
 #include <armadillo>
+#include "helfem/FiniteElementBasis.h"
 #include "../general/gaunt.h"
 #include "../general/legendretable.h"
-#include "polynomial_basis.h"
 
 namespace helfem {
   namespace diatomic {
@@ -30,31 +30,15 @@ namespace helfem {
         arma::vec xq;
         /// Quadrature weights
         arma::vec wq;
-
-        /// Polynomial basis
-        const polynomial_basis::PolynomialBasis * poly;
-
-        /// Element boundary values
-        arma::vec bval;
-
-	/// Used basis function indices in element
-	arma::uvec basis_indices(size_t iel) const;
-        /// Get basis functions in element
-        arma::mat get_basis(const arma::mat & b, size_t iel) const;
-        /// Get basis functions in element
-        polynomial_basis::PolynomialBasis * get_basis(const polynomial_basis::PolynomialBasis * poly, size_t iel) const;
+        /// Finite element basis
+        polynomial_basis::FiniteElementBasis fem;
 
       public:
         /// Dummy constructor
         RadialBasis();
         /// Construct radial basis
-        RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval);
-
-        /// Explicit copy constructor because of shared pointer
-        RadialBasis(const RadialBasis & rh);
-        /// Explicit assignment operator because of shared pointer
-        RadialBasis & operator=(const RadialBasis & rh);
-        /// Explicit destructor because of shared pointer
+        RadialBasis(const polynomial_basis::FiniteElementBasis & fem, int n_quad);
+        /// Destructor
         ~RadialBasis();
 
         /// Get number of quadrature points
@@ -178,7 +162,7 @@ namespace helfem {
         // Dummy constructor
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int lpad=0, bool legendre=true);
+        TwoDBasis(int Z1, int Z2, double Rbond, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int lpad=0, bool legendre=true);
         /// Destructor
         ~TwoDBasis();
 

@@ -65,10 +65,10 @@ namespace helfem {
 
       /// Get list of enabled primitives
       arma::uvec get_enabled() const;
-      /// Drop first function(s); deriv: also set derivatives to zero
-      virtual void drop_first(bool deriv=false)=0;
-      /// Drop last function(s); deriv: also set derivatives to zero
-      virtual void drop_last(bool deriv=true)=0;
+      /// Drop first function(s); zero_deriv: also set derivatives to zero
+      virtual void drop_first(bool zero_deriv=true)=0;
+      /// Drop last function(s); zero_deriv: also set derivatives to zero
+      virtual void drop_last(bool zero_deriv=true)=0;
 
       /// Evaluate polynomials at given points
       void eval_f(const arma::vec & x, arma::mat & f, double element_length) const;
@@ -91,6 +91,9 @@ namespace helfem {
       /// Print out the basis functions
       void print(const std::string & str="") const;
     };
+
+    /// Get the wanted polynomial basis
+    PolynomialBasis * get_basis(int primbas, int Nnodes);
   }
 }
 #endif

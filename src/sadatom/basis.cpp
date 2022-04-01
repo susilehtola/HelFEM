@@ -14,7 +14,6 @@
  * of the License, or (at your option) any later version.
  */
 #include "basis.h"
-#include "polynomial.h"
 #include "chebyshev.h"
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"

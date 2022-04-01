@@ -15,7 +15,6 @@
  */
 #include "quadrature.h"
 #include "chebyshev.h"
-#include "polynomial.h"
 
 namespace helfem {
   namespace diatomic {
@@ -134,7 +133,7 @@ namespace helfem {
         return arma::trans(wbf)*bf;
       }
 
-      static arma::vec twoe_inner_integral_wrk(double mumin, double mumax, double mumin0, double mumax0, int l, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, int M, const legendretable::LegendreTable & tab) {
+      static arma::vec twoe_inner_integral_wrk(double mumin, double mumax, double mumin0, double mumax0, int l, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
         // Midpoint is at
         double mumid(0.5*(mumax+mumin));
         // and half-length of interval is
@@ -173,7 +172,7 @@ namespace helfem {
         return inner;
       }
 
-      arma::mat twoe_inner_integral(double mumin, double mumax, int l, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, int M, const legendretable::LegendreTable & tab) {
+      arma::mat twoe_inner_integral(double mumin, double mumax, int l, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
         // Midpoint is at
         double mumid(0.5*(mumax+mumin));
         // and half-length of interval is
@@ -191,7 +190,7 @@ namespace helfem {
         return inner;
       }
 
-      static arma::mat twoe_integral_wrk(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, int M, const legendretable::LegendreTable & tab) {
+      static arma::mat twoe_integral_wrk(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
 #ifndef ARMA_NO_DEBUG
         if(x.n_elem != wx.n_elem) {
           std::ostringstream oss;
@@ -234,7 +233,7 @@ namespace helfem {
         return ints;
       }
 
-      arma::mat twoe_integral(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, int M, const legendretable::LegendreTable & tab) {
+      arma::mat twoe_integral(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
         return twoe_integral_wrk(mumin,mumax,k,l,x,wx,poly,L,M,tab) + arma::trans(twoe_integral_wrk(mumin,mumax,l,k,x,wx,poly,L,M,tab));
       }
     }

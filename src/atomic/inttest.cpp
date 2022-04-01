@@ -14,10 +14,10 @@
  * of the License, or (at your option) any later version.
  */
 #include "quadrature.h"
-#include "polynomial_basis.h"
-#include "polynomial.h"
+#include "helfem/PolynomialBasis.h"
 #include "chebyshev.h"
 #include "lobatto.h"
+#include "LIPBasis.h"
 
 using namespace helfem;
 
@@ -27,7 +27,7 @@ void run(double R, int n_quad) {
   // Get primitive polynomial representation for LIP
   arma::vec x, w;
   ::lobatto_compute(2,x,w);
-  auto pbas(std::shared_ptr<const polynomial_basis::PolynomialBasis>(new polynomial_basis::LIPBasis(x,0)));
+  auto pbas(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(new helfem::polynomial_basis::LIPBasis(x,0)));
 
   // Get quadrature rule
   arma::vec xq, wq;
