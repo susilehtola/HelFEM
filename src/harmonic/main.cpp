@@ -65,7 +65,11 @@ int main(int argc, char **argv) {
   arma::vec r(arma::linspace<arma::vec>(-xmax,xmax,Nelem+1));
 
   // Finite element basis
-  helfem::polynomial_basis::FiniteElementBasis fem(poly, r);
+  bool zero_func_left=true;
+  bool zero_deriv_left=true;
+  bool zero_func_right=true;
+  bool zero_deriv_right=true;
+  helfem::polynomial_basis::FiniteElementBasis fem(poly, r, zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
 
   // Quadrature rule
   arma::vec xq, wq;

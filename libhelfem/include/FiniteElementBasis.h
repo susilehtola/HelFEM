@@ -31,8 +31,12 @@ namespace helfem {
 
       /// Element boundary values
       arma::vec bval;
-      /// Zero out derivatives at left end?
+      /// Zero out function at left end?
+      bool zero_func_left;
+      /// Zero out derivative at left end?
       bool zero_deriv_left;
+      /// Zero out function at right end?
+      bool zero_func_right;
       /// Zero out derivatives at right end?
       bool zero_deriv_right;
 
@@ -51,7 +55,7 @@ namespace helfem {
       FiniteElementBasis();
       /// Constructor
       FiniteElementBasis(const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly,
-                         const arma::vec &bval, bool zero_deriv_left=true, bool zero_deriv_right=true);
+                         const arma::vec &bval, bool zero_func_left, bool zero_deriv_left, bool zero_func_right, bool zero_deriv_right);
       /// Destructor
       ~FiniteElementBasis();
 

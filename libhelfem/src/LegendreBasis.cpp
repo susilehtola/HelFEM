@@ -95,14 +95,16 @@ namespace helfem {
       d2f=d2f_eval(x)*T;
     }
 
-    void LegendreBasis::drop_first(bool deriv) {
+    void LegendreBasis::drop_first(bool func, bool deriv) {
       (void) deriv;
-      enabled=enabled(1,T.n_cols-1);
+      if(func)
+        enabled=enabled(1,T.n_cols-1);
     }
 
-    void LegendreBasis::drop_last(bool deriv) {
+    void LegendreBasis::drop_last(bool func, bool deriv) {
       (void) deriv;
-      enabled=enabled(0,T.n_cols-2);
+      if(func)
+        enabled=enabled(0,T.n_cols-2);
     }
   }
 }

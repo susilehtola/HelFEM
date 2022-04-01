@@ -66,9 +66,9 @@ namespace helfem {
       /// Get list of enabled primitives
       arma::uvec get_enabled() const;
       /// Drop first function(s); zero_deriv: also set derivatives to zero
-      virtual void drop_first(bool zero_deriv=true)=0;
+      virtual void drop_first(bool zero_func, bool zero_deriv)=0;
       /// Drop last function(s); zero_deriv: also set derivatives to zero
-      virtual void drop_last(bool zero_deriv=true)=0;
+      virtual void drop_last(bool zero_func, bool zero_deriv)=0;
 
       /// Evaluate polynomials at given points
       void eval_f(const arma::vec & x, arma::mat & f, double element_length) const;

@@ -44,9 +44,9 @@ namespace helfem {
       LIPBasis * copy() const override;
 
       /// Drop first function
-      void drop_first(bool deriv) override;
+      void drop_first(bool func, bool deriv) override;
       /// Drop last function
-      void drop_last(bool deriv) override;
+      void drop_last(bool func, bool deriv) override;
 
       /// Evaluate polynomials at given points
       void eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const override;

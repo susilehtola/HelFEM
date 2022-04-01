@@ -74,18 +74,31 @@ namespace helfem {
       }
     }
 
-    void HIPBasis::drop_first(bool zero_deriv) {
-      if(zero_deriv) {
+    void HIPBasis::drop_first(bool func, bool deriv) {
+      if(func && deriv) {
+        // Drop both function and derivative
         enabled=enabled.subvec(2,enabled.n_elem-1);
-      } else {
+      } else if(func) {
+        // Only drop function
         enabled=enabled.subvec(1,enabled.n_elem-1);
+      } else if(deriv) {
+        // Only drop derivative
+        arma::uvec new_enabled(enabled.n_elem-1);
+        new_enabled(0) = enabled(0);
+        new_enabled.subvec(1,new_enabled.n_elem-1) = enabled.subvec(2,enabled.n_elem-1);
+        enabled = new_enabled;
       }
     }
 
-    void HIPBasis::drop_last(bool zero_deriv) {
-      if(zero_deriv) {
+    void HIPBasis::drop_last(bool func, bool deriv) {
+      if(func && deriv) {
+        // Drop both function and derivative
         enabled=enabled.subvec(0,enabled.n_elem-3);
+      } else if(deriv) {
+        // Only drop derivative
+        enabled=enabled.subvec(0,enabled.n_elem-2);
       } else {
+        // Only drop function
         arma::uvec new_enabled(enabled.n_elem-2);
         new_enabled.subvec(0,enabled.n_elem-3) = enabled.subvec(0,enabled.n_elem-3);
         new_enabled(enabled.n_elem-2) = enabled(enabled.n_elem-1);
