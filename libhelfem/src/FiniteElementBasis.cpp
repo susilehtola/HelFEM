@@ -30,11 +30,11 @@ namespace helfem {
 
     FiniteElementBasis::~FiniteElementBasis() {
     }
-    
+
     void FiniteElementBasis::update_bf_list() {
       if(bval.n_elem==0)
         throw std::logic_error("Can't update basis function list since there are no elements!\n");
-      
+
       // Form list of element boundaries
       first_func_in_element.zeros(bval.n_elem-1);
       last_func_in_element.zeros(bval.n_elem-1);
@@ -83,7 +83,7 @@ namespace helfem {
       }
       return bval(iel+1)-bval(iel);
     }
-    
+
     double FiniteElementBasis::element_begin(size_t iel) const {
       if(iel>=get_nelem()) {
         std::ostringstream oss;
@@ -148,7 +148,7 @@ namespace helfem {
         p->drop_first(zero_deriv_left);
       if (iel == bval.n_elem - 2)
         p->drop_last(zero_deriv_right);
-      
+
       return p;
     }
 
@@ -166,17 +166,17 @@ namespace helfem {
     size_t FiniteElementBasis::get_max_nprim() const {
       return poly->get_nprim();
     }
-    
+
     size_t FiniteElementBasis::get_nprim(size_t iel) const {
       return get_basis(iel)->get_nbf();
     }
-    
+
     void FiniteElementBasis::eval_f(const arma::vec & x, arma::mat & f, size_t iel) const {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      p->eval_f(x,f,scaling_factor(iel)); 
+      p->eval_f(x,f,scaling_factor(iel));
    }
 
-    void FiniteElementBasis::eval_df(const arma::vec & x, arma::mat & df, size_t iel) const { 
+    void FiniteElementBasis::eval_df(const arma::vec & x, arma::mat & df, size_t iel) const {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
       p->eval_df(x,df,scaling_factor(iel));
     }
@@ -185,7 +185,7 @@ namespace helfem {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
       p->eval_d2f(x,d2f,scaling_factor(iel));
     }
-    
+
     arma::mat FiniteElementBasis::eval_f(const arma::vec & x, size_t iel) const {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
       return p->eval_f(x,scaling_factor(iel));
@@ -195,10 +195,47 @@ namespace helfem {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
       return p->eval_df(x,scaling_factor(iel));
     }
-    
+
     arma::mat FiniteElementBasis::eval_d2f(const arma::vec & x, size_t iel) const {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
       return p->eval_d2f(x,scaling_factor(iel));
+    }
+
+    arma::mat FiniteElementBasis::matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, double (*f)(double)) const {
+      arma::mat M(get_nbf(),get_nbf(),arma::fill::zeros);
+
+      for(size_t iel=0; iel<get_nelem(); iel++) {
+        // Indices in matrix
+        size_t ifirst, ilast;
+        get_idx(iel, ifirst, ilast);
+
+        // Accumulate
+        M.submat(ifirst, ifirst, ilast, ilast) += matrix_element(iel, lhder, rhder, xq, wq, f);
+      }
+
+      return M;
+    }
+
+    arma::mat FiniteElementBasis::matrix_element(size_t iel, bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, double (*f)(double)) const {
+      // Get coordinate values
+      arma::vec r(eval_coord(xq, iel));
+      // Calculate total weight per point
+      arma::vec wp(wq*scaling_factor(iel));
+      // Include the function
+      if(f != nullptr) {
+          for(size_t i=0; i<wp.n_elem; i++)
+            wp(i)*=f(r(i));
+      }
+
+      // Operands
+      arma::mat lhbf = lhder ? eval_df(xq, iel) : eval_f(xq, iel);
+      arma::mat rhbf = rhder ? eval_df(xq, iel) : eval_f(xq, iel);
+
+      // Include weight in the lh operand
+      for(size_t i=0;i<lhbf.n_cols;i++)
+        lhbf.col(i)%=wp;
+
+      return arma::trans(lhbf)*rhbf;
     }
   }
 }

@@ -17,7 +17,6 @@
 #define ATOMIC_BASIS_TWODBASIS_H
 
 #include <armadillo>
-#include "polynomial_basis.h"
 #include "../general/model_potential.h"
 #include "../general/sap.h"
 #include <helfem/RadialBasis.h>

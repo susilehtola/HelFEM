@@ -1,6 +1,6 @@
 #include "Legendre_Wrapper.h"
 #include "../general/spherical_harmonics.h"
-#include "polynomial.h"
+#include <armadillo>
 
 void get_coord(double Rh, double mu, double eta, double phi, double & x, double & y, double & z) {
   x=Rh*sinh(mu)*sin(eta)*cos(phi);
@@ -20,6 +20,19 @@ arma::mat get_Qlm(int lmax, int mmax, double xi) {
   arma::mat Qlm(lmax+1,mmax+1);
   calc_Qlm_arr(Qlm.memptr(),lmax,mmax,xi);
   return Qlm;
+}
+
+double factorial_ratio(int pmax, int pmin) {
+  // Check consistency of arguments
+  if(pmax < pmin)
+    return 1.0/factorial_ratio(pmin, pmax);
+
+  // Calculate ratio
+  double r=1.0;
+  for(int p=pmax;p>pmin;p--)
+    r*=p;
+
+  return r;
 }
 
 int main(void) {
@@ -70,7 +83,7 @@ int main(void) {
   for(int L=0;L<=Lmax;L++) {
     for(int M=-L;M<=L;M++) {
       double leg = Plm(L, std::abs(M)) * Qlm(L, std::abs(M));
-      std::complex<double> sph = spherical_harmonics(L, M, cos(eta1), phi1) * std::conj(spherical_harmonics(L, M, cos(eta2), phi2) / helfem::polynomial::factorial_ratio(L+std::abs(M),L-std::abs(M)));
+      std::complex<double> sph = spherical_harmonics(L, M, cos(eta1), phi1) * std::conj(spherical_harmonics(L, M, cos(eta2), phi2) / factorial_ratio(L+std::abs(M),L-std::abs(M)));
       Eneu += std::pow(-1.0,M) * leg * sph * (4.0*M_PI/Rh);
 
 #if 0

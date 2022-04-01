@@ -21,7 +21,6 @@
 #include "../general/elements.h"
 #include "../general/timer.h"
 #include "../general/scf_helpers.h"
-#include "polynomial_basis.h"
 #include "basis.h"
 #include "dftgrid.h"
 #include <cfloat>

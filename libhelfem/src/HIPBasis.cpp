@@ -37,7 +37,7 @@ namespace helfem {
         for(size_t fi=0;fi<x0.n_elem;fi++) {
           double dx = x(ix)-x0(fi);
           f(ix,2*fi)   = (1.0 - 2.0*dx*lipxi(fi)) * std::pow(lip(ix,fi),2);
-          f(ix,2*fi+1) = dx * std::pow(lip(ix,fi),2) / element_length;
+          f(ix,2*fi+1) = dx * std::pow(lip(ix,fi),2) * element_length;
         }
       }
     }
@@ -52,7 +52,7 @@ namespace helfem {
       for(size_t ix=0;ix<x.n_elem;ix++) {
         for(size_t fi=0;fi<x0.n_elem;fi++) {
           df(ix,2*fi)   = 2.0*dlip(ix,fi)*lip(ix,fi)*(1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi)) - 2.0*lipxi(fi)*std::pow(lip(ix,fi),2);
-          df(ix,2*fi+1) = (std::pow(lip(ix,fi),2) + 2.0*(x(ix)-x0(fi))*lip(ix,fi)*dlip(ix,fi)) / element_length;
+          df(ix,2*fi+1) = (std::pow(lip(ix,fi),2) + 2.0*(x(ix)-x0(fi))*lip(ix,fi)*dlip(ix,fi)) * element_length;
         }
       }
     }
@@ -69,21 +69,21 @@ namespace helfem {
       for(size_t ix=0;ix<x.n_elem;ix++) {
         for(size_t fi=0;fi<x0.n_elem;fi++) {
           d2f(ix,2*fi)   = 2.0*(d2lip(ix,fi)*lip(ix,fi) + std::pow(dlip(ix,fi),2))*(1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi)) - 8.0*lip(ix,fi)*dlip(ix,fi)*lipxi(fi);
-          d2f(ix,2*fi+1) = (4.0*lip(ix,fi)*dlip(ix,fi) + 2.0*(x(ix)-x0(fi))*(d2lip(ix,fi)*lip(ix,fi) + std::pow(dlip(ix,fi),2))) / element_length;
+          d2f(ix,2*fi+1) = (4.0*lip(ix,fi)*dlip(ix,fi) + 2.0*(x(ix)-x0(fi))*(d2lip(ix,fi)*lip(ix,fi) + std::pow(dlip(ix,fi),2))) * element_length;
         }
       }
     }
 
-    void HIPBasis::drop_first(bool deriv) {
-      if(deriv) {
-        enabled=enabled.subvec(1,enabled.n_elem-1);
-      } else {
+    void HIPBasis::drop_first(bool zero_deriv) {
+      if(zero_deriv) {
         enabled=enabled.subvec(2,enabled.n_elem-1);
+      } else {
+        enabled=enabled.subvec(1,enabled.n_elem-1);
       }
     }
 
-    void HIPBasis::drop_last(bool deriv) {
-      if(deriv) {
+    void HIPBasis::drop_last(bool zero_deriv) {
+      if(zero_deriv) {
         enabled=enabled.subvec(0,enabled.n_elem-3);
       } else {
         arma::uvec new_enabled(enabled.n_elem-2);

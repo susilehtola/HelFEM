@@ -17,8 +17,9 @@
 #define QUADRATURE_H
 
 #include <armadillo>
-#include "polynomial_basis.h"
+#include <memory>
 #include <helfem/ModelPotential.h>
+#include <helfem/PolynomialBasis.h>
 
 namespace helfem {
   namespace quadrature {
