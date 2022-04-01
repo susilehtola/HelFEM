@@ -47,9 +47,6 @@ target_link_libraries(atomic_itest helfem-common legendre)
 add_executable(diatomic diatomic/main.cpp)
 target_link_libraries(diatomic helfem-common legendre)
 
-add_executable(diatomic_itest diatomic/inttest.cpp)
-target_link_libraries(diatomic_itest helfem-common legendre)
-
 add_executable(diatomic_cbasis diatomic/corebasis.cpp)
 target_link_libraries(diatomic_cbasis helfem-common legendre)
 

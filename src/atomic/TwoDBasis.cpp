@@ -16,7 +16,6 @@
 #include "TwoDBasis.h"
 #include "basis.h"
 #include "quadrature.h"
-#include "polynomial_basis.h"
 #include "chebyshev.h"
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
@@ -36,7 +35,7 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int Zl_, int Zr_, double Rhalf_) {
+      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int Zl_, int Zr_, double Rhalf_) {
         // Nuclear charge
         Z=Z_;
         Zl=Zl_;
@@ -46,7 +45,12 @@ namespace helfem {
         Rrms=Rrms_;
 
         // Construct radial basis
-        radial=RadialBasis(poly, n_quad, bval);
+        bool zero_func_left=true;
+        bool zero_deriv_left=false;
+        bool zero_func_right=true;
+        bool zero_deriv_right=true;
+        polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
+        radial=RadialBasis(fem, n_quad);
 
         // Construct angular basis
         lval=lval_;
@@ -100,8 +104,8 @@ namespace helfem {
         return radial.get_poly_id();
       }
 
-      int TwoDBasis::get_poly_order() const {
-        return radial.get_poly_order();
+      int TwoDBasis::get_poly_nnodes() const {
+        return radial.get_poly_nnodes();
       }
 
       size_t TwoDBasis::Ndummy() const {

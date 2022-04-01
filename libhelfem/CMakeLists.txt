@@ -9,6 +9,7 @@ list(APPEND LIBHELFEM_PUBLIC_HEADERS
     "ModelPotential.h"
     "PointNucleus.h"
     "PolynomialBasis.h"
+    "FiniteElementBasis.h"
     "RadialBasis.h"
     "SphericalNucleus.h"
 )
@@ -16,15 +17,17 @@ foreach(header IN LISTS LIBHELFEM_PUBLIC_HEADERS)
     configure_file("include/${header}" "include/helfem/${header}" COPYONLY)
 endforeach()
 
-add_library(helfem STATIC
+add_library(helfem
     src/helfem.cpp
     src/grid.cpp
     src/chebyshev.cpp
     src/lobatto.cpp
     src/utils.cpp
     src/erfc_expn.cpp
-    src/polynomial.cpp
-    src/polynomial_basis.cpp
+    src/PolynomialBasis.cpp
+    src/LIPBasis.cpp
+    src/HIPBasis.cpp
+    src/LegendreBasis.cpp
     src/quadrature.cpp
     src/ModelPotential.cpp
     src/RadialPotential.cpp
@@ -32,6 +35,7 @@ add_library(helfem STATIC
     src/HollowNucleus.cpp
     src/PointNucleus.cpp
     src/SphericalNucleus.cpp
+    src/FiniteElementBasis.cpp
     src/RadialBasis.cpp
 )
 target_include_directories(helfem PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include/")

@@ -1,6 +1,7 @@
 # CMake project file for HelFEM
 cmake_minimum_required (VERSION 2.6)
 project (helfem CXX Fortran)
+set(CMAKE_CXX_STANDARD 11)
 
 # Following options can be used to configure the HelFEM CMake build. They can be set by
 # passing the corresponding -D flags to CMake, e.g.:

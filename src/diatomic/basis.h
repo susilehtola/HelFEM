@@ -17,9 +17,9 @@
 #define DIATOMIC_BASIS_H
 
 #include <armadillo>
+#include "helfem/FiniteElementBasis.h"
 #include "../general/gaunt.h"
 #include "../general/legendretable.h"
-#include "polynomial_basis.h"
 
 namespace helfem {
   namespace diatomic {
@@ -30,35 +30,15 @@ namespace helfem {
         arma::vec xq;
         /// Quadrature weights
         arma::vec wq;
-
-        /// Polynomial basis
-        const polynomial_basis::PolynomialBasis * poly;
-        /// Primitive polynomial basis functions evaluated on the quadrature grid
-        arma::mat bf;
-        /// Primitive polynomial basis function derivatives evaluated on the quadrature grid
-        arma::mat df;
-
-        /// Element boundary values
-        arma::vec bval;
-
-	/// Used basis function indices in element
-	arma::uvec basis_indices(size_t iel) const;
-        /// Get basis functions in element
-        arma::mat get_basis(const arma::mat & b, size_t iel) const;
-        /// Get basis functions in element
-        polynomial_basis::PolynomialBasis * get_basis(const polynomial_basis::PolynomialBasis * poly, size_t iel) const;
+        /// Finite element basis
+        polynomial_basis::FiniteElementBasis fem;
 
       public:
         /// Dummy constructor
         RadialBasis();
         /// Construct radial basis
-        RadialBasis(const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval);
-
-        /// Explicit copy constructor because of shared pointer
-        RadialBasis(const RadialBasis & rh);
-        /// Explicit assignment operator because of shared pointer
-        RadialBasis & operator=(const RadialBasis & rh);
-        /// Explicit destructor because of shared pointer
+        RadialBasis(const polynomial_basis::FiniteElementBasis & fem, int n_quad);
+        /// Destructor
         ~RadialBasis();
 
         /// Get number of quadrature points
@@ -67,8 +47,8 @@ namespace helfem {
         arma::vec get_bval() const;
         /// Get polynomial basis identifier
         int get_poly_id() const;
-        /// Get polynomial basis order
-        int get_poly_order() const;
+        /// Get number of nodes in polynomial
+        int get_poly_nnodes() const;
 
         /// Get number of overlapping functions
         size_t get_noverlap() const;
@@ -87,10 +67,6 @@ namespace helfem {
         /// Form density matrix
         arma::mat form_density(const arma::mat & Cl, const arma::mat & Cr, size_t nocc) const;
 
-        /// Compute radial matrix elements \f$ B_1(\mu) B_2(\mu) \sinh^m (\mu) \cosh^n (\mu) d\mu \f$
-        arma::mat radial_integral(const arma::mat & bf, int m, int n, size_t iel) const;
-        /// Compute radial matrix elements in element
-        arma::mat radial_integral(int m, int n, size_t iel) const;
         /// Compute radial matrix elements
         arma::mat radial_integral(int m, int n) const;
         /// Compute primitive kinetic energy matrix in element (excluding l and m parts)
@@ -182,7 +158,7 @@ namespace helfem {
         // Dummy constructor
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z1, int Z2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int lpad=0, bool legendre=true);
+        TwoDBasis(int Z1, int Z2, double Rbond, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int lpad=0, bool legendre=true);
         /// Destructor
         ~TwoDBasis();
 
@@ -208,6 +184,8 @@ namespace helfem {
         int get_poly_id() const;
         /// Get polynomial basis order
         int get_poly_order() const;
+        /// Get polynomial basis order
+        int get_poly_nnodes() const;
 
         /// Get indices of real basis functions
         arma::uvec pure_indices() const;

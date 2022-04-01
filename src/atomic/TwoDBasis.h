@@ -17,7 +17,6 @@
 #define ATOMIC_BASIS_TWODBASIS_H
 
 #include <armadillo>
-#include "polynomial_basis.h"
 #include "../general/model_potential.h"
 #include "../general/sap.h"
 #include <helfem/RadialBasis.h>
@@ -74,7 +73,7 @@ namespace helfem {
       public:
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int Zl, int Zr, double Rhalf);
+        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int Zl, int Zr, double Rhalf);
         /// Destructor
         ~TwoDBasis();
 
@@ -103,8 +102,8 @@ namespace helfem {
         arma::vec get_bval() const;
         /// Get polynomial basis identifier
         int get_poly_id() const;
-        /// Get polynomial basis order
-        int get_poly_order() const;
+        /// Get number of nodes in polynomial
+        int get_poly_nnodes() const;
 
         /// Get indices of real basis functions
         arma::uvec pure_indices() const;

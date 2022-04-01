@@ -14,9 +14,10 @@
  * of the License, or (at your option) any later version.
  */
 #include "quadrature.h"
-#include "polynomial_basis.h"
-#include "polynomial.h"
+#include "helfem/PolynomialBasis.h"
 #include "chebyshev.h"
+#include "lobatto.h"
+#include "LIPBasis.h"
 
 using namespace helfem;
 
@@ -24,14 +25,16 @@ void run(double R, int n_quad) {
   // Basis functions on [0, R]: x/R, (R-x)/R.
 
   // Get primitive polynomial representation for LIP
-  polynomial_basis::HermiteBasis pbas(2,0);
+  arma::vec x, w;
+  ::lobatto_compute(2,x,w);
+  auto pbas(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(new helfem::polynomial_basis::LIPBasis(x,0)));
 
   // Get quadrature rule
   arma::vec xq, wq;
   chebyshev::chebyshev(n_quad,xq,wq);
 
   // Get inner integral by quadrature
-  arma::mat teiinner(quadrature::twoe_inner_integral(0,R,xq,wq,&pbas,0));
+  arma::mat teiinner(quadrature::twoe_inner_integral(0,R,xq,wq,pbas,0));
 
   // Test against analytical integrals. r values are
   arma::vec r(0.5*R*arma::ones<arma::vec>(xq.n_elem)+0.5*R*xq);
@@ -50,7 +53,7 @@ void run(double R, int n_quad) {
   teiishould-=teiinner;
   printf("Error in inner integral is %e\n",arma::norm(teiishould,"fro"));
 
-  arma::mat teiq(quadrature::twoe_integral(0,R,xq,wq,&pbas,0));
+  arma::mat teiq(quadrature::twoe_integral(0,R,xq,wq,pbas,0));
 
   arma::mat tei(4,4);
   // Maple gives the following integrals for L=0, in units of R
