@@ -90,7 +90,14 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::radial_integral(int m, int n) const {
-        std::function<double(double)> chsh = [m, n](double mu) { return std::pow(std::sinh(mu), m)*std::pow(std::cosh(mu), n); };
+        std::function<double(double)> chsh;
+        if(m!=0 && n!=0) {
+          chsh = [m, n](double mu) { return std::pow(std::sinh(mu), m)*std::pow(std::cosh(mu), n); };
+        } else if(m!=0 && n==0) {
+          chsh = [m](double mu) { return std::pow(std::sinh(mu), m); };
+        } else if(m==0 && n!=0) {
+          chsh = [n](double mu) { return std::pow(std::cosh(mu), n); };
+        }
         return fem.matrix_element(false, false, xq, wq, chsh);
       }
 
@@ -184,18 +191,28 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::Plm_integral(int k, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
-        std::function<double(double)> Plm = [legtab, k, L, M](double mu) { return std::sinh(mu)*std::pow(std::cosh(mu), k)*legtab.get_Plm(L,M,cosh(mu)); };
+        std::function<double(double)> Plm;
+        if(k!=0) {
+          Plm = [legtab, k, L, M](double mu) { return std::sinh(mu)*std::pow(std::cosh(mu), k)*legtab.get_Plm(L,M,cosh(mu)); };
+        } else {
+          Plm = [legtab, L, M](double mu) { return std::sinh(mu)*legtab.get_Plm(L,M,cosh(mu)); };
+        }
         return fem.matrix_element(iel, false, false, xq, wq, Plm);
       }
 
       arma::mat RadialBasis::Qlm_integral(int k, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
-        std::function<double(double)> Qlm = [legtab, k, L, M](double mu) { return std::sinh(mu)*std::pow(std::cosh(mu), k)*legtab.get_Qlm(L,M,cosh(mu)); };
+        std::function<double(double)> Qlm;
+        if(k!=0) {
+          Qlm = [legtab, k, L, M](double mu) { return std::sinh(mu)*std::pow(std::cosh(mu), k)*legtab.get_Qlm(L,M,cosh(mu)); };
+        } else {
+          Qlm = [legtab, L, M](double mu) { return std::sinh(mu)*legtab.get_Qlm(L,M,cosh(mu)); };
+        }
         return fem.matrix_element(iel, false, false, xq, wq, Qlm);
       }
 
       arma::mat RadialBasis::kinetic() const {
-        std::function<double(double)> dummy;
-        return fem.matrix_element(true, true, xq, wq, dummy);
+        std::function<double(double)> sinhmu = [](double mu) {return std::sinh(mu);};
+        return fem.matrix_element(true, true, xq, wq, sinhmu);
       }
 
       arma::mat RadialBasis::twoe_integral(int alpha, int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
