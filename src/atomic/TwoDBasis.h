@@ -189,6 +189,8 @@ namespace helfem {
         arma::cx_mat eval_bf(size_t iel, double cth, double phi) const;
         /// Evaluate basis functions derivatives
         void eval_df(size_t iel, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const;
+        /// Evaluate Laplacian of basis functions
+        arma::cx_mat eval_lf(size_t iel, double cth, double phi) const;
         /// Get list of basis function indices in element
         arma::uvec bf_list(size_t iel) const;
 

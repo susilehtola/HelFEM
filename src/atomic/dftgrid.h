@@ -132,6 +132,8 @@ namespace helfem {
 
         /// Compute number of electrons
         double compute_Nel() const;
+        /// Compute integral over density laplacian
+        double compute_laplsum() const;
         /// Compute kinetic energy
         double compute_Ekin() const;
 
@@ -250,6 +252,32 @@ namespace helfem {
 
         // Form Fock matrix
         H+=arma::real(gamma*arma::trans(f) + f*arma::trans(gamma));
+      }
+
+      /// BLAS routine for meta-GGA-type quadrature
+      template<typename T> void increment_mgga_lapl(arma::mat & H, const arma::rowvec & vlapl, const arma::Mat<T> & f, const arma::Mat<T> & l) {
+        if(f.n_cols != vlapl.n_elem) {
+          std::ostringstream oss;
+          oss << "Number of functions " << f.n_cols << " and potential values " << vlapl.n_elem << " do not match!\n";
+          throw std::runtime_error(oss.str());
+        }
+        if(H.n_rows != f.n_rows || H.n_cols != f.n_rows) {
+          std::ostringstream oss;
+          oss << "Size of basis function (" << f.n_rows << "," << f.n_cols << ") and Fock matrix (" << H.n_rows << "," << H.n_cols << ") doesn't match!\n";
+          throw std::runtime_error(oss.str());
+        }
+        if(l.n_rows != f.n_rows || l.n_cols != f.n_cols) {
+          std::ostringstream oss;
+          oss << "Size of basis function (" << f.n_rows << "," << f.n_cols << ") and Laplacian matrix (" << l.n_rows << "," << l.n_cols << ") doesn't match!\n";
+          throw std::runtime_error(oss.str());
+        }
+
+        // Form helper matrix
+        arma::Mat<T> fhlp(f);
+        for(size_t i=0;i<fhlp.n_rows;i++)
+          for(size_t j=0;j<fhlp.n_cols;j++)
+            fhlp(i,j)*=vlapl(j);
+        H+=arma::real(fhlp*arma::trans(l)+l*arma::trans(fhlp));
       }
     }
   }
