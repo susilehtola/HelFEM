@@ -89,33 +89,9 @@ namespace helfem {
         fem.get_idx(iel, ifirst, ilast);
       }
 
-      arma::mat RadialBasis::radial_integral(int m, int n, size_t iel) const {
-        arma::mat bf(fem.eval_f(xq, iel));
-        return radial_integral(bf,m,n,iel);
-      }
-
-      arma::mat RadialBasis::radial_integral(const arma::mat & bas, int m, int n, size_t iel) const {
-        double mumin(fem.element_begin(iel));
-        double mumax(fem.element_end(iel));
-
-        // Integral by quadrature
-        return diatomic::quadrature::radial_integral(mumin,mumax,m,n,xq,wq,fem.get_basis(bas,iel));
-      }
-
       arma::mat RadialBasis::radial_integral(int m, int n) const {
-        size_t Nrad(Nbf());
-        arma::mat R(Nrad,Nrad);
-        R.zeros();
-
-        // Loop over elements
-        for(size_t iel=0;iel<Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          get_idx(iel,ifirst,ilast);
-          R.submat(ifirst,ifirst,ilast,ilast)+=radial_integral(m,n,iel);
-        }
-
-        return R;
+        std::function<double(double)> chsh = [m, n](double mu) { return std::pow(std::sinh(mu), m)*std::pow(std::cosh(mu), n); };
+        return fem.matrix_element(false, false, xq, wq, chsh);
       }
 
       arma::mat RadialBasis::overlap(const RadialBasis & rh, int n) const {
@@ -208,42 +184,18 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::Plm_integral(int k, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
-        double mumin=fem.element_begin(iel);
-        double mumax=fem.element_end(iel);
-        arma::mat bf(fem.eval_f(xq, iel));
-
-        // Integral by quadrature
-        return diatomic::quadrature::Plm_radial_integral(mumin,mumax,k,xq,wq,bf,L,M,legtab);
+        std::function<double(double)> Plm = [legtab, k, L, M](double mu) { return std::sinh(mu)*std::pow(std::cosh(mu), k)*legtab.get_Plm(L,M,cosh(mu)); };
+        return fem.matrix_element(iel, false, false, xq, wq, Plm);
       }
 
       arma::mat RadialBasis::Qlm_integral(int k, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
-        double mumin=fem.element_begin(iel);
-        double mumax=fem.element_end(iel);
-        arma::mat bf(fem.eval_f(xq, iel));
-
-        // Integral by quadrature
-        return diatomic::quadrature::Qlm_radial_integral(mumin,mumax,k,xq,wq,bf,L,M,legtab);
-      }
-
-      arma::mat RadialBasis::kinetic(size_t iel) const {
-        arma::mat df(fem.eval_df(xq, iel));
-        return radial_integral(df,1,0,iel);
+        std::function<double(double)> Qlm = [legtab, k, L, M](double mu) { return std::sinh(mu)*std::pow(std::cosh(mu), k)*legtab.get_Qlm(L,M,cosh(mu)); };
+        return fem.matrix_element(iel, false, false, xq, wq, Qlm);
       }
 
       arma::mat RadialBasis::kinetic() const {
-        size_t Nrad(Nbf());
-        arma::mat T(Nrad,Nrad);
-        T.zeros();
-
-        // Loop over elements
-        for(size_t iel=0;iel<Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          get_idx(iel,ifirst,ilast);
-          T.submat(ifirst,ifirst,ilast,ilast)+=kinetic(iel);
-        }
-
-        return T;
+        std::function<double(double)> dummy;
+        return fem.matrix_element(true, true, xq, wq, dummy);
       }
 
       arma::mat RadialBasis::twoe_integral(int alpha, int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {

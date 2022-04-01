@@ -67,10 +67,6 @@ namespace helfem {
         /// Form density matrix
         arma::mat form_density(const arma::mat & Cl, const arma::mat & Cr, size_t nocc) const;
 
-        /// Compute radial matrix elements \f$ B_1(\mu) B_2(\mu) \sinh^m (\mu) \cosh^n (\mu) d\mu \f$
-        arma::mat radial_integral(const arma::mat & bf, int m, int n, size_t iel) const;
-        /// Compute radial matrix elements in element
-        arma::mat radial_integral(int m, int n, size_t iel) const;
         /// Compute radial matrix elements
         arma::mat radial_integral(int m, int n) const;
         /// Compute primitive kinetic energy matrix in element (excluding l and m parts)
