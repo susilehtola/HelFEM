@@ -101,8 +101,8 @@ namespace helfem {
         return radial.get_poly_id();
       }
 
-      int TwoDBasis::get_poly_order() const {
-        return radial.get_poly_order();
+      int TwoDBasis::get_poly_nnodes() const {
+        return radial.get_poly_nnodes();
       }
 
       size_t TwoDBasis::Ndummy() const {

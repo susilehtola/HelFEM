@@ -30,12 +30,11 @@ namespace helfem {
 
       noverlap=1;
       nprim=T.n_cols;
+      nnodes=T.n_cols;
       enabled=arma::linspace<arma::uvec>(0,T.n_cols-1,T.n_cols);
 
       /// Identifier is
       id=id_;
-      /// Order is
-      order=enabled.n_elem;
     }
 
     LegendreBasis::~LegendreBasis() {

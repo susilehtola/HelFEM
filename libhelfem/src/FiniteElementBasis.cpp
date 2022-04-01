@@ -127,8 +127,8 @@ namespace helfem {
       return poly->get_id();
     }
 
-    int FiniteElementBasis::get_poly_order() const {
-      return poly->get_order();
+    int FiniteElementBasis::get_poly_nnodes() const {
+      return poly->get_nnodes();
     }
 
     arma::uvec FiniteElementBasis::basis_indices(size_t iel) const {

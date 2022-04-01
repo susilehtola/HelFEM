@@ -47,8 +47,8 @@ namespace helfem {
         arma::vec get_bval() const;
         /// Get polynomial basis identifier
         int get_poly_id() const;
-        /// Get polynomial basis order
-        int get_poly_order() const;
+        /// Get number of nodes in polynomial
+        int get_poly_nnodes() const;
 
         /// Get number of overlapping functions
         size_t get_noverlap() const;
@@ -184,6 +184,8 @@ namespace helfem {
         int get_poly_id() const;
         /// Get polynomial basis order
         int get_poly_order() const;
+        /// Get polynomial basis order
+        int get_poly_nnodes() const;
 
         /// Get indices of real basis functions
         arma::uvec pure_indices() const;

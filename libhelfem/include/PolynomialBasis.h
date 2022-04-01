@@ -31,8 +31,8 @@ namespace helfem {
       int noverlap;
       /// Identifier
       int id;
-      /// Order
-      int order;
+      /// Number of nodes
+      int nnodes;
 
       /// Evaluate primitive polynomials at given points
       virtual void eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const;
@@ -60,8 +60,8 @@ namespace helfem {
 
       /// Get identifier
       int get_id() const;
-      /// Get order
-      int get_order() const;
+      /// Get number of nodes
+      int get_nnodes() const;
 
       /// Get list of enabled primitives
       arma::uvec get_enabled() const;

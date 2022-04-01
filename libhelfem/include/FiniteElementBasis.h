@@ -66,8 +66,8 @@ namespace helfem {
 
       /// Get the numerical id of the polynomial basis
       int get_poly_id() const;
-      /// Get the polynomial order of the polynomial basis
-      int get_poly_order() const;
+      /// Get the number of nodes in the polynomial basis
+      int get_poly_nnodes() const;
 
       /// Get the used subset of primitives in the element
       arma::mat get_basis(const arma::mat &bas, size_t iel) const;

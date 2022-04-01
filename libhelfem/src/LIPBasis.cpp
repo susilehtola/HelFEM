@@ -22,8 +22,8 @@ namespace helfem {
 
       /// Identifier is
       id=id_;
-      /// Order is
-      order=enabled.n_elem;
+      /// Number of nodes is
+      nnodes=enabled.n_elem;
     }
 
     LIPBasis::~LIPBasis() {

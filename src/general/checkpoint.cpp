@@ -497,7 +497,7 @@ void Checkpoint::write(const helfem::atomic::basis::TwoDBasis & basis) {
 
   write("n_quad",basis.get_nquad());
   write("poly_id",basis.get_poly_id());
-  write("poly_order",basis.get_poly_order());
+  write("poly_nnodes",basis.get_poly_nnodes());
 
   write("lval",basis.get_lval());
   write("mval",basis.get_mval());
@@ -536,16 +536,16 @@ void Checkpoint::read(helfem::atomic::basis::TwoDBasis & basis) {
   arma::vec bval;
   read("bval",bval);
 
-  int n_quad, poly_id, poly_order;
+  int n_quad, poly_id, poly_nnodes;
   read("n_quad",n_quad);
   read("poly_id",poly_id);
-  read("poly_order",poly_order);
+  read("poly_nnodes",poly_nnodes);
 
   arma::ivec lval, mval;
   read("lval", lval);
   read("mval", mval);
 
-  auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(poly_id,poly_order)));
+  auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(poly_id,poly_nnodes)));
   basis=helfem::atomic::basis::TwoDBasis(Z, (helfem::modelpotential::nuclear_model_t) finitenuc, Rrms, poly, n_quad, bval, lval, mval, Zl, Zr, Rhalf);
   
   if(cl) close();
@@ -570,7 +570,7 @@ void Checkpoint::write(const helfem::diatomic::basis::TwoDBasis & basis) {
 
   write("n_quad",basis.get_nquad());
   write("poly_id",basis.get_poly_id());
-  write("poly_order",basis.get_poly_order());
+  write("poly_nnodes",basis.get_poly_nnodes());
 
   write("lval",basis.get_lval());
   write("mval",basis.get_mval());
@@ -603,16 +603,16 @@ void Checkpoint::read(helfem::diatomic::basis::TwoDBasis & basis) {
   arma::vec bval;
   read("bval",bval);
 
-  int n_quad, poly_id, poly_order;
+  int n_quad, poly_id, poly_nnodes;
   read("n_quad",n_quad);
   read("poly_id",poly_id);
-  read("poly_order",poly_order);
+  read("poly_nnodes",poly_nnodes);
 
   arma::ivec lval, mval;
   read("lval", lval);
   read("mval", mval);
 
-  auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(poly_id,poly_order)));
+  auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(poly_id,poly_nnodes)));
   basis=helfem::diatomic::basis::TwoDBasis(Z1, Z2, Rhalf, poly, n_quad, bval, lval, mval);
   
   if(cl) close();
