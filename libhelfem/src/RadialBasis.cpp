@@ -73,8 +73,8 @@ namespace helfem {
         return fem.get_poly_id();
       }
 
-      int RadialBasis::get_poly_order() const {
-        return fem.get_poly_order();
+      int RadialBasis::get_poly_nnodes() const {
+        return fem.get_poly_nnodes();
       }
 
       arma::mat RadialBasis::radial_integral(int Rexp, size_t iel) const {

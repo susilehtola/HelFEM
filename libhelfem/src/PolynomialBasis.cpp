@@ -90,8 +90,8 @@ namespace helfem {
       return id;
     }
 
-    int PolynomialBasis::get_order() const {
-      return order;
+    int PolynomialBasis::get_nnodes() const {
+      return nnodes;
     }
 
     arma::uvec PolynomialBasis::get_enabled() const {

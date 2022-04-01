@@ -9,8 +9,8 @@ namespace helfem {
       nprim=2*x0.n_elem;
       // All functions are enabled
       enabled=arma::linspace<arma::uvec>(0,2*x0.n_elem-1,2*x0.n_elem);
-      /// Order is
-      order=enabled.n_elem;
+      /// Number of nodes is
+      nnodes=x0.n_elem;
 
       // Evaluate derivatives at nodes
       arma::mat dlip;
