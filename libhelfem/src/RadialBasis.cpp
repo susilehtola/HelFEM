@@ -17,6 +17,7 @@
 #include "RadialPotential.h"
 #include "chebyshev.h"
 #include "quadrature.h"
+#include "utils.h"
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -76,34 +77,19 @@ namespace helfem {
         return fem.get_poly_order();
       }
 
-      arma::mat RadialBasis::radial_integral(const arma::mat &bf, int Rexp,
-                                size_t iel) const {
-        double Rmin(fem.element_begin(iel));
-        double Rmax(fem.element_end(iel));
-        return quadrature::radial_integral(Rmin, Rmax, Rexp, xq, wq, bf);
-      }
-
       arma::mat RadialBasis::radial_integral(int Rexp, size_t iel) const {
-        arma::mat bf(fem.eval_f(xq, iel));
-        return radial_integral(bf, Rexp, iel);
+        std::function<double(double)> rpowL = [Rexp](double r) { return std::pow(r, Rexp); };
+        return fem.matrix_element(iel, false, false, xq, wq, rpowL);
       }
 
       arma::mat RadialBasis::bessel_il_integral(int L, double lambda, size_t iel) const {
-        double Rmin(fem.element_begin(iel));
-        double Rmax(fem.element_end(iel));
-        arma::mat bf(fem.eval_f(xq, iel));
-
-        // Integral by quadrature
-        return quadrature::bessel_il_integral(Rmin, Rmax, L, lambda, xq, wq, bf);
+        std::function<double(double)> besselil = [L, lambda](double r) { return utils::bessel_il(r*lambda, L); };
+        return fem.matrix_element(iel, false, false, xq, wq, besselil);
       }
 
       arma::mat RadialBasis::bessel_kl_integral(int L, double lambda, size_t iel) const {
-        double Rmin(fem.element_begin(iel));
-        double Rmax(fem.element_end(iel));
-        arma::mat bf(fem.eval_f(xq, iel));
-
-        // Integral by quadrature
-        return quadrature::bessel_kl_integral(Rmin, Rmax, L, lambda, xq, wq, bf);
+        std::function<double(double)> besselkl = [L, lambda](double r) { return utils::bessel_kl(r*lambda, L); };
+        return fem.matrix_element(iel, false, false, xq, wq, besselkl);
       }
 
       arma::mat RadialBasis::radial_integral(const RadialBasis &rh, int n, bool lhder,
@@ -207,8 +193,8 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::kinetic(size_t iel) const {
-        arma::mat df(fem.eval_df(xq, iel));
-        return 0.5 * radial_integral(df, 0, iel);
+        std::function<double(double)> dummy;
+        return 0.5*fem.matrix_element(iel, true, true, xq, wq, dummy);
       }
 
       arma::mat RadialBasis::kinetic_l(size_t iel) const {
@@ -219,12 +205,8 @@ namespace helfem {
 
       arma::mat RadialBasis::model_potential(const modelpotential::ModelPotential *model,
                                              size_t iel) const {
-        double Rmin(fem.element_begin(iel));
-        double Rmax(fem.element_end(iel));
-        arma::mat bf(fem.eval_f(xq, iel));
-
-        // Integral by quadrature
-        return quadrature::model_potential_integral(Rmin, Rmax, model, xq, wq, bf);
+        std::function<double(double)> modelpot = [model](double r) { return model->V(r); };
+        return fem.matrix_element(iel, false, false, xq, wq, modelpot);
       }
 
       arma::mat RadialBasis::nuclear_offcenter(size_t iel, double Rhalf, int L) const {

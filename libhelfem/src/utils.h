@@ -30,7 +30,11 @@ namespace helfem {
     arma::vec arsinh(const arma::vec & x);
 
     /// Modified Bessel function
+    double bessel_il(double x, int L);
+    /// Modified Bessel function
     arma::vec bessel_il(const arma::vec & x, int L);
+    /// Modified Bessel function
+    double bessel_kl(double x, int L);
     /// Modified Bessel function
     arma::vec bessel_kl(const arma::vec & x, int L);
 

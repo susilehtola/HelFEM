@@ -42,44 +42,6 @@ namespace helfem {
     arma::mat derivative_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & dbf);
 
     /**
-     * Computes a radial integral of the type \f$ \int_0^\infty B_1 (r) B_2(r) Vnuc(r) dr \f$.
-     *
-     * Input
-     *   rmin: start of element boundary
-     *   rmax: end of element boundary
-     *      x: integration nodes
-     *     wx: integration weights
-     *     bf: basis functions evaluated at integration nodes.
-     */
-    arma::mat model_potential_integral(double rmin, double rmax, const modelpotential::ModelPotential * nuc, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
-
-    /**
-     * Computes a radial integral of the type \f$ \int_0^\infty B_1 (r) B_2(r) i_L(\lambda r) dr \f$.
-     *
-     * Input
-     *   rmin: start of element boundary
-     *   rmax: end of element boundary
-     *      L: Bessel function order
-     *      x: integration nodes
-     *     wx: integration weights
-     *     bf: basis functions evaluated at integration nodes.
-     */
-    arma::mat bessel_il_integral(double rmin, double rmax, int L, double lambda, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
-
-    /**
-     * Computes a radial integral of the type \f$ \int_0^\infty B_1 (r) B_2(r) k_L(\lambda r) dr \f$.
-     *
-     * Input
-     *   rmin: start of element boundary
-     *   rmax: end of element boundary
-     *      L: Bessel function order
-     *      x: integration nodes
-     *     wx: integration weights
-     *     bf: basis functions evaluated at integration nodes.
-     */
-    arma::mat bessel_kl_integral(double rmin, double rmax, int L, double lambda, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
-
-    /**
      * Computes the inner in-element two-electron integral:
      * \f$ \phi(r) = \frac 1 r^{L+1} \int_0^r dr' r'^{L} B_k(r') B_l(r') \f$
      */

@@ -201,7 +201,7 @@ namespace helfem {
       return p->eval_d2f(x,scaling_factor(iel));
     }
 
-    arma::mat FiniteElementBasis::matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, double (*f)(double)) const {
+    arma::mat FiniteElementBasis::matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
       arma::mat M(get_nbf(),get_nbf(),arma::fill::zeros);
 
       for(size_t iel=0; iel<get_nelem(); iel++) {
@@ -216,13 +216,13 @@ namespace helfem {
       return M;
     }
 
-    arma::mat FiniteElementBasis::matrix_element(size_t iel, bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, double (*f)(double)) const {
+    arma::mat FiniteElementBasis::matrix_element(size_t iel, bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
       // Get coordinate values
       arma::vec r(eval_coord(xq, iel));
       // Calculate total weight per point
       arma::vec wp(wq*scaling_factor(iel));
       // Include the function
-      if(f != nullptr) {
+      if(f) {
           for(size_t i=0; i<wp.n_elem; i++)
             wp(i)*=f(r(i));
       }
