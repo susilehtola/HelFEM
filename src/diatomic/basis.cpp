@@ -311,8 +311,11 @@ namespace helfem {
         Rhalf=0.5*Rbond;
 
         // Construct radial basis
-        bool zero_left_deriv=false;
-        polynomial_basis::FiniteElementBasis fem(poly, bval, zero_left_deriv);
+        bool zero_func_left=false; // sigma orbitals are allowed to reach the nucleus; this is cleaned up for non-sigma orbitals elsewhere in the code
+        bool zero_deriv_left=false;
+        bool zero_func_right=true;
+        bool zero_deriv_right=true;
+        polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
         radial=RadialBasis(fem, n_quad);
         // Angular basis
         lval=lval_;

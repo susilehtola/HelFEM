@@ -22,7 +22,7 @@ namespace helfem {
     }
 
     FiniteElementBasis::FiniteElementBasis(const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly_,
-                                           const arma::vec &bval_, bool zero_deriv_left_, bool zero_deriv_right_) : bval(bval_), zero_deriv_left(zero_deriv_left_), zero_deriv_right(zero_deriv_right_) {
+                                           const arma::vec &bval_, bool zero_func_left_, bool zero_deriv_left_, bool zero_func_right_, bool zero_deriv_right_) : bval(bval_), zero_func_left(zero_func_left_), zero_deriv_left(zero_deriv_left_), zero_func_right(zero_func_right_), zero_deriv_right(zero_deriv_right_) {
       poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(poly_->copy());
       // Update list of basis functions
       update_bf_list();
@@ -145,9 +145,9 @@ namespace helfem {
     FiniteElementBasis::get_basis(size_t iel) const {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(poly->copy());
       if (iel == 0)
-        p->drop_first(zero_deriv_left);
+        p->drop_first(zero_func_left, zero_deriv_left);
       if (iel == bval.n_elem - 2)
-        p->drop_last(zero_deriv_right);
+        p->drop_last(zero_func_right, zero_deriv_right);
 
       return p;
     }

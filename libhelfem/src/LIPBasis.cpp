@@ -189,14 +189,16 @@ namespace helfem {
       eval_d3f_raw(x, d3f);
     }
 
-    void LIPBasis::drop_first(bool deriv) {
+    void LIPBasis::drop_first(bool func, bool deriv) {
       (void) deriv;
-      enabled=enabled.subvec(1,enabled.n_elem-1);
+      if(func)
+        enabled=enabled.subvec(1,enabled.n_elem-1);
     }
 
-    void LIPBasis::drop_last(bool deriv) {
+    void LIPBasis::drop_last(bool func, bool deriv) {
       (void) deriv;
-      enabled=enabled.subvec(0,enabled.n_elem-2);
+      if(func)
+        enabled=enabled.subvec(0,enabled.n_elem-2);
     }
 
   }
