@@ -356,8 +356,14 @@ void is_gga_mgga(int func_id, bool & gga, bool & mgga_t, bool & mgga_l) {
 #ifdef XC_FAMILY_HYB_MGGA
     case XC_FAMILY_HYB_MGGA:
 #endif
+
+#ifdef XC_FLAGS_NEEDS_TAU
+      mgga_t=func.info->flags & XC_FLAGS_NEEDS_TAU;
+#else
       mgga_t=true;
-#if defined(XC_FLAGS_NEEDS_LAPLACIAN)
+#endif
+
+#ifdef XC_FLAGS_NEEDS_LAPLACIAN
       mgga_l=func.info->flags & XC_FLAGS_NEEDS_LAPLACIAN;
 #else
       mgga_l=true;
@@ -635,7 +641,11 @@ bool tau_needed(int func_id) {
 #ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
 #endif
+#ifdef XC_FLAGS_NEEDS_TAU
+	tau=func.info->flags & XC_FLAGS_NEEDS_TAU;
+#else
 	tau=true;
+#endif
 	break;
       }
     // Free functional
@@ -662,7 +672,7 @@ bool laplacian_needed(int func_id) {
 #ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
 #endif
-#if defined(XC_FLAGS_NEEDS_LAPLACIAN)
+#ifdef XC_FLAGS_NEEDS_LAPLACIAN
 	lapl=func.info->flags & XC_FLAGS_NEEDS_LAPLACIAN;
 #else
 	lapl=true;

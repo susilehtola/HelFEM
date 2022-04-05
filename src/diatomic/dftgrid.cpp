@@ -445,7 +445,7 @@ namespace helfem {
             if(mgga_t || mgga_l) {// meta-GGA
               double * laplp = mgga_l ? lapl.memptr() : NULL;
               double * taup = mgga_t ? tau.memptr() : NULL;
-              double * vlaplp = mgga_t ? vlapl_wrk.memptr() : NULL;
+              double * vlaplp = mgga_l ? vlapl_wrk.memptr() : NULL;
               double * vtaup = mgga_t ? vtau_wrk.memptr() : NULL;
               xc_mgga_exc_vxc(&func, N, rho.memptr(), sigma.memptr(), laplp, taup, exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr(), vlaplp, vtaup);
             } else if(gga) // GGA
