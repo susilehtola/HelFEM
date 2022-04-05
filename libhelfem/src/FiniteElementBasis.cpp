@@ -202,15 +202,24 @@ namespace helfem {
     }
 
     arma::mat FiniteElementBasis::matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      arma::mat M(get_nbf(),get_nbf(),arma::fill::zeros);
+      // Compute matrix elements in parallel
+      std::vector<arma::mat> matel(get_nelem());
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+      for(size_t iel=0; iel<get_nelem(); iel++) {
+        matel[iel] = matrix_element(iel, lhder, rhder, xq, wq, f);
+      }
 
+      // Fill in the global matrix
+      arma::mat M(get_nbf(),get_nbf(),arma::fill::zeros);
       for(size_t iel=0; iel<get_nelem(); iel++) {
         // Indices in matrix
         size_t ifirst, ilast;
         get_idx(iel, ifirst, ilast);
 
         // Accumulate
-        M.submat(ifirst, ifirst, ilast, ilast) += matrix_element(iel, lhder, rhder, xq, wq, f);
+        M.submat(ifirst, ifirst, ilast, ilast) += matel[iel];
       }
 
       return M;
