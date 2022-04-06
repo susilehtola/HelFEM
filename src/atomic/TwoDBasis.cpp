@@ -1395,7 +1395,7 @@ namespace helfem {
           for(size_t irad=0;irad<frad.n_cols;irad++)
             // Loop over grid-point indices
             for(size_t igrid=0;igrid<frad.n_rows;igrid++)
-              lf(igrid,iang*frad.n_cols+irad) = (r(igrid)*r(igrid)*lrad(igrid,irad) + 2*r(igrid)*drad(igrid,irad) - lval(iang)*(lval(iang)+1)*frad(igrid,irad))*sph(iang)/(r(igrid)*r(igrid));
+              lf(igrid,iang*frad.n_cols+irad) = (lrad(igrid,irad) + 2*drad(igrid,irad)/r(igrid) - lval(iang)*(lval(iang)+1)*frad(igrid,irad)/(r(igrid)*r(igrid)))*sph(iang);
 
         //for(size_t i=0;i<lval.n_elem;i++)
         //lf.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=(arma::square(r)%lrad + 2*r%drad - lval(i)*(lval(i)+1)*frad) / arma::square(r) * sph(i);
