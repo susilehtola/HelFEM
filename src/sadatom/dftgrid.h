@@ -42,6 +42,8 @@ namespace helfem {
         arma::mat bf;
         /// Radial gradient
         arma::mat bf_rho;
+        /// Radial laplacian
+        arma::mat bf_rho2;
 
         /// Density helper matrices: P_{uv} chi_v, and P_{uv} nabla(chi_v)
         arma::mat Pv, Pv_rho;
@@ -127,6 +129,8 @@ namespace helfem {
         double compute_Nel() const;
         /// Compute kinetic energy density
         double compute_tau() const;
+        /// Compute laplacian
+        double compute_lapl() const;
 
         /// Initialize XC arrays
         void init_xc();
@@ -193,7 +197,7 @@ namespace helfem {
 
       /// BLAS routine for GGA-type quadrature
       template<typename T> void increment_gga(arma::mat & H, const arma::mat & gn, const arma::Mat<T> & f, arma::Mat<T> f_x) {
-        if(gn.n_cols!=3) {
+        if(gn.n_cols!=1) {
           throw std::runtime_error("Grad rho must have three columns!\n");
         }
         if(f.n_rows != f_x.n_rows || f.n_cols != f_x.n_cols) {
@@ -211,7 +215,6 @@ namespace helfem {
           // Helper
           arma::rowvec gc;
 
-          // x gradient
           gc=arma::strans(gn.col(0));
           for(size_t j=0;j<f_x.n_cols;j++)
             for(size_t i=0;i<f_x.n_rows;i++)
@@ -221,6 +224,32 @@ namespace helfem {
 
         // Form Fock matrix
         H+=arma::real(gamma*arma::trans(f) + f*arma::trans(gamma));
+      }
+
+      /// BLAS routine for mGGA-type quadrature
+      template<typename T> void increment_mgga_lapl(arma::mat & H, const arma::mat & vlapl, const arma::Mat<T> & f, const arma::Mat<T> & l) {
+        if(f.n_cols != vlapl.n_elem) {
+          std::ostringstream oss;
+          oss << "Number of functions " << f.n_cols << " and potential values " << vlapl.n_elem << " do not match!\n";
+          throw std::runtime_error(oss.str());
+        }
+        if(H.n_rows != f.n_rows || H.n_cols != f.n_rows) {
+          std::ostringstream oss;
+          oss << "Size of basis function (" << f.n_rows << "," << f.n_cols << ") and Fock matrix (" << H.n_rows << "," << H.n_cols << ") doesn't match!\n";
+          throw std::runtime_error(oss.str());
+        }
+        if(l.n_rows != f.n_rows || l.n_cols != f.n_cols) {
+          std::ostringstream oss;
+          oss << "Size of basis function (" << f.n_rows << "," << f.n_cols << ") and Laplacian matrix (" << l.n_rows << "," << l.n_cols << ") doesn't match!\n";
+          throw std::runtime_error(oss.str());
+        }
+
+        // Form helper matrix
+        arma::Mat<T> fhlp(f);
+        for(size_t i=0;i<fhlp.n_rows;i++)
+          for(size_t j=0;j<fhlp.n_cols;j++)
+            fhlp(i,j)*=vlapl(j);
+        H+=arma::real(fhlp*arma::trans(l)+l*arma::trans(fhlp));
       }
     }
   }

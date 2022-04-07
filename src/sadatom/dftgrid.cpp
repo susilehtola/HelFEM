@@ -73,7 +73,7 @@ namespace helfem {
 
         // Calculate gradient
         if(do_grad) {
-          grho.zeros(3,wtot.n_elem);
+          grho.zeros(1,wtot.n_elem);
           sigma.zeros(1,wtot.n_elem);
           for(size_t ip=0;ip<wtot.n_elem;ip++) {
             // Calculate values
@@ -84,22 +84,36 @@ namespace helfem {
         }
 
         // Calculate kinetic energy density
-        if(do_tau) {
-          arma::mat Plv(Pl*arma::conj(bf));
+        if(do_tau || do_lapl) {
           arma::mat Pvp(P*arma::conj(bf_rho));
 
-          tau.zeros(1,wtot.n_elem);
-          for(size_t ip=0;ip<wtot.n_elem;ip++) {
-            // First term: P(u,v) * \chi_u' \chi_v'
-            double term1 = arma::dot(Pvp.col(ip), bf_rho.col(ip));
-            // Second term: l(l+1) Pl(u,v) \chi_u \chi_v / r^2
-            double term2 = arma::dot(Plv.col(ip), bf.col(ip))/(r(ip)*r(ip));
-            tau(0,ip) = 0.5*(term1 + term2);
+          if(do_tau) {
+            arma::mat Plv(Pl*arma::conj(bf));
+            tau.zeros(1,wtot.n_elem);
+            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+              // First term: P(u,v) * \chi_u' \chi_v'
+              double term1 = arma::dot(Pvp.col(ip), bf_rho.col(ip));
+              // Second term: l(l+1) Pl(u,v) \chi_u \chi_v / r^2
+              double term2 = arma::dot(Plv.col(ip), bf.col(ip))/(r(ip)*r(ip));
+              tau(0,ip) = 0.5*(term1 + term2);
+            }
+          }
+
+          if(do_lapl) {
+            lapl.zeros(1,wtot.n_elem);
+            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+              // First term: P(u,v) * \chi_u' \chi_v'
+              double term1 = 2.0*arma::dot(Pvp.col(ip), bf_rho.col(ip));
+              // Second term: P(u,v) \chi_u \chi_v''
+              double term2 = 2.0*arma::dot(Pv.col(ip), bf_rho2.col(ip));
+              // Third term: P(u,v) * \chi_u \chi_v' / r
+              double term3 = 4.0*arma::dot(Pv.col(ip), bf_rho.col(ip))/r(ip);
+
+              // Store values
+              lapl(0,ip)=term1+term2+term3;
+            }
           }
         }
-
-        if(do_lapl)
-          throw std::logic_error("Laplacian meta-GGAs not implemented!\n");
       }
 
       void DFTGridWorker::update_density(const arma::cube & Pac0, const arma::cube & Pbc0) {
@@ -151,11 +165,11 @@ namespace helfem {
 
         // Calculate gradient
         if(do_grad) {
-          grho.zeros(6,wtot.n_elem);
+          grho.zeros(2,wtot.n_elem);
           sigma.zeros(3,wtot.n_elem);
           for(size_t ip=0;ip<wtot.n_elem;ip++) {
             double ga_rad=grho(0,ip)=2.0*arma::dot(Pav.col(ip),bf_rho.col(ip));
-            double gb_rad=grho(3,ip)=2.0*arma::dot(Pbv.col(ip),bf_rho.col(ip));
+            double gb_rad=grho(1,ip)=2.0*arma::dot(Pbv.col(ip),bf_rho.col(ip));
 
             // Compute sigma as well
             sigma(0,ip)=ga_rad*ga_rad;
@@ -165,28 +179,45 @@ namespace helfem {
         }
 
         // Calculate kinetic energy density
-        if(do_tau) {
-          arma::mat Palv(Pal*arma::conj(bf));
+        if(do_tau || do_lapl) {
           arma::mat Pavp(Pa*arma::conj(bf_rho));
-          arma::mat Pblv(Pbl*arma::conj(bf));
           arma::mat Pbvp(Pb*arma::conj(bf_rho));
 
-          tau.zeros(2,wtot.n_elem);
-          for(size_t ip=0;ip<wtot.n_elem;ip++) {
-            // First term: P(u,v) * \chi_u' \chi_v'
-            double term1a = arma::dot(Pavp.col(ip), bf_rho.col(ip));
-            double term1b = arma::dot(Pbvp.col(ip), bf_rho.col(ip));
-            // Second term: l(l+1) Pl(u,v) \chi_u \chi_v / r^2
-            double term2a = arma::dot(Palv.col(ip), bf.col(ip))/(r(ip)*r(ip));
-            double term2b = arma::dot(Pblv.col(ip), bf.col(ip))/(r(ip)*r(ip));
-            tau(0,ip) = 0.5*(term1a + term2a);
-            tau(1,ip) = 0.5*(term1b + term2b);
+          if(do_tau) {
+            arma::mat Palv(Pal*arma::conj(bf));
+            arma::mat Pblv(Pbl*arma::conj(bf));
+            tau.zeros(2,wtot.n_elem);
+            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+              // First term: P(u,v) * \chi_u' \chi_v'
+              double term1a = arma::dot(Pavp.col(ip), bf_rho.col(ip));
+              double term1b = arma::dot(Pbvp.col(ip), bf_rho.col(ip));
+              // Second term: l(l+1) Pl(u,v) \chi_u \chi_v / r^2
+              double term2a = arma::dot(Palv.col(ip), bf.col(ip))/(r(ip)*r(ip));
+              double term2b = arma::dot(Pblv.col(ip), bf.col(ip))/(r(ip)*r(ip));
+              tau(0,ip) = 0.5*(term1a + term2a);
+              tau(1,ip) = 0.5*(term1b + term2b);
+            }
+          }
+
+          if(do_lapl) {
+            lapl.zeros(2,wtot.n_elem);
+            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+              // First term: P(u,v) * \chi_u' \chi_v'
+              double term1a = 2.0*arma::dot(Pavp.col(ip), bf_rho.col(ip));
+              double term1b = 2.0*arma::dot(Pbvp.col(ip), bf_rho.col(ip));
+              // Second term: P(u,v) \chi_u \chi_v''
+              double term2a = 2.0*arma::dot(Pav.col(ip), bf_rho2.col(ip));
+              double term2b = 2.0*arma::dot(Pbv.col(ip), bf_rho2.col(ip));
+              // Third term: P(u,v) * \chi_u \chi_v' / r
+              double term3a = 4.0*arma::dot(Pav.col(ip), bf_rho.col(ip))/r(ip);
+              double term3b = 4.0*arma::dot(Pbv.col(ip), bf_rho.col(ip))/r(ip);
+
+              // Store values
+              lapl(0,ip)=term1a+term2a+term3a;
+              lapl(1,ip)=term1b+term2b+term3b;
+            }
           }
         }
-
-        // Calculate kinetic energy density
-        if(do_lapl)
-          throw std::logic_error("Laplacian meta-GGAs not implemented!\n");
       }
 
       void DFTGridWorker::screen_density(double thr) {
@@ -206,6 +237,11 @@ namespace helfem {
                 tau(0,ip)=0.0;
                 tau(1,ip)=0.0;
               }
+
+              if(do_lapl) {
+                lapl(0,ip)=0.0;
+                lapl(1,ip)=0.0;
+              }
             }
           }
         } else {
@@ -217,6 +253,9 @@ namespace helfem {
               }
               if(do_tau) {
                 tau(0,ip)=0.0;
+              }
+              if(do_lapl) {
+                lapl(0,ip)=0.0;
               }
             }
           }
@@ -239,14 +278,27 @@ namespace helfem {
       double DFTGridWorker::compute_tau() const {
         double t=0.0;
         if(!polarized) {
-          for(size_t ip=0;ip<wtot.n_elem;ip++)
+          for(size_t ip=0;ip<tau.n_cols;ip++)
             t+=wtot(ip)*tau(0,ip);
         } else {
-          for(size_t ip=0;ip<wtot.n_elem;ip++)
+          for(size_t ip=0;ip<tau.n_cols;ip++)
             t+=wtot(ip)*(tau(0,ip)+tau(1,ip));
         }
 
         return t;
+      }
+
+      double DFTGridWorker::compute_lapl() const {
+        double l=0.0;
+        if(!polarized) {
+          for(size_t ip=0;ip<lapl.n_cols;ip++)
+            l+=wtot(ip)*lapl(0,ip);
+        } else {
+          for(size_t ip=0;ip<lapl.n_cols;ip++)
+            l+=wtot(ip)*(lapl(0,ip)+lapl(1,ip));
+        }
+
+        return l;
       }
 
       void DFTGridWorker::init_xc() {
@@ -447,7 +499,7 @@ namespace helfem {
           // Get vsigma
           arma::rowvec vs(vsigma.row(0));
           // Get grad rho
-          arma::uvec idx(arma::linspace<arma::uvec>(0,2,3));
+          arma::uvec idx(arma::linspace<arma::uvec>(0,0,1));
           arma::mat gr(arma::trans(grho.rows(idx)));
           // Multiply grad rho by vsigma and the weights
           for(size_t i=0;i<gr.n_rows;i++) {
@@ -459,20 +511,29 @@ namespace helfem {
             fprintf(stderr,"NaN in Hamiltonian after GGA!\n");
         }
 
-        if(do_mgga_t) {
-          arma::rowvec vt(vtau.row(0));
-          vt%=0.5*wtot;
-
+        if(do_mgga_t || do_mgga_l) {
+          arma::rowvec vtl(wtot.n_elem, arma::fill::zeros);
+          if(do_mgga_t)
+            vtl+=0.5*vtau.row(0);
+          if(do_mgga_l)
+            vtl+=2.0*vlapl.row(0);
+          vtl%=wtot;
           // Base term
-          increment_lda<double>(H,vt,bf_rho);
-          // l(l+1) term
-          vt=vtau.row(0)%(0.5*wrad*4.0*M_PI);
-          increment_lda<double>(Hl,vt,bf);
+          increment_lda<double>(H,vtl,bf_rho);
+
+          if(do_mgga_t) {
+            // l(l+1) term: r^-2 cancels out the factor in the total weight
+            vtl=vtau.row(0)%(0.5*wrad*4.0*M_PI);
+            increment_lda<double>(Hl,vtl,bf);
+          }
+          if(do_mgga_l) {
+            // Laplacian term
+            vtl=vlapl.row(0)%wtot;
+            increment_mgga_lapl<double>(H,vtl,bf,bf_rho2);
+          }
           if(H.has_nan())
             fprintf(stderr,"NaN in Hamiltonian after mGGA!\n");
         }
-        if(do_mgga_l)
-          throw std::logic_error("Laplacian not implemented!\n");
 
         // Collect results
         for(size_t islice=0;islice<Ho.n_slices;islice++) {
@@ -519,8 +580,8 @@ namespace helfem {
           arma::rowvec vs_ab(vsigma.row(1));
 
           // Get grad rho
-          arma::uvec idxa(arma::linspace<arma::uvec>(0,2,3));
-          arma::uvec idxb(arma::linspace<arma::uvec>(3,5,3));
+          arma::uvec idxa(arma::linspace<arma::uvec>(0,0,1));
+          arma::uvec idxb(arma::linspace<arma::uvec>(1,1,1));
           arma::mat gr_a0(arma::trans(grho.rows(idxa)));
           arma::mat gr_b0(arma::trans(grho.rows(idxb)));
 
@@ -545,28 +606,51 @@ namespace helfem {
             fprintf(stderr,"NaN in Hamiltonian after GGA!\n");
         }
 
-        if(do_mgga_t) {
-          arma::rowvec vat(vtau.row(0));
-          vat%=0.5*wtot;
-          arma::rowvec vbt(vtau.row(1));
-          vbt%=0.5*wtot;
+        if(do_mgga_t || do_mgga_l) {
+          arma::rowvec vtl_a(wtot.n_elem, arma::fill::zeros);
+          if(do_mgga_t)
+            vtl_a += 0.5*vtau.row(0);
+          if(do_mgga_l)
+            vtl_a += 2.0*vlapl.row(0);
+          vtl_a %= wtot;
 
           // Base term
-          increment_lda<double>(Ha,vat,bf_rho);
-          // l(l+1) term
-          vat=vtau.row(0)%(0.5*wrad*4.0*M_PI);
-          increment_lda<double>(Hal,vat,bf);
+          increment_lda<double>(Ha,vtl_a,bf_rho);
+
+          if(do_mgga_t) {
+            // l(l+1) term: r^-2 cancels out the factor in the total weight
+            vtl_a=vtau.row(0)%(0.5*wrad*4.0*M_PI);
+            increment_lda<double>(Hal,vtl_a,bf);
+          }
+          if(do_mgga_l) {
+            vtl_a=vlapl.row(0)%wtot;
+            increment_mgga_lapl<double>(Ha,vtl_a,bf,bf_rho2);
+          }
           if(beta) {
-            increment_lda<double>(Hb,vbt,bf_rho);
-            vbt=vtau.row(1)%(0.5*wrad*4.0*M_PI);
-            increment_lda<double>(Hbl,vbt,bf);
+            arma::rowvec vtl_b(wtot.n_elem, arma::fill::zeros);
+            if(do_mgga_t)
+              vtl_b += 0.5*vtau.row(1);
+            if(do_mgga_l)
+              vtl_b += 2.0*vlapl.row(1);
+            vtl_b %= wtot;
+
+            // Base term
+            increment_lda<double>(Hb,vtl_b,bf_rho);
+
+            if(do_mgga_t) {
+              // l(l+1) term: r^-2 cancels out the factor in the total weight
+              vtl_b=vtau.row(1)%(0.5*wrad*4.0*M_PI);
+              increment_lda<double>(Hbl,vtl_b,bf);
+            }
+            if(do_mgga_l) {
+              vtl_b=vlapl.row(1)%wtot;
+              increment_mgga_lapl<double>(Hb,vtl_b,bf,bf_rho2);
+            }
           }
           if(Ha.has_nan() || (beta && Hb.has_nan()))
             //throw std::logic_error("NaN encountered!\n");
             fprintf(stderr,"NaN in Hamiltonian after mGGA!\n");
         }
-        if(do_mgga_l)
-          throw std::logic_error("Laplacian not implemented!\n");
 
         // Collect results
         for(size_t islice=0;islice<Hao.n_slices;islice++) {
@@ -620,13 +704,10 @@ namespace helfem {
         // Get radii
         r=basp->get_r(iel);
         // Get radial weights
-        wrad=basp->get_wrad(iel);
+        wrad=basp->get_wrad(iel).t();
 
         // Update total weights
-        wtot.zeros(wrad.n_elem);
-        for(size_t ir=0;ir<wrad.n_elem;ir++) {
-          wtot(ir)=4.0*M_PI*wrad(ir)*std::pow(r(ir),2);
-        }
+        wtot = 4.0*M_PI*wrad%arma::square(r.t());
 
         // Compute basis function values
         bf=arma::trans(basp->eval_bf(iel));
@@ -636,7 +717,7 @@ namespace helfem {
         }
 
         if(do_lapl) {
-          throw std::logic_error("Laplacian not implemented.\n");
+          bf_rho2=arma::trans(basp->eval_lf(iel));
         }
       }
 
@@ -654,9 +735,11 @@ namespace helfem {
 
         double exc=0.0;
         double nel=0.0;
+        double tau=0.0;
+        double lapl=0.0;
 
 #ifdef _OPENMP
-#pragma omp parallel reduction(+:exc,nel)
+#pragma omp parallel reduction(+:exc,nel,tau,lapl)
 #endif
         {
           DFTGridWorker grid(basp);
@@ -669,6 +752,8 @@ namespace helfem {
             grid.compute_bf(iel);
             grid.update_density(P);
             nel+=grid.compute_Nel();
+            tau+=grid.compute_tau();
+            lapl+=grid.compute_lapl();
 
             grid.init_xc();
             if(thr>0.0)
@@ -688,6 +773,8 @@ namespace helfem {
             grid.compute_bf(iel);
             grid.update_density(P);
             nel+=grid.compute_Nel();
+            tau+=grid.compute_tau();
+            lapl+=grid.compute_lapl();
 
             grid.init_xc();
             if(thr>0.0)
@@ -705,6 +792,11 @@ namespace helfem {
         // Save outputs
         Exc=exc;
         Nel=nel;
+
+        if(tau!=0.0)
+          printf("Tau integral %.10e\n",tau);
+        if(lapl!=0.0)
+          printf("Laplacian integral %.10e\n",lapl);
       }
 
       void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::cube & Ha, arma::cube & Hb, double & Exc, double & Nel, bool beta, double thr) {

@@ -96,6 +96,8 @@ namespace helfem {
         arma::mat eval_bf(size_t iel) const;
         /// Evaluate basis functions derivatives
         arma::mat eval_df(size_t iel) const;
+        /// Evaluate basis functions second derivatives
+        arma::mat eval_lf(size_t iel) const;
         /// Get list of basis function indices in element
         arma::uvec bf_list(size_t iel) const;
 
