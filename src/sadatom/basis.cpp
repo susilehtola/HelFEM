@@ -681,23 +681,15 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::eval_bf(size_t iel) const {
-        // Evaluate radial functions
-        arma::mat rad(radial.get_bf(iel));
-
-        // Spherical harmonics contribution
-        //rad/=sqrt(4.0*M_PI);
-
-        return rad;
+        return radial.get_bf(iel);
       }
 
       arma::mat TwoDBasis::eval_df(size_t iel) const {
-        // Evaluate radial functions
-        arma::mat drad(radial.get_df(iel));
+        return radial.get_df(iel);
+      }
 
-        // Form supermatrices
-        //drad/=sqrt(4.0*M_PI);
-
-        return drad;
+      arma::mat TwoDBasis::eval_lf(size_t iel) const {
+        return radial.get_lf(iel);
       }
 
       arma::uvec TwoDBasis::bf_list(size_t iel) const {
@@ -1005,8 +997,10 @@ namespace helfem {
           arma::mat bf(radial.get_bf(iel));
           arma::mat df(radial.get_df(iel));
           arma::mat lf(radial.get_lf(iel));
+          arma::vec r(radial.get_r(iel));
 
-          l[iel]=2.0*(arma::diagvec(df*Psub*df.t()) + arma::diagvec(bf*Psub*lf.t()));
+          // Laplacian is df^2/dr^2 + 2/r df/dr
+          l[iel]=2.0*(arma::diagvec(df*Psub*df.t()) + arma::diagvec(bf*Psub*lf.t())) + 4.0*arma::diagvec(bf*Psub*df.t())/r;
         }
 
         size_t Npts=l[0].n_elem;
@@ -1047,9 +1041,6 @@ namespace helfem {
           arma::mat bf(radial.get_bf(iel));
           // Basis function derivative
           arma::mat bf_rho(radial.get_df(iel));
-
-          arma::mat Plv(Psubl*bf);
-          arma::mat Pvp(Psub*bf_rho);
 
           t[iel] = 0.5*(arma::diagvec(bf_rho * Psub * bf_rho.t()) + arma::diagvec(bf * Psubl * bf.t())/arma::square(r));
         }
