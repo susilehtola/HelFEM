@@ -502,8 +502,10 @@ namespace helfem {
           arma::uvec idx(arma::linspace<arma::uvec>(0,0,1));
           arma::mat gr(arma::trans(grho.rows(idx)));
           // Multiply grad rho by vsigma and the weights
-          for(size_t i=0;i<gr.n_rows;i++) {
-            gr(i,0)*=2.0*wtot(i)*vs(i);
+          gr.col(0)%=2.0*(wtot%vs).t();
+          // If we also have laplacian dependence, we get an extra term
+          if(do_mgga_l) {
+            gr.col(0)+=(2.0*vlapl.row(0)%r%(wrad*4.0*M_PI)).t();
           }
           // Increment matrix
           increment_gga<double>(H,gr,bf,bf_rho);
@@ -587,8 +589,10 @@ namespace helfem {
 
           // Multiply grad rho by vsigma and the weights
           arma::mat gr_a(gr_a0);
-          for(size_t i=0;i<gr_a.n_rows;i++) {
-            gr_a(i,0)=wtot(i)*(2.0*vs_aa(i)*gr_a0(i,0) + vs_ab(i)*gr_b0(i,0));
+          gr_a.col(0)=(wtot%(2.0*vs_aa%gr_a0.col(0).t() + vs_ab%gr_b0.col(0).t())).t();
+          // If we also have laplacian dependence, we get an extra term
+          if(do_mgga_l) {
+            gr_a.col(0)+=2.0*(vlapl.row(0)%r%(wrad*4.0*M_PI)).t();
           }
           // Increment matrix
           increment_gga<double>(Ha,gr_a,bf,bf_rho);
@@ -596,8 +600,9 @@ namespace helfem {
           if(beta) {
             arma::rowvec vs_bb(vsigma.row(2));
             arma::mat gr_b(gr_b0);
-            for(size_t i=0;i<gr_b.n_rows;i++) {
-              gr_b(i,0)=wtot(i)*(2.0*vs_bb(i)*gr_b0(i,0) + vs_ab(i)*gr_a0(i,0));
+            gr_b.col(0)=(wtot%(2.0*vs_bb%gr_b0.col(0).t() + vs_ab%gr_a0.col(0).t())).t();
+            if(do_mgga_l) {
+              gr_b.col(0)+=2.0*(vlapl.row(1)%r%(wrad*4.0*M_PI)).t();
             }
             increment_gga<double>(Hb,gr_b,bf,bf_rho);
           }
@@ -702,12 +707,12 @@ namespace helfem {
         // Update function list
         bf_ind=basp->bf_list(iel);
         // Get radii
-        r=basp->get_r(iel);
+        r=basp->get_r(iel).t();
         // Get radial weights
         wrad=basp->get_wrad(iel).t();
 
         // Update total weights
-        wtot = 4.0*M_PI*wrad%arma::square(r.t());
+        wtot = 4.0*M_PI*wrad%arma::square(r);
 
         // Compute basis function values
         bf=arma::trans(basp->eval_bf(iel));
@@ -793,10 +798,12 @@ namespace helfem {
         Exc=exc;
         Nel=nel;
 
+#if 0
         if(tau!=0.0)
           printf("Tau integral %.10e\n",tau);
         if(lapl!=0.0)
           printf("Laplacian integral %.10e\n",lapl);
+#endif
       }
 
       void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::cube & Ha, arma::cube & Hb, double & Exc, double & Nel, bool beta, double thr) {

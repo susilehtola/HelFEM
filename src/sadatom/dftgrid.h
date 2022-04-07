@@ -30,7 +30,7 @@ namespace helfem {
         const helfem::sadatom::basis::TwoDBasis *basp;
 
         /// Distance from nucleus
-        arma::vec r;
+        arma::rowvec r;
         /// Radial quadrature weight
         arma::rowvec wrad;
         /// Total quadrature weight
