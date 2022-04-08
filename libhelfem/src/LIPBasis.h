@@ -36,8 +36,10 @@ namespace helfem {
       /// Evaluate third derivatives
       void eval_d3f_raw(const arma::vec & x, arma::mat & f) const;
     public:
+      /// Dummy constructor
+      LIPBasis();
       /// Constructor
-      LIPBasis(const arma::vec & x0, int id);
+      LIPBasis(const arma::vec & x0, int id=4);
       /// Destructor
       ~LIPBasis();
       /// Get a copy

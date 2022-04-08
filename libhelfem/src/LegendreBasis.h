@@ -36,7 +36,7 @@ namespace helfem {
       arma::mat d2f_eval(const arma::vec & x) const;
     public:
       /// Constructor
-      LegendreBasis(int nfuncs, int id);
+      LegendreBasis(int nfuncs, int id=3);
       /// Destructor
       ~LegendreBasis();
       /// Get a copy

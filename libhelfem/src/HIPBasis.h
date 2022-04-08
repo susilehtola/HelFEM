@@ -29,7 +29,7 @@ namespace helfem {
       arma::vec lipxi;
     public:
       /// Constructor
-      HIPBasis(const arma::vec & x0, int id);
+      HIPBasis(const arma::vec & x0, int id=5);
       /// Destructor
       ~HIPBasis();
       /// Get a copy

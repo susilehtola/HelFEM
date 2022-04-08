@@ -4,6 +4,9 @@
 namespace helfem {
   namespace polynomial_basis {
 
+    LIPBasis::LIPBasis() {
+    }
+
     LIPBasis::LIPBasis(const arma::vec & x, int id_) {
       // Make sure nodes are in order
       x0=arma::sort(x,"ascend");
