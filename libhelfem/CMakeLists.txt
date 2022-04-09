@@ -27,6 +27,7 @@ add_library(helfem
     src/PolynomialBasis.cpp
     src/LIPBasis.cpp
     src/HIPBasis.cpp
+    src/GeneralHIPBasis.cpp
     src/LegendreBasis.cpp
     src/quadrature.cpp
     src/ModelPotential.cpp

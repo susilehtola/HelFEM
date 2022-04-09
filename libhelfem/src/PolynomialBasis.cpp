@@ -18,6 +18,7 @@
 #include "lobatto.h"
 #include "LIPBasis.h"
 #include "HIPBasis.h"
+#include "GeneralHIPBasis.h"
 #include "LegendreBasis.h"
 
 namespace helfem {
@@ -55,6 +56,18 @@ namespace helfem {
           ::lobatto_compute(Nnodes,x,w);
           poly=new polynomial_basis::HIPBasis(x,primbas);
           printf("Basis set composed of %i-node HIPs with Gauss-Lobatto nodes.\n",Nnodes);
+          break;
+        }
+
+      case(6):
+      case(7):
+      case(8):
+        {
+          arma::vec x, w;
+          ::lobatto_compute(Nnodes,x,w);
+          int nder=primbas-6;
+          poly=new polynomial_basis::GeneralHIPBasis(x,primbas,nder);
+          printf("Basis set composed of %i-node %i:th order HIPs with Gauss-Lobatto nodes.\n",Nnodes,nder);
           break;
         }
 
