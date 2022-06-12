@@ -45,6 +45,10 @@ namespace helfem {
         return (int)xq.n_elem;
       }
 
+      arma::vec RadialBasis::get_xq() const {
+        return xq;
+      }
+
       size_t RadialBasis::Nbf() const {
         return fem.get_nbf();
       }
@@ -315,10 +319,14 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::get_bf(size_t iel) const {
+        return get_bf(xq, iel);
+      }
+
+      arma::mat RadialBasis::get_bf(const arma::vec & x, size_t iel) const {
         // Element function values at quadrature points are
-        arma::mat val(fem.eval_f(xq, iel));
+        arma::mat val(fem.eval_f(x, iel));
         // but we also need to put in the 1/r factor
-        arma::vec r(fem.eval_coord(xq, iel));
+        arma::vec r(fem.eval_coord(x, iel));
         for (size_t j = 0; j < val.n_cols; j++)
           for (size_t i = 0; i < val.n_rows; i++)
             val(i, j) /= r(i);
@@ -327,10 +335,14 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::get_df(size_t iel) const {
+        return get_df(xq ,iel);
+      }
+
+      arma::mat RadialBasis::get_df(const arma::vec & x, size_t iel) const {
         // Element function values at quadrature points are
-        arma::mat fval(fem.eval_f(xq, iel));
-        arma::mat dval(fem.eval_df(xq, iel));
-        arma::vec r(fem.eval_coord(xq, iel));
+        arma::mat fval(fem.eval_f(x, iel));
+        arma::mat dval(fem.eval_df(x, iel));
+        arma::vec r(fem.eval_coord(x, iel));
 
         // Derivative is then
         arma::mat der(fval);
@@ -342,11 +354,15 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::get_lf(size_t iel) const {
+        return get_lf(xq, iel);
+      }
+
+      arma::mat RadialBasis::get_lf(const arma::vec & x, size_t iel) const {
         // Element function values at quadrature points are
-        arma::mat fval(fem.eval_f(xq, iel));
-        arma::mat dval(fem.eval_df(xq, iel));
-        arma::mat lval(fem.eval_d2f(xq, iel));
-        arma::vec r(fem.eval_coord(xq, iel));
+        arma::mat fval(fem.eval_f(x, iel));
+        arma::mat dval(fem.eval_df(x, iel));
+        arma::mat lval(fem.eval_d2f(x, iel));
+        arma::vec r(fem.eval_coord(x, iel));
 
         // Laplacian is then
         arma::mat lapl(fval);
@@ -360,12 +376,20 @@ namespace helfem {
       }
 
       arma::vec RadialBasis::get_wrad(size_t iel) const {
+        return get_wrad(wq, iel);
+      }
+
+      arma::vec RadialBasis::get_wrad(const arma::vec & w, size_t iel) const {
         // This is just the radial rule, no r^2 factor included here
-        return fem.scaling_factor(iel) * wq;
+        return fem.scaling_factor(iel) * w;
       }
 
       arma::vec RadialBasis::get_r(size_t iel) const {
-        return fem.eval_coord(xq, iel);
+        return get_r(xq, iel);
+      }
+
+      arma::vec RadialBasis::get_r(const arma::vec & x, size_t iel) const {
+        return fem.eval_coord(x, iel);
       }
 
       double RadialBasis::nuclear_density(const arma::mat &Prad) const {

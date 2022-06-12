@@ -178,15 +178,8 @@ namespace helfem {
             printf(" %e",rpos(ir));
           }
 
-          // Test function: total number of electrons at each value of r
-          arma::vec rho(basis.electron_density(P));
-          arma::vec totel(arma::square(r)%rho);
-
-          // Position of maximum
-          arma::uword ridx;
-          totel.max(ridx);
-
-          printf(" %e\n",r(ridx));
+          // Electron density maximum
+          printf(" %e\n",basis.electron_density_maximum(P));
         }
       }
 

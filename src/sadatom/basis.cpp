@@ -861,17 +861,38 @@ namespace helfem {
         return Cv;
       }
 
+      arma::vec TwoDBasis::electron_density(const arma::vec & x, size_t iel, const arma::mat & Prad, bool rsqweight) const {
+        // Radial functions in element
+        size_t ifirst, ilast;
+        radial.get_idx(iel,ifirst,ilast);
+        // Density matrix
+        arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
+        arma::mat bf(radial.get_bf(x, iel));
+
+        arma::vec density = arma::diagvec(bf*Psub*bf.t());
+        if(rsqweight)
+          density %= arma::square(radial.get_r(x, iel));
+        return density;
+      }
+
+      arma::vec TwoDBasis::electron_density(size_t iel, const arma::mat & Prad, bool rsqweight) const {
+        // Radial functions in element
+        size_t ifirst, ilast;
+        radial.get_idx(iel,ifirst,ilast);
+        // Density matrix
+        arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
+        arma::mat bf(radial.get_bf(iel));
+
+        arma::vec density = arma::diagvec(bf*Psub*bf.t());
+        if(rsqweight)
+          density %= arma::square(radial.get_r(iel));
+        return density;
+      }
+
       arma::vec TwoDBasis::electron_density(const arma::mat & Prad) const {
         std::vector<arma::vec> d(radial.Nel());
         for(size_t iel=0;iel<radial.Nel();iel++) {
-          // Radial functions in element
-          size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
-          // Density matrix
-          arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
-          arma::mat bf(radial.get_bf(iel));
-
-          d[iel]=arma::diagvec(bf*Psub*bf.t());
+          d[iel]=electron_density(iel, Prad);
         }
         size_t Npts=d[0].n_elem;
 
@@ -883,6 +904,65 @@ namespace helfem {
         }
 
         return n;
+      }
+
+      double TwoDBasis::electron_density_maximum(const arma::mat & Prad, double eps) const {
+        // Evaluate the density in each quadrature point and take
+        // their maximum
+        arma::vec d(radial.Nel());
+        bool rsqweight = true;
+
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          d(iel)=arma::max(electron_density(iel, Prad, rsqweight));
+        }
+
+        // Find the element with the maximum density
+        arma::uword iel;
+        d.max(iel);
+
+        // Evaluate the density in that element
+        arma::vec xq = radial.get_xq();
+        arma::vec del = electron_density(xq, iel, Prad, rsqweight);
+
+        // Find the maximum value
+        arma::uword imax;
+        del.max(imax);
+
+        // Refine the location of the maximum in the element
+        double rmax=0.0;
+        {
+          // Primitive coordinates
+          arma::vec a(1), b(1);
+
+          if(imax == 0) {
+            a(0) = xq(imax);
+            b(0) = xq(imax+1);
+          } else if(imax == xq.n_elem-1) {
+            a(0) = xq(imax-1);
+            b(0) = xq(imax);
+          } else {
+            a(0) = xq(imax-1);
+            b(0) = xq(imax+1);
+          }
+
+          // Golden ratio search
+          double golden_ratio = 0.5*(sqrt(5.0)+1.0);
+          while(arma::norm(a-b,"inf")>=eps) {
+            arma::vec c = b - (b-a)/golden_ratio;
+            arma::vec d = a + (b-d)/golden_ratio;
+            double density_c = arma::as_scalar(electron_density(c, iel, Prad, rsqweight));
+            double density_d = arma::as_scalar(electron_density(d, iel, Prad, rsqweight));
+            if(density_c < density_d) {
+              b = d;
+            } else {
+              a = c;
+            }
+          }
+          // Position of maximum is
+          rmax = arma::as_scalar(radial.get_r((a+b)/2,iel));
+        }
+
+        return rmax;
       }
 
       arma::vec TwoDBasis::electron_density_gradient(const arma::mat & Prad) const {
