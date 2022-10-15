@@ -15,6 +15,7 @@
  */
 
 #include "erfc_expn.h"
+#include <algorithm>
 #include <cmath>
 #include <cfloat>
 #include <stdexcept>

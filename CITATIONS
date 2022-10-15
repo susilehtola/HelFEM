@@ -8,6 +8,12 @@ There's also an article that discusses calculations with spherically averaged de
 
 S. Lehtola, Fully numerical calculations on atoms with fractional occupations and range-separated exchange functionals, Phys. Rev. A 101, 012516 (2020). DOI: 10.1103/PhysRevA.101.012516 
 
+The calculations in both the atomic and diatomic programs are started by default from atomic potentials as described in
+
+S. Lehtola, Assessment of initial guesses for self-consistent field calculations. Superposition of Atomic Potentials: simple yet efficient, J. Chem. Theory Comput. 15, 1593 (2019). DOI: 10.1021/acs.jctc.8b01089
+
+which leads to fast convergence of the self-consistent field calculations. The program employs local exchange potentials determined with HelFEM, according to the procedure laid out in the fractional occupation paper.
+
 Calculations in finite magnetic fields have been described in:
 
 S. Lehtola, M. Dimitrova, and D. Sundholm, Fully numerical electronic structure calculations on diatomic molecules in weak to strong magnetic fields, Mol. Phys. (2019), DOI: 10.1080/00268976.2019.1597989. arXiv:1812.06274
