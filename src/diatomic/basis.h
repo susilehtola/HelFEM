@@ -158,7 +158,7 @@ namespace helfem {
         // Dummy constructor
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z1, int Z2, double Rbond, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int lpad=0, bool legendre=true);
+        TwoDBasis(int Z1, int Z2, double Rhalf, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int lpad=0, bool legendre=true);
         /// Destructor
         ~TwoDBasis();
 

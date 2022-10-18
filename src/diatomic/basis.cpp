@@ -304,11 +304,11 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rbond, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int lpad, bool legendre) {
+      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rhalf_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int lpad, bool legendre) {
         // Nuclear charge
         Z1=Z1_;
         Z2=Z2_;
-        Rhalf=0.5*Rbond;
+        Rhalf=Rhalf_;
 
         // Construct radial basis
         bool zero_func_left=false; // sigma orbitals are allowed to reach the nucleus; this is cleaned up for non-sigma orbitals elsewhere in the code

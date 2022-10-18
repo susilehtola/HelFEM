@@ -276,7 +276,7 @@ int main(int argc, char **argv) {
   double mumax(utils::arcosh(Rmax/Rhalf));
   arma::vec bval(atomic::basis::normal_grid(Nelem, mumax, igrid, zexp));
 
-  diatomic::basis::TwoDBasis basis(Z1, Z2, Rbond, poly, Nquad, bval, lval, mval, lpad);
+  diatomic::basis::TwoDBasis basis(Z1, Z2, Rhalf, poly, Nquad, bval, lval, mval, lpad);
   chkpt.write(basis);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
 
