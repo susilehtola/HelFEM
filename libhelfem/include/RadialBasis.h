@@ -17,7 +17,7 @@
 #define ATOMIC_BASIS_RADIALBASIS_H
 
 #include "ModelPotential.h"
-#include "PolynomialBasis.h"
+#include "FiniteElementBasis.h"
 #include <armadillo>
 
 namespace helfem {
@@ -29,47 +29,22 @@ namespace helfem {
         arma::vec xq;
         /// Quadrature weights
         arma::vec wq;
-
-        /// Polynomial basis
-        const polynomial_basis::PolynomialBasis *poly;
-        /// Primitive polynomial basis functions evaluated on the quadrature
-        /// grid
-        arma::mat bf;
-        /// Primitive polynomial basis function derivatives evaluated on the
-        /// quadrature grid
-        arma::mat df;
-
-        /// Element boundary values
-        arma::vec bval;
-
-        /// Used basis function indices in element
-        arma::uvec basis_indices(size_t iel) const;
-        /// Get basis functions in element
-        polynomial_basis::PolynomialBasis *
-        get_basis(const polynomial_basis::PolynomialBasis *poly,
-                  size_t iel) const;
+        /// Finite element basis
+        polynomial_basis::FiniteElementBasis fem;
 
       public:
         /// Dummy constructor
         RadialBasis();
         /// Construct radial basis
-        RadialBasis(const polynomial_basis::PolynomialBasis *poly, int n_quad,
-                    const arma::vec &bval);
-
-        /// Explicit copy constructor because of shared pointer
-        RadialBasis(const RadialBasis &rh);
-        /// Explicit assignment operator because of shared pointer
-        RadialBasis &operator=(const RadialBasis &rh);
-        /// Explicit destructor because of shared pointer
+        RadialBasis(const polynomial_basis::FiniteElementBasis & fem, int n_quad);
+        /// Explicit destructor
         ~RadialBasis();
 
         /// Add an element boundary
         void add_boundary(double r);
 
         /// Get polynomial basis
-        polynomial_basis::PolynomialBasis *get_poly() const;
-        /// Get basis functions in element
-        arma::mat get_basis(const arma::mat &b, size_t iel) const;
+        std::shared_ptr<polynomial_basis::PolynomialBasis> get_poly() const;
 
         /// Get number of quadrature points
         int get_nquad() const;
@@ -77,8 +52,8 @@ namespace helfem {
         arma::vec get_bval() const;
         /// Get polynomial basis identifier
         int get_poly_id() const;
-        /// Get polynomial basis order
-        int get_poly_order() const;
+        /// Get number of nodes in polynomial basis
+        int get_poly_nnodes() const;
 
         /// Get number of overlapping functions
         size_t get_noverlap() const;

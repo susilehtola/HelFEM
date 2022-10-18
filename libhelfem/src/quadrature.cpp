@@ -16,176 +16,11 @@
 #include "quadrature.h"
 #include "erfc_expn.h"
 #include "chebyshev.h"
-#include "polynomial.h"
 #include "utils.h"
 
 namespace helfem {
   namespace quadrature {
-    arma::mat radial_integral(double rmin, double rmax, int n, const arma::vec & x, const arma::vec & wx, const arma::mat & bf) {
-#ifndef ARMA_NO_DEBUG
-      if(x.n_elem != wx.n_elem) {
-        std::ostringstream oss;
-        oss << "x and wx not compatible: " << x.n_elem << " vs " << wx.n_elem << "!\n";
-        throw std::logic_error(oss.str());
-      }
-      if(x.n_elem != bf.n_rows) {
-        std::ostringstream oss;
-        oss << "x and bf not compatible: " << x.n_elem << " vs " << bf.n_rows << "!\n";
-        throw std::logic_error(oss.str());
-      }
-#endif
-
-      // Midpoint is at
-      double rmid(0.5*(rmax+rmin));
-      // and half-length of interval is
-      double rlen(0.5*(rmax-rmin));
-      // r values are then
-      arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
-
-      // Calculate total weight per point
-      arma::vec wp(wx*rlen);
-      if(n!=0)
-        wp%=arma::pow(r,n);
-
-      // Put in weight
-      arma::mat wbf(bf);
-      for(size_t i=0;i<bf.n_cols;i++)
-	wbf.col(i)%=wp;
-
-      // Matrix elements are then
-      return arma::trans(wbf)*bf;
-    }
-
-    arma::mat derivative_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const arma::mat & dbf) {
-#ifndef ARMA_NO_DEBUG
-      if(x.n_elem != wx.n_elem) {
-        std::ostringstream oss;
-        oss << "x and wx not compatible: " << x.n_elem << " vs " << wx.n_elem << "!\n";
-        throw std::logic_error(oss.str());
-      }
-      if(x.n_elem != dbf.n_rows) {
-        std::ostringstream oss;
-        oss << "x and dbf not compatible: " << x.n_elem << " vs " << dbf.n_rows << "!\n";
-        throw std::logic_error(oss.str());
-      }
-#endif
-
-      // Half-length of interval is
-      double rlen(0.5*(rmax-rmin));
-
-      // Put in weight
-      arma::mat wdbf(dbf);
-      for(size_t i=0;i<dbf.n_cols;i++)
-	// We get +1 rlen from the jacobian, but -2 from the derivatives
-	wdbf.col(i)%=wx/rlen;
-
-      // Integral is
-      return arma::trans(wdbf)*dbf;
-    }
-
-    arma::mat model_potential_integral(double rmin, double rmax, const modelpotential::ModelPotential * nuc, const arma::vec & x, const arma::vec & wx, const arma::mat & bf) {
-#ifndef ARMA_NO_DEBUG
-      if(x.n_elem != wx.n_elem) {
-        std::ostringstream oss;
-        oss << "x and wx not compatible: " << x.n_elem << " vs " << wx.n_elem << "!\n";
-        throw std::logic_error(oss.str());
-      }
-      if(x.n_elem != bf.n_rows) {
-        std::ostringstream oss;
-        oss << "x and bf not compatible: " << x.n_elem << " vs " << bf.n_rows << "!\n";
-        throw std::logic_error(oss.str());
-      }
-#endif
-
-      // Midpoint is at
-      double rmid(0.5*(rmax+rmin));
-      // and half-length of interval is
-      double rlen(0.5*(rmax-rmin));
-      // r values are then
-      arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
-
-      // Calculate total weight per point
-      arma::vec wp(wx*rlen);
-      wp%=nuc->V(r);
-
-      // Put in weight
-      arma::mat wbf(bf);
-      for(size_t i=0;i<bf.n_cols;i++)
-	wbf.col(i)%=wp;
-
-      // Matrix elements are then
-      return arma::trans(wbf)*bf;
-    }
-
-    arma::mat bessel_il_integral(double rmin, double rmax, int L, double lambda, const arma::vec & x, const arma::vec & wx, const arma::mat & bf) {
-#ifndef ARMA_NO_DEBUG
-      if(x.n_elem != wx.n_elem) {
-        std::ostringstream oss;
-        oss << "x and wx not compatible: " << x.n_elem << " vs " << wx.n_elem << "!\n";
-        throw std::logic_error(oss.str());
-      }
-      if(x.n_elem != bf.n_rows) {
-        std::ostringstream oss;
-        oss << "x and bf not compatible: " << x.n_elem << " vs " << bf.n_rows << "!\n";
-        throw std::logic_error(oss.str());
-      }
-#endif
-
-      // Midpoint is at
-      double rmid(0.5*(rmax+rmin));
-      // and half-length of interval is
-      double rlen(0.5*(rmax-rmin));
-      // r values are then
-      arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
-
-      // Calculate total weight per point
-      arma::vec wp(wx*rlen);
-      wp%=utils::bessel_il(r*lambda,L);
-
-      // Put in weight
-      arma::mat wbf(bf);
-      for(size_t i=0;i<bf.n_cols;i++)
-	wbf.col(i)%=wp;
-
-      // Matrix elements are then
-      return arma::trans(wbf)*bf;
-    }
-
-    arma::mat bessel_kl_integral(double rmin, double rmax, int L, double lambda, const arma::vec & x, const arma::vec & wx, const arma::mat & bf) {
-#ifndef ARMA_NO_DEBUG
-      if(x.n_elem != wx.n_elem) {
-        std::ostringstream oss;
-        oss << "x and wx not compatible: " << x.n_elem << " vs " << wx.n_elem << "!\n";
-        throw std::logic_error(oss.str());
-      }
-      if(x.n_elem != bf.n_rows) {
-        std::ostringstream oss;
-        oss << "x and bf not compatible: " << x.n_elem << " vs " << bf.n_rows << "!\n";
-        throw std::logic_error(oss.str());
-      }
-#endif
-
-      // Midpoint is at
-      double rmid(0.5*(rmax+rmin));
-      // and half-length of interval is
-      double rlen(0.5*(rmax-rmin));
-      // r values are then
-      arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
-
-      // Calculate total weight per point
-      arma::vec wp(wx*rlen);
-      wp%=utils::bessel_kl(r*lambda,L);
-
-      // Put in weight
-      arma::mat wbf(bf);
-      for(size_t i=0;i<bf.n_cols;i++)
-	wbf.col(i)%=wp;
-
-      // Matrix elements are then
-      return arma::trans(wbf)*bf;
-    }
-
-    static arma::vec twoe_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L) {
+    static arma::vec twoe_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is
@@ -204,7 +39,7 @@ namespace helfem {
       // Calculate x values the polynomials should be evaluated at
       arma::vec xpoly((r-rmid0*arma::ones<arma::vec>(x.n_elem))/rlen0);
       // Evaluate the polynomials at these points
-      arma::mat bf(poly->eval(xpoly));
+      arma::mat bf(poly->eval_f(xpoly,rlen0));
 
       // Put in weight
       arma::mat wbf(bf);
@@ -217,7 +52,7 @@ namespace helfem {
       return inner;
     }
 
-    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L) {
+    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is
@@ -240,7 +75,7 @@ namespace helfem {
       return inner;
     }
 
-    arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L) {
+    arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L) {
 #ifndef ARMA_NO_DEBUG
       if(x.n_elem != wx.n_elem) {
         std::ostringstream oss;
@@ -255,7 +90,7 @@ namespace helfem {
       arma::mat inner(twoe_inner_integral(rmin, rmax, x, wx, poly, L));
 
       // Evaluate basis functions at quadrature points
-      arma::mat bf(poly->eval(x));
+      arma::mat bf(poly->eval_f(x,rlen));
 
       // Product functions
       arma::mat bfprod(bf.n_rows,bf.n_cols*bf.n_cols);
@@ -276,7 +111,7 @@ namespace helfem {
       return ints;
     }
 
-    static arma::vec yukawa_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, double lambda) {
+    static arma::vec yukawa_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, double lambda) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is
@@ -295,7 +130,7 @@ namespace helfem {
       // Calculate x values the polynomials should be evaluated at
       arma::vec xpoly((r-rmid0*arma::ones<arma::vec>(x.n_elem))/rlen0);
       // Evaluate the polynomials at these points
-      arma::mat bf(poly->eval(xpoly));
+      arma::mat bf(poly->eval_f(xpoly,rlen0));
 
       // Put in weight
       arma::mat wbf(bf);
@@ -308,7 +143,7 @@ namespace helfem {
       return inner;
     }
 
-    arma::mat yukawa_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, double lambda) {
+    arma::mat yukawa_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, double lambda) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is
@@ -331,7 +166,7 @@ namespace helfem {
       return inner;
     }
 
-    arma::mat yukawa_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly, int L, double lambda) {
+    arma::mat yukawa_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, double lambda) {
 #ifndef ARMA_NO_DEBUG
       if(x.n_elem != wx.n_elem) {
         std::ostringstream oss;
@@ -346,7 +181,7 @@ namespace helfem {
       arma::mat inner(yukawa_inner_integral(rmin, rmax, x, wx, poly, L, lambda));
 
       // Evaluate basis functions at quadrature points
-      arma::mat bf(poly->eval(x));
+      arma::mat bf(poly->eval_f(x, rlen));
 
       // Product functions
       arma::mat bfprod(bf.n_rows,bf.n_cols*bf.n_cols);
@@ -420,7 +255,7 @@ namespace helfem {
       return ints;
     }
 
-    arma::mat spherical_potential(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const polynomial_basis::PolynomialBasis * poly) {
+    arma::mat spherical_potential(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is

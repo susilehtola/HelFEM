@@ -27,7 +27,7 @@
 
 using namespace helfem;
 
-void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const polynomial_basis::PolynomialBasis * poly, int Nquad, int Nelem, double Rmax, const arma::ivec & lmmax, int igrid, double zexp, double Ez, double Qzz, double Bz, int norb, double & E, arma::uword & nang, arma::uword & nrad, arma::vec & Eval, int imodel) {
+void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int Nquad, int Nelem, double Rmax, const arma::ivec & lmmax, int igrid, double zexp, double Ez, double Qzz, double Bz, int norb, double & E, arma::uword & nang, arma::uword & nrad, arma::vec & Eval, int imodel) {
 
   int lpad=0;
   int symm=1;
@@ -177,7 +177,7 @@ int main(int argc, char **argv) {
   printf("Determining basis set for %s-%s at distance %e with Rmax=%e.\n",element_symbols[Z1].c_str(),element_symbols[Z2].c_str(),Rbond,Rmax);
 
   // Get primitive basis
-  polynomial_basis::PolynomialBasis *poly(polynomial_basis::get_basis(primbas,Nnodes));
+  auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::get_basis(primbas,Nnodes)));
 
   if(Nquad==0)
     // Set default value

@@ -17,7 +17,6 @@
 #define SADATOM_BASIS_H
 
 #include <armadillo>
-#include "polynomial_basis.h"
 #include "../atomic/basis.h"
 
 namespace helfem {
@@ -56,7 +55,7 @@ namespace helfem {
       public:
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const polynomial_basis::PolynomialBasis * poly, int n_quad, const arma::vec & bval, int lmax);
+        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, int lmax);
         /// Destructor
         ~TwoDBasis();
 

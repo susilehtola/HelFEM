@@ -17,6 +17,7 @@
 #define INTEGRALS_H
 
 #include <armadillo>
+#include "helfem/FiniteElementBasis.h"
 
 namespace helfem {
   namespace quadrature {
@@ -30,13 +31,13 @@ namespace helfem {
      *      wx: integration weights
      *      bf: basis functions evaluated at integration nodes.
      */
-    arma::mat radial_integral(double xmin, double xmax, int n, const arma::vec & x, const arma::vec & wx, const arma::mat & bf);
+    arma::mat radial_integral(const helfem::polynomial_basis::FiniteElementBasis & fem, size_t iel, int n, const arma::vec & xq, const arma::vec & wxq);
     
     /**
      * Computes a derivative matrix element of the type
      * dB_1(x)/dx dB_2/dx dx
      */
-    arma::mat derivative_integral(double xmin, double xmax, const arma::vec & x, const arma::vec & wx, const arma::mat & dbf);
+    arma::mat derivative_integral(const helfem::polynomial_basis::FiniteElementBasis & fem, size_t iel, const arma::vec & xq, const arma::vec & wxq);
   }
 }
 

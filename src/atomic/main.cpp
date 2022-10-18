@@ -21,7 +21,6 @@
 #include "../general/elements.h"
 #include "../general/timer.h"
 #include "../general/scf_helpers.h"
-#include "polynomial_basis.h"
 #include "basis.h"
 #include "dftgrid.h"
 #include <cfloat>
@@ -108,6 +107,8 @@ int main(int argc, char **argv) {
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.add<bool>("maverage", 0, "average Fock matrix over m values", false, false);
+  parser.add<double>("dampfock", 0, "damping factor for off-diagonal elents", false, 0.7);
+  parser.add<double>("dampthr", 0, "damping threshold", false, 0.1);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -176,6 +177,9 @@ int main(int argc, char **argv) {
   std::string xparf(parser.get<std::string>("x_pars"));
   std::string cparf(parser.get<std::string>("c_pars"));
 
+  double dampfock(parser.get<double>("dampfock"));
+  double dampthr(parser.get<double>("dampthr"));
+
   // Set parameters if necessary
   arma::vec xpars, cpars;
   if(xparf.size()) {
@@ -225,7 +229,7 @@ int main(int argc, char **argv) {
   printf("Running %s %s calculation with Rmax=%e and %i elements.\n",rcalc[restr].c_str(),method.c_str(),Rmax,Nelem);
 
   // Get primitive basis
-  polynomial_basis::PolynomialBasis *poly(polynomial_basis::get_basis(primbas,Nnodes));
+  auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::get_basis(primbas,Nnodes)));
 
   if(Nquad==0)
     // Set default value
@@ -872,6 +876,25 @@ int main(int argc, char **argv) {
 
     // Have we converged? Note that DIIS error is still wrt full space, not active space.
     bool convd=(diiserr<convthr) && (std::abs(dE)<convthr);
+
+    // Damping?
+    if(dampfock != 1.0 && diiserr >= dampthr) {
+      printf("Damping off-diagonal elements of Fock matrix by % .3f\n",dampfock);
+      if(nela && Fa.n_rows > (size_t) nela) {
+        arma::mat Ca(arma::join_rows(Caocc, Cavirt));
+        arma::mat focka_mo(Ca.t()*Fa*Ca);
+        focka_mo.submat(0,nela,nela-1,focka_mo.n_rows-1) *= dampfock;
+        focka_mo.submat(nela,0,focka_mo.n_rows-1,nela-1) *= dampfock;
+        Fa = S*Ca*focka_mo*Ca.t()*S;
+      }
+      if(nelb && Fb.n_rows > (size_t) nelb) {
+        arma::mat Cb(arma::join_rows(Cbocc, Cbvirt));
+        arma::mat fockb_mo(Cb.t()*Fb*Cb);
+        fockb_mo.submat(0,nelb,nelb-1,fockb_mo.n_rows-1) *= dampfock;
+        fockb_mo.submat(nelb,0,fockb_mo.n_rows-1,nelb-1) *= dampfock;
+        Fb = S*Cb*fockb_mo*Cb.t()*S;
+      }
+    }
 
     // Diagonalize Fock matrix to get new orbitals
     timer.set();

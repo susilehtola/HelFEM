@@ -13,34 +13,27 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  */
-#ifndef POLYNOMIAL_BASIS_LEGENDREBASIS_H
-#define POLYNOMIAL_BASIS_LEGENDREBASIS_H
+#ifndef POLYNOMIAL_BASIS_HIPBASIS_H
+#define POLYNOMIAL_BASIS_HIPBASIS_H
 
 #include "helfem/PolynomialBasis.h"
+#include "LIPBasis.h"
 #include <armadillo>
 
 namespace helfem {
-  namespace polynomial_basis {/// Legendre functions
-    class LegendreBasis: public PolynomialBasis {
+  namespace polynomial_basis {
+    /// Hermite interpolating polynomials
+    class HIPBasis: public LIPBasis {
     protected:
-      /// Maximum order
-      int lmax;
-      /// Transformation matrix
-      arma::mat T;
-
-      /// Evaluate Legendre polynomials
-      arma::mat f_eval(const arma::vec & x) const;
-      /// Evaluate Legendre polynomials' derivatives
-      arma::mat df_eval(const arma::vec & x) const;
-      /// Evaluate Legendre polynomials' second derivatives
-      arma::mat d2f_eval(const arma::vec & x) const;
+      /// LIP derivatives at nodes
+      arma::vec lipxi;
     public:
       /// Constructor
-      LegendreBasis(int nfuncs, int id);
+      HIPBasis(const arma::vec & x0, int id);
       /// Destructor
-      ~LegendreBasis();
+      ~HIPBasis();
       /// Get a copy
-      LegendreBasis * copy() const override;
+      HIPBasis * copy() const override;
 
       /// Drop first function
       void drop_first(bool func, bool deriv) override;
