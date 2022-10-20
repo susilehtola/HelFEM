@@ -128,8 +128,8 @@ void Checkpoint::write(const std::string & name, const arma::mat & m) {
 
   // Dimensions of the matrix
   hsize_t dims[2];
-  dims[0]=m.n_rows;
-  dims[1]=m.n_cols;
+  dims[1]=m.n_rows;
+  dims[0]=m.n_cols;
 
   // Create a dataspace.
   hid_t dataspace=H5Screate_simple(2,dims,NULL);
@@ -189,7 +189,7 @@ void Checkpoint::read(const std::string & name, arma::mat & m) {
   H5Sget_simple_extent_dims(dataspace,dims,NULL);
 
   // Allocate memory
-  m.zeros(dims[0],dims[1]);
+  m.zeros(dims[1],dims[0]);
   H5Dread(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, m.memptr());
 
   // Close dataspace
