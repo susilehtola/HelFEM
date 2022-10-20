@@ -131,7 +131,7 @@ namespace helfem {
           for(size_t ia=0;ia<wang.n_elem;ia++)
             for(size_t ir=0;ir<wrad.n_elem;ir++) {
               size_t idx=ia*wrad.n_elem+ir;
-              double cthval = cth(ia);
+              double cthval = (1.0 - chmu(ir)*cth(ia))/(chmu(ir) - cth(ia));
               double Plm = gsl_sf_legendre_sphPlm(l,std::abs(m),cthval);
               for(size_t ix=0;ix<itg.n_rows;ix++)
                 itg(ix,idx)*=Plm;
@@ -141,7 +141,7 @@ namespace helfem {
           for(size_t ia=0;ia<wang.n_elem;ia++)
             for(size_t ir=0;ir<wrad.n_elem;ir++) {
               size_t idx=ia*wrad.n_elem+ir;
-              double cthval = (1.0 - chmu(ir)*cth(ia))/(chmu(ir) - cth(ia));
+              double cthval = cth(ia);
               double Plm = gsl_sf_legendre_sphPlm(l,std::abs(m),cthval);
               for(size_t ix=0;ix<itg.n_rows;ix++)
                 itg(ix,idx)*=Plm;
