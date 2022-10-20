@@ -1927,7 +1927,39 @@ namespace helfem {
         }
       }
 
-      arma::uvec TwoDBasis::bf_list(size_t iel) const {
+      arma::uvec TwoDBasis::dummy_idx_to_real_idx(const arma::uvec & idx) const {
+        if(arma::max(idx)>=Ndummy())
+          throw std::logic_error("Invalid index vector!\n");
+
+        // idx is a subset of dummy indices, which need to be
+        // converted to real indices.  we just need to build the map
+        // from dummy to real indices. First, form full list of dummy
+        // indices
+        arma::uvec dummy_idx(arma::linspace<arma::uvec>(0,Ndummy()-1,Ndummy()));
+        // This is the corresponding list of real indices
+        arma::uvec real_idx(dummy_idx(pure_indices()));
+        // Now the list has all the info needed to construct the
+        // mapping between the two
+        std::map<arma::uword, arma::uword> mapping;
+        for(arma::uword i=0;i<real_idx.n_elem;i++) {
+          mapping[real_idx[i]] = i;
+        }
+
+        // Mapped indices
+        std::vector<arma::uword> mapidx;
+        for(size_t i=0;i<idx.n_elem;i++) {
+          // Try to find the function
+          std::map<arma::uword, arma::uword>::const_iterator pos(mapping.find(idx(i)));
+          // Dummy functions are not on the map
+          if(pos == mapping.end())
+            continue;
+          // If we are here, the function is real
+          mapidx.push_back(mapping.at(idx(i)));
+        }
+        return arma::conv_to<arma::uvec>::from(mapidx);
+      }
+
+      arma::uvec TwoDBasis::bf_list_dummy(size_t iel) const {
         // Radial functions in element
         size_t ifirst, ilast;
         radial.get_idx(iel,ifirst,ilast);
@@ -1949,7 +1981,11 @@ namespace helfem {
         return idx;
       }
 
-      arma::uvec TwoDBasis::bf_list(size_t iel, int m) const {
+      arma::uvec TwoDBasis::bf_list(size_t iel) const {
+        return dummy_idx_to_real_idx(bf_list_dummy(iel));
+      }
+
+      arma::uvec TwoDBasis::bf_list_dummy(size_t iel, int m) const {
         // Radial functions in element
         size_t ifirst, ilast;
         radial.get_idx(iel,ifirst,ilast);
@@ -1971,6 +2007,10 @@ namespace helfem {
 
       size_t TwoDBasis::get_rad_Nel() const {
         return radial.Nel();
+      }
+
+      arma::mat TwoDBasis::get_rad_bf(size_t iel) const {
+        return radial.get_bf(iel);
       }
 
       arma::vec TwoDBasis::get_wrad(size_t iel) const {

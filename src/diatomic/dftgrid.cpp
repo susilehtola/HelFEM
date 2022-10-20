@@ -706,7 +706,7 @@ namespace helfem {
 
       void DFTGridWorker::compute_bf(size_t iel, size_t irad) {
         // Update function list
-        bf_ind=basp->bf_list(iel);
+        bf_ind=basp->bf_list_dummy(iel);
 
         // Get radial weights. Only do one radial quadrature point at a
         // time, since this is an easy way to save a lot of memory.

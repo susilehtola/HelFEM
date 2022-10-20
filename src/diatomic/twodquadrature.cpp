@@ -38,7 +38,7 @@ namespace helfem {
         // Store m
         m=m_;
         // Update function list
-        bf_ind=basp->bf_list(iel,m);
+        bf_ind=basp->bf_list_dummy(iel,m);
 
         // Get radial weights. Only do one radial quadrature point at a
         // time, since this is an easy way to save a lot of memory.

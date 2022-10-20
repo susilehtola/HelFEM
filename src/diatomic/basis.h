@@ -277,10 +277,14 @@ namespace helfem {
 
         /// Evaluate basis functions derivatives at quadrature points
         void eval_df(size_t iel, size_t irad, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const;
+        /// Translate dummy indices to real indices
+        arma::uvec dummy_idx_to_real_idx(const arma::uvec & idx) const;
+        /// Get list of basis function dummy indices in element
+        arma::uvec bf_list_dummy(size_t iel) const;
+        /// Get list of basis function dummy indices in element with m=m
+        arma::uvec bf_list_dummy(size_t iel, int m) const;
         /// Get list of basis function indices in element
         arma::uvec bf_list(size_t iel) const;
-        /// Get list of basis function indices in element with m=m
-        arma::uvec bf_list(size_t iel, int m) const;
 
         /// Get number of radial elements
         size_t get_rad_Nel() const;
@@ -288,6 +292,8 @@ namespace helfem {
         arma::vec get_wrad(size_t iel) const;
         /// Get r values
         arma::vec get_r(size_t iel) const;
+        /// Get radial basis functions
+        arma::mat get_rad_bf(size_t iel) const;
 
         /// Electron density at nuclei
         arma::vec nuclear_density(const arma::mat & P) const;
