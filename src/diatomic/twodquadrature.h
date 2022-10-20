@@ -80,6 +80,8 @@ namespace helfem {
         void gto(int l, const arma::vec & expn, probe_t p);
         /// Compute STO projection
         void sto(int l, const arma::vec & expn, probe_t p);
+        /// Multiply in the Legendre polynomial
+        void multiply_Plm(int l, int m, probe_t p);
 
         /// Evaluate potential energy matrix elements
         void eval_pot(arma::mat & V) const;

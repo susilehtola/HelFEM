@@ -19,6 +19,10 @@
 #include "../general/lcao.h"
 #include "../general/model_potential.h"
 #include "utils.h"
+extern "C" {
+// Legendre polynomials
+#include <gsl/gsl_sf_legendre.h>
+}
 
 namespace helfem {
   namespace diatomic {
@@ -109,6 +113,42 @@ namespace helfem {
         itg.ones(1,wtot.n_elem);
       }
 
+      void TwoDGridWorker::multiply_Plm(int l, int m, probe_t p) {
+        arma::vec chmu(arma::cosh(r));
+        arma::vec shmu(arma::sinh(r));
+
+        if(p==PROBE_LEFT) {
+          for(size_t ia=0;ia<wang.n_elem;ia++)
+            for(size_t ir=0;ir<wrad.n_elem;ir++) {
+              size_t idx=ia*wrad.n_elem+ir;
+              double cthval = (1.0 + chmu(ir)*cth(ia))/(chmu(ir) + cth(ia));
+              double Plm = gsl_sf_legendre_sphPlm(l,std::abs(m),cthval);
+              for(size_t ix=0;ix<itg.n_rows;ix++)
+                itg(ix,idx)*=Plm;
+            }
+
+        } else if(p==PROBE_RIGHT) {
+          for(size_t ia=0;ia<wang.n_elem;ia++)
+            for(size_t ir=0;ir<wrad.n_elem;ir++) {
+              size_t idx=ia*wrad.n_elem+ir;
+              double cthval = cth(ia);
+              double Plm = gsl_sf_legendre_sphPlm(l,std::abs(m),cthval);
+              for(size_t ix=0;ix<itg.n_rows;ix++)
+                itg(ix,idx)*=Plm;
+            }
+
+        } else if(p==PROBE_MIDDLE) {
+          for(size_t ia=0;ia<wang.n_elem;ia++)
+            for(size_t ir=0;ir<wrad.n_elem;ir++) {
+              size_t idx=ia*wrad.n_elem+ir;
+              double cthval = (1.0 - chmu(ir)*cth(ia))/(chmu(ir) - cth(ia));
+              double Plm = gsl_sf_legendre_sphPlm(l,std::abs(m),cthval);
+              for(size_t ix=0;ix<itg.n_rows;ix++)
+                itg(ix,idx)*=Plm;
+            }
+        }
+      }
+
       void TwoDGridWorker::gto(int l, const arma::vec & expn, probe_t p) {
         double Rhalf(basp->get_Rhalf());
         arma::vec chmu(arma::cosh(r));
@@ -144,9 +184,6 @@ namespace helfem {
                 itg(ix,idx)=lcao::radial_GTO(rc,l,expn(ix));
             }
         }
-
-        // Assure normalization
-        itg/=sqrt(4.0*M_PI);
       }
 
       void TwoDGridWorker::sto(int l, const arma::vec & expn, probe_t p) {
@@ -181,9 +218,6 @@ namespace helfem {
                 itg(ix,idx)=lcao::radial_STO(rc,l,expn(ix));
             }
         }
-
-        // Assure normalization
-        itg/=sqrt(4.0*M_PI);
       }
 
       void TwoDGridWorker::eval_pot(arma::mat & Vo) const {
@@ -270,6 +304,7 @@ namespace helfem {
           for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
             grid.compute_bf(iel,irad,m);
             grid.gto(l, expn, p);
+            grid.multiply_Plm(l, m, p);
             grid.eval_proj(S);
           }
         }
@@ -288,6 +323,7 @@ namespace helfem {
           for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
             grid.compute_bf(iel,irad,m);
             grid.gto(l, expn, p);
+            grid.multiply_Plm(l, m, p);
             grid.eval_proj_overlap(S);
           }
         }
@@ -304,6 +340,7 @@ namespace helfem {
           for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
             grid.compute_bf(iel,irad,m);
             grid.sto(l, expn, p);
+            grid.multiply_Plm(l, m, p);
             grid.eval_proj(S);
           }
         }
@@ -322,6 +359,7 @@ namespace helfem {
           for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
             grid.compute_bf(iel,irad,m);
             grid.sto(l, expn, p);
+            grid.multiply_Plm(l, m, p);
             grid.eval_proj_overlap(S);
           }
         }
