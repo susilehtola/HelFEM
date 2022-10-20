@@ -224,7 +224,11 @@ int main(int argc, char **argv) {
     savechk.write("orbb.re",arma::real(orbbgrid));
     savechk.write("orbb.im",arma::imag(orbbgrid));
   }
-  savechk.write("R",2*basis.get_Rhalf());
+  savechk.write("Rh",basis.get_Rhalf());
+  savechk.write("Z1",basis.get_Z1());
+  savechk.write("Z2",basis.get_Z2());
+  int mmax = arma::max(basis.get_mval());
+  savechk.write("mmax",mmax);
   printf("Saved density to file %s\n",output.c_str());
 
   return 0;
