@@ -2023,7 +2023,7 @@ namespace helfem {
 
       arma::vec TwoDBasis::nuclear_density(const arma::mat & P0) const {
         // List of functions in the first element
-        arma::uvec fidx(bf_list(0));
+        arma::uvec fidx(bf_list_dummy(0));
 
         // Expand density matrix to boundary conditions
         arma::mat P(expand_boundaries(P0));
