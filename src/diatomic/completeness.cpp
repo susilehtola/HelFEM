@@ -119,16 +119,18 @@ int main(int argc, char **argv) {
         oss.str("");
         oss << "fem_aocc_" << lcao << "cpl_" << indices[icen] << "_" << l << "_" << m << ".dat";
         Y.save(oss.str(),arma::raw_ascii);
-      
-        arma::mat Pb(Plcao*Cb.cols(0,nelb-1));
-        Y.zeros(Y.n_rows,nelb+2);
-        Y.col(0)=expn;
-        for(int io=0;io<nelb;io++)
-          Y.col(io+1)=arma::diagvec(Pb.col(io)*arma::trans(Pb.col(io)));
-        Y.col(nelb+1)=arma::sum(Y.cols(1,nelb),1);
-        oss.str("");
-        oss << "fem_bocc_" << lcao << "cpl_" << indices[icen] << "_" << l << "_" << m << ".dat";
-        Y.save(oss.str(),arma::raw_ascii);
+
+        if(nelb>0) {
+          arma::mat Pb(Plcao*Cb.cols(0,nelb-1));
+          Y.zeros(Y.n_rows,nelb+2);
+          Y.col(0)=expn;
+          for(int io=0;io<nelb;io++)
+            Y.col(io+1)=arma::diagvec(Pb.col(io)*arma::trans(Pb.col(io)));
+          Y.col(nelb+1)=arma::sum(Y.cols(1,nelb),1);
+          oss.str("");
+          oss << "fem_bocc_" << lcao << "cpl_" << indices[icen] << "_" << l << "_" << m << ".dat";
+          Y.save(oss.str(),arma::raw_ascii);
+        }
 
         /*
         printf("*** l=%i m=%i ***\n",l,m);        
