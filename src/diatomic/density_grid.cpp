@@ -213,8 +213,8 @@ int main(int argc, char **argv) {
   Checkpoint savechk(output,true);
   savechk.write("mu",mugrid);
   savechk.write("dV",dV);
-  savechk.write("cth",cth);
-  savechk.write("phi",phi);
+  savechk.write("cth",cthgrid);
+  savechk.write("phi",phigrid);
   savechk.write("P",den);
   savechk.write("Pa",dena);
   savechk.write("Pb",denb);
