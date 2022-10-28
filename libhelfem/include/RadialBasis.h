@@ -48,6 +48,8 @@ namespace helfem {
 
         /// Get number of quadrature points
         int get_nquad() const;
+        /// Get quadrature points
+        arma::vec get_xq() const;
         /// Get boundary values
         arma::vec get_bval() const;
         /// Get polynomial basis identifier
@@ -123,14 +125,24 @@ namespace helfem {
 
         /// Evaluate basis functions at quadrature points
         arma::mat get_bf(size_t iel) const;
+        /// Evaluate basis functions at given points
+        arma::mat get_bf(const arma::vec & x, size_t iel) const;
         /// Evaluate derivatives of basis functions at quadrature points
         arma::mat get_df(size_t iel) const;
+        /// Evaluate basis functions at given points
+        arma::mat get_df(const arma::vec & x, size_t iel) const;
         /// Evaluate second derivatives of basis functions at quadrature points
         arma::mat get_lf(size_t iel) const;
+        /// Evaluate basis functions at given points
+        arma::mat get_lf(const arma::vec & x, size_t iel) const;
         /// Get quadrature weights
         arma::vec get_wrad(size_t iel) const;
+        /// Get quadrature weights
+        arma::vec get_wrad(const arma::vec & w, size_t iel) const;
         /// Get r values
         arma::vec get_r(size_t iel) const;
+        /// Get r values
+        arma::vec get_r(const arma::vec & x, size_t iel) const;
 
         /// Evaluate nuclear density
         double nuclear_density(const arma::mat &P) const;
