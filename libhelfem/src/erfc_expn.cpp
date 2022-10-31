@@ -154,6 +154,9 @@ namespace helfem {
         // this is a power series in xi
         if(xi == 0.0 && n>0)
           return 0.0;
+        else if(n == 0 && xi == 0.0 && Xi == 0.0)
+          // This is an edge case and I think this should be the right value
+          return 1.0;
 
         double Phi = 0.0;
         double dPhi;
