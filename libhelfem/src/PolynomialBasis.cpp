@@ -62,6 +62,7 @@ namespace helfem {
       case(6):
       case(7):
       case(8):
+      case(9):
         {
           arma::vec x, w;
           ::lobatto_compute(Nnodes,x,w);
