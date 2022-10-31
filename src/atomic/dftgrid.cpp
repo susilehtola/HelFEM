@@ -231,40 +231,6 @@ namespace helfem {
         }
       }
 
-      void DFTGridWorker::screen_density(double thr) {
-        if(polarized) {
-          for(size_t ip=0;ip<wtot.n_elem;ip++) {
-            if(rho(0,ip)+rho(1,ip) <= thr) {
-              rho(0,ip)=0.0;
-              rho(1,ip)=0.0;
-
-              if(do_grad) {
-                sigma(0,ip)=0.0;
-                sigma(1,ip)=0.0;
-                sigma(2,ip)=0.0;
-              }
-
-              if(do_tau) {
-                tau(0,ip)=0.0;
-                tau(1,ip)=0.0;
-              }
-            }
-          }
-        } else {
-          for(size_t ip=0;ip<wtot.n_elem;ip++) {
-            if(rho(0,ip) <= thr) {
-              rho(0,ip)=0.0;
-              if(do_grad) {
-                sigma(0,ip)=0.0;
-              }
-              if(do_tau) {
-                tau(0,ip)=0.0;
-              }
-            }
-          }
-        }
-      }
-
       double DFTGridWorker::compute_Nel() const {
         double nel=0.0;
         if(!polarized) {
@@ -409,7 +375,7 @@ namespace helfem {
         }
       }
 
-      void DFTGridWorker::compute_xc(int func_id, const arma::vec & p, bool pot) {
+      void DFTGridWorker::compute_xc(int func_id, const arma::vec & p, double thr, bool pot) {
         // Compute exchange-correlation functional
 
         // Which functional is in question?
@@ -458,6 +424,8 @@ namespace helfem {
           oss << "Functional "<<func_id<<" not found!";
           throw std::runtime_error(oss.str());
         }
+        // Set density threshold
+        xc_func_set_dens_threshold(&func, thr);
 
         // Set parameters
         if(p.n_elem) {
@@ -864,12 +832,10 @@ namespace helfem {
             lapl+=grid.compute_laplsum();
 
             grid.init_xc();
-            if(thr>0.0)
-              grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func, x_pars);
+              grid.compute_xc(x_func, x_pars, thr);
             if(c_func>0)
-              grid.compute_xc(c_func, c_pars);
+              grid.compute_xc(c_func, c_pars, thr);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(H);
@@ -885,12 +851,10 @@ namespace helfem {
             lapl+=grid.compute_laplsum();
 
             grid.init_xc();
-            if(thr>0.0)
-              grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func, x_pars);
+              grid.compute_xc(x_func, x_pars, thr);
             if(c_func>0)
-              grid.compute_xc(c_func, c_pars);
+              grid.compute_xc(c_func, c_pars, thr);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(H);
@@ -929,12 +893,10 @@ namespace helfem {
             ekin+=grid.compute_Ekin();
 
             grid.init_xc();
-            if(thr>0.0)
-              grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func, x_pars);
+              grid.compute_xc(x_func, x_pars, thr);
             if(c_func>0)
-              grid.compute_xc(c_func, c_pars);
+              grid.compute_xc(c_func, c_pars, thr);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(Ha,Hb,beta);
@@ -949,12 +911,10 @@ namespace helfem {
             ekin+=grid.compute_Ekin();
 
             grid.init_xc();
-            if(thr>0.0)
-              grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func, x_pars);
+              grid.compute_xc(x_func, x_pars, thr);
             if(c_func>0)
-              grid.compute_xc(c_func, c_pars);
+              grid.compute_xc(c_func, c_pars, thr);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(Ha,Hb,beta);

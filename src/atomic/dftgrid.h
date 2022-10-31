@@ -127,8 +127,6 @@ namespace helfem {
         void update_density(const arma::mat & P);
         /// Update values of density, unrestricted calculation
         void update_density(const arma::mat & Pa, const arma::mat & Pb);
-        /// Screen out small densities
-        void screen_density(double thr);
 
         /// Compute number of electrons
         double compute_Nel() const;
@@ -140,8 +138,9 @@ namespace helfem {
         /// Initialize XC arrays
         void init_xc();
         /// Compute XC functional from density and add to total XC
-        /// array. Pot toggles evaluation of potential
-        void compute_xc(int func_id, const arma::vec & params, bool pot=true);
+        /// array. thr is density screening value. Pot toggles
+        /// evaluation of potential
+        void compute_xc(int func_id, const arma::vec & params, double thr, bool pot=true);
         /// Evaluate exchange/correlation energy
         double eval_Exc() const;
         /// Zero out energy
