@@ -233,7 +233,7 @@ int main(int argc, char **argv) {
 
   if(Nquad==0)
     // Set default value
-    Nquad=10*poly->get_nbf();
+    Nquad=5*poly->get_nbf();
   else if(Nquad<2*poly->get_nbf())
     throw std::logic_error("Insufficient radial quadrature.\n");
 
