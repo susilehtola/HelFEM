@@ -273,7 +273,7 @@ namespace helfem {
         // and basis function values
         arma::mat ibf(fem.eval_f(xi, iel));
         double Rmini(fem.element_begin(iel));
-        double Rmaxi(fem.element_begin(iel));
+        double Rmaxi(fem.element_end(iel));
 
         // Rh quadrature points
         arma::vec xk(Nq * Nint);
@@ -294,7 +294,7 @@ namespace helfem {
         // and basis function values
         arma::mat kbf(fem.eval_f(xk, kel));
         double Rmink(fem.element_begin(kel));
-        double Rmaxk(fem.element_begin(kel));
+        double Rmaxk(fem.element_end(kel));
 
         // Evaluate integral
         arma::mat tei(quadrature::erfc_integral(Rmini, Rmaxi, ibf, xi, wi, Rmink,
