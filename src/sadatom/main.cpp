@@ -119,6 +119,7 @@ int main(int argc, char **argv) {
   parser.add<std::string>("pot", 0, "method to use to compute potential", false, "none");
   parser.add<std::string>("occs", 0, "occupations to use", false, "auto");
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
+  parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ, 2 for SAP, 3 for TF", false, 2);
   parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
   parser.add<double>("diiseps", 0, "when to start mixing in diis", false, 1e-2);
@@ -162,6 +163,7 @@ int main(int argc, char **argv) {
   double diiseps=parser.get<double>("diiseps");
   double diisthr=parser.get<double>("diisthr");
   int diisorder=parser.get<int>("diisorder");
+  int iguess(parser.get<int>("iguess"));
 
   std::string method(parser.get<std::string>("method"));
   std::string potmethod(parser.get<std::string>("pot"));
@@ -249,7 +251,7 @@ int main(int argc, char **argv) {
     // Initialize with a sensible guess occupation
     sadatom::solver::rconf_t initial;
     initial.orbs=sadatom::solver::OrbitalChannel(true);
-    solver.Initialize(initial.orbs);
+    solver.Initialize(initial.orbs,iguess);
     initial.orbs.SetOccs(initial_occs(numel,lmax));
     if(initial.orbs.Nel()) {
       initial.Econf=solver.Solve(initial);
@@ -560,15 +562,15 @@ int main(int argc, char **argv) {
 
     if(restr) {
       rconf.orbs=sadatom::solver::OrbitalChannel(true);
-      solver.Initialize(rconf.orbs);
+      solver.Initialize(rconf.orbs,iguess);
       rconf.orbs.SetOccs(occs.t());
       solver.Solve(rconf);
 
     } else {
       uconf.orbsa=sadatom::solver::OrbitalChannel(false);
       uconf.orbsb=sadatom::solver::OrbitalChannel(false);
-      solver.Initialize(uconf.orbsa);
-      solver.Initialize(uconf.orbsb);
+      solver.Initialize(uconf.orbsa,iguess);
+      solver.Initialize(uconf.orbsb,iguess);
       uconf.orbsa.SetOccs(occs.subvec(0,lmax).t());
       uconf.orbsb.SetOccs(occs.subvec(lmax+1,2*lmax+1).t());
       solver.Solve(uconf);

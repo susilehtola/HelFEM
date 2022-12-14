@@ -662,9 +662,45 @@ namespace helfem {
         return P;
       }
 
-      void SCFSolver::Initialize(OrbitalChannel & orbs) const {
+      void SCFSolver::Initialize(OrbitalChannel & orbs, int iguess) const {
         orbs.SetLmax(lmax);
-        orbs.UpdateOrbitals(ReplicateCube(H0)+KineticCube(),Sinvh);
+
+        switch(iguess) {
+        case(0):
+          // Core guess
+          orbs.UpdateOrbitals(ReplicateCube(H0)+KineticCube(),Sinvh);
+          break;
+        case(1):
+          {
+            // GSZ guess
+            auto model = new modelpotential::GSZAtom(basis.charge());
+            arma::mat Vsap(basis.model_potential(model));
+            delete model;
+            orbs.UpdateOrbitals(ReplicateCube(T+Vsap)+KineticCube(),Sinvh);
+          }
+          break;
+        case(2):
+          // SAP guess
+          {
+            auto model = new modelpotential::SAPAtom(basis.charge());
+            arma::mat Vsap(basis.model_potential(model));
+            delete model;
+            orbs.UpdateOrbitals(ReplicateCube(T+Vsap)+KineticCube(),Sinvh);
+          }
+          break;
+        case(3):
+          // TF guess
+          {
+            auto model = new modelpotential::TFAtom(basis.charge());
+            arma::mat Vsap(basis.model_potential(model));
+            delete model;
+            orbs.UpdateOrbitals(ReplicateCube(T+Vsap)+KineticCube(),Sinvh);
+          }
+          break;
+
+        default:
+          throw std::logic_error("Guess not supported\n");
+        }
       }
 
       bool is_meta(int x_func, int c_func) {

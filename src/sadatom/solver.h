@@ -250,7 +250,7 @@ namespace helfem {
         arma::mat TotalDensity(const arma::cube & Pl) const;
 
         /// Initialize orbitals
-        void Initialize(OrbitalChannel & orbs) const;
+        void Initialize(OrbitalChannel & orbs, int iguess) const;
         /// Build the Fock operator, return the energy
         double FockBuild(rconf_t & conf);
         /// Build the Fock operator, return the energy
