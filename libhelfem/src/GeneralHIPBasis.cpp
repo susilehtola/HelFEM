@@ -125,6 +125,13 @@ namespace helfem {
       scale_derivatives(d2f, element_length);
     }
 
+    void GeneralHIPBasis::eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const {
+      // Evaluate the primitive LIP polynomials
+      d3f=lip.eval_d3f(x, dummy_length)*T;
+      // and scale the derivative functions
+      scale_derivatives(d3f, element_length);
+    }
+
     void GeneralHIPBasis::drop_first(bool func, bool deriv) {
       // Subset of functions in the first
       int nfuncs=nder+1;

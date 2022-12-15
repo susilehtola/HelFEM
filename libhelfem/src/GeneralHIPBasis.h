@@ -54,6 +54,8 @@ namespace helfem {
       void eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const override;
       /// Evaluate second derivatives of polynomials at given points
       void eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const override;
+      /// Evaluate third derivatives of polynomials at given points
+      void eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const override;
     };
   }
 }
