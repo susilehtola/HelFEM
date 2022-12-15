@@ -82,6 +82,8 @@ namespace helfem {
         print_test(eval_df(x, dummy_length), "Derivative value at nodes");
       if(nder>1)
         print_test(eval_d2f(x, dummy_length), "Second derivative value at nodes");
+      if(nder>2)
+        print_test(eval_d3f(x, dummy_length), "Third derivative value at nodes");
     }
 
     GeneralHIPBasis::~GeneralHIPBasis() {
