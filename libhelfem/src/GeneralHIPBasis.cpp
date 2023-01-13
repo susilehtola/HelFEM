@@ -45,6 +45,14 @@ namespace helfem {
       arma::mat d3fval;
       if(nder>2)
         d3fval = lip.eval_d3f(x, dummy_length).t();
+      arma::mat d4fval;
+      if(nder>3)
+        d4fval = lip.eval_d4f(x, dummy_length).t();
+      arma::mat d5fval;
+      if(nder>4)
+        d5fval = lip.eval_d5f(x, dummy_length).t();
+      if(nder>5)
+        throw std::logic_error("General HIP functions have not been implemented beyond 5th order!\n");
 
       /*
        * Construct the equation for the transformation matrix.
@@ -68,6 +76,10 @@ namespace helfem {
           X.col((nder+1)*ifun+2) = d2fval.col(ifun);
         if(nder>2)
           X.col((nder+1)*ifun+3) = d3fval.col(ifun);
+        if(nder>3)
+          X.col((nder+1)*ifun+4) = d4fval.col(ifun);
+        if(nder>4)
+          X.col((nder+1)*ifun+5) = d5fval.col(ifun);
       }
 
       // X has our target functions in its columns so X^-1 has the
@@ -84,6 +96,10 @@ namespace helfem {
         print_test(eval_d2f(x, dummy_length), "Second derivative value at nodes");
       if(nder>2)
         print_test(eval_d3f(x, dummy_length), "Third derivative value at nodes");
+      if(nder>3)
+        print_test(eval_d4f(x, dummy_length), "Fourth derivative value at nodes");
+      if(nder>4)
+        print_test(eval_d5f(x, dummy_length), "Fifth derivative value at nodes");
     }
 
     GeneralHIPBasis::~GeneralHIPBasis() {
@@ -95,12 +111,8 @@ namespace helfem {
 
     void GeneralHIPBasis::scale_derivatives(arma::mat & f, double element_length) const {
       for(int ifun=0; ifun<nnodes; ifun++) {
-        if(nder>0)
-          f.col((nder+1)*ifun+1) *= element_length;
-        if(nder>1)
-          f.col((nder+1)*ifun+2) *= std::pow(element_length,2);
-        if(nder>2)
-          f.col((nder+1)*ifun+3) *= std::pow(element_length,3);
+        for(int ider=1;ider<nder;ider++)
+          f.col((nder+1)*ifun+ider) *= std::pow(element_length,ider);
       }
     }
 
@@ -130,6 +142,20 @@ namespace helfem {
       d3f=lip.eval_d3f(x, dummy_length)*T;
       // and scale the derivative functions
       scale_derivatives(d3f, element_length);
+    }
+
+    void GeneralHIPBasis::eval_prim_d4f(const arma::vec & x, arma::mat & d4f, double element_length) const {
+      // Evaluate the primitive LIP polynomials
+      d4f=lip.eval_d4f(x, dummy_length)*T;
+      // and scale the derivative functions
+      scale_derivatives(d4f, element_length);
+    }
+
+    void GeneralHIPBasis::eval_prim_d5f(const arma::vec & x, arma::mat & d5f, double element_length) const {
+      // Evaluate the primitive LIP polynomials
+      d5f=lip.eval_d5f(x, dummy_length)*T;
+      // and scale the derivative functions
+      scale_derivatives(d5f, element_length);
     }
 
     void GeneralHIPBasis::drop_first(bool func, bool deriv) {

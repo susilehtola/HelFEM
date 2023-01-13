@@ -35,6 +35,10 @@ namespace helfem {
       void eval_d2f_raw(const arma::vec & x, arma::mat & f) const;
       /// Evaluate third derivatives
       void eval_d3f_raw(const arma::vec & x, arma::mat & f) const;
+      /// Evaluate fourth derivatives
+      void eval_d4f_raw(const arma::vec & x, arma::mat & f) const;
+      /// Evaluate fifth derivatives
+      void eval_d5f_raw(const arma::vec & x, arma::mat & f) const;
     public:
       /// Dummy constructor
       LIPBasis();
@@ -58,6 +62,10 @@ namespace helfem {
       void eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const override;
       /// Evaluate third derivatives of polynomials at given points
       void eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const override;
+      /// Evaluate fourth derivatives of polynomials at given points
+      void eval_prim_d4f(const arma::vec & x, arma::mat & d4f, double element_length) const override;
+      /// Evaluate fifth derivatives of polynomials at given points
+      void eval_prim_d5f(const arma::vec & x, arma::mat & d5f, double element_length) const override;
     };
   }
 }

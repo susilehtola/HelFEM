@@ -36,135 +36,283 @@ namespace helfem {
       return new LIPBasis(*this);
     }
 
-    void LIPBasis::eval_f_raw(const arma::vec & x, arma::mat & bf) const {
-      // Memory for values
-      bf.zeros(x.n_elem,x0.n_elem);
-
-      // Fill in array
-      for(size_t ix=0;ix<x.n_elem;ix++) {
-        // Loop over polynomials: x_i term excluded
-        for(size_t fi=0;fi<x0.n_elem;fi++) {
-          // Evaluate the l_i polynomial
-          double fval=1.0;
-          for(size_t fj=0;fj<x0.n_elem;fj++) {
-            // Term not included
-            if(fi==fj)
+    void LIPBasis::eval_f_raw(const arma::vec &x, arma::mat &f) const {
+      // Allocate memory
+      f.zeros(x.n_elem, x0.n_elem);
+      // Loop over points
+      for (size_t ix = 0; ix < x.n_elem; ix++) {
+        // Loop over polynomials
+        for (size_t fi = 0; fi < x0.n_elem; fi++) {
+          // Form the LIP product
+          double fval = 1.0;
+          for (size_t ip = 0; ip < x0.n_elem; ip++) {
+            // Skip terms which have been acted upon by a derivative
+            if (ip == fi)
               continue;
-            // Compute ratio
-            fval *= (x(ix)-x0(fj))/(x0(fi)-x0(fj));
+            fval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
           }
-          // Store value
-          bf(ix,fi)=fval;
+          // Store the computed value
+          f(ix, fi) += fval;
         }
       }
     }
 
-    void LIPBasis::eval_df_raw(const arma::vec & x, arma::mat & df) const {
-      // Derivative
-      df.zeros(x.n_elem,x0.n_elem);
-      for(size_t ix=0;ix<x.n_elem;ix++) {
+    void LIPBasis::eval_df_raw(const arma::vec &x, arma::mat &df) const {
+      // Allocate memory
+      df.zeros(x.n_elem, x0.n_elem);
+      // Loop over points
+      for (size_t ix = 0; ix < x.n_elem; ix++) {
         // Loop over polynomials
-        for(size_t fi=0;fi<x0.n_elem;fi++) {
-          // Derivative yields a sum over one of the indices
-          for(size_t fj=0;fj<x0.n_elem;fj++) {
-            if(fi==fj)
+        for (size_t fi = 0; fi < x0.n_elem; fi++) {
+          // Derivative 1 acting on index
+          for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+            if (d1 == fi)
               continue;
-
-            double fval=1.0;
-            for(size_t fk=0;fk<x0.n_elem;fk++) {
-              // Term not included
-              if(fi==fk)
+            // Form the LIP product
+            double dfval = 1.0;
+            for (size_t ip = 0; ip < x0.n_elem; ip++) {
+              // Skip terms which have been acted upon by a derivative
+              if (ip == d1)
                 continue;
-              if(fj==fk)
+              if (ip == fi)
                 continue;
-              // Compute ratio
-              fval *= (x(ix)-x0(fk))/(x0(fi)-x0(fk));
+              dfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
             }
-            // Increment derivative
-            df(ix,fi)+=fval/(x0(fi)-x0(fj));
+            // Apply derivative denominators
+            dfval /= (x0(fi) - x0(d1));
+            // Store the computed value
+            df(ix, fi) += dfval;
           }
         }
       }
     }
 
-    void LIPBasis::eval_d2f_raw(const arma::vec & x, arma::mat & d2f) const {
-      // Second derivative
-      d2f.zeros(x.n_elem,x0.n_elem);
-      for(size_t ix=0;ix<x.n_elem;ix++) {
+    void LIPBasis::eval_d2f_raw(const arma::vec &x, arma::mat &d2f) const {
+      // Allocate memory
+      d2f.zeros(x.n_elem, x0.n_elem);
+      // Loop over points
+      for (size_t ix = 0; ix < x.n_elem; ix++) {
         // Loop over polynomials
-        for(size_t fi=0;fi<x0.n_elem;fi++) {
-          // Derivative yields a sum over one of the indices
-          for(size_t fj=0;fj<x0.n_elem;fj++) {
-            if(fi==fj)
+        for (size_t fi = 0; fi < x0.n_elem; fi++) {
+          // Derivative 1 acting on index
+          for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+            if (d1 == fi)
               continue;
-            // Second derivative yields another sum over the indices
-            for(size_t fk=0;fk<x0.n_elem;fk++) {
-              if(fi==fk)
+            // Derivative 2 acting on index
+            for (size_t d2 = 0; d2 < x0.n_elem; d2++) {
+              if (d2 == d1)
                 continue;
-              if(fj==fk)
+              if (d2 == fi)
                 continue;
-
-              double fval=1.0;
-              for(size_t fl=0;fl<x0.n_elem;fl++) {
-                // Term not included
-                if(fi==fl)
+              // Form the LIP product
+              double d2fval = 1.0;
+              for (size_t ip = 0; ip < x0.n_elem; ip++) {
+                // Skip terms which have been acted upon by a derivative
+                if (ip == d1)
                   continue;
-                if(fj==fl)
+                if (ip == d2)
                   continue;
-                if(fk==fl)
+                if (ip == fi)
                   continue;
-                // Compute ratio
-                fval *= (x(ix)-x0(fl))/(x0(fi)-x0(fl));
+                d2fval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
               }
-              // Increment second derivative
-              d2f(ix,fi)+=fval/((x0(fi)-x0(fj))*(x0(fi)-x0(fk)));
+              // Apply derivative denominators
+              d2fval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2));
+              // Store the computed value
+              d2f(ix, fi) += d2fval;
             }
           }
         }
       }
     }
 
-    void LIPBasis::eval_d3f_raw(const arma::vec & x, arma::mat & d3f) const {
-      // Third derivative
-      d3f.zeros(x.n_elem,x0.n_elem);
-      for(size_t ix=0;ix<x.n_elem;ix++) {
+    void LIPBasis::eval_d3f_raw(const arma::vec &x, arma::mat &d3f) const {
+      // Allocate memory
+      d3f.zeros(x.n_elem, x0.n_elem);
+      // Loop over points
+      for (size_t ix = 0; ix < x.n_elem; ix++) {
         // Loop over polynomials
-        for(size_t fi=0;fi<x0.n_elem;fi++) {
-          // Derivative yields a sum over one of the indices
-          for(size_t fj=0;fj<x0.n_elem;fj++) {
-            if(fi==fj)
+        for (size_t fi = 0; fi < x0.n_elem; fi++) {
+          // Derivative 1 acting on index
+          for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+            if (d1 == fi)
               continue;
-            // Second derivative yields another sum over the indices
-            for(size_t fk=0;fk<x0.n_elem;fk++) {
-              if(fi==fk)
+            // Derivative 2 acting on index
+            for (size_t d2 = 0; d2 < x0.n_elem; d2++) {
+              if (d2 == d1)
                 continue;
-              if(fj==fk)
+              if (d2 == fi)
                 continue;
-              // Third derivative yields yet another sum over the indices
-              for(size_t fl=0;fl<x0.n_elem;fl++) {
-                if(fi==fl)
+              // Derivative 3 acting on index
+              for (size_t d3 = 0; d3 < x0.n_elem; d3++) {
+                if (d3 == d1)
                   continue;
-                if(fj==fl)
+                if (d3 == d2)
                   continue;
-                if(fk==fl)
+                if (d3 == fi)
                   continue;
-
-                double fval=1.0;
-                for(size_t fm=0;fm<x0.n_elem;fm++) {
-                  // Term not included
-                  if(fi==fm)
+                // Form the LIP product
+                double d3fval = 1.0;
+                for (size_t ip = 0; ip < x0.n_elem; ip++) {
+                  // Skip terms which have been acted upon by a derivative
+                  if (ip == d1)
                     continue;
-                  if(fj==fm)
+                  if (ip == d2)
                     continue;
-                  if(fk==fm)
+                  if (ip == d3)
                     continue;
-                  if(fl==fm)
+                  if (ip == fi)
                     continue;
-                  // Compute ratio
-                  fval *= (x(ix)-x0(fm))/(x0(fi)-x0(fm));
+                  d3fval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
                 }
-                // Increment third derivative
-                d3f(ix,fi)+=fval/((x0(fi)-x0(fj))*(x0(fi)-x0(fk))*(x0(fi)-x0(fl)));
+                // Apply derivative denominators
+                d3fval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) * (x0(fi) - x0(d3));
+                // Store the computed value
+                d3f(ix, fi) += d3fval;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    void LIPBasis::eval_d4f_raw(const arma::vec &x, arma::mat &d4f) const {
+      // Allocate memory
+      d4f.zeros(x.n_elem, x0.n_elem);
+      // Loop over points
+      for (size_t ix = 0; ix < x.n_elem; ix++) {
+        // Loop over polynomials
+        for (size_t fi = 0; fi < x0.n_elem; fi++) {
+          // Derivative 1 acting on index
+          for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+            if (d1 == fi)
+              continue;
+            // Derivative 2 acting on index
+            for (size_t d2 = 0; d2 < x0.n_elem; d2++) {
+              if (d2 == d1)
+                continue;
+              if (d2 == fi)
+                continue;
+              // Derivative 3 acting on index
+              for (size_t d3 = 0; d3 < x0.n_elem; d3++) {
+                if (d3 == d1)
+                  continue;
+                if (d3 == d2)
+                  continue;
+                if (d3 == fi)
+                  continue;
+                // Derivative 4 acting on index
+                for (size_t d4 = 0; d4 < x0.n_elem; d4++) {
+                  if (d4 == d1)
+                    continue;
+                  if (d4 == d2)
+                    continue;
+                  if (d4 == d3)
+                    continue;
+                  if (d4 == fi)
+                    continue;
+                  // Form the LIP product
+                  double d4fval = 1.0;
+                  for (size_t ip = 0; ip < x0.n_elem; ip++) {
+                    // Skip terms which have been acted upon by a derivative
+                    if (ip == d1)
+                      continue;
+                    if (ip == d2)
+                      continue;
+                    if (ip == d3)
+                      continue;
+                    if (ip == d4)
+                      continue;
+                    if (ip == fi)
+                      continue;
+                    d4fval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
+                  }
+                  // Apply derivative denominators
+                  d4fval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) *
+                    (x0(fi) - x0(d3)) * (x0(fi) - x0(d4));
+                  // Store the computed value
+                  d4f(ix, fi) += d4fval;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    void LIPBasis::eval_d5f_raw(const arma::vec &x, arma::mat &d5f) const {
+      // Allocate memory
+      d5f.zeros(x.n_elem, x0.n_elem);
+      // Loop over points
+      for (size_t ix = 0; ix < x.n_elem; ix++) {
+        // Loop over polynomials
+        for (size_t fi = 0; fi < x0.n_elem; fi++) {
+          // Derivative 1 acting on index
+          for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+            if (d1 == fi)
+              continue;
+            // Derivative 2 acting on index
+            for (size_t d2 = 0; d2 < x0.n_elem; d2++) {
+              if (d2 == d1)
+                continue;
+              if (d2 == fi)
+                continue;
+              // Derivative 3 acting on index
+              for (size_t d3 = 0; d3 < x0.n_elem; d3++) {
+                if (d3 == d1)
+                  continue;
+                if (d3 == d2)
+                  continue;
+                if (d3 == fi)
+                  continue;
+                // Derivative 4 acting on index
+                for (size_t d4 = 0; d4 < x0.n_elem; d4++) {
+                  if (d4 == d1)
+                    continue;
+                  if (d4 == d2)
+                    continue;
+                  if (d4 == d3)
+                    continue;
+                  if (d4 == fi)
+                    continue;
+                  // Derivative 5 acting on index
+                  for (size_t d5 = 0; d5 < x0.n_elem; d5++) {
+                    if (d5 == d1)
+                      continue;
+                    if (d5 == d2)
+                      continue;
+                    if (d5 == d3)
+                      continue;
+                    if (d5 == d4)
+                      continue;
+                    if (d5 == fi)
+                      continue;
+                    // Form the LIP product
+                    double d5fval = 1.0;
+                    for (size_t ip = 0; ip < x0.n_elem; ip++) {
+                      // Skip terms which have been acted upon by a derivative
+                      if (ip == d1)
+                        continue;
+                      if (ip == d2)
+                        continue;
+                      if (ip == d3)
+                        continue;
+                      if (ip == d4)
+                        continue;
+                      if (ip == d5)
+                        continue;
+                      if (ip == fi)
+                        continue;
+                      d5fval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
+                    }
+                    // Apply derivative denominators
+                    d5fval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) *
+                      (x0(fi) - x0(d3)) * (x0(fi) - x0(d4)) *
+                      (x0(fi) - x0(d5));
+                    // Store the computed value
+                    d5f(ix, fi) += d5fval;
+                  }
+                }
               }
             }
           }
@@ -190,6 +338,16 @@ namespace helfem {
     void LIPBasis::eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const {
       (void) element_length;
       eval_d3f_raw(x, d3f);
+    }
+
+    void LIPBasis::eval_prim_d4f(const arma::vec & x, arma::mat & d4f, double element_length) const {
+      (void) element_length;
+      eval_d4f_raw(x, d4f);
+    }
+
+    void LIPBasis::eval_prim_d5f(const arma::vec & x, arma::mat & d5f, double element_length) const {
+      (void) element_length;
+      eval_d5f_raw(x, d5f);
     }
 
     void LIPBasis::drop_first(bool func, bool deriv) {
