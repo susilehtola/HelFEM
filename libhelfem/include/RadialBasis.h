@@ -163,8 +163,8 @@ namespace helfem {
       /// Comparison operator needed for std::map
       bool operator<(const radial_function_t & lh, const radial_function_t & rh);
 
-      /// Calculate the derivative of a radial basis function B(r)/r in terms of derivatives of B(r)
-      std::map<radial_function_t, int> calculate_derivative(int nder);
+      /// Calculate the derivative of a radial basis function chi(r)=B(r)/r in terms of derivatives of B(r)
+      std::map<radial_function_t, int> calculate_derivative(int nder, int rpow=0);
 
       /// Helper structure for automatic calculation of derivatives
       typedef struct {
@@ -178,6 +178,7 @@ namespace helfem {
       /// Helper to ensure that ider and jder are ordered
       radial_product_t radial_prod(int rpow, int ider, int jder);
 
+      /// Helper to update data in map
       template <typename T> void increment_term(std::map<radial_product_t, T> & ret, const radial_product_t & term, T coeff) {
         auto iret = ret.find(term);
         if(iret == ret.end()) {
@@ -186,7 +187,9 @@ namespace helfem {
           iret->second += coeff;
         }
       }
+      /// Instantiations for int
       template void increment_term<int>(std::map<radial_product_t, int> & ret, const radial_product_t & term, int coeff);
+      /// ... and double
       template void increment_term<double>(std::map<radial_product_t, double> & ret, const radial_product_t & term, double coeff);
 
       /// Use l'Hôpital's theorem to generate a form of chi^(ider)(r) chi^(jder)(r) r^rpow that is stable for r->0
