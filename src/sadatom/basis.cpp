@@ -945,7 +945,7 @@ namespace helfem {
           double golden_ratio = 0.5*(sqrt(5.0)+1.0);
           while(arma::norm(a-b,"inf")>=eps) {
             arma::vec c = b - (b-a)/golden_ratio;
-            arma::vec d = a + (b-d)/golden_ratio;
+            arma::vec d = a + (b-a)/golden_ratio;
             double density_c = arma::as_scalar(electron_density(c, iel, Prad, rsqweight));
             double density_d = arma::as_scalar(electron_density(d, iel, Prad, rsqweight));
             if(density_c < density_d) {
