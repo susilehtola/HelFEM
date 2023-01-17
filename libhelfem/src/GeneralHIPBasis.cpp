@@ -22,6 +22,7 @@ namespace helfem {
       noverlap=nder+1;
       // The number of functions we need is
       int nfuncs=(nder+1)*x.n_elem;
+      nprim=nfuncs;
       // All functions are enabled
       enabled=arma::linspace<arma::uvec>(0,nfuncs-1,nfuncs);
       // Number of nodes is
