@@ -74,6 +74,18 @@ namespace helfem {
       }
     }
 
+    void HIPBasis::eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const {
+      throw std::logic_error("HIPBasis::eval_prim_d3f not implemented.\n");
+    }
+
+    void HIPBasis::eval_prim_d4f(const arma::vec & x, arma::mat & d4f, double element_length) const {
+      throw std::logic_error("HIPBasis::eval_prim_d4f not implemented.\n");
+    }
+
+    void HIPBasis::eval_prim_d5f(const arma::vec & x, arma::mat & d5f, double element_length) const {
+      throw std::logic_error("HIPBasis::eval_prim_d5f not implemented.\n");
+    }
+
     void HIPBasis::drop_first(bool func, bool deriv) {
       if(func && deriv) {
         // Drop both function and derivative
