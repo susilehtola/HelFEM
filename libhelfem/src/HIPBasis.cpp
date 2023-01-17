@@ -35,9 +35,16 @@ namespace helfem {
       f.zeros(x.n_elem, 2*x0.n_elem);
       for(size_t ix=0;ix<x.n_elem;ix++) {
         for(size_t fi=0;fi<x0.n_elem;fi++) {
-          double dx = x(ix)-x0(fi);
-          f(ix,2*fi)   = (1.0 - 2.0*dx*lipxi(fi)) * std::pow(lip(ix,fi),2);
-          f(ix,2*fi+1) = dx * std::pow(lip(ix,fi),2) * element_length;
+          /* First function is [1 - 2(x-xi)*lipxi(fi)] [l_i(x)]^2 = f1 * f2.
+             Second function is (x-xi) * [l_i(x)]^2 = f3 * f2
+          */
+
+          double f1 = 1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi);
+          double f2 = std::pow(lip(ix, fi), 2);
+          double f3 = x(ix)-x0(fi);
+
+          f(ix,2*fi)   = f1*f2;
+          f(ix,2*fi+1) = f3*f2 * element_length;
         }
       }
     }
@@ -51,13 +58,51 @@ namespace helfem {
       df.zeros(x.n_elem, 2*x0.n_elem);
       for(size_t ix=0;ix<x.n_elem;ix++) {
         for(size_t fi=0;fi<x0.n_elem;fi++) {
-          df(ix,2*fi)   = 2.0*dlip(ix,fi)*lip(ix,fi)*(1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi)) - 2.0*lipxi(fi)*std::pow(lip(ix,fi),2);
-          df(ix,2*fi+1) = (std::pow(lip(ix,fi),2) + 2.0*(x(ix)-x0(fi))*lip(ix,fi)*dlip(ix,fi)) * element_length;
+          /* First function is [1 - 2(x-xi)*lipxi(fi)] [l_i(x)]^2 = f1 * f2.
+             Second function is (x-xi) * [l_i(x)]^2 = f3 * f2
+          */
+
+          double f1 = 1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi);
+          double df1 = -2.0*lipxi(fi);
+
+          double f2 = std::pow(lip(ix, fi), 2);
+          double df2 = 2*lip(ix,fi)*dlip(ix,fi);
+
+          double f3 = x(ix)-x0(fi);
+          double df3 = 1;
+
+          df(ix,2*fi)   = df1*f2 + f1*df2;
+          df(ix,2*fi+1) = (df3*f2 + f3*df2) * element_length;
         }
       }
     }
 
     void HIPBasis::eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const {
+      // Evaluate LIP basis
+      arma::mat lip, dlip, d2lip;
+      LIPBasis::eval_f_raw(x, lip);
+      LIPBasis::eval_df_raw(x, dlip);
+      LIPBasis::eval_d2f_raw(x, d2lip);
+
+      d2f.zeros(x.n_elem, 2*x0.n_elem);
+      for(size_t ix=0;ix<x.n_elem;ix++) {
+        for(size_t fi=0;fi<x0.n_elem;fi++) {
+          double f1 = 1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi);
+          double df1 = -2.0*lipxi(fi);
+
+          double df2 = 2*lip(ix,fi)*dlip(ix,fi);
+          double d2f2 = 2*dlip(ix,fi)*dlip(ix,fi) + 2*lip(ix,fi)*d2lip(ix,fi);
+
+          double f3 = x(ix)-x0(fi);
+          double df3 = 1.0;
+
+          d2f(ix,2*fi)   = 2*df1*df2 + f1*d2f2;
+          d2f(ix,2*fi+1) = (2*df3*df2 + f3*d2f2) * element_length;
+        }
+      }
+    }
+
+    void HIPBasis::eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const {
       // Evaluate LIP basis
       arma::mat lip, dlip, d2lip, d3lip;
       LIPBasis::eval_f_raw(x, lip);
@@ -65,25 +110,77 @@ namespace helfem {
       LIPBasis::eval_d2f_raw(x, d2lip);
       LIPBasis::eval_d3f_raw(x, d3lip);
 
-      d2f.zeros(x.n_elem, 2*x0.n_elem);
+      d3f.zeros(x.n_elem, 2*x0.n_elem);
       for(size_t ix=0;ix<x.n_elem;ix++) {
         for(size_t fi=0;fi<x0.n_elem;fi++) {
-          d2f(ix,2*fi)   = 2.0*(d2lip(ix,fi)*lip(ix,fi) + std::pow(dlip(ix,fi),2))*(1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi)) - 8.0*lip(ix,fi)*dlip(ix,fi)*lipxi(fi);
-          d2f(ix,2*fi+1) = (4.0*lip(ix,fi)*dlip(ix,fi) + 2.0*(x(ix)-x0(fi))*(d2lip(ix,fi)*lip(ix,fi) + std::pow(dlip(ix,fi),2))) * element_length;
+          double f1 = 1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi);
+          double df1 = -2.0*lipxi(fi);
+
+          double d2f2 = 2*dlip(ix,fi)*dlip(ix,fi) + 2*lip(ix,fi)*d2lip(ix,fi);
+          double d3f2 = 6*dlip(ix,fi)*d2lip(ix,fi) + 2*lip(ix,fi)*d3lip(ix,fi);
+
+          double f3 = x(ix)-x0(fi);
+          double df3 = 1.0;
+
+          d3f(ix,2*fi)   = 3*df1*d2f2 + f1*d3f2;
+          d3f(ix,2*fi+1) = (3*df3*d2f2 + f3*d3f2) * element_length;
         }
       }
     }
 
-    void HIPBasis::eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const {
-      throw std::logic_error("HIPBasis::eval_prim_d3f not implemented.\n");
-    }
-
     void HIPBasis::eval_prim_d4f(const arma::vec & x, arma::mat & d4f, double element_length) const {
-      throw std::logic_error("HIPBasis::eval_prim_d4f not implemented.\n");
+      // Evaluate LIP basis
+      arma::mat lip, dlip, d2lip, d3lip, d4lip;
+      LIPBasis::eval_f_raw(x, lip);
+      LIPBasis::eval_df_raw(x, dlip);
+      LIPBasis::eval_d2f_raw(x, d2lip);
+      LIPBasis::eval_d3f_raw(x, d3lip);
+      LIPBasis::eval_d4f_raw(x, d4lip);
+
+      d4f.zeros(x.n_elem, 2*x0.n_elem);
+      for(size_t ix=0;ix<x.n_elem;ix++) {
+        for(size_t fi=0;fi<x0.n_elem;fi++) {
+          double f1 = 1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi);
+          double df1 = -2.0*lipxi(fi);
+
+          double d3f2 = 6*dlip(ix,fi)*d2lip(ix,fi) + 2*lip(ix,fi)*d3lip(ix,fi);
+          double d4f2 = 6*d2lip(ix,fi)*d2lip(ix,fi) + 8*dlip(ix,fi)*d3lip(ix,fi) + 2*lip(ix,fi)*d4lip(ix,fi);
+
+          double f3 = x(ix)-x0(fi);
+          double df3 = 1.0;
+
+          d4f(ix,2*fi)   = 4*df1*d3f2 + f1*d4f2;
+          d4f(ix,2*fi+1) = (4*df3*d3f2 + f3*d4f2) * element_length;
+        }
+      }
     }
 
     void HIPBasis::eval_prim_d5f(const arma::vec & x, arma::mat & d5f, double element_length) const {
-      throw std::logic_error("HIPBasis::eval_prim_d5f not implemented.\n");
+      // Evaluate LIP basis
+      arma::mat lip, dlip, d2lip, d3lip, d4lip, d5lip;
+      LIPBasis::eval_f_raw(x, lip);
+      LIPBasis::eval_df_raw(x, dlip);
+      LIPBasis::eval_d2f_raw(x, d2lip);
+      LIPBasis::eval_d3f_raw(x, d3lip);
+      LIPBasis::eval_d4f_raw(x, d4lip);
+      LIPBasis::eval_d5f_raw(x, d5lip);
+
+      d5f.zeros(x.n_elem, 2*x0.n_elem);
+      for(size_t ix=0;ix<x.n_elem;ix++) {
+        for(size_t fi=0;fi<x0.n_elem;fi++) {
+          double f1 = 1.0 - 2.0*(x(ix)-x0(fi))*lipxi(fi);
+          double df1 = -2.0*lipxi(fi);
+
+          double d4f2 = 6*d2lip(ix,fi)*d2lip(ix,fi) + 8*dlip(ix,fi)*d3lip(ix,fi) + 2*lip(ix,fi)*d4lip(ix,fi);
+          double d5f2 = 20*d2lip(ix,fi)*d3lip(ix,fi) + 10*dlip(ix,fi)*d4lip(ix,fi) + 2*lip(ix,fi)*d5lip(ix,fi);
+
+          double f3 = x(ix)-x0(fi);
+          double df3 = 1.0;
+
+          d5f(ix,2*fi)   = 5*df1*d4f2 + f1*d5f2;
+          d5f(ix,2*fi+1) = (5*df3*d4f2 + f3*d5f2) * element_length;
+        }
+      }
     }
 
     void HIPBasis::drop_first(bool func, bool deriv) {
