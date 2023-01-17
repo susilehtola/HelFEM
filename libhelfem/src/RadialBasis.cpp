@@ -593,9 +593,9 @@ namespace helfem {
       }
 
       /// Function to calculate arbitrary derivatives
-      std::map<radial_function_t, int> calculate_derivative(int nder, int rpow) {
+      std::map<radial_function_t, int> calculate_derivative(int nder) {
         std::map<radial_function_t, int> ret;
-        radial_function_t base({rpow-1, 0});
+        radial_function_t base({-1, 0});
         ret[base] = 1;
 
         for(int ider=0; ider<nder; ider++) {
