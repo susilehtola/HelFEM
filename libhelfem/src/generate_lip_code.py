@@ -39,20 +39,23 @@ for order in range(0,6):
     print('// Loop over polynomials\nfor(size_t fi=0; fi<x0.n_elem; fi++) {')
 
     # Derivative loops
+    factor = 1
     for ider in range(1,order+1):
-        print('// Derivative {0} acting on index\nfor(size_t d{0}=0; d{0}<x0.n_elem; d{0}++) {{'.format(ider))
+        print('// Derivative {0} acting on index\nfor(size_t d{0}=0; d{0}<{1}; d{0}++) {{'.format(ider, 'x0.n_elem' if ider==1 else 'd{}'.format(ider-1)))
 
         # Skip these terms
-        check_terms = ['d{}'.format(o) for o in range(1,ider)]
-        check_terms.append('fi')
+        check_terms = ['fi']
         for term in check_terms:
             print('if(d{0} == {1}) continue;'.format(ider, term))
-            
+
+        # The speedup factor grows factorially(!)
+        factor *= ider
+
     # Now do the product
     print('// Form the LIP product\ndouble {}val = 1.0;'.format(fname))
     print('for(size_t ip=0; ip<x0.n_elem; ip++) {')
     print('// Skip terms which have been acted upon by a derivative')
-    check_terms = ['d{}'.format(o) for o in range(1,order+1)] 
+    check_terms = ['d{}'.format(o) for o in range(1,order+1)]
     check_terms.append('fi')
     for term in check_terms:
         print('if(ip == {}) continue;'.format(term))
@@ -63,9 +66,9 @@ for order in range(0,6):
     div_terms = ['(x0(fi)-x0(d{}))'.format(o) for o in range(1,order+1)]
     if len(div_terms)>0:
         print('// Apply derivative denominators\n{}val /= '.format(fname) + '*'.join(div_terms) + ';')
-        
+
     print('// Store the computed value')
-    print('{0}(ix,fi) += {0}val;'.format(fname))
+    print('{0}(ix,fi) += {1}{0}val;'.format(fname, '{}*'.format(factor) if factor>1 else ''))
 
     for ider in range(1,order+1):
         print('}')

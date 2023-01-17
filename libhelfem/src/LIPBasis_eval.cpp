@@ -66,9 +66,7 @@ namespace helfem {
             if (d1 == fi)
               continue;
             // Derivative 2 acting on index
-            for (size_t d2 = 0; d2 < x0.n_elem; d2++) {
-              if (d2 == d1)
-                continue;
+            for (size_t d2 = 0; d2 < d1; d2++) {
               if (d2 == fi)
                 continue;
               // Form the LIP product
@@ -86,7 +84,7 @@ namespace helfem {
               // Apply derivative denominators
               d2fval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2));
               // Store the computed value
-              d2f(ix, fi) += d2fval;
+              d2f(ix, fi) += 2 * d2fval;
             }
           }
         }
@@ -104,17 +102,11 @@ namespace helfem {
             if (d1 == fi)
               continue;
             // Derivative 2 acting on index
-            for (size_t d2 = 0; d2 < x0.n_elem; d2++) {
-              if (d2 == d1)
-                continue;
+            for (size_t d2 = 0; d2 < d1; d2++) {
               if (d2 == fi)
                 continue;
               // Derivative 3 acting on index
-              for (size_t d3 = 0; d3 < x0.n_elem; d3++) {
-                if (d3 == d1)
-                  continue;
-                if (d3 == d2)
-                  continue;
+              for (size_t d3 = 0; d3 < d2; d3++) {
                 if (d3 == fi)
                   continue;
                 // Form the LIP product
@@ -135,7 +127,7 @@ namespace helfem {
                 d3fval /=
                     (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) * (x0(fi) - x0(d3));
                 // Store the computed value
-                d3f(ix, fi) += d3fval;
+                d3f(ix, fi) += 6 * d3fval;
               }
             }
           }
@@ -154,27 +146,15 @@ namespace helfem {
             if (d1 == fi)
               continue;
             // Derivative 2 acting on index
-            for (size_t d2 = 0; d2 < x0.n_elem; d2++) {
-              if (d2 == d1)
-                continue;
+            for (size_t d2 = 0; d2 < d1; d2++) {
               if (d2 == fi)
                 continue;
               // Derivative 3 acting on index
-              for (size_t d3 = 0; d3 < x0.n_elem; d3++) {
-                if (d3 == d1)
-                  continue;
-                if (d3 == d2)
-                  continue;
+              for (size_t d3 = 0; d3 < d2; d3++) {
                 if (d3 == fi)
                   continue;
                 // Derivative 4 acting on index
-                for (size_t d4 = 0; d4 < x0.n_elem; d4++) {
-                  if (d4 == d1)
-                    continue;
-                  if (d4 == d2)
-                    continue;
-                  if (d4 == d3)
-                    continue;
+                for (size_t d4 = 0; d4 < d3; d4++) {
                   if (d4 == fi)
                     continue;
                   // Form the LIP product
@@ -197,7 +177,7 @@ namespace helfem {
                   d4fval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) *
                             (x0(fi) - x0(d3)) * (x0(fi) - x0(d4));
                   // Store the computed value
-                  d4f(ix, fi) += d4fval;
+                  d4f(ix, fi) += 24 * d4fval;
                 }
               }
             }
@@ -217,39 +197,19 @@ namespace helfem {
             if (d1 == fi)
               continue;
             // Derivative 2 acting on index
-            for (size_t d2 = 0; d2 < x0.n_elem; d2++) {
-              if (d2 == d1)
-                continue;
+            for (size_t d2 = 0; d2 < d1; d2++) {
               if (d2 == fi)
                 continue;
               // Derivative 3 acting on index
-              for (size_t d3 = 0; d3 < x0.n_elem; d3++) {
-                if (d3 == d1)
-                  continue;
-                if (d3 == d2)
-                  continue;
+              for (size_t d3 = 0; d3 < d2; d3++) {
                 if (d3 == fi)
                   continue;
                 // Derivative 4 acting on index
-                for (size_t d4 = 0; d4 < x0.n_elem; d4++) {
-                  if (d4 == d1)
-                    continue;
-                  if (d4 == d2)
-                    continue;
-                  if (d4 == d3)
-                    continue;
+                for (size_t d4 = 0; d4 < d3; d4++) {
                   if (d4 == fi)
                     continue;
                   // Derivative 5 acting on index
-                  for (size_t d5 = 0; d5 < x0.n_elem; d5++) {
-                    if (d5 == d1)
-                      continue;
-                    if (d5 == d2)
-                      continue;
-                    if (d5 == d3)
-                      continue;
-                    if (d5 == d4)
-                      continue;
+                  for (size_t d5 = 0; d5 < d4; d5++) {
                     if (d5 == fi)
                       continue;
                     // Form the LIP product
@@ -275,7 +235,7 @@ namespace helfem {
                               (x0(fi) - x0(d3)) * (x0(fi) - x0(d4)) *
                               (x0(fi) - x0(d5));
                     // Store the computed value
-                    d5f(ix, fi) += d5fval;
+                    d5f(ix, fi) += 120 * d5fval;
                   }
                 }
               }
