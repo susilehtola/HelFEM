@@ -375,7 +375,7 @@ namespace helfem {
 
         // Form Taylor series at the origin
         arma::vec origin(1);
-        origin(1)=-1;
+        origin(0)=-1;
         std::vector<arma::rowvec> df(taylorcoeff.n_elem);
 
         size_t iel=0;
