@@ -250,6 +250,7 @@ int main(int argc, char **argv) {
   basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, Nquad, bval, lval, mval, Zl, Zr, Rhalf);
   chkpt.write(basis);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
+  printf("Taylor series used to evaluate basis functions for r <= %e\n",basis.get_small_r_taylor_cutoff());
 
   printf("One-electron matrix requires %s\n",scf::memory_size(basis.mem_1el()).c_str());
   printf("Auxiliary one-electron integrals require %s\n",scf::memory_size(basis.mem_1el_aux()).c_str());

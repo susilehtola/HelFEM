@@ -722,6 +722,10 @@ namespace helfem {
         return radial.get_r(iel);
       }
 
+      double TwoDBasis::get_small_r_taylor_cutoff() const {
+        return radial.get_small_r_taylor_cutoff();
+      }
+
       double TwoDBasis::nuclear_density(const arma::mat & P) const {
         return radial.nuclear_density(P)/(4.0*M_PI);
       }

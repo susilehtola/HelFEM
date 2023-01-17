@@ -124,6 +124,10 @@ namespace helfem {
         return lval.n_elem;
       }
 
+      double TwoDBasis::get_small_r_taylor_cutoff() const {
+        return radial.get_small_r_taylor_cutoff();
+      }
+
       arma::uvec TwoDBasis::pure_indices() const {
         return arma::linspace<arma::uvec>(0,Nbf()-1,Nbf());
       }

@@ -107,6 +107,8 @@ namespace helfem {
         arma::vec get_wrad(size_t iel) const;
         /// Get r values
         arma::vec get_r(size_t iel) const;
+        /// Get small r Taylor cutoff
+        double get_small_r_taylor_cutoff() const;
 
         /// Get primitive integrals
         std::vector<arma::mat> get_prim_tei() const;

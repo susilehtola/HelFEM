@@ -596,6 +596,7 @@ namespace helfem {
 
         basis=sadatom::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, Nquad, bval, lmax);
         printf("Basis set has %i radial functions\n",(int) basis.Nbf());
+        printf("Taylor series used to evaluate basis functions for r <= %e\n",basis.get_small_r_taylor_cutoff());
 
         // Form overlap matrix
         S=basis.overlap();

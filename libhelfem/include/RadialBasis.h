@@ -32,6 +32,10 @@ namespace helfem {
         /// Finite element basis
         polynomial_basis::FiniteElementBasis fem;
 
+        /// Value of r for which to switch over to evaluating basis
+        /// functions by Taylor series
+        double small_r_taylor_cutoff;
+
       public:
         /// Dummy constructor
         RadialBasis();
@@ -56,6 +60,8 @@ namespace helfem {
         int get_poly_id() const;
         /// Get number of nodes in polynomial basis
         int get_poly_nnodes() const;
+        /// Get small r Taylor cutoff
+        double get_small_r_taylor_cutoff() const;
 
         /// Get number of overlapping functions
         size_t get_noverlap() const;

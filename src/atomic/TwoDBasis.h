@@ -135,6 +135,8 @@ namespace helfem {
         size_t Nrad() const;
         /// Number of angular shells
         size_t Nang() const;
+        /// Get small r Taylor cutoff
+        double get_small_r_taylor_cutoff() const;
 
         /// Form half-overlap matrix
         arma::mat Shalf(bool chol, int sym) const;

@@ -19,6 +19,7 @@
 #include "quadrature.h"
 #include "utils.h"
 #include <map>
+#include <cfloat>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -50,6 +51,25 @@ namespace helfem {
           if (!std::isfinite(wq[i]))
             printf("wq[%i]=%e\n", (int)i, wq[i]);
         }
+
+        // Determine small r Taylor cutoff. We use a 5th order Taylor
+        // polynomial f(r) = 0 + f'(0) r + 1/2 f''(0) r^2 + ... + 1/5!
+        // f^(5)(0) r^5 but we also need up to second derivatives. We
+        // should be able to safely use a truncation of machine
+        // epsilon^(1/3), since then the last term in the second
+        // derivative should be negligible compared to the first one.
+        double small_r_cutoff_eps = std::cbrt(DBL_EPSILON);
+
+        // However, if the first element is very small, such as in the
+        // case of finite nuclei, we would not be portraying our basis
+        // functions very accurately in the element. This is why the
+        // cutoff has to be defined in terms of the element size, the
+        // number of functions in the element, as well as a safety
+        // factor.
+        double small_r_cutoff_fun = fem.element_length(0) / fem.get_max_nprim() / 100;
+
+        // We use the minimum of the two for our cutoff
+        small_r_taylor_cutoff = std::min(small_r_cutoff_eps, small_r_cutoff_fun);
       }
 
       RadialBasis::~RadialBasis() {}
@@ -92,6 +112,10 @@ namespace helfem {
 
       int RadialBasis::get_poly_nnodes() const {
         return fem.get_poly_nnodes();
+      }
+
+      double RadialBasis::get_small_r_taylor_cutoff() const {
+        return small_r_taylor_cutoff;
       }
 
       arma::mat RadialBasis::radial_integral(int Rexp, size_t iel) const {
@@ -340,9 +364,39 @@ namespace helfem {
         arma::mat val(fem.eval_f(x, iel));
         // but we also need to put in the 1/r factor
         arma::vec r(fem.eval_coord(x, iel));
-        for (size_t j = 0; j < val.n_cols; j++)
-          for (size_t i = 0; i < val.n_rows; i++)
-            val(i, j) /= r(i);
+
+        // Indices where to apply Taylor series
+        arma::uvec taylorind;
+        if(iel==0)
+          taylorind = arma::find(r <= small_r_taylor_cutoff);
+
+        // Special handling for points close to the nucleus
+        if(taylorind.n_elem>0) {
+          if(taylorind[0]!=0 || taylorind[taylorind.n_elem-1] != taylorind.n_elem-1)
+            throw std::logic_error("Taylor points not consecutive!\n");
+
+          // Form Taylor series at the origin
+          arma::vec origin(1);
+          origin(1)=-1;
+
+          arma::rowvec f0(fem.eval_f(origin, iel));
+          arma::rowvec df0(fem.eval_df(origin, iel));
+          arma::rowvec d2f0(fem.eval_d2f(origin, iel));
+          arma::rowvec d3f0(fem.eval_d3f(origin, iel));
+          arma::rowvec d4f0(fem.eval_d4f(origin, iel));
+          arma::rowvec d5f0(fem.eval_d5f(origin, iel));
+
+          // Use the Taylor series for small r for better numerical stability
+          for (size_t ifun = 0; ifun < val.n_cols; ifun++)
+            for (size_t ir = 0; ir < taylorind.n_elem; ir++) {
+              val(ir, ifun) = f0(ifun) + df0(ifun)*r(ir) + 1.0/2.0*d2f0(ifun)*std::pow(r(ir),2) + 1.0/6.0*d3f0(ifun)*std::pow(r(ir),3) * 1.0/24.0*d4f0(ifun)*std::pow(r(ir),4) + 1.0/120.0*d5f0(ifun)*std::pow(r(ir),5);
+            }
+        }
+        // Normal handling elsewhere
+        for (size_t ifun = 0; ifun < val.n_cols; ifun++)
+          for (size_t ir = taylorind.n_elem; ir < x.n_elem; ir++)
+            val(ir, ifun) /= r(ir);
+
 
         return val;
       }
@@ -356,12 +410,38 @@ namespace helfem {
         arma::mat fval(fem.eval_f(x, iel));
         arma::mat dval(fem.eval_df(x, iel));
         arma::vec r(fem.eval_coord(x, iel));
-
-        // Derivative is then
         arma::mat der(fval);
-        for (size_t j = 0; j < fval.n_cols; j++)
-          for (size_t i = 0; i < fval.n_rows; i++)
-            der(i, j) = dval(i, j) / r(i) - fval(i, j) / (r(i) * r(i));
+
+        // Indices where to apply Taylor series
+        arma::uvec taylorind;
+        if(iel==0)
+          taylorind = arma::find(r <= small_r_taylor_cutoff);
+
+        // Special handling for points close to the nucleus
+        if(taylorind.n_elem>0) {
+          if(taylorind[0]!=0 || taylorind[taylorind.n_elem-1] != taylorind.n_elem-1)
+            throw std::logic_error("Taylor points not consecutive!\n");
+
+          // Form Taylor series at the origin
+          arma::vec origin(1);
+          origin(1)=-1;
+
+          arma::rowvec df0(fem.eval_df(origin, iel));
+          arma::rowvec d2f0(fem.eval_d2f(origin, iel));
+          arma::rowvec d3f0(fem.eval_d3f(origin, iel));
+          arma::rowvec d4f0(fem.eval_d4f(origin, iel));
+          arma::rowvec d5f0(fem.eval_d5f(origin, iel));
+
+          // Use the Taylor series for small r for better numerical stability
+          for (size_t ifun = 0; ifun < der.n_cols; ifun++)
+            for (size_t ir = 0; ir < taylorind.n_elem; ir++) {
+              der(ir, ifun) = df0(ifun) + d2f0(ifun)*r(ir) + 1.0/2.0*d3f0(ifun)*std::pow(r(ir),2) * 1.0/6.0*d4f0(ifun)*std::pow(r(ir),3) + 1.0/24.0*d5f0(ifun)*std::pow(r(ir),4);
+            }
+        }
+        // Normal handling elsewhere
+        for (size_t ifun = 0; ifun < der.n_cols; ifun++)
+          for (size_t ir = taylorind.n_elem; ir < x.n_elem; ir++)
+            der(ir, ifun) = dval(ir, ifun) / r(ir) - fval(ir, ifun) / (r(ir) * r(ir));
 
         return der;
       }
@@ -376,14 +456,39 @@ namespace helfem {
         arma::mat dval(fem.eval_df(x, iel));
         arma::mat lval(fem.eval_d2f(x, iel));
         arma::vec r(fem.eval_coord(x, iel));
-
-        // Laplacian is then
         arma::mat lapl(fval);
-        for (size_t j = 0; j < fval.n_cols; j++)
-          for (size_t i = 0; i < fval.n_rows; i++)
-            lapl(i, j) = lval(i, j) / r(i) -
-              2.0 * dval(i, j) / (r(i) * r(i)) +
-              2.0 * fval(i, j) / (r(i) * r(i) * r(i));
+
+        // Indices where to apply Taylor series
+        arma::uvec taylorind;
+        if(iel==0)
+          taylorind = arma::find(r <= small_r_taylor_cutoff);
+
+        // Special handling for points close to the nucleus
+        if(taylorind.n_elem>0) {
+          if(taylorind[0]!=0 || taylorind[taylorind.n_elem-1] != taylorind.n_elem-1)
+            throw std::logic_error("Taylor points not consecutive!\n");
+
+          // Form Taylor series at the origin
+          arma::vec origin(1);
+          origin(1)=-1;
+
+          arma::rowvec d2f0(fem.eval_d2f(origin, iel));
+          arma::rowvec d3f0(fem.eval_d3f(origin, iel));
+          arma::rowvec d4f0(fem.eval_d4f(origin, iel));
+          arma::rowvec d5f0(fem.eval_d5f(origin, iel));
+
+          // Use the Taylor series for small r for better numerical stability
+          for (size_t ifun = 0; ifun < lapl.n_cols; ifun++)
+            for (size_t ir = 0; ir < taylorind.n_elem; ir++) {
+              lapl(ir, ifun) = d2f0(ifun) + d3f0(ifun)*r(ir) * 1.0/2.0*d4f0(ifun)*std::pow(r(ir),2) + 1.0/6.0*d5f0(ifun)*std::pow(r(ir),3);
+            }
+        }
+        // Normal handling elsewhere
+        for (size_t ifun = 0; ifun < lapl.n_cols; ifun++)
+          for (size_t ir = taylorind.n_elem; ir < x.n_elem; ir++)
+            lapl(ir, ifun) = lval(ir, ifun) / r(ir) -
+              2.0 * dval(ir, ifun) / (r(ir) * r(ir)) +
+              2.0 * fval(ir, ifun) / (r(ir) * r(ir) * r(ir));
 
         return lapl;
       }
