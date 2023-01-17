@@ -905,16 +905,16 @@ namespace helfem {
       double TwoDBasis::electron_density_maximum(const arma::mat & Prad, double eps) const {
         // Evaluate the density in each quadrature point and take
         // their maximum
-        arma::vec d(radial.Nel());
+        arma::vec den(radial.Nel());
         bool rsqweight = true;
 
         for(size_t iel=0;iel<radial.Nel();iel++) {
-          d(iel)=arma::max(electron_density(iel, Prad, rsqweight));
+          den(iel)=arma::max(electron_density(iel, Prad, rsqweight));
         }
 
         // Find the element with the maximum density
         arma::uword iel;
-        d.max(iel);
+        den.max(iel);
 
         // Evaluate the density in that element
         arma::vec xq = radial.get_xq();
