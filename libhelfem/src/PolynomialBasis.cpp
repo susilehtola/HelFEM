@@ -233,13 +233,13 @@ namespace helfem {
 
     void PolynomialBasis::eval_d4f(const arma::vec & x, arma::mat & d4f, double element_length) const {
       eval_prim_d4f(x, d4f, element_length);
-      // Third derivative is scaled by element length cubed
+      // Fourth derivative is scaled by element length to the fourth power
       d4f = d4f.cols(enabled) / std::pow(element_length, 4);
     }
 
     void PolynomialBasis::eval_d5f(const arma::vec & x, arma::mat & d5f, double element_length) const {
       eval_prim_d5f(x, d5f, element_length);
-      // Third derivative is scaled by element length cubed
+      // Fifth derivative is scaled by element length to the fifth power
       d5f = d5f.cols(enabled) / std::pow(element_length, 5);
     }
   }
