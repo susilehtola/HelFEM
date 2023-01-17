@@ -112,6 +112,12 @@ namespace helfem {
       void eval_df(const arma::vec & x, arma::mat & df, size_t iel) const;
       /// Evaluate second derivatives of polynomials at given points
       void eval_d2f(const arma::vec & x, arma::mat & d2f, size_t iel) const;
+      /// Evaluate third derivatives of polynomials at given points
+      void eval_d3f(const arma::vec & x, arma::mat & d3f, size_t iel) const;
+      /// Evaluate fourth derivatives of polynomials at given points
+      void eval_d4f(const arma::vec & x, arma::mat & d4f, size_t iel) const;
+      /// Evaluate fifth derivatives of polynomials at given points
+      void eval_d5f(const arma::vec & x, arma::mat & d5f, size_t iel) const;
 
       /// Evaluate polynomials at given points
       arma::mat eval_f(const arma::vec & x, size_t iel) const;
@@ -119,6 +125,12 @@ namespace helfem {
       arma::mat eval_df(const arma::vec & x, size_t iel) const;
       /// Evaluate second derivatives of polynomials at given points
       arma::mat eval_d2f(const arma::vec & x, size_t iel) const;
+      /// Evaluate third derivatives of polynomials at given points
+      arma::mat eval_d3f(const arma::vec & x, size_t iel) const;
+      /// Evaluate fourth derivatives of polynomials at given points
+      arma::mat eval_d4f(const arma::vec & x, size_t iel) const;
+      /// Evaluate fifth derivatives of polynomials at given points
+      arma::mat eval_d5f(const arma::vec & x, size_t iel) const;
 
       /**
        * Compute matrix elements in the finite element basis <lh|f|rh>

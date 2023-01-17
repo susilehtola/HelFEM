@@ -186,6 +186,21 @@ namespace helfem {
       p->eval_d2f(x,d2f,scaling_factor(iel));
     }
 
+    void FiniteElementBasis::eval_d3f(const arma::vec & x, arma::mat & d3f, size_t iel) const {
+      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
+      p->eval_d3f(x,d3f,scaling_factor(iel));
+    }
+
+    void FiniteElementBasis::eval_d4f(const arma::vec & x, arma::mat & d4f, size_t iel) const {
+      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
+      p->eval_d4f(x,d4f,scaling_factor(iel));
+    }
+
+    void FiniteElementBasis::eval_d5f(const arma::vec & x, arma::mat & d5f, size_t iel) const {
+      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
+      p->eval_d5f(x,d5f,scaling_factor(iel));
+    }
+
     arma::mat FiniteElementBasis::eval_f(const arma::vec & x, size_t iel) const {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
       return p->eval_f(x,scaling_factor(iel));
@@ -199,6 +214,21 @@ namespace helfem {
     arma::mat FiniteElementBasis::eval_d2f(const arma::vec & x, size_t iel) const {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
       return p->eval_d2f(x,scaling_factor(iel));
+    }
+
+     arma::mat FiniteElementBasis::eval_d3f(const arma::vec & x, size_t iel) const {
+       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
+       return p->eval_d3f(x,scaling_factor(iel));
+     }
+
+    arma::mat FiniteElementBasis::eval_d4f(const arma::vec & x, size_t iel) const {
+      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
+      return p->eval_d4f(x,scaling_factor(iel));
+    }
+
+    arma::mat FiniteElementBasis::eval_d5f(const arma::vec & x, size_t iel) const {
+      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
+      return p->eval_d5f(x,scaling_factor(iel));
     }
 
     arma::mat FiniteElementBasis::matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
