@@ -359,6 +359,62 @@ namespace helfem {
         return get_bf(xq, iel);
       }
 
+      void RadialBasis::get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider) const {
+        if(taylorind[0]!=0 || taylorind[taylorind.n_elem-1] != taylorind.n_elem-1)
+          throw std::logic_error("Taylor points not consecutive!\n");
+
+        // The series of B(r)/r is
+        //  [B(0) + B'(0)r + 1/2 B''(0) r^2 + ...]/r
+        //= B'(0) + 1/2 B''(0) r + 1/6 B'''(0) r^2 + ...
+
+        // Coefficients of the various derivatives
+        arma::vec taylorcoeff(5);
+        taylorcoeff(0) = 1.0;
+        for(size_t i=1; i<taylorcoeff.n_elem; i++)
+          taylorcoeff(i) = taylorcoeff(i-1)/(i+1);
+
+        // The related order of the derivatives
+        arma::ivec derorder(arma::linspace<arma::ivec>(1,taylorcoeff.n_elem,taylorcoeff.n_elem));
+        // and the corresponding r exponents
+        arma::ivec rexp(arma::linspace<arma::ivec>(0,taylorcoeff.n_elem-1,taylorcoeff.n_elem));
+
+        // Compute derivatives: c r^n -> cn r^(n-1)
+        for(size_t i=0; i<taylorcoeff.n_elem; i++) {
+          for(int d=0; d<ider; d++) {
+            taylorcoeff(i) *= rexp(i);
+            rexp(i)--;
+          }
+        }
+
+        // Form Taylor series at the origin
+        arma::vec origin(1);
+        origin(1)=-1;
+        std::vector<arma::rowvec> df(taylorcoeff.n_elem);
+
+        size_t iel=0;
+        if(ider==0)
+          df[0] = fem.eval_df(origin, iel);
+        if(ider<=1)
+          df[1] = fem.eval_d2f(origin, iel);
+        df[2] = fem.eval_d3f(origin, iel);
+        df[3] = fem.eval_d4f(origin, iel);
+        df[4] = fem.eval_d5f(origin, iel);
+
+        // Exponentiate r
+        std::vector<arma::vec> rexpval(taylorcoeff.n_elem);
+        for(size_t i=0; i < rexpval.size(); i++)
+          rexpval[i] = arma::pow(r, rexp[i]);
+
+        for (size_t ifun = 0; ifun < val.n_cols; ifun++)
+          for (size_t ir = 0; ir < taylorind.n_elem; ir++) {
+            val(ir, ifun) = 0.0;
+            // Terms below this are zero
+            for(size_t iterm=ider;iterm < taylorcoeff.n_elem;iterm++) {
+              val(ir, ifun) += taylorcoeff[iterm]*df[iterm](ifun)*rexpval[iterm](ir);
+            }
+          }
+      }
+
       arma::mat RadialBasis::get_bf(const arma::vec & x, size_t iel) const {
         // Element function values at quadrature points are
         arma::mat val(fem.eval_f(x, iel));
@@ -372,31 +428,12 @@ namespace helfem {
 
         // Special handling for points close to the nucleus
         if(taylorind.n_elem>0) {
-          if(taylorind[0]!=0 || taylorind[taylorind.n_elem-1] != taylorind.n_elem-1)
-            throw std::logic_error("Taylor points not consecutive!\n");
-
-          // Form Taylor series at the origin
-          arma::vec origin(1);
-          origin(1)=-1;
-
-          arma::rowvec f0(fem.eval_f(origin, iel));
-          arma::rowvec df0(fem.eval_df(origin, iel));
-          arma::rowvec d2f0(fem.eval_d2f(origin, iel));
-          arma::rowvec d3f0(fem.eval_d3f(origin, iel));
-          arma::rowvec d4f0(fem.eval_d4f(origin, iel));
-          arma::rowvec d5f0(fem.eval_d5f(origin, iel));
-
-          // Use the Taylor series for small r for better numerical stability
-          for (size_t ifun = 0; ifun < val.n_cols; ifun++)
-            for (size_t ir = 0; ir < taylorind.n_elem; ir++) {
-              val(ir, ifun) = f0(ifun) + df0(ifun)*r(ir) + 1.0/2.0*d2f0(ifun)*std::pow(r(ir),2) + 1.0/6.0*d3f0(ifun)*std::pow(r(ir),3) * 1.0/24.0*d4f0(ifun)*std::pow(r(ir),4) + 1.0/120.0*d5f0(ifun)*std::pow(r(ir),5);
-            }
+          get_taylor(r, taylorind, val, 0);
         }
         // Normal handling elsewhere
         for (size_t ifun = 0; ifun < val.n_cols; ifun++)
           for (size_t ir = taylorind.n_elem; ir < x.n_elem; ir++)
             val(ir, ifun) /= r(ir);
-
 
         return val;
       }
@@ -419,24 +456,7 @@ namespace helfem {
 
         // Special handling for points close to the nucleus
         if(taylorind.n_elem>0) {
-          if(taylorind[0]!=0 || taylorind[taylorind.n_elem-1] != taylorind.n_elem-1)
-            throw std::logic_error("Taylor points not consecutive!\n");
-
-          // Form Taylor series at the origin
-          arma::vec origin(1);
-          origin(1)=-1;
-
-          arma::rowvec df0(fem.eval_df(origin, iel));
-          arma::rowvec d2f0(fem.eval_d2f(origin, iel));
-          arma::rowvec d3f0(fem.eval_d3f(origin, iel));
-          arma::rowvec d4f0(fem.eval_d4f(origin, iel));
-          arma::rowvec d5f0(fem.eval_d5f(origin, iel));
-
-          // Use the Taylor series for small r for better numerical stability
-          for (size_t ifun = 0; ifun < der.n_cols; ifun++)
-            for (size_t ir = 0; ir < taylorind.n_elem; ir++) {
-              der(ir, ifun) = df0(ifun) + d2f0(ifun)*r(ir) + 1.0/2.0*d3f0(ifun)*std::pow(r(ir),2) * 1.0/6.0*d4f0(ifun)*std::pow(r(ir),3) + 1.0/24.0*d5f0(ifun)*std::pow(r(ir),4);
-            }
+          get_taylor(r, taylorind, der, 1);
         }
         // Normal handling elsewhere
         for (size_t ifun = 0; ifun < der.n_cols; ifun++)
@@ -465,23 +485,7 @@ namespace helfem {
 
         // Special handling for points close to the nucleus
         if(taylorind.n_elem>0) {
-          if(taylorind[0]!=0 || taylorind[taylorind.n_elem-1] != taylorind.n_elem-1)
-            throw std::logic_error("Taylor points not consecutive!\n");
-
-          // Form Taylor series at the origin
-          arma::vec origin(1);
-          origin(1)=-1;
-
-          arma::rowvec d2f0(fem.eval_d2f(origin, iel));
-          arma::rowvec d3f0(fem.eval_d3f(origin, iel));
-          arma::rowvec d4f0(fem.eval_d4f(origin, iel));
-          arma::rowvec d5f0(fem.eval_d5f(origin, iel));
-
-          // Use the Taylor series for small r for better numerical stability
-          for (size_t ifun = 0; ifun < lapl.n_cols; ifun++)
-            for (size_t ir = 0; ir < taylorind.n_elem; ir++) {
-              lapl(ir, ifun) = d2f0(ifun) + d3f0(ifun)*r(ir) * 1.0/2.0*d4f0(ifun)*std::pow(r(ir),2) + 1.0/6.0*d5f0(ifun)*std::pow(r(ir),3);
-            }
+          get_taylor(r, taylorind, lapl, 2);
         }
         // Normal handling elsewhere
         for (size_t ifun = 0; ifun < lapl.n_cols; ifun++)

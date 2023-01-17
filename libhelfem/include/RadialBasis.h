@@ -141,6 +141,9 @@ namespace helfem {
         arma::mat get_lf(size_t iel) const;
         /// Evaluate basis functions at given points
         arma::mat get_lf(const arma::vec & x, size_t iel) const;
+        /// Evaluate small-r Taylor series
+        void get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider) const;
+
         /// Get quadrature weights
         arma::vec get_wrad(size_t iel) const;
         /// Get quadrature weights
