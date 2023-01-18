@@ -256,6 +256,21 @@ namespace helfem {
     }
 
     arma::mat FiniteElementBasis::matrix_element(size_t iel, bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
+      std::function<arma::mat(const arma::vec &,size_t)> eval_lh, eval_rh;
+      if(lhder) {
+        eval_lh = [this](const arma::vec & xq, size_t iel) { return this->eval_df(xq, iel); };
+      } else {
+        eval_lh = [this](const arma::vec & xq, size_t iel) { return this->eval_f(xq, iel); };
+      }
+      if(rhder) {
+        eval_rh = [this](const arma::vec & xq, size_t iel) { return this->eval_df(xq, iel); };
+      } else {
+        eval_rh = [this](const arma::vec & xq, size_t iel) { return this->eval_f(xq, iel); };
+      }
+      return matrix_element(iel, eval_lh, eval_rh, xq, wq, f);
+    }
+
+    arma::mat FiniteElementBasis::matrix_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
       // Get coordinate values
       arma::vec r(eval_coord(xq, iel));
       // Calculate total weight per point
@@ -266,9 +281,13 @@ namespace helfem {
             wp(i)*=f(r(i));
       }
 
-      // Operands
-      arma::mat lhbf = lhder ? eval_df(xq, iel) : eval_f(xq, iel);
-      arma::mat rhbf = rhder ? eval_df(xq, iel) : eval_f(xq, iel);
+      // Evaluate basis functions
+      if(!eval_lh)
+        throw std::logic_error("Need function for evaluating left-hand basis functions!\n");
+      arma::mat lhbf = eval_lh(xq, iel);
+      if(!eval_rh)
+        throw std::logic_error("Need function for evaluating right-hand basis functions!\n");
+      arma::mat rhbf = eval_rh(xq, iel);
 
       // Include weight in the lh operand
       for(size_t i=0;i<lhbf.n_cols;i++)
