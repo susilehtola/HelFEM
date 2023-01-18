@@ -560,6 +560,8 @@ int main(int argc, char **argv) {
         occs=inocc;
     }
 
+    // Verbose operation for single configuration
+    solver.set_verbose(true);
     if(restr) {
       rconf.orbs=sadatom::solver::OrbitalChannel(true);
       solver.Initialize(rconf.orbs,iguess);

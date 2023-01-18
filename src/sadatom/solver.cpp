@@ -618,6 +618,9 @@ namespace helfem {
         basis.compute_tei();
         // Range separation?
         set_func(x_func_, c_func_);
+
+        // Non-verbose operation by default
+        verbose = false;
       }
 
       SCFSolver::~SCFSolver() {
@@ -654,6 +657,10 @@ namespace helfem {
       void SCFSolver::set_params(const arma::vec & px, const arma::vec & pc) {
         x_pars = px;
         c_pars = pc;
+      }
+
+      void SCFSolver::set_verbose(bool verbose_) {
+        verbose = verbose_;
       }
 
       arma::mat SCFSolver::TotalDensity(const arma::cube & Pl) const {
@@ -938,8 +945,6 @@ namespace helfem {
         if(conf.orbs.Occs().n_elem != (arma::uword) (lmax+1))
           throw std::logic_error("Occupation vector is of wrong length!\n");
 
-        verbose = false;
-
         if(verbose) {
           printf("Running SCF for orbital occupations\n");
           conf.orbs.Occs().t().print();
@@ -1044,8 +1049,6 @@ namespace helfem {
           throw std::logic_error("Running unrestricted calculation with restricted orbitals!\n");
 
         double E=0.0, Eold;
-
-        verbose = false;
 
         if(verbose) {
           printf("Running SCF for orbital occupations\n");
