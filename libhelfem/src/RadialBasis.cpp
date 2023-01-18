@@ -226,7 +226,11 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::kinetic_l(size_t iel) const {
-        return 0.5 * radial_integral(-2, iel);
+        std::function<double(double)> dummy;
+        std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
+        radial_bf = [this](const arma::vec & xq, size_t iel) { return this->get_bf(xq, iel); };
+
+        return 0.5 * fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, dummy);
       }
 
       arma::mat RadialBasis::nuclear(size_t iel) const { return -radial_integral(-1, iel); }
