@@ -35,6 +35,8 @@ namespace helfem {
         /// Value of r for which to switch over to evaluating basis
         /// functions by Taylor series
         double small_r_taylor_cutoff;
+        /// Set the cutoff
+        void set_small_r_taylor_cutoff();
 
       public:
         /// Dummy constructor

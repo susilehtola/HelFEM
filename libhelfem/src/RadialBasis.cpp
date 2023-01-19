@@ -38,25 +38,76 @@ namespace helfem {
           if (!std::isfinite(wq[i]))
             printf("wq[%i]=%e\n", (int)i, wq[i]);
         }
+        set_small_r_taylor_cutoff();
+      }
 
+      void RadialBasis::set_small_r_taylor_cutoff() {
         // Determine small r Taylor cutoff. We use a 5th order Taylor
         // polynomial f(r) = 0 + f'(0) r + 1/2 f''(0) r^2 + ... + 1/5!
-        // f^(5)(0) r^5 but we also need up to second derivatives. We
-        // should be able to safely use a truncation of machine
-        // epsilon^(1/3), since then the last term in the second
-        // derivative should be negligible compared to the first one.
-        double small_r_cutoff_eps = std::cbrt(DBL_EPSILON);
+        // f^(5)(0) r^5 but we also need up to second derivatives.  We
+        // choose the cutoff automatically by minimizing the
+        // difference of the analytic and Taylor values of the
+        // function and its first two derivatives.
+        arma::vec rcut(arma::logspace<arma::vec>(-9, -2, 1000)*fem.element_length(0));
 
-        // However, if the first element is very small, such as in the
-        // case of finite nuclei, we would not be portraying our basis
-        // functions very accurately in the element. This is why the
-        // cutoff has to be defined in terms of the element size, the
-        // number of functions in the element, as well as a safety
-        // factor.
-        double small_r_cutoff_fun = fem.element_length(0) / fem.get_max_nprim() / 100;
+        // Find the primitive coordinates corresponding to the cutoffs
+        arma::vec xprim(fem.eval_prim(rcut, 0));
 
-        // We use the minimum of the two for our cutoff
-        small_r_taylor_cutoff = std::min(small_r_cutoff_eps, small_r_cutoff_fun);
+        // Evaluate the basis functions and their derivatives at the cutoff
+        small_r_taylor_cutoff = -1.0;
+        arma::mat bf0(get_bf(xprim, 0));
+        arma::mat df0(get_df(xprim, 0));
+        arma::mat lf0(get_lf(xprim, 0));
+
+        // Taylor expansions
+        small_r_taylor_cutoff = DBL_MAX;
+        arma::mat bft(bf0), dft(df0), lft(lf0);
+        arma::uvec taylorind(arma::linspace<arma::uvec>(0, rcut.n_elem-1, rcut.n_elem));
+        get_taylor(rcut, taylorind, bft, 0);
+        get_taylor(rcut, taylorind, dft, 1);
+        get_taylor(rcut, taylorind, lft, 2);
+
+        // Differences
+        arma::mat diff_f(bft-bf0);
+        arma::mat diff_df(dft-df0);
+        arma::mat diff_lf(lft-lf0);
+
+        // Accumulated differences
+        arma::mat diffs(diff_f.n_rows,5);
+        diffs.col(0)=rcut/fem.element_length(0);
+        for(size_t i=0;i<diffs.n_rows;i++) {
+          diffs(i,1) = arma::norm(diff_f.row(i),2)/arma::norm(bf0.row(i),2);
+          diffs(i,2) = arma::norm(diff_df.row(i),2)/arma::norm(df0.row(i),2);
+          diffs(i,3) = arma::norm(diff_lf.row(i),2)/arma::norm(lf0.row(i),2);
+          diffs(i,4) = diffs(i,1)+diffs(i,2)+diffs(i,3);
+        }
+
+        /*
+        // Smallest difference is at cutoff
+        arma::uword idx;
+        diffs.col(3).min(idx);
+        cutoff = rcut(idx);
+
+        bf0.print("Analytic bf at cutoff");
+        bft.print("Taylor   bf at cutoff");
+        diff_f.print("Relative difference");
+        df0.print("Analytic bf at cutoff");
+        dft.print("Taylor   bf at cutoff");
+        diff_df.print("Relative difference");
+        lf0.print("Analytic bf at cutoff");
+        lft.print("Taylor   bf at cutoff");
+        diff_lf.print("Relative difference");
+
+        diffs.print("Differences");
+        */
+        //diffs.save("taylor_diff.dat", arma::raw_ascii);
+
+        // Use the first local minimum coming in from large r
+        for(size_t i=rcut.n_elem-2;i>0;i--) {
+          if(diffs(i,4) > diffs(i+1,4))
+            break;
+          small_r_taylor_cutoff = rcut(i);
+        }
       }
 
       RadialBasis::~RadialBasis() {}
