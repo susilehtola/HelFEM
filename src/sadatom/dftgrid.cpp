@@ -95,7 +95,10 @@ namespace helfem {
               double term1 = arma::dot(Pvp.col(ip), bf_rho.col(ip));
               // Second term: l(l+1) Pl(u,v) \chi_u \chi_v / r^2
               double term2 = arma::dot(Plv.col(ip), bf.col(ip))/(r(ip)*r(ip));
-              tau(0,ip) = 0.5*(term1 + term2);
+              // The second term is ill-behaved near the nucleus since
+              // only s orbitals contribute to density but that gets
+              // killed by the l(l+1) factor
+              tau(0,ip) = 0.5*(term1 + std::max(term2, 0.0));
             }
           }
 
@@ -194,8 +197,11 @@ namespace helfem {
               // Second term: l(l+1) Pl(u,v) \chi_u \chi_v / r^2
               double term2a = arma::dot(Palv.col(ip), bf.col(ip))/(r(ip)*r(ip));
               double term2b = arma::dot(Pblv.col(ip), bf.col(ip))/(r(ip)*r(ip));
-              tau(0,ip) = 0.5*(term1a + term2a);
-              tau(1,ip) = 0.5*(term1b + term2b);
+              // The second term is ill-behaved near the nucleus since
+              // only s orbitals contribute to density but that gets
+              // killed by the l(l+1) factor
+              tau(0,ip) = 0.5*(term1a + std::max(term2a, 0.0));
+              tau(1,ip) = 0.5*(term1b + std::max(term2b, 0.0));
             }
           }
 

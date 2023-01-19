@@ -1046,7 +1046,13 @@ namespace helfem {
           // Basis function derivative
           arma::mat bf_rho(radial.get_df(iel));
 
-          t[iel] = 0.5*(arma::diagvec(bf_rho * Psub * bf_rho.t()) + arma::diagvec(bf * Psubl * bf.t())/arma::square(r));
+          arma::vec term1(arma::diagvec(bf_rho * Psub * bf_rho.t()));
+          arma::vec term2(arma::diagvec(bf * Psubl * bf.t())/arma::square(r));
+          // The second term is tricky near the nucleus since only s
+          // orbitals can contribute to the electron density but their
+          // contribution is killed off by the l(l+1) factor
+          term2(arma::find(term2<0.0)).zeros();
+          t[iel] = 0.5*(term1+term2);
         }
 
         size_t Npts=t[0].n_elem;
