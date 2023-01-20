@@ -51,6 +51,8 @@ namespace helfem {
         arma::ivec lval;
         /// Angular basis set: function m values
         arma::ivec mval;
+        /// Zero out derivative at practical infinity?
+        bool zeroder;
 
         /// Auxiliary integrals
         std::vector<arma::mat> disjoint_L, disjoint_m1L;
@@ -73,7 +75,7 @@ namespace helfem {
       public:
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int Zl, int Zr, double Rhalf);
+        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int Zl, int Zr, double Rhalf);
         /// Destructor
         ~TwoDBasis();
 
@@ -104,6 +106,8 @@ namespace helfem {
         int get_poly_id() const;
         /// Get number of nodes in polynomial
         int get_poly_nnodes() const;
+        /// Is derivative zeroed at infinity?
+        int get_zeroder() const;
 
         /// Get indices of real basis functions
         arma::uvec pure_indices() const;

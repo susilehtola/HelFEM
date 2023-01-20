@@ -37,7 +37,7 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int n_quad, const arma::vec & bval, int lmax) {
+      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int n_quad, const arma::vec & bval, int lmax) {
         // Nuclear charge
         Z=Z_;
         model=model_;
@@ -46,8 +46,7 @@ namespace helfem {
         bool zero_func_left=true;
         bool zero_deriv_left=false;
         bool zero_func_right=true;
-        bool zero_deriv_right=true;
-        polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
+        polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zeroder);
         radial=atomic::basis::RadialBasis(fem, n_quad);
         // Angular basis
         lval=arma::linspace<arma::ivec>(0,lmax,lmax+1);

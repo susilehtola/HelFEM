@@ -109,6 +109,7 @@ int main(int argc, char **argv) {
   parser.add<bool>("maverage", 0, "average Fock matrix over m values", false, false);
   parser.add<double>("dampfock", 0, "damping factor for off-diagonal elents", false, 0.7);
   parser.add<double>("dampthr", 0, "damping threshold", false, 0.1);
+  parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, true);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -180,6 +181,8 @@ int main(int argc, char **argv) {
   double dampfock(parser.get<double>("dampfock"));
   double dampthr(parser.get<double>("dampthr"));
 
+  bool zeroder(parser.get<bool>("zeroder"));
+
   // Set parameters if necessary
   arma::vec xpars, cpars;
   if(xparf.size()) {
@@ -247,7 +250,7 @@ int main(int argc, char **argv) {
   arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf);
 
   atomic::basis::TwoDBasis basis;
-  basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, Nquad, bval, lval, mval, Zl, Zr, Rhalf);
+  basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, zeroder, Nquad, bval, lval, mval, Zl, Zr, Rhalf);
   chkpt.write(basis);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
   printf("Taylor series used to evaluate basis functions for r <= %e\n",basis.get_small_r_taylor_cutoff());

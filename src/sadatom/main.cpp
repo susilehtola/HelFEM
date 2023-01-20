@@ -126,6 +126,7 @@ int main(int argc, char **argv) {
   parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
   parser.add<int>("diisorder", 0, "length of diis history", false, 10);
   parser.add<bool>("saveorb", 0, "save radial orbitals to disk?", false, false);
+  parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, true);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   if(!parser.parse(argc, argv))
@@ -169,6 +170,7 @@ int main(int argc, char **argv) {
   std::string potmethod(parser.get<std::string>("pot"));
   std::string occstr(parser.get<std::string>("occs"));
   bool saveorb(parser.get<bool>("saveorb"));
+  bool zeroder(parser.get<bool>("zeroder"));
 
   std::string xparf(parser.get<std::string>("x_pars"));
   std::string cparf(parser.get<std::string>("c_pars"));
@@ -228,7 +230,7 @@ int main(int argc, char **argv) {
   arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0);
 
   // Initialize solver
-  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, Nquad, bval, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
+  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
 
   // Set parameters if necessary
   arma::vec xpars, cpars;

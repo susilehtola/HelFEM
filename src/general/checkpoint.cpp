@@ -498,6 +498,7 @@ void Checkpoint::write(const helfem::atomic::basis::TwoDBasis & basis) {
   write("n_quad",basis.get_nquad());
   write("poly_id",basis.get_poly_id());
   write("poly_nnodes",basis.get_poly_nnodes());
+  write("zeroder",basis.get_zeroder());
 
   write("lval",basis.get_lval());
   write("mval",basis.get_mval());
@@ -540,13 +541,15 @@ void Checkpoint::read(helfem::atomic::basis::TwoDBasis & basis) {
   read("n_quad",n_quad);
   read("poly_id",poly_id);
   read("poly_nnodes",poly_nnodes);
+  int zeroder;
+  read("zeroder", zeroder);
 
   arma::ivec lval, mval;
   read("lval", lval);
   read("mval", mval);
 
   auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(poly_id,poly_nnodes)));
-  basis=helfem::atomic::basis::TwoDBasis(Z, (helfem::modelpotential::nuclear_model_t) finitenuc, Rrms, poly, n_quad, bval, lval, mval, Zl, Zr, Rhalf);
+  basis=helfem::atomic::basis::TwoDBasis(Z, (helfem::modelpotential::nuclear_model_t) finitenuc, Rrms, poly, zeroder, n_quad, bval, lval, mval, Zl, Zr, Rhalf);
   
   if(cl) close();
 }

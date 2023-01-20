@@ -588,13 +588,13 @@ namespace helfem {
         return lh.Econf < rh.Econf;
       }
 
-      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int Nquad, const arma::vec & bval, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
+      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
 
         // Construct the angular basis
         arma::ivec lval, mval;
         atomic::basis::angular_basis(lmax,lmax,lval,mval);
 
-        basis=sadatom::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, Nquad, bval, lmax);
+        basis=sadatom::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, zeroder, Nquad, bval, lmax);
         printf("Basis set has %i radial functions\n",(int) basis.Nbf());
         printf("Taylor series used to evaluate basis functions for r <= %e\n",basis.get_small_r_taylor_cutoff());
 
