@@ -213,6 +213,15 @@ namespace helfem {
           // Orbital vector
           arma::mat Cl(C.slice(l).cols(oidx));
           orbval[l]=basis.orbitals(Cl);
+
+          // Fix the phases
+          for(size_t io=0;io<orbval[l].n_cols;io++) {
+            arma::vec odens(arma::square(orbval[l].col(io)));
+            arma::uword idx;
+            odens.max(idx);
+            if(orbval[l](idx,io)<0.0)
+              orbval[l].col(io)*=-1;
+          }
         }
 
         // Save the results
