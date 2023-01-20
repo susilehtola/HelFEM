@@ -208,7 +208,7 @@ namespace helfem {
         enabled=enabled.subvec(0,enabled.n_elem-2);
       } else {
         // Only drop function
-        arma::uvec new_enabled(enabled.n_elem-2);
+        arma::uvec new_enabled(enabled.n_elem-1);
         new_enabled.subvec(0,enabled.n_elem-3) = enabled.subvec(0,enabled.n_elem-3);
         new_enabled(enabled.n_elem-2) = enabled(enabled.n_elem-1);
         enabled = new_enabled;
