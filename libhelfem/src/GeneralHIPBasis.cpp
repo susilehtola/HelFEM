@@ -69,18 +69,18 @@ namespace helfem {
        * nder+1 functions are the values at the second node. Etc.
        */
       arma::mat X(nfuncs, nfuncs, arma::fill::zeros);
-      for(int ifun=0;ifun < nnodes;ifun++) {
-        X.col((nder+1)*ifun) = fval.col(ifun);
+      for(int inode=0;inode < nnodes;inode++) {
+        X.col((nder+1)*inode) = fval.col(inode);
         if(nder>0)
-          X.col((nder+1)*ifun+1) = dfval.col(ifun);
+          X.col((nder+1)*inode+1) = dfval.col(inode);
         if(nder>1)
-          X.col((nder+1)*ifun+2) = d2fval.col(ifun);
+          X.col((nder+1)*inode+2) = d2fval.col(inode);
         if(nder>2)
-          X.col((nder+1)*ifun+3) = d3fval.col(ifun);
+          X.col((nder+1)*inode+3) = d3fval.col(inode);
         if(nder>3)
-          X.col((nder+1)*ifun+4) = d4fval.col(ifun);
+          X.col((nder+1)*inode+4) = d4fval.col(inode);
         if(nder>4)
-          X.col((nder+1)*ifun+5) = d5fval.col(ifun);
+          X.col((nder+1)*inode+5) = d5fval.col(inode);
       }
 
       // X has our target functions in its columns so X^-1 has the
@@ -111,9 +111,9 @@ namespace helfem {
     }
 
     void GeneralHIPBasis::scale_derivatives(arma::mat & f, double element_length) const {
-      for(int ifun=0; ifun<nnodes; ifun++) {
+      for(int inode=0; inode<nnodes; inode++) {
         for(int ider=1;ider<nder;ider++)
-          f.col((nder+1)*ifun+ider) *= std::pow(element_length,ider);
+          f.col((nder+1)*inode+ider) *= std::pow(element_length,ider);
       }
     }
 
