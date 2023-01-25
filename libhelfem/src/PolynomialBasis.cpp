@@ -165,6 +165,12 @@ namespace helfem {
       return d5f;
     }
 
+    arma::mat PolynomialBasis::eval_dnf(const arma::vec & x, int n, double element_length) const {
+      arma::mat dnf;
+      eval_dnf(x, dnf, n, element_length);
+      return dnf;
+    }
+
     void PolynomialBasis::eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const {
       (void) x;
       (void) f;
@@ -197,14 +203,14 @@ namespace helfem {
       (void) x;
       (void) d4f;
       (void) element_length;
-      throw std::logic_error("Third derivatives haven't been implemented for the used family of basis polynomials.\n");
+      throw std::logic_error("Fourth derivatives haven't been implemented for the used family of basis polynomials.\n");
     }
 
     void PolynomialBasis::eval_prim_d5f(const arma::vec & x, arma::mat & d5f, double element_length) const {
       (void) x;
       (void) d5f;
       (void) element_length;
-      throw std::logic_error("Third derivatives haven't been implemented for the used family of basis polynomials.\n");
+      throw std::logic_error("Fifth derivatives haven't been implemented for the used family of basis polynomials.\n");
     }
 
     void PolynomialBasis::eval_f(const arma::vec & x, arma::mat & f, double element_length) const {
@@ -241,6 +247,33 @@ namespace helfem {
       eval_prim_d5f(x, d5f, element_length);
       // Fifth derivative is scaled by element length to the fifth power
       d5f = d5f.cols(enabled) / std::pow(element_length, 5);
+    }
+
+    void PolynomialBasis::eval_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const {
+      switch(n) {
+      case(0):
+        eval_f(x,dnf,element_length);
+        break;
+      case(1):
+        eval_df(x,dnf,element_length);
+        break;
+      case(2):
+        eval_d2f(x,dnf,element_length);
+        break;
+      case(3):
+        eval_d3f(x,dnf,element_length);
+        break;
+      case(4):
+        eval_d4f(x,dnf,element_length);
+        break;
+      case(5):
+        eval_d5f(x,dnf,element_length);
+        break;
+      default:
+        std::ostringstream oss;
+        oss << n << "th derivatives not implemented!\n";
+        throw std::logic_error(oss.str());
+      }
     }
   }
 }

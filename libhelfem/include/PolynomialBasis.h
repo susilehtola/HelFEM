@@ -86,6 +86,8 @@ namespace helfem {
       void eval_d4f(const arma::vec & x, arma::mat & d4f, double element_length) const;
       /// Evaluate fifth derivatives of polynomials at given points
       void eval_d5f(const arma::vec & x, arma::mat & d5f, double element_length) const;
+      /// Evaluate nth derivatives of polynomials at given points
+      void eval_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const;
 
       /// Evaluate polynomials at given points
       arma::mat eval_f(const arma::vec & x, double element_length) const;
@@ -99,6 +101,8 @@ namespace helfem {
       arma::mat eval_d4f(const arma::vec & x, double element_length) const;
       /// Evaluate fifth derivatives of polynomials at given points
       arma::mat eval_d5f(const arma::vec & x, double element_length) const;
+      /// Evaluate nth derivatives of polynomials at given points
+      arma::mat eval_dnf(const arma::vec & x, int n, double element_length) const;
 
       /// Print out the basis functions
       void print(const std::string & str="") const;

@@ -15,6 +15,7 @@
  */
 
 #include "helfem/FiniteElementBasis.h"
+#include <cfloat>
 
 namespace helfem {
   namespace polynomial_basis {
@@ -26,6 +27,8 @@ namespace helfem {
       poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(poly_->copy());
       // Update list of basis functions
       update_bf_list();
+      // Check that basis functions are continuous
+      check_bf_continuity();
     }
 
     FiniteElementBasis::~FiniteElementBasis() {
@@ -43,6 +46,59 @@ namespace helfem {
         first_func_in_element[iel] = (iel == 0) ? 0 : last_func_in_element[iel-1] - poly->get_noverlap() + 1;
         // Last func is
         last_func_in_element[iel] = first_func_in_element[iel] + basis_indices(iel).n_elem - 1;
+      }
+    }
+
+    void FiniteElementBasis::check_bf_continuity() const {
+      int noverlap(poly->get_noverlap());
+      printf("noverlap = %i\n",noverlap);
+      for(size_t iel=0; iel+1<get_nelem(); iel++) {
+        // Points that correspond to lh and rh elements
+        arma::vec xrh(1), xlh(1);
+        xlh(0)=1.0;  // right-most point of left element
+        xrh(0)=-1.0; // should equal left-most point of right element
+
+        /// Check that coordinates match
+        arma::vec rlh(eval_coord(xlh, iel));
+        arma::vec rrh(eval_coord(xrh, iel+1));
+        double dr(arma::norm(rlh-rrh,2));
+        if(dr > 10*DBL_EPSILON*arma::norm(rlh,2)) {
+          rlh.print("rlh");
+          rrh.print("rrh");
+          std::ostringstream oss;
+          oss << "Coordinates do not match between elements " << iel << " and " << iel+1 << "!\n";
+          throw std::logic_error(oss.str());
+        }
+
+        // Evaluate bordering value in lh element
+        arma::mat lh(noverlap, noverlap);
+        for(int ider=0;ider<noverlap;ider++) {
+          // We want the last noverlap functions evaluated at the r
+          arma::rowvec fval(eval_dnf(xlh, ider, iel));
+          lh.col(ider) = fval.subvec(fval.n_elem-noverlap, fval.n_elem-1);
+        }
+
+        // Evaluate bordering value in rh element
+        arma::mat rh(noverlap, noverlap);
+        for(int ider=0;ider<noverlap;ider++) {
+          // We want the first noverlap functions
+          arma::rowvec fval(eval_dnf(xrh, ider, iel+1));
+          rh.col(ider) = fval.subvec(0, noverlap-1);
+        }
+
+        // The function values should go to zero at the boundaries,
+        // except the overlaid functions. The derivatives should also
+        // go to zero, except the overlaid ones. The scaling does not
+        // matter.
+        arma::mat diff(lh-rh);
+        double dnorm(arma::norm(diff,2));
+        if(dnorm > sqrt(DBL_EPSILON)) {
+          lh.print("lh values");
+          rh.print("rh values");
+          diff.print("difference");
+          printf("Difference norm %e\n",arma::norm(diff,2));
+          throw std::logic_error("Basis set is not continuous\n");
+        }
       }
     }
 
@@ -201,6 +257,11 @@ namespace helfem {
       p->eval_d5f(x,d5f,scaling_factor(iel));
     }
 
+    void FiniteElementBasis::eval_dnf(const arma::vec & x, arma::mat & dnf, int n, size_t iel) const {
+      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
+      p->eval_dnf(x,dnf,n,scaling_factor(iel));
+    }
+
     arma::mat FiniteElementBasis::eval_f(const arma::vec & x, size_t iel) const {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
       return p->eval_f(x,scaling_factor(iel));
@@ -229,6 +290,11 @@ namespace helfem {
     arma::mat FiniteElementBasis::eval_d5f(const arma::vec & x, size_t iel) const {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
       return p->eval_d5f(x,scaling_factor(iel));
+    }
+
+    arma::mat FiniteElementBasis::eval_dnf(const arma::vec & x, int n, size_t iel) const {
+      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
+      return p->eval_dnf(x,n,scaling_factor(iel));
     }
 
     arma::mat FiniteElementBasis::matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
