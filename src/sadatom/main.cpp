@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
   parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
   parser.add<int>("diisorder", 0, "length of diis history", false, 10);
   parser.add<bool>("saveorb", 0, "save radial orbitals to disk?", false, false);
-  parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, true);
+  parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   if(!parser.parse(argc, argv))

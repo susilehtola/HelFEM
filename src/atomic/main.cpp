@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
   parser.add<bool>("maverage", 0, "average Fock matrix over m values", false, false);
   parser.add<double>("dampfock", 0, "damping factor for off-diagonal elents", false, 0.7);
   parser.add<double>("dampthr", 0, "damping threshold", false, 0.1);
-  parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, true);
+  parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
   parser.parse_check(argc, argv);
 
   // Get parameters
