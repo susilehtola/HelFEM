@@ -82,32 +82,24 @@ namespace helfem {
           diffs(i,4) = diffs(i,1)+diffs(i,2)+diffs(i,3);
         }
 
+        // Use the first local minimum coming in from large r
+        size_t icut;
+        for(icut=rcut.n_elem-2;icut>0;icut--) {
+          if(diffs(icut,4) > diffs(icut+1,4))
+            break;
+          small_r_taylor_cutoff = rcut(icut);
+        }
+
         /*
-        // Smallest difference is at cutoff
-        arma::uword idx;
-        diffs.col(3).min(idx);
-        cutoff = rcut(idx);
-
-        bf0.print("Analytic bf at cutoff");
-        bft.print("Taylor   bf at cutoff");
-        diff_f.print("Relative difference");
-        df0.print("Analytic bf at cutoff");
-        dft.print("Taylor   bf at cutoff");
-        diff_df.print("Relative difference");
-        lf0.print("Analytic bf at cutoff");
-        lft.print("Taylor   bf at cutoff");
-        diff_lf.print("Relative difference");
-
-        diffs.print("Differences");
+        // Print out agreement at cutoff
+        printf("\nAnalytic vs Taylor\n");
+        printf("%4s %22s %22s %22s %22s %22s %22s\n","ifun","bfanal","bftayl","dfanal","dftayl","lfanal","lftayl");
+        for(size_t ifun=0;ifun<bf0.n_cols;ifun++)
+          printf("%4i % .15e % .15e % .15e % .15e % .15e % .15e\n",ifun, bf0(icut,ifun), bft(icut,ifun), df0(icut,ifun), dft(icut,ifun), lf0(icut,ifun), lft(icut,ifun));
+        diffs.row(icut).print("Relative differences at cutoff");
         */
         //diffs.save("taylor_diff.dat", arma::raw_ascii);
 
-        // Use the first local minimum coming in from large r
-        for(size_t i=rcut.n_elem-2;i>0;i--) {
-          if(diffs(i,4) > diffs(i+1,4))
-            break;
-          small_r_taylor_cutoff = rcut(i);
-        }
       }
 
       RadialBasis::~RadialBasis() {}
@@ -279,7 +271,7 @@ namespace helfem {
       arma::mat RadialBasis::kinetic_l(size_t iel) const {
         std::function<double(double)> dummy;
         std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
-        radial_bf = [this](const arma::vec & xq, size_t iel) { return this->get_bf(xq, iel); };
+        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
 
         return 0.5 * fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, dummy);
       }
@@ -287,8 +279,8 @@ namespace helfem {
       arma::mat RadialBasis::nuclear(size_t iel) const {
         std::function<double(double)> dummy;
         std::function<arma::mat(const arma::vec &,size_t)> radial_bf, fem_bf;
-        radial_bf = [this](const arma::vec & xq, size_t iel) { return this->get_bf(xq, iel); };
-        fem_bf = [this](const arma::vec & xq, size_t iel) { return this->fem.eval_f(xq, iel); };
+        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+        fem_bf = [this](const arma::vec & xq_, size_t iel_) { return this->fem.eval_f(xq_, iel_); };
         arma::mat Vnuc=-fem.matrix_element(iel, radial_bf, fem_bf, xq, wq, dummy);
         return 0.5*(Vnuc+Vnuc.t());
       }
@@ -416,18 +408,15 @@ namespace helfem {
         //  [B(0) + B'(0)r + 1/2 B''(0) r^2 + ...]/r
         //= B'(0) + 1/2 B''(0) r + 1/6 B'''(0) r^2 + ...
 
-        // Coefficients of the various derivatives
+        // Coefficients of the various derivatives in the expansion of the function itself
         arma::vec taylorcoeff(5);
         taylorcoeff(0) = 1.0;
         for(size_t i=1; i<taylorcoeff.n_elem; i++)
           taylorcoeff(i) = taylorcoeff(i-1)/(i+1);
-
-        // The related order of the derivatives
-        arma::ivec derorder(arma::linspace<arma::ivec>(1,taylorcoeff.n_elem,taylorcoeff.n_elem));
         // and the corresponding r exponents
         arma::ivec rexp(arma::linspace<arma::ivec>(0,taylorcoeff.n_elem-1,taylorcoeff.n_elem));
 
-        // Compute derivatives: c r^n -> cn r^(n-1)
+        // Compute derivatives: c r^n -> c n r^(n-1)
         for(size_t i=0; i<taylorcoeff.n_elem; i++) {
           for(int d=0; d<ider; d++) {
             taylorcoeff(i) *= rexp(i);
@@ -445,17 +434,22 @@ namespace helfem {
           df[0] = fem.eval_df(origin, iel);
         if(ider<=1)
           df[1] = fem.eval_d2f(origin, iel);
-        df[2] = fem.eval_d3f(origin, iel);
-        df[3] = fem.eval_d4f(origin, iel);
-        df[4] = fem.eval_d5f(origin, iel);
+        if(ider<=2)
+          df[2] = fem.eval_d3f(origin, iel);
+        if(ider<=3)
+          df[3] = fem.eval_d4f(origin, iel);
+        if(ider<=4)
+          df[4] = fem.eval_d5f(origin, iel);
 
         // Exponentiate r
         std::vector<arma::vec> rexpval(taylorcoeff.n_elem);
         for(size_t i=0; i < rexpval.size(); i++)
-          rexpval[i] = arma::pow(r, rexp[i]);
+          if(rexp[i]>=0) // Need a non-negative for the term to have survived
+            rexpval[i] = arma::pow(r, rexp[i]);
 
-        for (size_t ifun = 0; ifun < val.n_cols; ifun++)
-          for (size_t ir = 0; ir < taylorind.n_elem; ir++) {
+        // Collect results
+        for(size_t ifun = 0; ifun < val.n_cols; ifun++)
+          for(size_t ir = 0; ir < taylorind.n_elem; ir++) {
             val(ir, ifun) = 0.0;
             // Terms below this are zero
             for(size_t iterm=ider;iterm < taylorcoeff.n_elem;iterm++) {
