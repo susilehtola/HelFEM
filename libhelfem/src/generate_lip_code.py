@@ -37,6 +37,8 @@ for order in range(0,6):
 
     print('// Loop over points\nfor(size_t ix=0; ix<x.n_elem; ix++) {')
     print('// Loop over polynomials\nfor(size_t fi=0; fi<x0.n_elem; fi++) {')
+    if order>0:
+        print('double el=0.0;')
 
     # Derivative loops
     factor = 1
@@ -68,10 +70,13 @@ for order in range(0,6):
         print('// Apply derivative denominators\n{}val /= '.format(fname) + '*'.join(div_terms) + ';')
 
     print('// Store the computed value')
-    print('{0}(ix,fi) += {1}{0}val;'.format(fname, '{}*'.format(factor) if factor>1 else ''))
-
-    for ider in range(1,order+1):
-        print('}')
+    if order>0:
+        print('el += {0}val;'.format(fname))
+        for ider in range(1,order+1):
+            print('}')
+        print('{0}(ix,fi) = {1}el;'.format(fname, '{}*'.format(factor) if factor>1 else ''))
+    else:
+        print('{0}(ix,fi) = {1}{0}val;'.format(fname, '{}*'.format(factor) if factor>1 else ''))
     # End segment
     print('}\n}\n}')
 

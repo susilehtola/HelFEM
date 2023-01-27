@@ -21,7 +21,7 @@ namespace helfem {
             fval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
           }
           // Store the computed value
-          f(ix, fi) += fval;
+          f(ix, fi) = fval;
         }
       }
     }
@@ -32,6 +32,7 @@ namespace helfem {
       for (size_t ix = 0; ix < x.n_elem; ix++) {
         // Loop over polynomials
         for (size_t fi = 0; fi < x0.n_elem; fi++) {
+          double el = 0.0;
           // Derivative 1 acting on index
           for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
             if (d1 == fi)
@@ -49,8 +50,9 @@ namespace helfem {
             // Apply derivative denominators
             dfval /= (x0(fi) - x0(d1));
             // Store the computed value
-            df(ix, fi) += dfval;
+            el += dfval;
           }
+          df(ix, fi) = el;
         }
       }
     }
@@ -61,6 +63,7 @@ namespace helfem {
       for (size_t ix = 0; ix < x.n_elem; ix++) {
         // Loop over polynomials
         for (size_t fi = 0; fi < x0.n_elem; fi++) {
+          double el = 0.0;
           // Derivative 1 acting on index
           for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
             if (d1 == fi)
@@ -84,9 +87,10 @@ namespace helfem {
               // Apply derivative denominators
               d2fval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2));
               // Store the computed value
-              d2f(ix, fi) += 2 * d2fval;
+              el += d2fval;
             }
           }
+          d2f(ix, fi) = 2 * el;
         }
       }
     }
@@ -97,6 +101,7 @@ namespace helfem {
       for (size_t ix = 0; ix < x.n_elem; ix++) {
         // Loop over polynomials
         for (size_t fi = 0; fi < x0.n_elem; fi++) {
+          double el = 0.0;
           // Derivative 1 acting on index
           for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
             if (d1 == fi)
@@ -127,10 +132,11 @@ namespace helfem {
                 d3fval /=
                     (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) * (x0(fi) - x0(d3));
                 // Store the computed value
-                d3f(ix, fi) += 6 * d3fval;
+                el += d3fval;
               }
             }
           }
+          d3f(ix, fi) = 6 * el;
         }
       }
     }
@@ -141,6 +147,7 @@ namespace helfem {
       for (size_t ix = 0; ix < x.n_elem; ix++) {
         // Loop over polynomials
         for (size_t fi = 0; fi < x0.n_elem; fi++) {
+          double el = 0.0;
           // Derivative 1 acting on index
           for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
             if (d1 == fi)
@@ -177,11 +184,12 @@ namespace helfem {
                   d4fval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) *
                             (x0(fi) - x0(d3)) * (x0(fi) - x0(d4));
                   // Store the computed value
-                  d4f(ix, fi) += 24 * d4fval;
+                  el += d4fval;
                 }
               }
             }
           }
+          d4f(ix, fi) = 24 * el;
         }
       }
     }
@@ -192,6 +200,7 @@ namespace helfem {
       for (size_t ix = 0; ix < x.n_elem; ix++) {
         // Loop over polynomials
         for (size_t fi = 0; fi < x0.n_elem; fi++) {
+          double el = 0.0;
           // Derivative 1 acting on index
           for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
             if (d1 == fi)
@@ -235,12 +244,13 @@ namespace helfem {
                               (x0(fi) - x0(d3)) * (x0(fi) - x0(d4)) *
                               (x0(fi) - x0(d5));
                     // Store the computed value
-                    d5f(ix, fi) += 120 * d5fval;
+                    el += d5fval;
                   }
                 }
               }
             }
           }
+          d5f(ix, fi) = 120 * el;
         }
       }
     }
