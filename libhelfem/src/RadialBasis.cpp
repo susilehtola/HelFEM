@@ -509,9 +509,10 @@ namespace helfem {
         }
         // Normal handling elsewhere
         for (size_t ifun = 0; ifun < der.n_cols; ifun++)
-          for (size_t ir = taylorind.n_elem; ir < x.n_elem; ir++)
-            der(ir, ifun) = dval(ir, ifun) / r(ir) - fval(ir, ifun) / (r(ir) * r(ir));
-
+          for (size_t ir = taylorind.n_elem; ir < x.n_elem; ir++) {
+            double invr = 1.0/r(ir);
+            der(ir, ifun) = (-fval(ir, ifun) * invr + dval(ir, ifun)) * invr;
+          }
         return der;
       }
 
@@ -538,10 +539,10 @@ namespace helfem {
         }
         // Normal handling elsewhere
         for (size_t ifun = 0; ifun < lapl.n_cols; ifun++)
-          for (size_t ir = taylorind.n_elem; ir < x.n_elem; ir++)
-            lapl(ir, ifun) = lval(ir, ifun) / r(ir) -
-              2.0 * dval(ir, ifun) / (r(ir) * r(ir)) +
-              2.0 * fval(ir, ifun) / (r(ir) * r(ir) * r(ir));
+          for (size_t ir = taylorind.n_elem; ir < x.n_elem; ir++) {
+            double invr = 1.0/r(ir);
+            lapl(ir, ifun) = ((2.0 * fval(ir, ifun)*invr - 2.0*dval(ir,ifun))*invr + lval(ir,ifun))*invr;
+          }
 
         return lapl;
       }
