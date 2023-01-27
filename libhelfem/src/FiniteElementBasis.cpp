@@ -51,7 +51,6 @@ namespace helfem {
 
     void FiniteElementBasis::check_bf_continuity() const {
       int noverlap(poly->get_noverlap());
-      printf("noverlap = %i\n",noverlap);
       for(size_t iel=0; iel+1<get_nelem(); iel++) {
         // Points that correspond to lh and rh elements
         arma::vec xrh(1), xlh(1);
@@ -75,7 +74,7 @@ namespace helfem {
         for(int ider=0;ider<noverlap;ider++) {
           // We want the last noverlap functions evaluated at the r
           arma::rowvec fval(eval_dnf(xlh, ider, iel));
-          lh.col(ider) = fval.subvec(fval.n_elem-noverlap, fval.n_elem-1);
+          lh.col(ider) = fval.subvec(fval.n_elem-noverlap, fval.n_elem-1).t();
         }
 
         // Evaluate bordering value in rh element
@@ -83,7 +82,7 @@ namespace helfem {
         for(int ider=0;ider<noverlap;ider++) {
           // We want the first noverlap functions
           arma::rowvec fval(eval_dnf(xrh, ider, iel+1));
-          rh.col(ider) = fval.subvec(0, noverlap-1);
+          rh.col(ider) = fval.subvec(0, noverlap-1).t();
         }
 
         // The function values should go to zero at the boundaries,
