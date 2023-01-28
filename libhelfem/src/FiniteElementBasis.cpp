@@ -51,6 +51,8 @@ namespace helfem {
 
     void FiniteElementBasis::check_bf_continuity() const {
       int noverlap(poly->get_noverlap());
+
+      arma::vec dnorm(get_nelem()-1);
       for(size_t iel=0; iel+1<get_nelem(); iel++) {
         // Points that correspond to lh and rh elements
         arma::vec xrh(1), xlh(1);
@@ -90,14 +92,22 @@ namespace helfem {
         // go to zero, except the overlaid ones. The scaling does not
         // matter.
         arma::mat diff(lh-rh);
-        double dnorm(arma::norm(diff,2));
-        if(dnorm > sqrt(DBL_EPSILON)) {
+        dnorm(iel) = arma::norm(diff,2);
+        if(dnorm(iel) > sqrt(DBL_EPSILON)) {
+          printf("Discontinuity between elements %i and %i (C indexing)\n",iel,iel+1);
           lh.print("lh values");
           rh.print("rh values");
           diff.print("difference");
           printf("Difference norm %e\n",arma::norm(diff,2));
-          throw std::logic_error("Basis set is not continuous\n");
         }
+      }
+      //dnorm.t().print("Difference norms");
+      arma::uword imax;
+      dnorm.max(imax);
+      printf("Finite element basis set max discontinuity %e between elements %i and %i\n",dnorm(imax),imax,imax+1);
+      fflush(stdout);
+      if(dnorm(imax) > sqrt(DBL_EPSILON)) {
+        throw std::logic_error("Finite element basis set is not continuous\n");
       }
     }
 
