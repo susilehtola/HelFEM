@@ -5,167 +5,120 @@
 namespace helfem {
   namespace polynomial_basis {
 
-    void LIPBasis::eval_f_raw(const arma::vec &x, arma::mat &f) const {
-      // Allocate memory
-      f.zeros(x.n_elem, x0.n_elem);
-      // Loop over points
-      for (size_t ix = 0; ix < x.n_elem; ix++) {
-        // Loop over polynomials
-        for (size_t fi = 0; fi < x0.n_elem; fi++) {
-          // Form the LIP product
-          double fval = 1.0;
-          for (size_t ip = 0; ip < x0.n_elem; ip++) {
-            // Skip terms which have been acted upon by a derivative
-            if (ip == fi)
-              continue;
-            fval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
-          }
-          // Store the computed value
-          f(ix, fi) = fval;
-        }
-      }
-    }
-    void LIPBasis::eval_df_raw(const arma::vec &x, arma::mat &df) const {
-      // Allocate memory
-      df.zeros(x.n_elem, x0.n_elem);
-      // Loop over points
-      for (size_t ix = 0; ix < x.n_elem; ix++) {
-        // Loop over polynomials
-        for (size_t fi = 0; fi < x0.n_elem; fi++) {
-          double el = 0.0;
-          // Derivative 1 acting on index
-          for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
-            if (d1 == fi)
-              continue;
+    void LIPBasis::eval_prim_dnf(const arma::vec &x, arma::mat &dnf, int n,
+                                 double element_length) const {
+      switch (n) {
+      case (0): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, x0.n_elem);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
             // Form the LIP product
-            double dfval = 1.0;
+            double dnfval = 1.0;
             for (size_t ip = 0; ip < x0.n_elem; ip++) {
               // Skip terms which have been acted upon by a derivative
-              if (ip == d1)
-                continue;
               if (ip == fi)
                 continue;
-              dfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
+              dnfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
             }
-            // Apply derivative denominators
-            dfval /= (x0(fi) - x0(d1));
             // Store the computed value
-            el += dfval;
+            dnf(ix, fi) = dnfval;
           }
-          df(ix, fi) = el;
         }
-      }
-    }
-    void LIPBasis::eval_d2f_raw(const arma::vec &x, arma::mat &d2f) const {
-      // Allocate memory
-      d2f.zeros(x.n_elem, x0.n_elem);
-      // Loop over points
-      for (size_t ix = 0; ix < x.n_elem; ix++) {
-        // Loop over polynomials
-        for (size_t fi = 0; fi < x0.n_elem; fi++) {
-          double el = 0.0;
-          // Derivative 1 acting on index
-          for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
-            if (d1 == fi)
-              continue;
-            // Derivative 2 acting on index
-            for (size_t d2 = 0; d2 < d1; d2++) {
-              if (d2 == fi)
+      } break;
+      case (1): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, x0.n_elem);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            double el = 0.0;
+            // Derivative 1 acting on index
+            for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+              if (d1 == fi)
                 continue;
               // Form the LIP product
-              double d2fval = 1.0;
+              double dnfval = 1.0;
               for (size_t ip = 0; ip < x0.n_elem; ip++) {
                 // Skip terms which have been acted upon by a derivative
                 if (ip == d1)
                   continue;
-                if (ip == d2)
-                  continue;
                 if (ip == fi)
                   continue;
-                d2fval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
+                dnfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
               }
               // Apply derivative denominators
-              d2fval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2));
+              dnfval /= (x0(fi) - x0(d1));
               // Store the computed value
-              el += d2fval;
+              el += dnfval;
             }
+            dnf(ix, fi) = el;
           }
-          d2f(ix, fi) = 2 * el;
         }
-      }
-    }
-    void LIPBasis::eval_d3f_raw(const arma::vec &x, arma::mat &d3f) const {
-      // Allocate memory
-      d3f.zeros(x.n_elem, x0.n_elem);
-      // Loop over points
-      for (size_t ix = 0; ix < x.n_elem; ix++) {
-        // Loop over polynomials
-        for (size_t fi = 0; fi < x0.n_elem; fi++) {
-          double el = 0.0;
-          // Derivative 1 acting on index
-          for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
-            if (d1 == fi)
-              continue;
-            // Derivative 2 acting on index
-            for (size_t d2 = 0; d2 < d1; d2++) {
-              if (d2 == fi)
+      } break;
+      case (2): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, x0.n_elem);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            double el = 0.0;
+            // Derivative 1 acting on index
+            for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+              if (d1 == fi)
                 continue;
-              // Derivative 3 acting on index
-              for (size_t d3 = 0; d3 < d2; d3++) {
-                if (d3 == fi)
+              // Derivative 2 acting on index
+              for (size_t d2 = 0; d2 < d1; d2++) {
+                if (d2 == fi)
                   continue;
                 // Form the LIP product
-                double d3fval = 1.0;
+                double dnfval = 1.0;
                 for (size_t ip = 0; ip < x0.n_elem; ip++) {
                   // Skip terms which have been acted upon by a derivative
                   if (ip == d1)
                     continue;
                   if (ip == d2)
                     continue;
-                  if (ip == d3)
-                    continue;
                   if (ip == fi)
                     continue;
-                  d3fval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
+                  dnfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
                 }
                 // Apply derivative denominators
-                d3fval /=
-                    (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) * (x0(fi) - x0(d3));
+                dnfval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2));
                 // Store the computed value
-                el += d3fval;
+                el += dnfval;
               }
             }
+            dnf(ix, fi) = 2 * el;
           }
-          d3f(ix, fi) = 6 * el;
         }
-      }
-    }
-    void LIPBasis::eval_d4f_raw(const arma::vec &x, arma::mat &d4f) const {
-      // Allocate memory
-      d4f.zeros(x.n_elem, x0.n_elem);
-      // Loop over points
-      for (size_t ix = 0; ix < x.n_elem; ix++) {
-        // Loop over polynomials
-        for (size_t fi = 0; fi < x0.n_elem; fi++) {
-          double el = 0.0;
-          // Derivative 1 acting on index
-          for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
-            if (d1 == fi)
-              continue;
-            // Derivative 2 acting on index
-            for (size_t d2 = 0; d2 < d1; d2++) {
-              if (d2 == fi)
+      } break;
+      case (3): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, x0.n_elem);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            double el = 0.0;
+            // Derivative 1 acting on index
+            for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+              if (d1 == fi)
                 continue;
-              // Derivative 3 acting on index
-              for (size_t d3 = 0; d3 < d2; d3++) {
-                if (d3 == fi)
+              // Derivative 2 acting on index
+              for (size_t d2 = 0; d2 < d1; d2++) {
+                if (d2 == fi)
                   continue;
-                // Derivative 4 acting on index
-                for (size_t d4 = 0; d4 < d3; d4++) {
-                  if (d4 == fi)
+                // Derivative 3 acting on index
+                for (size_t d3 = 0; d3 < d2; d3++) {
+                  if (d3 == fi)
                     continue;
                   // Form the LIP product
-                  double d4fval = 1.0;
+                  double dnfval = 1.0;
                   for (size_t ip = 0; ip < x0.n_elem; ip++) {
                     // Skip terms which have been acted upon by a derivative
                     if (ip == d1)
@@ -174,55 +127,48 @@ namespace helfem {
                       continue;
                     if (ip == d3)
                       continue;
-                    if (ip == d4)
-                      continue;
                     if (ip == fi)
                       continue;
-                    d4fval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
+                    dnfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
                   }
                   // Apply derivative denominators
-                  d4fval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) *
-                            (x0(fi) - x0(d3)) * (x0(fi) - x0(d4));
+                  dnfval /=
+                      (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) * (x0(fi) - x0(d3));
                   // Store the computed value
-                  el += d4fval;
+                  el += dnfval;
                 }
               }
             }
+            dnf(ix, fi) = 6 * el;
           }
-          d4f(ix, fi) = 24 * el;
         }
-      }
-    }
-    void LIPBasis::eval_d5f_raw(const arma::vec &x, arma::mat &d5f) const {
-      // Allocate memory
-      d5f.zeros(x.n_elem, x0.n_elem);
-      // Loop over points
-      for (size_t ix = 0; ix < x.n_elem; ix++) {
-        // Loop over polynomials
-        for (size_t fi = 0; fi < x0.n_elem; fi++) {
-          double el = 0.0;
-          // Derivative 1 acting on index
-          for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
-            if (d1 == fi)
-              continue;
-            // Derivative 2 acting on index
-            for (size_t d2 = 0; d2 < d1; d2++) {
-              if (d2 == fi)
+      } break;
+      case (4): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, x0.n_elem);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            double el = 0.0;
+            // Derivative 1 acting on index
+            for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+              if (d1 == fi)
                 continue;
-              // Derivative 3 acting on index
-              for (size_t d3 = 0; d3 < d2; d3++) {
-                if (d3 == fi)
+              // Derivative 2 acting on index
+              for (size_t d2 = 0; d2 < d1; d2++) {
+                if (d2 == fi)
                   continue;
-                // Derivative 4 acting on index
-                for (size_t d4 = 0; d4 < d3; d4++) {
-                  if (d4 == fi)
+                // Derivative 3 acting on index
+                for (size_t d3 = 0; d3 < d2; d3++) {
+                  if (d3 == fi)
                     continue;
-                  // Derivative 5 acting on index
-                  for (size_t d5 = 0; d5 < d4; d5++) {
-                    if (d5 == fi)
+                  // Derivative 4 acting on index
+                  for (size_t d4 = 0; d4 < d3; d4++) {
+                    if (d4 == fi)
                       continue;
                     // Form the LIP product
-                    double d5fval = 1.0;
+                    double dnfval = 1.0;
                     for (size_t ip = 0; ip < x0.n_elem; ip++) {
                       // Skip terms which have been acted upon by a derivative
                       if (ip == d1)
@@ -233,25 +179,410 @@ namespace helfem {
                         continue;
                       if (ip == d4)
                         continue;
-                      if (ip == d5)
-                        continue;
                       if (ip == fi)
                         continue;
-                      d5fval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
+                      dnfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
                     }
                     // Apply derivative denominators
-                    d5fval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) *
-                              (x0(fi) - x0(d3)) * (x0(fi) - x0(d4)) *
-                              (x0(fi) - x0(d5));
+                    dnfval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) *
+                              (x0(fi) - x0(d3)) * (x0(fi) - x0(d4));
                     // Store the computed value
-                    el += d5fval;
+                    el += dnfval;
                   }
                 }
               }
             }
+            dnf(ix, fi) = 24 * el;
           }
-          d5f(ix, fi) = 120 * el;
         }
+      } break;
+      case (5): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, x0.n_elem);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            double el = 0.0;
+            // Derivative 1 acting on index
+            for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+              if (d1 == fi)
+                continue;
+              // Derivative 2 acting on index
+              for (size_t d2 = 0; d2 < d1; d2++) {
+                if (d2 == fi)
+                  continue;
+                // Derivative 3 acting on index
+                for (size_t d3 = 0; d3 < d2; d3++) {
+                  if (d3 == fi)
+                    continue;
+                  // Derivative 4 acting on index
+                  for (size_t d4 = 0; d4 < d3; d4++) {
+                    if (d4 == fi)
+                      continue;
+                    // Derivative 5 acting on index
+                    for (size_t d5 = 0; d5 < d4; d5++) {
+                      if (d5 == fi)
+                        continue;
+                      // Form the LIP product
+                      double dnfval = 1.0;
+                      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+                        // Skip terms which have been acted upon by a derivative
+                        if (ip == d1)
+                          continue;
+                        if (ip == d2)
+                          continue;
+                        if (ip == d3)
+                          continue;
+                        if (ip == d4)
+                          continue;
+                        if (ip == d5)
+                          continue;
+                        if (ip == fi)
+                          continue;
+                        dnfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
+                      }
+                      // Apply derivative denominators
+                      dnfval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) *
+                                (x0(fi) - x0(d3)) * (x0(fi) - x0(d4)) *
+                                (x0(fi) - x0(d5));
+                      // Store the computed value
+                      el += dnfval;
+                    }
+                  }
+                }
+              }
+            }
+            dnf(ix, fi) = 120 * el;
+          }
+        }
+      } break;
+      case (6): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, x0.n_elem);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            double el = 0.0;
+            // Derivative 1 acting on index
+            for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+              if (d1 == fi)
+                continue;
+              // Derivative 2 acting on index
+              for (size_t d2 = 0; d2 < d1; d2++) {
+                if (d2 == fi)
+                  continue;
+                // Derivative 3 acting on index
+                for (size_t d3 = 0; d3 < d2; d3++) {
+                  if (d3 == fi)
+                    continue;
+                  // Derivative 4 acting on index
+                  for (size_t d4 = 0; d4 < d3; d4++) {
+                    if (d4 == fi)
+                      continue;
+                    // Derivative 5 acting on index
+                    for (size_t d5 = 0; d5 < d4; d5++) {
+                      if (d5 == fi)
+                        continue;
+                      // Derivative 6 acting on index
+                      for (size_t d6 = 0; d6 < d5; d6++) {
+                        if (d6 == fi)
+                          continue;
+                        // Form the LIP product
+                        double dnfval = 1.0;
+                        for (size_t ip = 0; ip < x0.n_elem; ip++) {
+                          // Skip terms which have been acted upon by a
+                          // derivative
+                          if (ip == d1)
+                            continue;
+                          if (ip == d2)
+                            continue;
+                          if (ip == d3)
+                            continue;
+                          if (ip == d4)
+                            continue;
+                          if (ip == d5)
+                            continue;
+                          if (ip == d6)
+                            continue;
+                          if (ip == fi)
+                            continue;
+                          dnfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
+                        }
+                        // Apply derivative denominators
+                        dnfval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) *
+                                  (x0(fi) - x0(d3)) * (x0(fi) - x0(d4)) *
+                                  (x0(fi) - x0(d5)) * (x0(fi) - x0(d6));
+                        // Store the computed value
+                        el += dnfval;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            dnf(ix, fi) = 720 * el;
+          }
+        }
+      } break;
+      case (7): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, x0.n_elem);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            double el = 0.0;
+            // Derivative 1 acting on index
+            for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+              if (d1 == fi)
+                continue;
+              // Derivative 2 acting on index
+              for (size_t d2 = 0; d2 < d1; d2++) {
+                if (d2 == fi)
+                  continue;
+                // Derivative 3 acting on index
+                for (size_t d3 = 0; d3 < d2; d3++) {
+                  if (d3 == fi)
+                    continue;
+                  // Derivative 4 acting on index
+                  for (size_t d4 = 0; d4 < d3; d4++) {
+                    if (d4 == fi)
+                      continue;
+                    // Derivative 5 acting on index
+                    for (size_t d5 = 0; d5 < d4; d5++) {
+                      if (d5 == fi)
+                        continue;
+                      // Derivative 6 acting on index
+                      for (size_t d6 = 0; d6 < d5; d6++) {
+                        if (d6 == fi)
+                          continue;
+                        // Derivative 7 acting on index
+                        for (size_t d7 = 0; d7 < d6; d7++) {
+                          if (d7 == fi)
+                            continue;
+                          // Form the LIP product
+                          double dnfval = 1.0;
+                          for (size_t ip = 0; ip < x0.n_elem; ip++) {
+                            // Skip terms which have been acted upon by a
+                            // derivative
+                            if (ip == d1)
+                              continue;
+                            if (ip == d2)
+                              continue;
+                            if (ip == d3)
+                              continue;
+                            if (ip == d4)
+                              continue;
+                            if (ip == d5)
+                              continue;
+                            if (ip == d6)
+                              continue;
+                            if (ip == d7)
+                              continue;
+                            if (ip == fi)
+                              continue;
+                            dnfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
+                          }
+                          // Apply derivative denominators
+                          dnfval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) *
+                                    (x0(fi) - x0(d3)) * (x0(fi) - x0(d4)) *
+                                    (x0(fi) - x0(d5)) * (x0(fi) - x0(d6)) *
+                                    (x0(fi) - x0(d7));
+                          // Store the computed value
+                          el += dnfval;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            dnf(ix, fi) = 5040 * el;
+          }
+        }
+      } break;
+      case (8): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, x0.n_elem);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            double el = 0.0;
+            // Derivative 1 acting on index
+            for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+              if (d1 == fi)
+                continue;
+              // Derivative 2 acting on index
+              for (size_t d2 = 0; d2 < d1; d2++) {
+                if (d2 == fi)
+                  continue;
+                // Derivative 3 acting on index
+                for (size_t d3 = 0; d3 < d2; d3++) {
+                  if (d3 == fi)
+                    continue;
+                  // Derivative 4 acting on index
+                  for (size_t d4 = 0; d4 < d3; d4++) {
+                    if (d4 == fi)
+                      continue;
+                    // Derivative 5 acting on index
+                    for (size_t d5 = 0; d5 < d4; d5++) {
+                      if (d5 == fi)
+                        continue;
+                      // Derivative 6 acting on index
+                      for (size_t d6 = 0; d6 < d5; d6++) {
+                        if (d6 == fi)
+                          continue;
+                        // Derivative 7 acting on index
+                        for (size_t d7 = 0; d7 < d6; d7++) {
+                          if (d7 == fi)
+                            continue;
+                          // Derivative 8 acting on index
+                          for (size_t d8 = 0; d8 < d7; d8++) {
+                            if (d8 == fi)
+                              continue;
+                            // Form the LIP product
+                            double dnfval = 1.0;
+                            for (size_t ip = 0; ip < x0.n_elem; ip++) {
+                              // Skip terms which have been acted upon by a
+                              // derivative
+                              if (ip == d1)
+                                continue;
+                              if (ip == d2)
+                                continue;
+                              if (ip == d3)
+                                continue;
+                              if (ip == d4)
+                                continue;
+                              if (ip == d5)
+                                continue;
+                              if (ip == d6)
+                                continue;
+                              if (ip == d7)
+                                continue;
+                              if (ip == d8)
+                                continue;
+                              if (ip == fi)
+                                continue;
+                              dnfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
+                            }
+                            // Apply derivative denominators
+                            dnfval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) *
+                                      (x0(fi) - x0(d3)) * (x0(fi) - x0(d4)) *
+                                      (x0(fi) - x0(d5)) * (x0(fi) - x0(d6)) *
+                                      (x0(fi) - x0(d7)) * (x0(fi) - x0(d8));
+                            // Store the computed value
+                            el += dnfval;
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            dnf(ix, fi) = 40320 * el;
+          }
+        }
+      } break;
+      case (9): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, x0.n_elem);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            double el = 0.0;
+            // Derivative 1 acting on index
+            for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+              if (d1 == fi)
+                continue;
+              // Derivative 2 acting on index
+              for (size_t d2 = 0; d2 < d1; d2++) {
+                if (d2 == fi)
+                  continue;
+                // Derivative 3 acting on index
+                for (size_t d3 = 0; d3 < d2; d3++) {
+                  if (d3 == fi)
+                    continue;
+                  // Derivative 4 acting on index
+                  for (size_t d4 = 0; d4 < d3; d4++) {
+                    if (d4 == fi)
+                      continue;
+                    // Derivative 5 acting on index
+                    for (size_t d5 = 0; d5 < d4; d5++) {
+                      if (d5 == fi)
+                        continue;
+                      // Derivative 6 acting on index
+                      for (size_t d6 = 0; d6 < d5; d6++) {
+                        if (d6 == fi)
+                          continue;
+                        // Derivative 7 acting on index
+                        for (size_t d7 = 0; d7 < d6; d7++) {
+                          if (d7 == fi)
+                            continue;
+                          // Derivative 8 acting on index
+                          for (size_t d8 = 0; d8 < d7; d8++) {
+                            if (d8 == fi)
+                              continue;
+                            // Derivative 9 acting on index
+                            for (size_t d9 = 0; d9 < d8; d9++) {
+                              if (d9 == fi)
+                                continue;
+                              // Form the LIP product
+                              double dnfval = 1.0;
+                              for (size_t ip = 0; ip < x0.n_elem; ip++) {
+                                // Skip terms which have been acted upon by a
+                                // derivative
+                                if (ip == d1)
+                                  continue;
+                                if (ip == d2)
+                                  continue;
+                                if (ip == d3)
+                                  continue;
+                                if (ip == d4)
+                                  continue;
+                                if (ip == d5)
+                                  continue;
+                                if (ip == d6)
+                                  continue;
+                                if (ip == d7)
+                                  continue;
+                                if (ip == d8)
+                                  continue;
+                                if (ip == d9)
+                                  continue;
+                                if (ip == fi)
+                                  continue;
+                                dnfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
+                              }
+                              // Apply derivative denominators
+                              dnfval /= (x0(fi) - x0(d1)) * (x0(fi) - x0(d2)) *
+                                        (x0(fi) - x0(d3)) * (x0(fi) - x0(d4)) *
+                                        (x0(fi) - x0(d5)) * (x0(fi) - x0(d6)) *
+                                        (x0(fi) - x0(d7)) * (x0(fi) - x0(d8)) *
+                                        (x0(fi) - x0(d9));
+                              // Store the computed value
+                              el += dnfval;
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            dnf(ix, fi) = 362880 * el;
+          }
+        }
+      } break;
+      default:
+        std::ostringstream oss;
+        oss << n << "th derivatives not implemented!\n";
+        throw std::logic_error(oss.str());
       }
     }
   } // namespace polynomial_basis

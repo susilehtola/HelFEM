@@ -39,7 +39,7 @@ namespace helfem {
       // Calculate x values the polynomials should be evaluated at
       arma::vec xpoly((r-rmid0*arma::ones<arma::vec>(x.n_elem))/rlen0);
       // Evaluate the polynomials at these points
-      arma::mat bf(poly->eval_f(xpoly,rlen0));
+      arma::mat bf(poly->eval_dnf(xpoly,0,rlen0));
 
       // Put in weight
       arma::mat wbf(bf);
@@ -90,7 +90,7 @@ namespace helfem {
       arma::mat inner(twoe_inner_integral(rmin, rmax, x, wx, poly, L));
 
       // Evaluate basis functions at quadrature points
-      arma::mat bf(poly->eval_f(x,rlen));
+      arma::mat bf(poly->eval_dnf(x,0,rlen));
 
       // Product functions
       arma::mat bfprod(bf.n_rows,bf.n_cols*bf.n_cols);
@@ -130,7 +130,7 @@ namespace helfem {
       // Calculate x values the polynomials should be evaluated at
       arma::vec xpoly((r-rmid0*arma::ones<arma::vec>(x.n_elem))/rlen0);
       // Evaluate the polynomials at these points
-      arma::mat bf(poly->eval_f(xpoly,rlen0));
+      arma::mat bf(poly->eval_dnf(xpoly,0,rlen0));
 
       // Put in weight
       arma::mat wbf(bf);
@@ -181,7 +181,7 @@ namespace helfem {
       arma::mat inner(yukawa_inner_integral(rmin, rmax, x, wx, poly, L, lambda));
 
       // Evaluate basis functions at quadrature points
-      arma::mat bf(poly->eval_f(x, rlen));
+      arma::mat bf(poly->eval_dnf(x, 0, rlen));
 
       // Product functions
       arma::mat bfprod(bf.n_rows,bf.n_cols*bf.n_cols);

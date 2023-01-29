@@ -35,6 +35,7 @@ namespace helfem {
         /// Value of r for which to switch over to evaluating basis
         /// functions by Taylor series
         double small_r_taylor_cutoff;
+
         /// Set the cutoff
         void set_small_r_taylor_cutoff();
 
@@ -144,7 +145,7 @@ namespace helfem {
         /// Evaluate basis functions at given points
         arma::mat get_lf(const arma::vec & x, size_t iel) const;
         /// Evaluate small-r Taylor series
-        void get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider) const;
+        void get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider, int taylor_order=5) const;
 
         /// Get quadrature weights
         arma::vec get_wrad(size_t iel) const;

@@ -98,7 +98,7 @@ namespace helfem {
           printf("%4i % .15e % .15e % .15e % .15e % .15e % .15e\n",ifun, bf0(icut,ifun), bft(icut,ifun), df0(icut,ifun), dft(icut,ifun), lf0(icut,ifun), lft(icut,ifun));
         diffs.row(icut).print("Relative differences at cutoff");
         */
-        //diffs.save("taylor_diff.dat", arma::raw_ascii);
+        diffs.save("taylor_diff.dat", arma::raw_ascii);
 
       }
 
@@ -400,7 +400,7 @@ namespace helfem {
         return get_bf(xq, iel);
       }
 
-      void RadialBasis::get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider) const {
+      void RadialBasis::get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider, int taylor_order) const {
         if(taylorind[0]!=0 || taylorind[taylorind.n_elem-1] != taylorind.n_elem-1)
           throw std::logic_error("Taylor points not consecutive!\n");
 
@@ -408,16 +408,24 @@ namespace helfem {
         //  [B(0) + B'(0)r + 1/2 B''(0) r^2 + ...]/r
         //= B'(0) + 1/2 B''(0) r + 1/6 B'''(0) r^2 + ...
 
-        // Coefficients of the various derivatives in the expansion of the function itself
-        arma::vec taylorcoeff(5);
+        if(taylor_order<3 || taylor_order>9) {
+          std::ostringstream oss;
+          oss << "Got taylor_order = " << taylor_order << ". Taylor expansion order needs to be 3 <= taylor_order <= 9.\n";
+          throw std::logic_error(oss.str());
+        }
+
+        // Coefficients of the various derivatives in the expansion of
+        // the function itself. Note that the zeroth element already
+        // corresponds to the first derivative!
+        arma::vec taylorcoeff(taylor_order);
         taylorcoeff(0) = 1.0;
-        for(size_t i=1; i<taylorcoeff.n_elem; i++)
+        for(int i=1; i<taylor_order; i++)
           taylorcoeff(i) = taylorcoeff(i-1)/(i+1);
         // and the corresponding r exponents
-        arma::ivec rexp(arma::linspace<arma::ivec>(0,taylorcoeff.n_elem-1,taylorcoeff.n_elem));
+        arma::ivec rexp(arma::linspace<arma::ivec>(0,taylor_order-1,taylor_order));
 
         // Compute derivatives: c r^n -> c n r^(n-1)
-        for(size_t i=0; i<taylorcoeff.n_elem; i++) {
+        for(int i=0; i<taylor_order; i++) {
           for(int d=0; d<ider; d++) {
             taylorcoeff(i) *= rexp(i);
             rexp(i)--;
@@ -427,32 +435,30 @@ namespace helfem {
         // Form Taylor series at the origin
         arma::vec origin(1);
         origin(0)=-1;
-        std::vector<arma::rowvec> df(taylorcoeff.n_elem);
 
         size_t iel=0;
-        if(ider==0)
-          df[0] = fem.eval_df(origin, iel);
-        if(ider<=1)
-          df[1] = fem.eval_d2f(origin, iel);
-        if(ider<=2)
-          df[2] = fem.eval_d3f(origin, iel);
-        if(ider<=3)
-          df[3] = fem.eval_d4f(origin, iel);
-        if(ider<=4)
-          df[4] = fem.eval_d5f(origin, iel);
+        std::vector<arma::rowvec> df(taylor_order);
+        for(int i=ider;i<taylor_order;i++) {
+          // f(r) = B'(0) + 1/2 B''(0) r + ...: Constant term only
+          // survives without derivative, first-order term only up to
+          // first derivative etc.
+          df[i] = fem.eval_dnf(origin, i+1, iel);
+        }
 
         // Exponentiate r
-        std::vector<arma::vec> rexpval(taylorcoeff.n_elem);
-        for(size_t i=0; i < rexpval.size(); i++)
-          if(rexp[i]>=0) // Need a non-negative for the term to have survived
-            rexpval[i] = arma::pow(r, rexp[i]);
+        std::vector<arma::vec> rexpval(taylor_order);
+        for(int i=ider; i < taylor_order; i++) {
+          if(rexp[i]<0)
+            throw std::logic_error("This should not have happened!\n");
+          rexpval[i] = arma::pow(r, rexp[i]);
+        }
 
         // Collect results
         for(size_t ifun = 0; ifun < val.n_cols; ifun++)
           for(size_t ir = 0; ir < taylorind.n_elem; ir++) {
             val(ir, ifun) = 0.0;
             // Terms below this are zero
-            for(size_t iterm=ider;iterm < taylorcoeff.n_elem;iterm++) {
+            for(int iterm=ider;iterm < taylor_order;iterm++) {
               val(ir, ifun) += taylorcoeff[iterm]*df[iterm](ifun)*rexpval[iterm](ir);
             }
           }

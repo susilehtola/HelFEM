@@ -117,8 +117,8 @@ namespace helfem {
     void PolynomialBasis::print(const std::string & str) const {
       arma::vec x(arma::linspace<arma::vec>(-1.0,1.0,1001));
       arma::mat bf, df;
-      eval_f(x,bf,1.0);
-      eval_df(x,df,1.0);
+      eval_dnf(x,bf,0,1.0);
+      eval_dnf(x,df,1,1.0);
 
       bf.insert_cols(0,x);
       df.insert_cols(0,x);
@@ -129,151 +129,24 @@ namespace helfem {
       df.save(dname,arma::raw_ascii);
     }
 
-    arma::mat PolynomialBasis::eval_f(const arma::vec & x, double element_length) const {
-      arma::mat f;
-      eval_f(x, f, element_length);
-      return f;
-    }
-
-    arma::mat PolynomialBasis::eval_df(const arma::vec & x, double element_length) const {
-      arma::mat df;
-      eval_df(x, df, element_length);
-      return df;
-    }
-
-    arma::mat PolynomialBasis::eval_d2f(const arma::vec & x, double element_length) const {
-      arma::mat d2f;
-      eval_d2f(x, d2f, element_length);
-      return d2f;
-    }
-
-    arma::mat PolynomialBasis::eval_d3f(const arma::vec & x, double element_length) const {
-      arma::mat d3f;
-      eval_d3f(x, d3f, element_length);
-      return d3f;
-    }
-
-    arma::mat PolynomialBasis::eval_d4f(const arma::vec & x, double element_length) const {
-      arma::mat d4f;
-      eval_d4f(x, d4f, element_length);
-      return d4f;
-    }
-
-    arma::mat PolynomialBasis::eval_d5f(const arma::vec & x, double element_length) const {
-      arma::mat d5f;
-      eval_d5f(x, d5f, element_length);
-      return d5f;
-    }
-
     arma::mat PolynomialBasis::eval_dnf(const arma::vec & x, int n, double element_length) const {
       arma::mat dnf;
       eval_dnf(x, dnf, n, element_length);
       return dnf;
     }
 
-    void PolynomialBasis::eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const {
+    void PolynomialBasis::eval_prim_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const {
       (void) x;
-      (void) f;
+      (void) dnf;
+      (void) n;
       (void) element_length;
       throw std::logic_error("Values haven't been implemented for the used family of basis polynomials.\n");
     }
 
-    void PolynomialBasis::eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const {
-      (void) x;
-      (void) df;
-      (void) element_length;
-      throw std::logic_error("Derivatives haven't been implemented for the used family of basis polynomials.\n");
-    }
-
-    void PolynomialBasis::eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const {
-      (void) x;
-      (void) d2f;
-      (void) element_length;
-      throw std::logic_error("Second derivatives haven't been implemented for the used family of basis polynomials.\n");
-    }
-
-    void PolynomialBasis::eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const {
-      (void) x;
-      (void) d3f;
-      (void) element_length;
-      throw std::logic_error("Third derivatives haven't been implemented for the used family of basis polynomials.\n");
-    }
-
-    void PolynomialBasis::eval_prim_d4f(const arma::vec & x, arma::mat & d4f, double element_length) const {
-      (void) x;
-      (void) d4f;
-      (void) element_length;
-      throw std::logic_error("Fourth derivatives haven't been implemented for the used family of basis polynomials.\n");
-    }
-
-    void PolynomialBasis::eval_prim_d5f(const arma::vec & x, arma::mat & d5f, double element_length) const {
-      (void) x;
-      (void) d5f;
-      (void) element_length;
-      throw std::logic_error("Fifth derivatives haven't been implemented for the used family of basis polynomials.\n");
-    }
-
-    void PolynomialBasis::eval_f(const arma::vec & x, arma::mat & f, double element_length) const {
-      eval_prim_f(x, f, element_length);
-      // No scaling needed here
-      f = f.cols(enabled);
-    }
-
-    void PolynomialBasis::eval_df(const arma::vec & x, arma::mat & df, double element_length) const {
-      eval_prim_df(x, df, element_length);
-      // Derivative is scaled by element length
-      df = df.cols(enabled) / element_length;
-    }
-
-    void PolynomialBasis::eval_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const {
-      eval_prim_d2f(x, d2f, element_length);
-      // Second derivative is scaled by element length squared
-      d2f = d2f.cols(enabled) / std::pow(element_length, 2);
-    }
-
-    void PolynomialBasis::eval_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const {
-      eval_prim_d3f(x, d3f, element_length);
-      // Third derivative is scaled by element length cubed
-      d3f = d3f.cols(enabled) / std::pow(element_length, 3);
-    }
-
-    void PolynomialBasis::eval_d4f(const arma::vec & x, arma::mat & d4f, double element_length) const {
-      eval_prim_d4f(x, d4f, element_length);
-      // Fourth derivative is scaled by element length to the fourth power
-      d4f = d4f.cols(enabled) / std::pow(element_length, 4);
-    }
-
-    void PolynomialBasis::eval_d5f(const arma::vec & x, arma::mat & d5f, double element_length) const {
-      eval_prim_d5f(x, d5f, element_length);
-      // Fifth derivative is scaled by element length to the fifth power
-      d5f = d5f.cols(enabled) / std::pow(element_length, 5);
-    }
-
     void PolynomialBasis::eval_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const {
-      switch(n) {
-      case(0):
-        eval_f(x,dnf,element_length);
-        break;
-      case(1):
-        eval_df(x,dnf,element_length);
-        break;
-      case(2):
-        eval_d2f(x,dnf,element_length);
-        break;
-      case(3):
-        eval_d3f(x,dnf,element_length);
-        break;
-      case(4):
-        eval_d4f(x,dnf,element_length);
-        break;
-      case(5):
-        eval_d5f(x,dnf,element_length);
-        break;
-      default:
-        std::ostringstream oss;
-        oss << n << "th derivatives not implemented!\n";
-        throw std::logic_error(oss.str());
-      }
+      eval_prim_dnf(x, dnf, n, element_length);
+      // Apply scaling
+      dnf = dnf.cols(enabled) / std::pow(element_length, n);
     }
   }
 }

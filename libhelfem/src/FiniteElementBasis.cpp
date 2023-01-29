@@ -237,33 +237,15 @@ namespace helfem {
     }
 
     void FiniteElementBasis::eval_f(const arma::vec & x, arma::mat & f, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      p->eval_f(x,f,scaling_factor(iel));
+      eval_dnf(x,f,0,iel);
    }
 
     void FiniteElementBasis::eval_df(const arma::vec & x, arma::mat & df, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      p->eval_df(x,df,scaling_factor(iel));
+      eval_dnf(x,df,1,iel);
     }
 
     void FiniteElementBasis::eval_d2f(const arma::vec & x, arma::mat & d2f, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      p->eval_d2f(x,d2f,scaling_factor(iel));
-    }
-
-    void FiniteElementBasis::eval_d3f(const arma::vec & x, arma::mat & d3f, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      p->eval_d3f(x,d3f,scaling_factor(iel));
-    }
-
-    void FiniteElementBasis::eval_d4f(const arma::vec & x, arma::mat & d4f, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      p->eval_d4f(x,d4f,scaling_factor(iel));
-    }
-
-    void FiniteElementBasis::eval_d5f(const arma::vec & x, arma::mat & d5f, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      p->eval_d5f(x,d5f,scaling_factor(iel));
+      eval_dnf(x,d2f,2,iel);
     }
 
     void FiniteElementBasis::eval_dnf(const arma::vec & x, arma::mat & dnf, int n, size_t iel) const {
@@ -272,33 +254,15 @@ namespace helfem {
     }
 
     arma::mat FiniteElementBasis::eval_f(const arma::vec & x, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      return p->eval_f(x,scaling_factor(iel));
+      return eval_dnf(x,0,iel);
     }
 
     arma::mat FiniteElementBasis::eval_df(const arma::vec & x, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      return p->eval_df(x,scaling_factor(iel));
+      return eval_dnf(x,1,iel);
     }
 
     arma::mat FiniteElementBasis::eval_d2f(const arma::vec & x, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      return p->eval_d2f(x,scaling_factor(iel));
-    }
-
-     arma::mat FiniteElementBasis::eval_d3f(const arma::vec & x, size_t iel) const {
-       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-       return p->eval_d3f(x,scaling_factor(iel));
-     }
-
-    arma::mat FiniteElementBasis::eval_d4f(const arma::vec & x, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      return p->eval_d4f(x,scaling_factor(iel));
-    }
-
-    arma::mat FiniteElementBasis::eval_d5f(const arma::vec & x, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      return p->eval_d5f(x,scaling_factor(iel));
+      return eval_dnf(x,2,iel);
     }
 
     arma::mat FiniteElementBasis::eval_dnf(const arma::vec & x, int n, size_t iel) const {

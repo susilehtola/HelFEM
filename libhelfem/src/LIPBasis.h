@@ -26,19 +26,6 @@ namespace helfem {
     protected:
       /// Control nodes
       arma::vec x0;
-
-      /// Evaluate functions
-      void eval_f_raw(const arma::vec & x, arma::mat & f) const;
-      /// Evaluate derivatives
-      void eval_df_raw(const arma::vec & x, arma::mat & f) const;
-      /// Evaluate second derivatives
-      void eval_d2f_raw(const arma::vec & x, arma::mat & f) const;
-      /// Evaluate third derivatives
-      void eval_d3f_raw(const arma::vec & x, arma::mat & f) const;
-      /// Evaluate fourth derivatives
-      void eval_d4f_raw(const arma::vec & x, arma::mat & f) const;
-      /// Evaluate fifth derivatives
-      void eval_d5f_raw(const arma::vec & x, arma::mat & f) const;
     public:
       /// Dummy constructor
       LIPBasis();
@@ -55,17 +42,7 @@ namespace helfem {
       void drop_last(bool func, bool deriv) override;
 
       /// Evaluate polynomials at given points
-      void eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const override;
-      /// Evaluate derivatives of polynomials at given points
-      void eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const override;
-      /// Evaluate second derivatives of polynomials at given points
-      void eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const override;
-      /// Evaluate third derivatives of polynomials at given points
-      void eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const override;
-      /// Evaluate fourth derivatives of polynomials at given points
-      void eval_prim_d4f(const arma::vec & x, arma::mat & d4f, double element_length) const override;
-      /// Evaluate fifth derivatives of polynomials at given points
-      void eval_prim_d5f(const arma::vec & x, arma::mat & d5f, double element_length) const override;
+      void eval_prim_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const override;
     };
   }
 }

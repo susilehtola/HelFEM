@@ -36,36 +36,6 @@ namespace helfem {
       return new LIPBasis(*this);
     }
 
-    void LIPBasis::eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const {
-      (void) element_length;
-      eval_f_raw(x, f);
-    }
-
-    void LIPBasis::eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const {
-      (void) element_length;
-      eval_df_raw(x, df);
-    }
-
-    void LIPBasis::eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const {
-      (void) element_length;
-      eval_d2f_raw(x, d2f);
-    }
-
-    void LIPBasis::eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const {
-      (void) element_length;
-      eval_d3f_raw(x, d3f);
-    }
-
-    void LIPBasis::eval_prim_d4f(const arma::vec & x, arma::mat & d4f, double element_length) const {
-      (void) element_length;
-      eval_d4f_raw(x, d4f);
-    }
-
-    void LIPBasis::eval_prim_d5f(const arma::vec & x, arma::mat & d5f, double element_length) const {
-      (void) element_length;
-      eval_d5f_raw(x, d5f);
-    }
-
     void LIPBasis::drop_first(bool func, bool deriv) {
       (void) deriv;
       if(func)
@@ -77,6 +47,5 @@ namespace helfem {
       if(func)
         enabled=enabled.subvec(0,enabled.n_elem-2);
     }
-
   }
 }

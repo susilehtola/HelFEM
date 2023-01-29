@@ -80,19 +80,23 @@ namespace helfem {
       return lt;
     }
 
-    void LegendreBasis::eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const {
+    void LegendreBasis::eval_prim_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const {
       (void) element_length;
-      f=f_eval(x)*T;
-    }
-
-    void LegendreBasis::eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const {
-      (void) element_length;
-      df=df_eval(x)*T;
-    }
-
-    void LegendreBasis::eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const {
-      (void) element_length;
-      d2f=d2f_eval(x)*T;
+      switch(n) {
+      case(0):
+        dnf=f_eval(x)*T;
+        break;
+      case(1):
+        dnf=df_eval(x)*T;
+        break;
+      case(2):
+        dnf=d2f_eval(x)*T;
+        break;
+      default:
+        std::ostringstream oss;
+        oss << n << "th order derivatives not implemented for Legendre basis functions!\n";
+        throw std::logic_error(oss.str());
+      }
     }
 
     void LegendreBasis::drop_first(bool func, bool deriv) {
