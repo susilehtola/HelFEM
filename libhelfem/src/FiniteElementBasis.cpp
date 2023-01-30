@@ -50,6 +50,8 @@ namespace helfem {
     }
 
     void FiniteElementBasis::check_bf_continuity() const {
+      if(get_nelem()==1)
+        return;
       int noverlap(poly->get_noverlap());
 
       arma::vec dnorm(get_nelem()-1);
