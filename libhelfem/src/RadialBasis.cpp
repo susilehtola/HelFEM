@@ -184,8 +184,10 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::radial_integral(int Rexp, size_t iel) const {
-        std::function<double(double)> rpowL = [Rexp](double r) { return std::pow(r, Rexp); };
-        return fem.matrix_element(iel, false, false, xq, wq, rpowL);
+        std::function<double(double)> rpowL = [Rexp](double r){return std::pow(r,Rexp+2);};
+        std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
+        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+        return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rpowL);
       }
 
       arma::mat RadialBasis::bessel_il_integral(int L, double lambda, size_t iel) const {
@@ -312,12 +314,10 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::nuclear(size_t iel) const {
-        std::function<double(double)> dummy;
-        std::function<arma::mat(const arma::vec &,size_t)> radial_bf, fem_bf;
+        std::function<double(double)> r = [](double r){return r;};
+        std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
         radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-        fem_bf = [this](const arma::vec & xq_, size_t iel_) { return this->fem.eval_f(xq_, iel_); };
-        arma::mat Vnuc=-fem.matrix_element(iel, radial_bf, fem_bf, xq, wq, dummy);
-        return 0.5*(Vnuc+Vnuc.t());
+        return -fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r);
       }
 
       arma::mat RadialBasis::model_potential(const modelpotential::ModelPotential *model,
