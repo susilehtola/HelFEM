@@ -411,6 +411,809 @@ namespace helfem {
           }
         }
       } break;
+      case (10): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, 2 * x0.n_elem);
+
+        // Evaluate LIP basis data
+        double dummy_length = 1.0;
+        arma::mat flip;
+        LIPBasis::eval_prim_dnf(x, flip, 0, dummy_length);
+        arma::mat dflip;
+        LIPBasis::eval_prim_dnf(x, dflip, 1, dummy_length);
+        arma::mat d2flip;
+        LIPBasis::eval_prim_dnf(x, d2flip, 2, dummy_length);
+        arma::mat d3flip;
+        LIPBasis::eval_prim_dnf(x, d3flip, 3, dummy_length);
+        arma::mat d4flip;
+        LIPBasis::eval_prim_dnf(x, d4flip, 4, dummy_length);
+        arma::mat d5flip;
+        LIPBasis::eval_prim_dnf(x, d5flip, 5, dummy_length);
+        arma::mat d6flip;
+        LIPBasis::eval_prim_dnf(x, d6flip, 6, dummy_length);
+        arma::mat d7flip;
+        LIPBasis::eval_prim_dnf(x, d7flip, 7, dummy_length);
+        arma::mat d8flip;
+        LIPBasis::eval_prim_dnf(x, d8flip, 8, dummy_length);
+        arma::mat d9flip;
+        LIPBasis::eval_prim_dnf(x, d9flip, 9, dummy_length);
+        arma::mat d10flip;
+        LIPBasis::eval_prim_dnf(x, d10flip, 10, dummy_length);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            /* First function is [1 - 2(x-xi)*lipxi(fi)] [l_i(x)]^2 = f1 * f2.
+               Second function is (x-xi) * [l_i(x)]^2 = f3 * f2
+            */
+            double f1 = 1.0 - 2.0 * (x(ix) - x0(fi)) * lipxi(fi);
+            double df1 = -2.0 * lipxi(fi);
+
+            double f3 = x(ix) - x0(fi);
+            double df3 = 1;
+
+            double d9f2 = +2 * d9flip(ix, fi) * flip(ix, fi) +
+                          18 * d8flip(ix, fi) * dflip(ix, fi) +
+                          72 * d7flip(ix, fi) * d2flip(ix, fi) +
+                          168 * d6flip(ix, fi) * d3flip(ix, fi) +
+                          252 * d5flip(ix, fi) * d4flip(ix, fi);
+            double d10f2 = +2 * d10flip(ix, fi) * flip(ix, fi) +
+                           20 * d9flip(ix, fi) * dflip(ix, fi) +
+                           90 * d8flip(ix, fi) * d2flip(ix, fi) +
+                           240 * d7flip(ix, fi) * d3flip(ix, fi) +
+                           420 * d6flip(ix, fi) * d4flip(ix, fi) +
+                           252 * d5flip(ix, fi) * d5flip(ix, fi);
+            dnf(ix, 2 * fi) = 10 * df1 * d9f2 + f1 * d10f2;
+            dnf(ix, 2 * fi + 1) =
+                (10 * df3 * d9f2 + f3 * d10f2) * element_length;
+          }
+        }
+      } break;
+      case (11): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, 2 * x0.n_elem);
+
+        // Evaluate LIP basis data
+        double dummy_length = 1.0;
+        arma::mat flip;
+        LIPBasis::eval_prim_dnf(x, flip, 0, dummy_length);
+        arma::mat dflip;
+        LIPBasis::eval_prim_dnf(x, dflip, 1, dummy_length);
+        arma::mat d2flip;
+        LIPBasis::eval_prim_dnf(x, d2flip, 2, dummy_length);
+        arma::mat d3flip;
+        LIPBasis::eval_prim_dnf(x, d3flip, 3, dummy_length);
+        arma::mat d4flip;
+        LIPBasis::eval_prim_dnf(x, d4flip, 4, dummy_length);
+        arma::mat d5flip;
+        LIPBasis::eval_prim_dnf(x, d5flip, 5, dummy_length);
+        arma::mat d6flip;
+        LIPBasis::eval_prim_dnf(x, d6flip, 6, dummy_length);
+        arma::mat d7flip;
+        LIPBasis::eval_prim_dnf(x, d7flip, 7, dummy_length);
+        arma::mat d8flip;
+        LIPBasis::eval_prim_dnf(x, d8flip, 8, dummy_length);
+        arma::mat d9flip;
+        LIPBasis::eval_prim_dnf(x, d9flip, 9, dummy_length);
+        arma::mat d10flip;
+        LIPBasis::eval_prim_dnf(x, d10flip, 10, dummy_length);
+        arma::mat d11flip;
+        LIPBasis::eval_prim_dnf(x, d11flip, 11, dummy_length);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            /* First function is [1 - 2(x-xi)*lipxi(fi)] [l_i(x)]^2 = f1 * f2.
+               Second function is (x-xi) * [l_i(x)]^2 = f3 * f2
+            */
+            double f1 = 1.0 - 2.0 * (x(ix) - x0(fi)) * lipxi(fi);
+            double df1 = -2.0 * lipxi(fi);
+
+            double f3 = x(ix) - x0(fi);
+            double df3 = 1;
+
+            double d10f2 = +2 * d10flip(ix, fi) * flip(ix, fi) +
+                           20 * d9flip(ix, fi) * dflip(ix, fi) +
+                           90 * d8flip(ix, fi) * d2flip(ix, fi) +
+                           240 * d7flip(ix, fi) * d3flip(ix, fi) +
+                           420 * d6flip(ix, fi) * d4flip(ix, fi) +
+                           252 * d5flip(ix, fi) * d5flip(ix, fi);
+            double d11f2 = +2 * d11flip(ix, fi) * flip(ix, fi) +
+                           22 * d10flip(ix, fi) * dflip(ix, fi) +
+                           110 * d9flip(ix, fi) * d2flip(ix, fi) +
+                           330 * d8flip(ix, fi) * d3flip(ix, fi) +
+                           660 * d7flip(ix, fi) * d4flip(ix, fi) +
+                           924 * d6flip(ix, fi) * d5flip(ix, fi);
+            dnf(ix, 2 * fi) = 11 * df1 * d10f2 + f1 * d11f2;
+            dnf(ix, 2 * fi + 1) =
+                (11 * df3 * d10f2 + f3 * d11f2) * element_length;
+          }
+        }
+      } break;
+      case (12): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, 2 * x0.n_elem);
+
+        // Evaluate LIP basis data
+        double dummy_length = 1.0;
+        arma::mat flip;
+        LIPBasis::eval_prim_dnf(x, flip, 0, dummy_length);
+        arma::mat dflip;
+        LIPBasis::eval_prim_dnf(x, dflip, 1, dummy_length);
+        arma::mat d2flip;
+        LIPBasis::eval_prim_dnf(x, d2flip, 2, dummy_length);
+        arma::mat d3flip;
+        LIPBasis::eval_prim_dnf(x, d3flip, 3, dummy_length);
+        arma::mat d4flip;
+        LIPBasis::eval_prim_dnf(x, d4flip, 4, dummy_length);
+        arma::mat d5flip;
+        LIPBasis::eval_prim_dnf(x, d5flip, 5, dummy_length);
+        arma::mat d6flip;
+        LIPBasis::eval_prim_dnf(x, d6flip, 6, dummy_length);
+        arma::mat d7flip;
+        LIPBasis::eval_prim_dnf(x, d7flip, 7, dummy_length);
+        arma::mat d8flip;
+        LIPBasis::eval_prim_dnf(x, d8flip, 8, dummy_length);
+        arma::mat d9flip;
+        LIPBasis::eval_prim_dnf(x, d9flip, 9, dummy_length);
+        arma::mat d10flip;
+        LIPBasis::eval_prim_dnf(x, d10flip, 10, dummy_length);
+        arma::mat d11flip;
+        LIPBasis::eval_prim_dnf(x, d11flip, 11, dummy_length);
+        arma::mat d12flip;
+        LIPBasis::eval_prim_dnf(x, d12flip, 12, dummy_length);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            /* First function is [1 - 2(x-xi)*lipxi(fi)] [l_i(x)]^2 = f1 * f2.
+               Second function is (x-xi) * [l_i(x)]^2 = f3 * f2
+            */
+            double f1 = 1.0 - 2.0 * (x(ix) - x0(fi)) * lipxi(fi);
+            double df1 = -2.0 * lipxi(fi);
+
+            double f3 = x(ix) - x0(fi);
+            double df3 = 1;
+
+            double d11f2 = +2 * d11flip(ix, fi) * flip(ix, fi) +
+                           22 * d10flip(ix, fi) * dflip(ix, fi) +
+                           110 * d9flip(ix, fi) * d2flip(ix, fi) +
+                           330 * d8flip(ix, fi) * d3flip(ix, fi) +
+                           660 * d7flip(ix, fi) * d4flip(ix, fi) +
+                           924 * d6flip(ix, fi) * d5flip(ix, fi);
+            double d12f2 = +2 * d12flip(ix, fi) * flip(ix, fi) +
+                           24 * d11flip(ix, fi) * dflip(ix, fi) +
+                           132 * d10flip(ix, fi) * d2flip(ix, fi) +
+                           440 * d9flip(ix, fi) * d3flip(ix, fi) +
+                           990 * d8flip(ix, fi) * d4flip(ix, fi) +
+                           1584 * d7flip(ix, fi) * d5flip(ix, fi) +
+                           924 * d6flip(ix, fi) * d6flip(ix, fi);
+            dnf(ix, 2 * fi) = 12 * df1 * d11f2 + f1 * d12f2;
+            dnf(ix, 2 * fi + 1) =
+                (12 * df3 * d11f2 + f3 * d12f2) * element_length;
+          }
+        }
+      } break;
+      case (13): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, 2 * x0.n_elem);
+
+        // Evaluate LIP basis data
+        double dummy_length = 1.0;
+        arma::mat flip;
+        LIPBasis::eval_prim_dnf(x, flip, 0, dummy_length);
+        arma::mat dflip;
+        LIPBasis::eval_prim_dnf(x, dflip, 1, dummy_length);
+        arma::mat d2flip;
+        LIPBasis::eval_prim_dnf(x, d2flip, 2, dummy_length);
+        arma::mat d3flip;
+        LIPBasis::eval_prim_dnf(x, d3flip, 3, dummy_length);
+        arma::mat d4flip;
+        LIPBasis::eval_prim_dnf(x, d4flip, 4, dummy_length);
+        arma::mat d5flip;
+        LIPBasis::eval_prim_dnf(x, d5flip, 5, dummy_length);
+        arma::mat d6flip;
+        LIPBasis::eval_prim_dnf(x, d6flip, 6, dummy_length);
+        arma::mat d7flip;
+        LIPBasis::eval_prim_dnf(x, d7flip, 7, dummy_length);
+        arma::mat d8flip;
+        LIPBasis::eval_prim_dnf(x, d8flip, 8, dummy_length);
+        arma::mat d9flip;
+        LIPBasis::eval_prim_dnf(x, d9flip, 9, dummy_length);
+        arma::mat d10flip;
+        LIPBasis::eval_prim_dnf(x, d10flip, 10, dummy_length);
+        arma::mat d11flip;
+        LIPBasis::eval_prim_dnf(x, d11flip, 11, dummy_length);
+        arma::mat d12flip;
+        LIPBasis::eval_prim_dnf(x, d12flip, 12, dummy_length);
+        arma::mat d13flip;
+        LIPBasis::eval_prim_dnf(x, d13flip, 13, dummy_length);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            /* First function is [1 - 2(x-xi)*lipxi(fi)] [l_i(x)]^2 = f1 * f2.
+               Second function is (x-xi) * [l_i(x)]^2 = f3 * f2
+            */
+            double f1 = 1.0 - 2.0 * (x(ix) - x0(fi)) * lipxi(fi);
+            double df1 = -2.0 * lipxi(fi);
+
+            double f3 = x(ix) - x0(fi);
+            double df3 = 1;
+
+            double d12f2 = +2 * d12flip(ix, fi) * flip(ix, fi) +
+                           24 * d11flip(ix, fi) * dflip(ix, fi) +
+                           132 * d10flip(ix, fi) * d2flip(ix, fi) +
+                           440 * d9flip(ix, fi) * d3flip(ix, fi) +
+                           990 * d8flip(ix, fi) * d4flip(ix, fi) +
+                           1584 * d7flip(ix, fi) * d5flip(ix, fi) +
+                           924 * d6flip(ix, fi) * d6flip(ix, fi);
+            double d13f2 = +2 * d13flip(ix, fi) * flip(ix, fi) +
+                           26 * d12flip(ix, fi) * dflip(ix, fi) +
+                           156 * d11flip(ix, fi) * d2flip(ix, fi) +
+                           572 * d10flip(ix, fi) * d3flip(ix, fi) +
+                           1430 * d9flip(ix, fi) * d4flip(ix, fi) +
+                           2574 * d8flip(ix, fi) * d5flip(ix, fi) +
+                           3432 * d7flip(ix, fi) * d6flip(ix, fi);
+            dnf(ix, 2 * fi) = 13 * df1 * d12f2 + f1 * d13f2;
+            dnf(ix, 2 * fi + 1) =
+                (13 * df3 * d12f2 + f3 * d13f2) * element_length;
+          }
+        }
+      } break;
+      case (14): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, 2 * x0.n_elem);
+
+        // Evaluate LIP basis data
+        double dummy_length = 1.0;
+        arma::mat flip;
+        LIPBasis::eval_prim_dnf(x, flip, 0, dummy_length);
+        arma::mat dflip;
+        LIPBasis::eval_prim_dnf(x, dflip, 1, dummy_length);
+        arma::mat d2flip;
+        LIPBasis::eval_prim_dnf(x, d2flip, 2, dummy_length);
+        arma::mat d3flip;
+        LIPBasis::eval_prim_dnf(x, d3flip, 3, dummy_length);
+        arma::mat d4flip;
+        LIPBasis::eval_prim_dnf(x, d4flip, 4, dummy_length);
+        arma::mat d5flip;
+        LIPBasis::eval_prim_dnf(x, d5flip, 5, dummy_length);
+        arma::mat d6flip;
+        LIPBasis::eval_prim_dnf(x, d6flip, 6, dummy_length);
+        arma::mat d7flip;
+        LIPBasis::eval_prim_dnf(x, d7flip, 7, dummy_length);
+        arma::mat d8flip;
+        LIPBasis::eval_prim_dnf(x, d8flip, 8, dummy_length);
+        arma::mat d9flip;
+        LIPBasis::eval_prim_dnf(x, d9flip, 9, dummy_length);
+        arma::mat d10flip;
+        LIPBasis::eval_prim_dnf(x, d10flip, 10, dummy_length);
+        arma::mat d11flip;
+        LIPBasis::eval_prim_dnf(x, d11flip, 11, dummy_length);
+        arma::mat d12flip;
+        LIPBasis::eval_prim_dnf(x, d12flip, 12, dummy_length);
+        arma::mat d13flip;
+        LIPBasis::eval_prim_dnf(x, d13flip, 13, dummy_length);
+        arma::mat d14flip;
+        LIPBasis::eval_prim_dnf(x, d14flip, 14, dummy_length);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            /* First function is [1 - 2(x-xi)*lipxi(fi)] [l_i(x)]^2 = f1 * f2.
+               Second function is (x-xi) * [l_i(x)]^2 = f3 * f2
+            */
+            double f1 = 1.0 - 2.0 * (x(ix) - x0(fi)) * lipxi(fi);
+            double df1 = -2.0 * lipxi(fi);
+
+            double f3 = x(ix) - x0(fi);
+            double df3 = 1;
+
+            double d13f2 = +2 * d13flip(ix, fi) * flip(ix, fi) +
+                           26 * d12flip(ix, fi) * dflip(ix, fi) +
+                           156 * d11flip(ix, fi) * d2flip(ix, fi) +
+                           572 * d10flip(ix, fi) * d3flip(ix, fi) +
+                           1430 * d9flip(ix, fi) * d4flip(ix, fi) +
+                           2574 * d8flip(ix, fi) * d5flip(ix, fi) +
+                           3432 * d7flip(ix, fi) * d6flip(ix, fi);
+            double d14f2 = +2 * d14flip(ix, fi) * flip(ix, fi) +
+                           28 * d13flip(ix, fi) * dflip(ix, fi) +
+                           182 * d12flip(ix, fi) * d2flip(ix, fi) +
+                           728 * d11flip(ix, fi) * d3flip(ix, fi) +
+                           2002 * d10flip(ix, fi) * d4flip(ix, fi) +
+                           4004 * d9flip(ix, fi) * d5flip(ix, fi) +
+                           6006 * d8flip(ix, fi) * d6flip(ix, fi) +
+                           3432 * d7flip(ix, fi) * d7flip(ix, fi);
+            dnf(ix, 2 * fi) = 14 * df1 * d13f2 + f1 * d14f2;
+            dnf(ix, 2 * fi + 1) =
+                (14 * df3 * d13f2 + f3 * d14f2) * element_length;
+          }
+        }
+      } break;
+      case (15): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, 2 * x0.n_elem);
+
+        // Evaluate LIP basis data
+        double dummy_length = 1.0;
+        arma::mat flip;
+        LIPBasis::eval_prim_dnf(x, flip, 0, dummy_length);
+        arma::mat dflip;
+        LIPBasis::eval_prim_dnf(x, dflip, 1, dummy_length);
+        arma::mat d2flip;
+        LIPBasis::eval_prim_dnf(x, d2flip, 2, dummy_length);
+        arma::mat d3flip;
+        LIPBasis::eval_prim_dnf(x, d3flip, 3, dummy_length);
+        arma::mat d4flip;
+        LIPBasis::eval_prim_dnf(x, d4flip, 4, dummy_length);
+        arma::mat d5flip;
+        LIPBasis::eval_prim_dnf(x, d5flip, 5, dummy_length);
+        arma::mat d6flip;
+        LIPBasis::eval_prim_dnf(x, d6flip, 6, dummy_length);
+        arma::mat d7flip;
+        LIPBasis::eval_prim_dnf(x, d7flip, 7, dummy_length);
+        arma::mat d8flip;
+        LIPBasis::eval_prim_dnf(x, d8flip, 8, dummy_length);
+        arma::mat d9flip;
+        LIPBasis::eval_prim_dnf(x, d9flip, 9, dummy_length);
+        arma::mat d10flip;
+        LIPBasis::eval_prim_dnf(x, d10flip, 10, dummy_length);
+        arma::mat d11flip;
+        LIPBasis::eval_prim_dnf(x, d11flip, 11, dummy_length);
+        arma::mat d12flip;
+        LIPBasis::eval_prim_dnf(x, d12flip, 12, dummy_length);
+        arma::mat d13flip;
+        LIPBasis::eval_prim_dnf(x, d13flip, 13, dummy_length);
+        arma::mat d14flip;
+        LIPBasis::eval_prim_dnf(x, d14flip, 14, dummy_length);
+        arma::mat d15flip;
+        LIPBasis::eval_prim_dnf(x, d15flip, 15, dummy_length);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            /* First function is [1 - 2(x-xi)*lipxi(fi)] [l_i(x)]^2 = f1 * f2.
+               Second function is (x-xi) * [l_i(x)]^2 = f3 * f2
+            */
+            double f1 = 1.0 - 2.0 * (x(ix) - x0(fi)) * lipxi(fi);
+            double df1 = -2.0 * lipxi(fi);
+
+            double f3 = x(ix) - x0(fi);
+            double df3 = 1;
+
+            double d14f2 = +2 * d14flip(ix, fi) * flip(ix, fi) +
+                           28 * d13flip(ix, fi) * dflip(ix, fi) +
+                           182 * d12flip(ix, fi) * d2flip(ix, fi) +
+                           728 * d11flip(ix, fi) * d3flip(ix, fi) +
+                           2002 * d10flip(ix, fi) * d4flip(ix, fi) +
+                           4004 * d9flip(ix, fi) * d5flip(ix, fi) +
+                           6006 * d8flip(ix, fi) * d6flip(ix, fi) +
+                           3432 * d7flip(ix, fi) * d7flip(ix, fi);
+            double d15f2 = +2 * d15flip(ix, fi) * flip(ix, fi) +
+                           30 * d14flip(ix, fi) * dflip(ix, fi) +
+                           210 * d13flip(ix, fi) * d2flip(ix, fi) +
+                           910 * d12flip(ix, fi) * d3flip(ix, fi) +
+                           2730 * d11flip(ix, fi) * d4flip(ix, fi) +
+                           6006 * d10flip(ix, fi) * d5flip(ix, fi) +
+                           10010 * d9flip(ix, fi) * d6flip(ix, fi) +
+                           12870 * d8flip(ix, fi) * d7flip(ix, fi);
+            dnf(ix, 2 * fi) = 15 * df1 * d14f2 + f1 * d15f2;
+            dnf(ix, 2 * fi + 1) =
+                (15 * df3 * d14f2 + f3 * d15f2) * element_length;
+          }
+        }
+      } break;
+      case (16): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, 2 * x0.n_elem);
+
+        // Evaluate LIP basis data
+        double dummy_length = 1.0;
+        arma::mat flip;
+        LIPBasis::eval_prim_dnf(x, flip, 0, dummy_length);
+        arma::mat dflip;
+        LIPBasis::eval_prim_dnf(x, dflip, 1, dummy_length);
+        arma::mat d2flip;
+        LIPBasis::eval_prim_dnf(x, d2flip, 2, dummy_length);
+        arma::mat d3flip;
+        LIPBasis::eval_prim_dnf(x, d3flip, 3, dummy_length);
+        arma::mat d4flip;
+        LIPBasis::eval_prim_dnf(x, d4flip, 4, dummy_length);
+        arma::mat d5flip;
+        LIPBasis::eval_prim_dnf(x, d5flip, 5, dummy_length);
+        arma::mat d6flip;
+        LIPBasis::eval_prim_dnf(x, d6flip, 6, dummy_length);
+        arma::mat d7flip;
+        LIPBasis::eval_prim_dnf(x, d7flip, 7, dummy_length);
+        arma::mat d8flip;
+        LIPBasis::eval_prim_dnf(x, d8flip, 8, dummy_length);
+        arma::mat d9flip;
+        LIPBasis::eval_prim_dnf(x, d9flip, 9, dummy_length);
+        arma::mat d10flip;
+        LIPBasis::eval_prim_dnf(x, d10flip, 10, dummy_length);
+        arma::mat d11flip;
+        LIPBasis::eval_prim_dnf(x, d11flip, 11, dummy_length);
+        arma::mat d12flip;
+        LIPBasis::eval_prim_dnf(x, d12flip, 12, dummy_length);
+        arma::mat d13flip;
+        LIPBasis::eval_prim_dnf(x, d13flip, 13, dummy_length);
+        arma::mat d14flip;
+        LIPBasis::eval_prim_dnf(x, d14flip, 14, dummy_length);
+        arma::mat d15flip;
+        LIPBasis::eval_prim_dnf(x, d15flip, 15, dummy_length);
+        arma::mat d16flip;
+        LIPBasis::eval_prim_dnf(x, d16flip, 16, dummy_length);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            /* First function is [1 - 2(x-xi)*lipxi(fi)] [l_i(x)]^2 = f1 * f2.
+               Second function is (x-xi) * [l_i(x)]^2 = f3 * f2
+            */
+            double f1 = 1.0 - 2.0 * (x(ix) - x0(fi)) * lipxi(fi);
+            double df1 = -2.0 * lipxi(fi);
+
+            double f3 = x(ix) - x0(fi);
+            double df3 = 1;
+
+            double d15f2 = +2 * d15flip(ix, fi) * flip(ix, fi) +
+                           30 * d14flip(ix, fi) * dflip(ix, fi) +
+                           210 * d13flip(ix, fi) * d2flip(ix, fi) +
+                           910 * d12flip(ix, fi) * d3flip(ix, fi) +
+                           2730 * d11flip(ix, fi) * d4flip(ix, fi) +
+                           6006 * d10flip(ix, fi) * d5flip(ix, fi) +
+                           10010 * d9flip(ix, fi) * d6flip(ix, fi) +
+                           12870 * d8flip(ix, fi) * d7flip(ix, fi);
+            double d16f2 = +2 * d16flip(ix, fi) * flip(ix, fi) +
+                           32 * d15flip(ix, fi) * dflip(ix, fi) +
+                           240 * d14flip(ix, fi) * d2flip(ix, fi) +
+                           1120 * d13flip(ix, fi) * d3flip(ix, fi) +
+                           3640 * d12flip(ix, fi) * d4flip(ix, fi) +
+                           8736 * d11flip(ix, fi) * d5flip(ix, fi) +
+                           16016 * d10flip(ix, fi) * d6flip(ix, fi) +
+                           22880 * d9flip(ix, fi) * d7flip(ix, fi) +
+                           12870 * d8flip(ix, fi) * d8flip(ix, fi);
+            dnf(ix, 2 * fi) = 16 * df1 * d15f2 + f1 * d16f2;
+            dnf(ix, 2 * fi + 1) =
+                (16 * df3 * d15f2 + f3 * d16f2) * element_length;
+          }
+        }
+      } break;
+      case (17): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, 2 * x0.n_elem);
+
+        // Evaluate LIP basis data
+        double dummy_length = 1.0;
+        arma::mat flip;
+        LIPBasis::eval_prim_dnf(x, flip, 0, dummy_length);
+        arma::mat dflip;
+        LIPBasis::eval_prim_dnf(x, dflip, 1, dummy_length);
+        arma::mat d2flip;
+        LIPBasis::eval_prim_dnf(x, d2flip, 2, dummy_length);
+        arma::mat d3flip;
+        LIPBasis::eval_prim_dnf(x, d3flip, 3, dummy_length);
+        arma::mat d4flip;
+        LIPBasis::eval_prim_dnf(x, d4flip, 4, dummy_length);
+        arma::mat d5flip;
+        LIPBasis::eval_prim_dnf(x, d5flip, 5, dummy_length);
+        arma::mat d6flip;
+        LIPBasis::eval_prim_dnf(x, d6flip, 6, dummy_length);
+        arma::mat d7flip;
+        LIPBasis::eval_prim_dnf(x, d7flip, 7, dummy_length);
+        arma::mat d8flip;
+        LIPBasis::eval_prim_dnf(x, d8flip, 8, dummy_length);
+        arma::mat d9flip;
+        LIPBasis::eval_prim_dnf(x, d9flip, 9, dummy_length);
+        arma::mat d10flip;
+        LIPBasis::eval_prim_dnf(x, d10flip, 10, dummy_length);
+        arma::mat d11flip;
+        LIPBasis::eval_prim_dnf(x, d11flip, 11, dummy_length);
+        arma::mat d12flip;
+        LIPBasis::eval_prim_dnf(x, d12flip, 12, dummy_length);
+        arma::mat d13flip;
+        LIPBasis::eval_prim_dnf(x, d13flip, 13, dummy_length);
+        arma::mat d14flip;
+        LIPBasis::eval_prim_dnf(x, d14flip, 14, dummy_length);
+        arma::mat d15flip;
+        LIPBasis::eval_prim_dnf(x, d15flip, 15, dummy_length);
+        arma::mat d16flip;
+        LIPBasis::eval_prim_dnf(x, d16flip, 16, dummy_length);
+        arma::mat d17flip;
+        LIPBasis::eval_prim_dnf(x, d17flip, 17, dummy_length);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            /* First function is [1 - 2(x-xi)*lipxi(fi)] [l_i(x)]^2 = f1 * f2.
+               Second function is (x-xi) * [l_i(x)]^2 = f3 * f2
+            */
+            double f1 = 1.0 - 2.0 * (x(ix) - x0(fi)) * lipxi(fi);
+            double df1 = -2.0 * lipxi(fi);
+
+            double f3 = x(ix) - x0(fi);
+            double df3 = 1;
+
+            double d16f2 = +2 * d16flip(ix, fi) * flip(ix, fi) +
+                           32 * d15flip(ix, fi) * dflip(ix, fi) +
+                           240 * d14flip(ix, fi) * d2flip(ix, fi) +
+                           1120 * d13flip(ix, fi) * d3flip(ix, fi) +
+                           3640 * d12flip(ix, fi) * d4flip(ix, fi) +
+                           8736 * d11flip(ix, fi) * d5flip(ix, fi) +
+                           16016 * d10flip(ix, fi) * d6flip(ix, fi) +
+                           22880 * d9flip(ix, fi) * d7flip(ix, fi) +
+                           12870 * d8flip(ix, fi) * d8flip(ix, fi);
+            double d17f2 = +2 * d17flip(ix, fi) * flip(ix, fi) +
+                           34 * d16flip(ix, fi) * dflip(ix, fi) +
+                           272 * d15flip(ix, fi) * d2flip(ix, fi) +
+                           1360 * d14flip(ix, fi) * d3flip(ix, fi) +
+                           4760 * d13flip(ix, fi) * d4flip(ix, fi) +
+                           12376 * d12flip(ix, fi) * d5flip(ix, fi) +
+                           24752 * d11flip(ix, fi) * d6flip(ix, fi) +
+                           38896 * d10flip(ix, fi) * d7flip(ix, fi) +
+                           48620 * d9flip(ix, fi) * d8flip(ix, fi);
+            dnf(ix, 2 * fi) = 17 * df1 * d16f2 + f1 * d17f2;
+            dnf(ix, 2 * fi + 1) =
+                (17 * df3 * d16f2 + f3 * d17f2) * element_length;
+          }
+        }
+      } break;
+      case (18): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, 2 * x0.n_elem);
+
+        // Evaluate LIP basis data
+        double dummy_length = 1.0;
+        arma::mat flip;
+        LIPBasis::eval_prim_dnf(x, flip, 0, dummy_length);
+        arma::mat dflip;
+        LIPBasis::eval_prim_dnf(x, dflip, 1, dummy_length);
+        arma::mat d2flip;
+        LIPBasis::eval_prim_dnf(x, d2flip, 2, dummy_length);
+        arma::mat d3flip;
+        LIPBasis::eval_prim_dnf(x, d3flip, 3, dummy_length);
+        arma::mat d4flip;
+        LIPBasis::eval_prim_dnf(x, d4flip, 4, dummy_length);
+        arma::mat d5flip;
+        LIPBasis::eval_prim_dnf(x, d5flip, 5, dummy_length);
+        arma::mat d6flip;
+        LIPBasis::eval_prim_dnf(x, d6flip, 6, dummy_length);
+        arma::mat d7flip;
+        LIPBasis::eval_prim_dnf(x, d7flip, 7, dummy_length);
+        arma::mat d8flip;
+        LIPBasis::eval_prim_dnf(x, d8flip, 8, dummy_length);
+        arma::mat d9flip;
+        LIPBasis::eval_prim_dnf(x, d9flip, 9, dummy_length);
+        arma::mat d10flip;
+        LIPBasis::eval_prim_dnf(x, d10flip, 10, dummy_length);
+        arma::mat d11flip;
+        LIPBasis::eval_prim_dnf(x, d11flip, 11, dummy_length);
+        arma::mat d12flip;
+        LIPBasis::eval_prim_dnf(x, d12flip, 12, dummy_length);
+        arma::mat d13flip;
+        LIPBasis::eval_prim_dnf(x, d13flip, 13, dummy_length);
+        arma::mat d14flip;
+        LIPBasis::eval_prim_dnf(x, d14flip, 14, dummy_length);
+        arma::mat d15flip;
+        LIPBasis::eval_prim_dnf(x, d15flip, 15, dummy_length);
+        arma::mat d16flip;
+        LIPBasis::eval_prim_dnf(x, d16flip, 16, dummy_length);
+        arma::mat d17flip;
+        LIPBasis::eval_prim_dnf(x, d17flip, 17, dummy_length);
+        arma::mat d18flip;
+        LIPBasis::eval_prim_dnf(x, d18flip, 18, dummy_length);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            /* First function is [1 - 2(x-xi)*lipxi(fi)] [l_i(x)]^2 = f1 * f2.
+               Second function is (x-xi) * [l_i(x)]^2 = f3 * f2
+            */
+            double f1 = 1.0 - 2.0 * (x(ix) - x0(fi)) * lipxi(fi);
+            double df1 = -2.0 * lipxi(fi);
+
+            double f3 = x(ix) - x0(fi);
+            double df3 = 1;
+
+            double d17f2 = +2 * d17flip(ix, fi) * flip(ix, fi) +
+                           34 * d16flip(ix, fi) * dflip(ix, fi) +
+                           272 * d15flip(ix, fi) * d2flip(ix, fi) +
+                           1360 * d14flip(ix, fi) * d3flip(ix, fi) +
+                           4760 * d13flip(ix, fi) * d4flip(ix, fi) +
+                           12376 * d12flip(ix, fi) * d5flip(ix, fi) +
+                           24752 * d11flip(ix, fi) * d6flip(ix, fi) +
+                           38896 * d10flip(ix, fi) * d7flip(ix, fi) +
+                           48620 * d9flip(ix, fi) * d8flip(ix, fi);
+            double d18f2 = +2 * d18flip(ix, fi) * flip(ix, fi) +
+                           36 * d17flip(ix, fi) * dflip(ix, fi) +
+                           306 * d16flip(ix, fi) * d2flip(ix, fi) +
+                           1632 * d15flip(ix, fi) * d3flip(ix, fi) +
+                           6120 * d14flip(ix, fi) * d4flip(ix, fi) +
+                           17136 * d13flip(ix, fi) * d5flip(ix, fi) +
+                           37128 * d12flip(ix, fi) * d6flip(ix, fi) +
+                           63648 * d11flip(ix, fi) * d7flip(ix, fi) +
+                           87516 * d10flip(ix, fi) * d8flip(ix, fi) +
+                           48620 * d9flip(ix, fi) * d9flip(ix, fi);
+            dnf(ix, 2 * fi) = 18 * df1 * d17f2 + f1 * d18f2;
+            dnf(ix, 2 * fi + 1) =
+                (18 * df3 * d17f2 + f3 * d18f2) * element_length;
+          }
+        }
+      } break;
+      case (19): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, 2 * x0.n_elem);
+
+        // Evaluate LIP basis data
+        double dummy_length = 1.0;
+        arma::mat flip;
+        LIPBasis::eval_prim_dnf(x, flip, 0, dummy_length);
+        arma::mat dflip;
+        LIPBasis::eval_prim_dnf(x, dflip, 1, dummy_length);
+        arma::mat d2flip;
+        LIPBasis::eval_prim_dnf(x, d2flip, 2, dummy_length);
+        arma::mat d3flip;
+        LIPBasis::eval_prim_dnf(x, d3flip, 3, dummy_length);
+        arma::mat d4flip;
+        LIPBasis::eval_prim_dnf(x, d4flip, 4, dummy_length);
+        arma::mat d5flip;
+        LIPBasis::eval_prim_dnf(x, d5flip, 5, dummy_length);
+        arma::mat d6flip;
+        LIPBasis::eval_prim_dnf(x, d6flip, 6, dummy_length);
+        arma::mat d7flip;
+        LIPBasis::eval_prim_dnf(x, d7flip, 7, dummy_length);
+        arma::mat d8flip;
+        LIPBasis::eval_prim_dnf(x, d8flip, 8, dummy_length);
+        arma::mat d9flip;
+        LIPBasis::eval_prim_dnf(x, d9flip, 9, dummy_length);
+        arma::mat d10flip;
+        LIPBasis::eval_prim_dnf(x, d10flip, 10, dummy_length);
+        arma::mat d11flip;
+        LIPBasis::eval_prim_dnf(x, d11flip, 11, dummy_length);
+        arma::mat d12flip;
+        LIPBasis::eval_prim_dnf(x, d12flip, 12, dummy_length);
+        arma::mat d13flip;
+        LIPBasis::eval_prim_dnf(x, d13flip, 13, dummy_length);
+        arma::mat d14flip;
+        LIPBasis::eval_prim_dnf(x, d14flip, 14, dummy_length);
+        arma::mat d15flip;
+        LIPBasis::eval_prim_dnf(x, d15flip, 15, dummy_length);
+        arma::mat d16flip;
+        LIPBasis::eval_prim_dnf(x, d16flip, 16, dummy_length);
+        arma::mat d17flip;
+        LIPBasis::eval_prim_dnf(x, d17flip, 17, dummy_length);
+        arma::mat d18flip;
+        LIPBasis::eval_prim_dnf(x, d18flip, 18, dummy_length);
+        arma::mat d19flip;
+        LIPBasis::eval_prim_dnf(x, d19flip, 19, dummy_length);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            /* First function is [1 - 2(x-xi)*lipxi(fi)] [l_i(x)]^2 = f1 * f2.
+               Second function is (x-xi) * [l_i(x)]^2 = f3 * f2
+            */
+            double f1 = 1.0 - 2.0 * (x(ix) - x0(fi)) * lipxi(fi);
+            double df1 = -2.0 * lipxi(fi);
+
+            double f3 = x(ix) - x0(fi);
+            double df3 = 1;
+
+            double d18f2 = +2 * d18flip(ix, fi) * flip(ix, fi) +
+                           36 * d17flip(ix, fi) * dflip(ix, fi) +
+                           306 * d16flip(ix, fi) * d2flip(ix, fi) +
+                           1632 * d15flip(ix, fi) * d3flip(ix, fi) +
+                           6120 * d14flip(ix, fi) * d4flip(ix, fi) +
+                           17136 * d13flip(ix, fi) * d5flip(ix, fi) +
+                           37128 * d12flip(ix, fi) * d6flip(ix, fi) +
+                           63648 * d11flip(ix, fi) * d7flip(ix, fi) +
+                           87516 * d10flip(ix, fi) * d8flip(ix, fi) +
+                           48620 * d9flip(ix, fi) * d9flip(ix, fi);
+            double d19f2 = +2 * d19flip(ix, fi) * flip(ix, fi) +
+                           38 * d18flip(ix, fi) * dflip(ix, fi) +
+                           342 * d17flip(ix, fi) * d2flip(ix, fi) +
+                           1938 * d16flip(ix, fi) * d3flip(ix, fi) +
+                           7752 * d15flip(ix, fi) * d4flip(ix, fi) +
+                           23256 * d14flip(ix, fi) * d5flip(ix, fi) +
+                           54264 * d13flip(ix, fi) * d6flip(ix, fi) +
+                           100776 * d12flip(ix, fi) * d7flip(ix, fi) +
+                           151164 * d11flip(ix, fi) * d8flip(ix, fi) +
+                           184756 * d10flip(ix, fi) * d9flip(ix, fi);
+            dnf(ix, 2 * fi) = 19 * df1 * d18f2 + f1 * d19f2;
+            dnf(ix, 2 * fi + 1) =
+                (19 * df3 * d18f2 + f3 * d19f2) * element_length;
+          }
+        }
+      } break;
+      case (20): {
+        // Allocate memory
+        dnf.zeros(x.n_elem, 2 * x0.n_elem);
+
+        // Evaluate LIP basis data
+        double dummy_length = 1.0;
+        arma::mat flip;
+        LIPBasis::eval_prim_dnf(x, flip, 0, dummy_length);
+        arma::mat dflip;
+        LIPBasis::eval_prim_dnf(x, dflip, 1, dummy_length);
+        arma::mat d2flip;
+        LIPBasis::eval_prim_dnf(x, d2flip, 2, dummy_length);
+        arma::mat d3flip;
+        LIPBasis::eval_prim_dnf(x, d3flip, 3, dummy_length);
+        arma::mat d4flip;
+        LIPBasis::eval_prim_dnf(x, d4flip, 4, dummy_length);
+        arma::mat d5flip;
+        LIPBasis::eval_prim_dnf(x, d5flip, 5, dummy_length);
+        arma::mat d6flip;
+        LIPBasis::eval_prim_dnf(x, d6flip, 6, dummy_length);
+        arma::mat d7flip;
+        LIPBasis::eval_prim_dnf(x, d7flip, 7, dummy_length);
+        arma::mat d8flip;
+        LIPBasis::eval_prim_dnf(x, d8flip, 8, dummy_length);
+        arma::mat d9flip;
+        LIPBasis::eval_prim_dnf(x, d9flip, 9, dummy_length);
+        arma::mat d10flip;
+        LIPBasis::eval_prim_dnf(x, d10flip, 10, dummy_length);
+        arma::mat d11flip;
+        LIPBasis::eval_prim_dnf(x, d11flip, 11, dummy_length);
+        arma::mat d12flip;
+        LIPBasis::eval_prim_dnf(x, d12flip, 12, dummy_length);
+        arma::mat d13flip;
+        LIPBasis::eval_prim_dnf(x, d13flip, 13, dummy_length);
+        arma::mat d14flip;
+        LIPBasis::eval_prim_dnf(x, d14flip, 14, dummy_length);
+        arma::mat d15flip;
+        LIPBasis::eval_prim_dnf(x, d15flip, 15, dummy_length);
+        arma::mat d16flip;
+        LIPBasis::eval_prim_dnf(x, d16flip, 16, dummy_length);
+        arma::mat d17flip;
+        LIPBasis::eval_prim_dnf(x, d17flip, 17, dummy_length);
+        arma::mat d18flip;
+        LIPBasis::eval_prim_dnf(x, d18flip, 18, dummy_length);
+        arma::mat d19flip;
+        LIPBasis::eval_prim_dnf(x, d19flip, 19, dummy_length);
+        arma::mat d20flip;
+        LIPBasis::eval_prim_dnf(x, d20flip, 20, dummy_length);
+        // Loop over points
+        for (size_t ix = 0; ix < x.n_elem; ix++) {
+          // Loop over polynomials
+          for (size_t fi = 0; fi < x0.n_elem; fi++) {
+            /* First function is [1 - 2(x-xi)*lipxi(fi)] [l_i(x)]^2 = f1 * f2.
+               Second function is (x-xi) * [l_i(x)]^2 = f3 * f2
+            */
+            double f1 = 1.0 - 2.0 * (x(ix) - x0(fi)) * lipxi(fi);
+            double df1 = -2.0 * lipxi(fi);
+
+            double f3 = x(ix) - x0(fi);
+            double df3 = 1;
+
+            double d19f2 = +2 * d19flip(ix, fi) * flip(ix, fi) +
+                           38 * d18flip(ix, fi) * dflip(ix, fi) +
+                           342 * d17flip(ix, fi) * d2flip(ix, fi) +
+                           1938 * d16flip(ix, fi) * d3flip(ix, fi) +
+                           7752 * d15flip(ix, fi) * d4flip(ix, fi) +
+                           23256 * d14flip(ix, fi) * d5flip(ix, fi) +
+                           54264 * d13flip(ix, fi) * d6flip(ix, fi) +
+                           100776 * d12flip(ix, fi) * d7flip(ix, fi) +
+                           151164 * d11flip(ix, fi) * d8flip(ix, fi) +
+                           184756 * d10flip(ix, fi) * d9flip(ix, fi);
+            double d20f2 = +2 * d20flip(ix, fi) * flip(ix, fi) +
+                           40 * d19flip(ix, fi) * dflip(ix, fi) +
+                           380 * d18flip(ix, fi) * d2flip(ix, fi) +
+                           2280 * d17flip(ix, fi) * d3flip(ix, fi) +
+                           9690 * d16flip(ix, fi) * d4flip(ix, fi) +
+                           31008 * d15flip(ix, fi) * d5flip(ix, fi) +
+                           77520 * d14flip(ix, fi) * d6flip(ix, fi) +
+                           155040 * d13flip(ix, fi) * d7flip(ix, fi) +
+                           251940 * d12flip(ix, fi) * d8flip(ix, fi) +
+                           335920 * d11flip(ix, fi) * d9flip(ix, fi) +
+                           184756 * d10flip(ix, fi) * d10flip(ix, fi);
+            dnf(ix, 2 * fi) = 20 * df1 * d19f2 + f1 * d20f2;
+            dnf(ix, 2 * fi + 1) =
+                (20 * df3 * d19f2 + f3 * d20f2) * element_length;
+          }
+        }
+      } break;
       default:
         std::ostringstream oss;
         oss << n << "th derivatives not implemented!\n";
