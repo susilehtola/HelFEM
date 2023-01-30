@@ -56,6 +56,8 @@ namespace helfem {
       int get_id() const;
       /// Get number of nodes
       int get_nnodes() const;
+      /// Get nodes
+      virtual arma::vec get_nodes() const;
 
       /// Get list of enabled primitives
       arma::uvec get_enabled() const;

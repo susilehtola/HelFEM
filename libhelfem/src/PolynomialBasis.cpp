@@ -110,6 +110,13 @@ namespace helfem {
       return nnodes;
     }
 
+    arma::vec PolynomialBasis::get_nodes() const {
+      arma::vec n(2);
+      n(0)=-1.0;
+      n(1)=1.0;
+      return n;
+    }
+
     arma::uvec PolynomialBasis::get_enabled() const {
       return enabled;
     }

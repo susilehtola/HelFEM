@@ -43,6 +43,9 @@ namespace helfem {
 
       /// Evaluate polynomials at given points
       void eval_prim_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const override;
+
+      /// Return nodes
+      arma::vec get_nodes() const override;
     };
   }
 }

@@ -57,13 +57,20 @@ namespace helfem {
       }
 
       void RadialBasis::set_small_r_taylor_cutoff() {
-        // Determine small r Taylor cutoff. We use a 5th order Taylor
-        // polynomial f(r) = 0 + f'(0) r + 1/2 f''(0) r^2 + ... + 1/5!
-        // f^(5)(0) r^5 but we also need up to second derivatives.  We
-        // choose the cutoff automatically by minimizing the
+        // Determine small r Taylor cutoff by minimizing the
         // difference of the analytic and Taylor values of the
         // function and its first two derivatives.
-        arma::vec rcut(arma::logspace<arma::vec>(-9, 0, 1000)*fem.element_length(0));
+
+        // Start out by ensuring that rcut values are to the left of
+        // any nodes in the basis
+        std::shared_ptr<const polynomial_basis::PolynomialBasis> p(fem.get_basis(0));
+        arma::vec nodes(arma::sort(p->get_nodes()));
+        arma::vec minx(1);
+        minx(0)=nodes(1);
+        arma::vec maxr(fem.eval_coord(minx, 0));
+
+        // Now divvy out the space with a logarithmic grid
+        arma::vec rcut(arma::logspace<arma::vec>(-10, 0, 1000)*maxr(0));
 
         // Find the primitive coordinates corresponding to the cutoffs
         arma::vec xprim(fem.eval_prim(rcut, 0));
@@ -102,8 +109,11 @@ namespace helfem {
         for(icut=rcut.n_elem-2;icut>0;icut--) {
           if(diffs(icut,4) > diffs(icut+1,4))
             break;
-          small_r_taylor_cutoff = rcut(icut);
         }
+        if(small_r_taylor_cutoff == DBL_MAX) {
+          icut=rcut.n_elem-1;
+        }
+        small_r_taylor_cutoff = rcut(icut);
 
         // Save error
         taylor_diff=diffs(icut,4);

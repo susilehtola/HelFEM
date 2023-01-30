@@ -47,5 +47,9 @@ namespace helfem {
       if(func)
         enabled=enabled.subvec(0,enabled.n_elem-2);
     }
+
+    arma::vec LIPBasis::get_nodes() const {
+      return x0;
+    }
   }
 }

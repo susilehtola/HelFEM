@@ -140,5 +140,9 @@ namespace helfem {
 
       enabled = new_funcs;
     }
+
+    arma::vec GeneralHIPBasis::get_nodes() const {
+      return lip.get_nodes();
+    }
   }
 }
