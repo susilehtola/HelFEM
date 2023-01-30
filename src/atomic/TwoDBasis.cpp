@@ -35,7 +35,7 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder_, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int Zl_, int Zr_, double Rhalf_) {
+      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder_, int n_quad, const arma::vec & bval, int taylor_order, const arma::ivec & lval_, const arma::ivec & mval_, int Zl_, int Zr_, double Rhalf_) {
         // Nuclear charge
         Z=Z_;
         Zl=Zl_;
@@ -50,7 +50,7 @@ namespace helfem {
         bool zero_func_right=true;
         zeroder=zeroder_;
         polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zeroder);
-        radial=RadialBasis(fem, n_quad);
+        radial=RadialBasis(fem, n_quad, taylor_order);
 
         // Construct angular basis
         lval=lval_;
@@ -130,6 +130,14 @@ namespace helfem {
 
       double TwoDBasis::get_small_r_taylor_cutoff() const {
         return radial.get_small_r_taylor_cutoff();
+      }
+
+      int TwoDBasis::get_taylor_order() const {
+        return radial.get_taylor_order();
+      }
+
+      double TwoDBasis::get_taylor_diff() const {
+        return radial.get_taylor_diff();
       }
 
       arma::uvec TwoDBasis::pure_indices() const {

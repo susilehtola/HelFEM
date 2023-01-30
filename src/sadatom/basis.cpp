@@ -37,7 +37,7 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int n_quad, const arma::vec & bval, int lmax) {
+      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int n_quad, const arma::vec & bval, int taylor_order, int lmax) {
         // Nuclear charge
         Z=Z_;
         model=model_;
@@ -47,7 +47,7 @@ namespace helfem {
         bool zero_deriv_left=false;
         bool zero_func_right=true;
         polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zeroder);
-        radial=atomic::basis::RadialBasis(fem, n_quad);
+        radial=atomic::basis::RadialBasis(fem, n_quad, taylor_order);
         // Angular basis
         lval=arma::linspace<arma::ivec>(0,lmax,lmax+1);
       }
@@ -723,6 +723,10 @@ namespace helfem {
 
       double TwoDBasis::get_small_r_taylor_cutoff() const {
         return radial.get_small_r_taylor_cutoff();
+      }
+
+      double TwoDBasis::get_taylor_diff() const {
+        return radial.get_taylor_diff();
       }
 
       double TwoDBasis::nuclear_density(const arma::mat & P) const {

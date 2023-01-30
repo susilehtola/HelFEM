@@ -55,7 +55,7 @@ namespace helfem {
       public:
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int n_quad, const arma::vec & bval, int lmax);
+        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int n_quad, const arma::vec & bval, int taylor_order, int lmax);
         /// Destructor
         ~TwoDBasis();
 
@@ -109,6 +109,8 @@ namespace helfem {
         arma::vec get_r(size_t iel) const;
         /// Get small r Taylor cutoff
         double get_small_r_taylor_cutoff() const;
+        /// Get small r Taylor cutoff
+        double get_taylor_diff() const;
 
         /// Get primitive integrals
         std::vector<arma::mat> get_prim_tei() const;

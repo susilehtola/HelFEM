@@ -29,7 +29,7 @@ namespace helfem {
     namespace basis {
       RadialBasis::RadialBasis() {}
 
-      RadialBasis::RadialBasis(const polynomial_basis::FiniteElementBasis & fem_, int n_quad) : fem(fem_) {
+      RadialBasis::RadialBasis(const polynomial_basis::FiniteElementBasis & fem_, int n_quad, int taylor_order_) : fem(fem_), taylor_order(taylor_order_) {
         // Get quadrature rule
         chebyshev::chebyshev(n_quad, xq, wq);
         for (size_t i = 0; i < xq.n_elem; i++) {
@@ -38,6 +38,21 @@ namespace helfem {
           if (!std::isfinite(wq[i]))
             printf("wq[%i]=%e\n", (int)i, wq[i]);
         }
+
+        // Compute Taylor series at the origin
+        arma::vec origin(1);
+        origin(0)=-1;
+
+        size_t iel=0;
+        taylor_df.resize(taylor_order);
+        for(int i=0;i<taylor_order;i++) {
+          // f(r) = B'(0) + 1/2 B''(0) r + ...: Constant term only
+          // survives without derivative, first-order term only up to
+          // first derivative etc.
+          taylor_df[i] = fem.eval_dnf(origin, i+1, iel);
+        }
+
+        // Adjust cutoff
         set_small_r_taylor_cutoff();
       }
 
@@ -48,7 +63,7 @@ namespace helfem {
         // choose the cutoff automatically by minimizing the
         // difference of the analytic and Taylor values of the
         // function and its first two derivatives.
-        arma::vec rcut(arma::logspace<arma::vec>(-9, -2, 1000)*fem.element_length(0));
+        arma::vec rcut(arma::logspace<arma::vec>(-9, 0, 1000)*fem.element_length(0));
 
         // Find the primitive coordinates corresponding to the cutoffs
         arma::vec xprim(fem.eval_prim(rcut, 0));
@@ -90,6 +105,9 @@ namespace helfem {
           small_r_taylor_cutoff = rcut(icut);
         }
 
+        // Save error
+        taylor_diff=diffs(icut,4);
+
         /*
         // Print out agreement at cutoff
         printf("\nAnalytic vs Taylor\n");
@@ -98,8 +116,7 @@ namespace helfem {
           printf("%4i % .15e % .15e % .15e % .15e % .15e % .15e\n",ifun, bf0(icut,ifun), bft(icut,ifun), df0(icut,ifun), dft(icut,ifun), lf0(icut,ifun), lft(icut,ifun));
         diffs.row(icut).print("Relative differences at cutoff");
         */
-        diffs.save("taylor_diff.dat", arma::raw_ascii);
-
+        //diffs.save("taylor_diff.dat", arma::raw_ascii);
       }
 
       RadialBasis::~RadialBasis() {}
@@ -146,6 +163,14 @@ namespace helfem {
 
       double RadialBasis::get_small_r_taylor_cutoff() const {
         return small_r_taylor_cutoff;
+      }
+
+      int RadialBasis::get_taylor_order() const {
+        return taylor_order;
+      }
+
+      double RadialBasis::get_taylor_diff() const {
+        return taylor_diff;
       }
 
       arma::mat RadialBasis::radial_integral(int Rexp, size_t iel) const {
@@ -400,7 +425,7 @@ namespace helfem {
         return get_bf(xq, iel);
       }
 
-      void RadialBasis::get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider, int taylor_order) const {
+      void RadialBasis::get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider) const {
         if(taylorind[0]!=0 || taylorind[taylorind.n_elem-1] != taylorind.n_elem-1)
           throw std::logic_error("Taylor points not consecutive!\n");
 
@@ -408,11 +433,13 @@ namespace helfem {
         //  [B(0) + B'(0)r + 1/2 B''(0) r^2 + ...]/r
         //= B'(0) + 1/2 B''(0) r + 1/6 B'''(0) r^2 + ...
 
+        /*
         if(taylor_order<3 || taylor_order>9) {
           std::ostringstream oss;
           oss << "Got taylor_order = " << taylor_order << ". Taylor expansion order needs to be 3 <= taylor_order <= 9.\n";
           throw std::logic_error(oss.str());
         }
+        */
 
         // Coefficients of the various derivatives in the expansion of
         // the function itself. Note that the zeroth element already
@@ -432,19 +459,6 @@ namespace helfem {
           }
         }
 
-        // Form Taylor series at the origin
-        arma::vec origin(1);
-        origin(0)=-1;
-
-        size_t iel=0;
-        std::vector<arma::rowvec> df(taylor_order);
-        for(int i=ider;i<taylor_order;i++) {
-          // f(r) = B'(0) + 1/2 B''(0) r + ...: Constant term only
-          // survives without derivative, first-order term only up to
-          // first derivative etc.
-          df[i] = fem.eval_dnf(origin, i+1, iel);
-        }
-
         // Exponentiate r
         std::vector<arma::vec> rexpval(taylor_order);
         for(int i=ider; i < taylor_order; i++) {
@@ -459,7 +473,7 @@ namespace helfem {
             val(ir, ifun) = 0.0;
             // Terms below this are zero
             for(int iterm=ider;iterm < taylor_order;iterm++) {
-              val(ir, ifun) += taylorcoeff[iterm]*df[iterm](ifun)*rexpval[iterm](ir);
+              val(ir, ifun) += taylorcoeff[iterm]*taylor_df[iterm](ifun)*rexpval[iterm](ir);
             }
           }
       }

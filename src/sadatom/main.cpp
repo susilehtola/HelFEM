@@ -125,6 +125,7 @@ int main(int argc, char **argv) {
   parser.add<double>("diiseps", 0, "when to start mixing in diis", false, 1e-2);
   parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
   parser.add<int>("diisorder", 0, "length of diis history", false, 10);
+  parser.add<int>("taylor_order", 0, "order of Taylor expansion near the nucleus", false, -1);
   parser.add<bool>("saveorb", 0, "save radial orbitals to disk?", false, false);
   parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
@@ -148,6 +149,7 @@ int main(int argc, char **argv) {
   int Nelem0(parser.get<int>("nelem0"));
   // Number of nodes
   int Nnodes(parser.get<int>("nnodes"));
+  int taylor_order(parser.get<int>("taylor_order"));
 
   double shift(parser.get<double>("shift"));
 
@@ -192,6 +194,10 @@ int main(int argc, char **argv) {
   // Order of quadrature rule
   printf("Using %i point quadrature rule.\n",Nquad);
 
+  // Set default order of Taylor expansion
+  if(taylor_order==-1)
+    taylor_order = poly->get_nprim()-1;
+
   // Total number of electrons is
   arma::sword numel=Z-Q;
 
@@ -230,7 +236,7 @@ int main(int argc, char **argv) {
   arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0);
 
   // Initialize solver
-  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
+  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
 
   // Set parameters if necessary
   arma::vec xpars, cpars;

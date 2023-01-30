@@ -75,7 +75,7 @@ namespace helfem {
       public:
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int Zl, int Zr, double Rhalf);
+        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int n_quad, const arma::vec & bval, int taylor_order, const arma::ivec & lval, const arma::ivec & mval, int Zl, int Zr, double Rhalf);
         /// Destructor
         ~TwoDBasis();
 
@@ -141,6 +141,10 @@ namespace helfem {
         size_t Nang() const;
         /// Get small r Taylor cutoff
         double get_small_r_taylor_cutoff() const;
+        /// Get order of Taylor expansion
+        int get_taylor_order() const;
+        /// Get order of Taylor expansion
+        double get_taylor_diff() const;
 
         /// Form half-overlap matrix
         arma::mat Shalf(bool chol, int sym) const;
