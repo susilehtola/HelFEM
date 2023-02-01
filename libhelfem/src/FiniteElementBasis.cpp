@@ -96,7 +96,7 @@ namespace helfem {
         arma::mat diff(lh-rh);
         dnorm(iel) = arma::norm(diff,2);
         if(dnorm(iel) > sqrt(DBL_EPSILON)) {
-          printf("Discontinuity between elements %i and %i (C indexing)\n",iel,iel+1);
+          printf("Discontinuity between elements %i and %i (C indexing)\n",(int) iel,(int) iel+1);
           lh.print("lh values");
           rh.print("rh values");
           diff.print("difference");
