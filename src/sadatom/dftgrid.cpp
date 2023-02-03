@@ -403,6 +403,71 @@ namespace helfem {
           }
         }
 
+        // Check for NaNs
+        for(size_t i=0; i<N; i++) {
+          double e = has_exc(func_id) ? exc_wrk[i] : 0.0;
+          double rhoa=0.0, rhob=0.0, sigmaaa=0.0, sigmaab=0.0, sigmabb=0.0, lapla=0.0, laplb=0.0, taua=0.0, taub=0.0;
+          double vrhoa=0.0, vrhob=0.0, vsigmaaa=0.0, vsigmaab=0.0, vsigmabb=0.0, vlapla=0.0, vlaplb=0.0, vtaua=0.0, vtaub=0.0;
+          if(polarized) {
+            rhoa = rho(0,i);
+            rhob = rho(1,i);
+            vrhoa = vxc(0,i);
+            vrhob = vxc(1,i);
+            if(gga || mgga_t || mgga_l) {
+              sigmaaa = sigma(0,i);
+              sigmaab = sigma(1,i);
+              sigmabb = sigma(2,i);
+              vsigmaaa = vsigma(0,i);
+              vsigmaab = vsigma(1,i);
+              vsigmabb = vsigma(2,i);
+            }
+            if(mgga_l) {
+              lapla = lapl(0,i);
+              laplb = lapl(1,i);
+              vlapla = vlapl(0,i);
+              vlaplb = vlapl(1,i);
+            }
+            if(mgga_t) {
+              taua = tau(0,i);
+              taub = tau(1,i);
+              vtaua = vtau(0,i);
+              vtaub = vtau(1,i);
+            }
+          } else {
+            rhoa = 0.5*rho(i,0);
+            rhob = 0.5*rho(i,0);
+            vrhoa = vxc(i,0);
+            vrhob = vxc(i,0);
+            if(gga || mgga_t || mgga_l) {
+              sigmaaa = 0.25*sigma(i,0);
+              sigmaab = 0.25*sigma(i,0);
+              sigmabb = 0.25*sigma(i,0);
+              vsigmaaa = vsigma(i,0);
+              vsigmaab = vsigma(i,0);
+              vsigmabb = vsigma(i,0);
+            }
+            if(mgga_l) {
+              lapla = 0.5*lapl(i,0);
+              laplb = 0.5*lapl(i,0);
+              vlapla = vlapl(i,0);
+              vlaplb = vlapl(i,0);
+            }
+            if(mgga_t) {
+              taua = 0.5*tau(i,0);
+              taub = 0.5*tau(i,0);
+              vtaua = vtau(i,0);
+              vtaub = vtau(i,0);
+            }
+          }
+
+          if(std::isnan(e) || std::isnan(vrhoa) || std::isnan(vrhob) || std::isnan(vsigmaaa) || std::isnan(vsigmaab) || std::isnan(vsigmabb) || std::isnan(vlapla) || std::isnan(vlaplb) || std::isnan(vtaua) || std::isnan(vtaub)) {
+            printf("NaN encountered for functional id = %i with input\n", func_id);
+
+            printf("input: %e %e %e % e %e %e %e % e % e\n",rhoa,rhob,sigmaaa,sigmaab,sigmabb,lapla,laplb,taua,taub);
+            printf("output: % e % e % e % e % e % e % e % e % e % e\n",e,vrhoa,vrhob,vsigmaaa,vsigmaab,vsigmabb,vlapla,vlaplb,vtaua,vtaub);
+          }
+        }
+
         // Sum to total arrays containing both exchange and correlation
         if(has_exc(func_id))
           exc+=exc_wrk;
