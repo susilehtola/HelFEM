@@ -875,17 +875,7 @@ namespace helfem {
       }
 
       arma::vec TwoDBasis::electron_density(size_t iel, const arma::mat & Prad, bool rsqweight) const {
-        // Radial functions in element
-        size_t ifirst, ilast;
-        radial.get_idx(iel,ifirst,ilast);
-        // Density matrix
-        arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
-        arma::mat bf(radial.get_bf(iel));
-
-        arma::vec density = arma::diagvec(bf*Psub*bf.t());
-        if(rsqweight)
-          density %= arma::square(radial.get_r(iel));
-        return density;
+        return electron_density(radial.get_xq(), iel, Prad, rsqweight);
       }
 
       arma::vec TwoDBasis::electron_density(const arma::mat & Prad) const {
