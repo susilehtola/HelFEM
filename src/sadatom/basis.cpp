@@ -905,12 +905,14 @@ namespace helfem {
           den(iel)=arma::max(electron_density(iel, Prad, rsqweight));
         }
 
+        // Quadrature points
+        arma::vec xq = radial.get_xq();
+
         // Find the element with the maximum density
         arma::uword iel;
         den.max(iel);
 
         // Evaluate the density in that element
-        arma::vec xq = radial.get_xq();
         arma::vec del = electron_density(xq, iel, Prad, rsqweight);
 
         // Find the maximum value
@@ -941,11 +943,18 @@ namespace helfem {
             arma::vec d = a + (b-a)/golden_ratio;
             double density_c = arma::as_scalar(electron_density(c, iel, Prad, rsqweight));
             double density_d = arma::as_scalar(electron_density(d, iel, Prad, rsqweight));
-            if(density_c < density_d) {
+            if(density_c > density_d) {
               b = d;
             } else {
               a = c;
             }
+          }
+          arma::vec cen=((a+b)/2);
+          double dmax = arma::as_scalar(electron_density(cen, iel, Prad, rsqweight));
+          if(dmax < del(imax)) {
+            std::ostringstream oss;
+            oss << "Density maximization failed! Quadrature max " << del(imax) << " optimized max " << dmax << " difference " << dmax-del(imax) << "!\n";
+            throw std::logic_error(oss.str());
           }
           // Position of maximum is
           rmax = arma::as_scalar(radial.get_r((a+b)/2,iel));
