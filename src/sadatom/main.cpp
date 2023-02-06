@@ -127,6 +127,8 @@ int main(int argc, char **argv) {
   parser.add<int>("diisorder", 0, "length of diis history", false, 10);
   parser.add<int>("taylor_order", 0, "order of Taylor expansion near the nucleus", false, -1);
   parser.add<bool>("saveorb", 0, "save radial orbitals to disk?", false, false);
+  parser.add<bool>("savepot", 0, "save xc potential to disk?", false, false);
+  parser.add<bool>("saveing", 0, "save xc ingredients to disk?", false, false);
   parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
@@ -172,6 +174,8 @@ int main(int argc, char **argv) {
   std::string potmethod(parser.get<std::string>("pot"));
   std::string occstr(parser.get<std::string>("occs"));
   bool saveorb(parser.get<bool>("saveorb"));
+  bool savepot(parser.get<bool>("savepot"));
+  bool saveing(parser.get<bool>("saveing"));
   bool zeroder(parser.get<bool>("zeroder"));
 
   std::string xparf(parser.get<std::string>("x_pars"));
@@ -609,7 +613,18 @@ int main(int argc, char **argv) {
     rconf.orbs.Print(solver.Basis());
     (HARTREEINEV*rconf.orbs.GetGap()).t().print("HOMO-LUMO gap (eV)");
 
-    // Get the potential
+    // Evaluate xc ingredients
+    if(saveing) {
+      arma::mat ing(solver.XCIngredients(rconf));
+      ing.save("xcing.dat",arma::raw_ascii);
+    }
+    // Evaluate the XC potential
+    if(savepot) {
+      arma::mat pot(solver.XCPotential(rconf));
+      pot.save("xcpot.dat",arma::raw_ascii);
+    }
+
+    // Get the effective potential
     if(xp_func > 0 || cp_func > 0) {
       solver.set_func(xp_func, cp_func);
       arma::mat pot(solver.RestrictedPotential(rconf));
@@ -653,6 +668,17 @@ int main(int argc, char **argv) {
     printf("Beta  orbitals\n");
     uconf.orbsb.Print(solver.Basis());
     (HARTREEINEV*uconf.orbsb.GetGap()).t().print("Beta  HOMO-LUMO gap (eV)");
+
+    // Evaluate xc ingredients
+    if(saveing) {
+      arma::mat ing(solver.XCIngredients(uconf));
+      ing.save("xcing.dat",arma::raw_ascii);
+    }
+    // Evaluate the XC potential
+    if(savepot) {
+      arma::mat pot(solver.XCPotential(uconf));
+      pot.save("xcpot.dat",arma::raw_ascii);
+    }
 
     // Get the potential
     if(xp_func > 0 || cp_func > 0) {

@@ -1379,6 +1379,34 @@ namespace helfem {
         return result;
       }
 
+      arma::mat SCFSolver::XCPotential(rconf_t & conf) {
+        arma::mat pot;
+        double angfac(4.0*M_PI);
+        grid.eval_pot(x_func, x_pars, c_func, c_pars, conf.Pl/angfac, pot, dftthr);
+        return pot;
+      }
+
+      arma::mat SCFSolver::XCPotential(uconf_t & conf) {
+        arma::mat pot;
+        double angfac(4.0*M_PI);
+        grid.eval_pot(x_func, x_pars, c_func, c_pars, conf.Pal/angfac, conf.Pbl/angfac, pot, dftthr);
+        return pot;
+      }
+
+      arma::mat SCFSolver::XCIngredients(rconf_t & conf) {
+        arma::mat ing;
+        double angfac(4.0*M_PI);
+        grid.eval_ing(x_func, x_pars, c_func, c_pars, conf.Pl/angfac, ing, dftthr);
+        return ing;
+      }
+
+      arma::mat SCFSolver::XCIngredients(uconf_t & conf) {
+        arma::mat ing;
+        double angfac(4.0*M_PI);
+        grid.eval_ing(x_func, x_pars, c_func, c_pars, conf.Pal/angfac, conf.Pbl/angfac, ing, dftthr);
+        return ing;
+      }
+
       const sadatom::basis::TwoDBasis & solver::SCFSolver::Basis() const {
         return basis;
       }

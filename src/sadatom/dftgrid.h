@@ -147,6 +147,11 @@ namespace helfem {
         void eval_Fxc(arma::cube & H) const;
         /// Evaluate Fock matrix, unrestricted calculation
         void eval_Fxc(arma::cube & Ha, arma::cube & Hb, bool beta=true) const;
+
+        /// Get the potential
+        void get_pot(arma::mat & pot) const;
+        /// Get the ingredients
+        void get_ingredients(arma::mat & ing) const;
       };
 
       /// Wrapper routine
@@ -167,6 +172,16 @@ namespace helfem {
         void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::cube & H, double & Exc, double & Nel, double thr);
         /// Compute Fock matrix, exchange-correlation energy and integrated electron density, unrestricted case
         void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::cube & Ha, arma::cube & Hb, double & Exc, double & Nel, bool beta, double thr);
+
+        /// Evaluate the potential
+        void eval_pot(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::mat & pot, double thr);
+        /// Compute the potential
+        void eval_pot(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::mat & pot, double thr);
+
+        /// Evaluate the ingredients
+        void eval_ing(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::mat & ing, double thr);
+        /// Compute the ingredients
+        void eval_ing(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::mat & ing, double thr);
 
         /// Evaluate overlap
         arma::mat eval_overlap();

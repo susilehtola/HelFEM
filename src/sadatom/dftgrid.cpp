@@ -485,6 +485,111 @@ namespace helfem {
         xc_func_end(&func);
       }
 
+      void DFTGridWorker::get_pot(arma::mat & pot) const {
+        double vrhoa=0.0, vrhob=0.0, vsigmaaa=0.0, vsigmaab=0.0, vsigmabb=0.0, vlapla=0.0, vlaplb=0.0, vtaua=0.0, vtaub=0.0;
+
+        pot.zeros(11,wtot.n_elem);
+        for(size_t i=0; i<wtot.n_elem; i++) {
+          if(polarized) {
+            vrhoa = vxc(0,i);
+            vrhob = vxc(1,i);
+            if(do_gga) {
+              vsigmaaa = vsigma(0,i);
+              vsigmaab = vsigma(1,i);
+              vsigmabb = vsigma(2,i);
+            }
+            if(do_mgga_l) {
+              vlapla = vlapl(0,i);
+              vlaplb = vlapl(1,i);
+            }
+            if(do_mgga_t) {
+              vtaua = vtau(0,i);
+              vtaub = vtau(1,i);
+            }
+          } else {
+            vrhoa = vxc(i,0);
+            vrhob = vxc(i,0);
+            if(do_gga) {
+              vsigmaaa = vsigma(i,0);
+              vsigmaab = vsigma(i,0);
+              vsigmabb = vsigma(i,0);
+            }
+            if(do_mgga_l) {
+              vlapla = vlapl(i,0);
+              vlaplb = vlapl(i,0);
+            }
+            if(do_mgga_t) {
+              vtaua = vtau(i,0);
+              vtaub = vtau(i,0);
+            }
+          }
+
+          pot(0,i) = r(i);
+          pot(1,i) = exc[i];
+          pot(2,i) = vrhoa;
+          pot(3,i) = vrhob;
+          pot(4,i) = vsigmaaa;
+          pot(5,i) = vsigmaab;
+          pot(6,i) = vsigmabb;
+          pot(7,i) = vlapla;
+          pot(8,i) = vlaplb;
+          pot(9,i) = vtaua;
+          pot(10,i) = vtaub;
+        }
+      }
+
+      void DFTGridWorker::get_ingredients(arma::mat & ing) const {
+        double rhoa=0.0, rhob=0.0, sigmaaa=0.0, sigmaab=0.0, sigmabb=0.0, lapla=0.0, laplb=0.0, taua=0.0, taub=0.0;
+
+        ing.zeros(10,wtot.n_elem);
+        for(size_t i=0; i<wtot.n_elem; i++) {
+          if(polarized) {
+            rhoa = rho(0,i);
+            rhob = rho(1,i);
+            if(do_gga) {
+              sigmaaa = sigma(0,i);
+              sigmaab = sigma(1,i);
+              sigmabb = sigma(2,i);
+            }
+            if(do_mgga_l) {
+              lapla = lapl(0,i);
+              laplb = lapl(1,i);
+            }
+            if(do_mgga_t) {
+              taua = tau(0,i);
+              taub = tau(1,i);
+            }
+          } else {
+            rhoa = 0.5*rho(i,0);
+            rhob = 0.5*rho(i,0);
+            if(do_gga) {
+              sigmaaa = 0.25*sigma(i,0);
+              sigmaab = 0.25*sigma(i,0);
+              sigmabb = 0.25*sigma(i,0);
+            }
+            if(do_mgga_l) {
+              lapla = 0.5*lapl(i,0);
+              laplb = 0.5*lapl(i,0);
+            }
+            if(do_mgga_t) {
+              taua = 0.5*tau(i,0);
+              taub = 0.5*tau(i,0);
+            }
+          }
+
+          ing(0,i) = r(i);
+          ing(1,i) = rhoa;
+          ing(2,i) = rhob;
+          ing(3,i) = sigmaaa;
+          ing(4,i) = sigmaab;
+          ing(5,i) = sigmabb;
+          ing(6,i) = lapla;
+          ing(7,i) = laplb;
+          ing(8,i) = taua;
+          ing(9,i) = taub;
+        }
+      }
+
       double DFTGridWorker::eval_Exc() const {
         arma::rowvec dens(rho.row(0));
         if(polarized)
@@ -915,6 +1020,156 @@ namespace helfem {
         }
 
         return S;
+      }
+
+      void DFTGrid::eval_pot(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::mat & pot, double thr) {
+        // Compute number of quadrature points
+        size_t Nquad=basp->get_r(0).n_elem;
+        size_t Nelem=basp->get_rad_Nel();
+        // exc vxca vxcb vsigmaaa vsigmaab vsigmabb vlapla vlaplb vtaua vtaub
+        pot.zeros(11, Nquad*Nelem);
+
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+          DFTGridWorker grid(basp);
+          grid.check_grad_tau_lapl(x_func,c_func);
+
+#ifdef _OPENMP
+#pragma omp for
+#endif
+          for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+            grid.compute_bf(iel);
+            grid.update_density(P);
+
+            grid.init_xc();
+            if(x_func>0)
+              grid.compute_xc(x_func,x_pars,thr);
+            if(c_func>0)
+              grid.compute_xc(c_func,c_pars,thr);
+
+            // Store the potential
+            arma::mat subpot;
+            grid.get_pot(subpot);
+            pot.cols(iel*Nquad, (iel+1)*Nquad-1)=subpot;
+          }
+        }
+        // Swap rows and columns
+        pot = pot.t();
+      }
+
+      void DFTGrid::eval_pot(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars,  const arma::cube & Pa, const arma::cube & Pb, arma::mat & pot, double thr) {
+        // Compute number of quadrature points
+        size_t Nquad=basp->get_r(0).n_elem;
+        size_t Nelem=basp->get_rad_Nel();
+        // exc vxca vxcb vsigmaaa vsigmaab vsigmabb vlapla vlaplb vtaua vtaub
+        pot.zeros(11, Nquad*Nelem);
+
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+          DFTGridWorker grid(basp);
+          grid.check_grad_tau_lapl(x_func,c_func);
+
+#ifdef _OPENMP
+#pragma omp for
+#endif
+          for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+            grid.compute_bf(iel);
+            grid.update_density(Pa,Pb);
+
+            grid.init_xc();
+            if(x_func>0)
+              grid.compute_xc(x_func,x_pars,thr);
+            if(c_func>0)
+              grid.compute_xc(c_func,c_pars,thr);
+
+            // Store the potential
+            arma::mat subpot;
+            grid.get_pot(subpot);
+            pot.cols(iel*Nquad, (iel+1)*Nquad-1)=subpot;
+          }
+        }
+        // Swap rows and columns
+        pot = pot.t();
+      }
+
+      void DFTGrid::eval_ing(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::mat & ing, double thr) {
+        // Compute number of quadrature points
+        size_t Nquad=basp->get_r(0).n_elem;
+        size_t Nelem=basp->get_rad_Nel();
+        // rhoa rhob sigmaaa sigmaab sigmabb lapla laplb taua taub
+        ing.zeros(10, Nquad*Nelem);
+
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+          DFTGridWorker grid(basp);
+          grid.check_grad_tau_lapl(x_func,c_func);
+
+#ifdef _OPENMP
+#pragma omp for
+#endif
+          for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+            grid.compute_bf(iel);
+            grid.update_density(P);
+
+            // We need to evaluate the xc functional to initialize the variables
+            grid.init_xc();
+            if(x_func>0)
+              grid.compute_xc(x_func,x_pars,thr);
+            if(c_func>0)
+              grid.compute_xc(c_func,c_pars,thr);
+
+            // Store
+            arma::mat subing;
+            grid.get_ingredients(subing);
+            ing.cols(iel*Nquad, (iel+1)*Nquad-1)=subing;
+          }
+        }
+        // Swap rows and columns
+        ing = ing.t();
+      }
+
+      void DFTGrid::eval_ing(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars,  const arma::cube & Pa, const arma::cube & Pb, arma::mat & ing, double thr) {
+        // Compute number of quadrature points
+        size_t Nquad=basp->get_r(0).n_elem;
+        size_t Nelem=basp->get_rad_Nel();
+        // rhoa rhob sigmaaa sigmaab sigmabb lapla laplb taua taub
+        ing.zeros(10, Nquad*Nelem);
+
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+          DFTGridWorker grid(basp);
+          grid.check_grad_tau_lapl(x_func,c_func);
+
+#ifdef _OPENMP
+#pragma omp for
+#endif
+          for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+            grid.compute_bf(iel);
+            grid.update_density(Pa,Pb);
+
+            // We need to evaluate the xc functional to initialize the variables
+            grid.init_xc();
+            if(x_func>0)
+              grid.compute_xc(x_func,x_pars,thr);
+            if(c_func>0)
+              grid.compute_xc(c_func,c_pars,thr);
+
+            // Store
+            arma::mat subing;
+            grid.get_ingredients(subing);
+            ing.cols(iel*Nquad, (iel+1)*Nquad-1)=subing;
+          }
+        }
+        // Swap rows and columns
+        ing = ing.t();
       }
     }
   }

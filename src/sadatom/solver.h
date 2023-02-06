@@ -276,6 +276,16 @@ namespace helfem {
         /// Compute the effective potential for the low-spin case i.e. minority spin
         arma::mat LowSpinPotential(uconf_t & conf);
 
+        /// Save the density functional potential
+        arma::mat XCPotential(rconf_t & conf);
+        /// Save the density functional potential
+        arma::mat XCPotential(uconf_t & conf);
+        /// Save the density functional ingredient
+        arma::mat XCIngredients(rconf_t & conf);
+        /// Save the density functional ingredients
+        arma::mat XCIngredients(uconf_t & conf);
+
+
         /// Get the basis
         const basis::TwoDBasis & Basis() const;
         /// Compute the nuclear density
