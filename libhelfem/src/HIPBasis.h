@@ -29,7 +29,7 @@ namespace helfem {
       arma::vec lipxi;
     public:
       /// Constructor
-      HIPBasis(const arma::vec & x0, int id);
+      HIPBasis(const arma::vec & x0, int id=5);
       /// Destructor
       ~HIPBasis();
       /// Get a copy
@@ -40,12 +40,8 @@ namespace helfem {
       /// Drop last function
       void drop_last(bool func, bool deriv) override;
 
-      /// Evaluate polynomials at given points
-      void eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const override;
-      /// Evaluate derivatives of polynomials at given points
-      void eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const override;
-      /// Evaluate second derivatives of polynomials at given points
-      void eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const override;
+      /// Evaluate the basis functions
+      void eval_prim_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const override;
     };
   }
 }

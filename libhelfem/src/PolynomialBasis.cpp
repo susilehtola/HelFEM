@@ -18,6 +18,7 @@
 #include "lobatto.h"
 #include "LIPBasis.h"
 #include "HIPBasis.h"
+#include "GeneralHIPBasis.h"
 #include "LegendreBasis.h"
 
 namespace helfem {
@@ -58,6 +59,21 @@ namespace helfem {
           break;
         }
 
+      case(6):
+      case(7):
+      case(8):
+      case(9):
+      case(10):
+      case(11):
+        {
+          arma::vec x, w;
+          ::lobatto_compute(Nnodes,x,w);
+          int nder=primbas-6;
+          poly=new polynomial_basis::GeneralHIPBasis(x,primbas,nder);
+          printf("Basis set composed of %i-node %i:th order HIPs with Gauss-Lobatto nodes.\n",Nnodes,nder);
+          break;
+        }
+
       default:
         throw std::logic_error("Unsupported primitive basis.\n");
       }
@@ -94,6 +110,13 @@ namespace helfem {
       return nnodes;
     }
 
+    arma::vec PolynomialBasis::get_nodes() const {
+      arma::vec n(2);
+      n(0)=-1.0;
+      n(1)=1.0;
+      return n;
+    }
+
     arma::uvec PolynomialBasis::get_enabled() const {
       return enabled;
     }
@@ -101,8 +124,8 @@ namespace helfem {
     void PolynomialBasis::print(const std::string & str) const {
       arma::vec x(arma::linspace<arma::vec>(-1.0,1.0,1001));
       arma::mat bf, df;
-      eval_f(x,bf,1.0);
-      eval_df(x,df,1.0);
+      eval_dnf(x,bf,0,1.0);
+      eval_dnf(x,df,1,1.0);
 
       bf.insert_cols(0,x);
       df.insert_cols(0,x);
@@ -113,80 +136,24 @@ namespace helfem {
       df.save(dname,arma::raw_ascii);
     }
 
-    arma::mat PolynomialBasis::eval_f(const arma::vec & x, double element_length) const {
-      arma::mat f;
-      eval_f(x, f, element_length);
-      return f;
+    arma::mat PolynomialBasis::eval_dnf(const arma::vec & x, int n, double element_length) const {
+      arma::mat dnf;
+      eval_dnf(x, dnf, n, element_length);
+      return dnf;
     }
 
-    arma::mat PolynomialBasis::eval_df(const arma::vec & x, double element_length) const {
-      arma::mat df;
-      eval_df(x, df, element_length);
-      return df;
-    }
-
-    arma::mat PolynomialBasis::eval_d2f(const arma::vec & x, double element_length) const {
-      arma::mat d2f;
-      eval_d2f(x, d2f, element_length);
-      return d2f;
-    }
-
-    arma::mat PolynomialBasis::eval_d3f(const arma::vec & x, double element_length) const {
-      arma::mat d3f;
-      eval_d3f(x, d3f, element_length);
-      return d3f;
-    }
-
-    void PolynomialBasis::eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const {
+    void PolynomialBasis::eval_prim_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const {
       (void) x;
-      (void) f;
+      (void) dnf;
+      (void) n;
       (void) element_length;
       throw std::logic_error("Values haven't been implemented for the used family of basis polynomials.\n");
     }
 
-    void PolynomialBasis::eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const {
-      (void) x;
-      (void) df;
-      (void) element_length;
-      throw std::logic_error("Derivatives haven't been implemented for the used family of basis polynomials.\n");
-    }
-
-    void PolynomialBasis::eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const {
-      (void) x;
-      (void) d2f;
-      (void) element_length;
-      throw std::logic_error("Second derivatives haven't been implemented for the used family of basis polynomials.\n");
-    }
-
-    void PolynomialBasis::eval_prim_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const {
-      (void) x;
-      (void) d3f;
-      (void) element_length;
-      throw std::logic_error("Third derivatives haven't been implemented for the used family of basis polynomials.\n");
-    }
-
-    void PolynomialBasis::eval_f(const arma::vec & x, arma::mat & f, double element_length) const {
-      eval_prim_f(x, f, element_length);
-      // No scaling needed here
-      f = f.cols(enabled);
-    }
-
-    void PolynomialBasis::eval_df(const arma::vec & x, arma::mat & df, double element_length) const {
-      eval_prim_df(x, df, element_length);
-      // Derivative is scaled by element length
-      df = df.cols(enabled) / element_length;
-    }
-
-    void PolynomialBasis::eval_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const {
-      eval_prim_d2f(x, d2f, element_length);
-      // Second derivative is scaled by element length squared
-      d2f = d2f.cols(enabled) / std::pow(element_length, 2);
-    }
-
-    void PolynomialBasis::eval_d3f(const arma::vec & x, arma::mat & d3f, double element_length) const {
-      eval_prim_d3f(x, d3f, element_length);
-      // Third derivative is scaled by element length cubed
-      d3f = d3f.cols(enabled) / std::pow(element_length, 3);
+    void PolynomialBasis::eval_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const {
+      eval_prim_dnf(x, dnf, n, element_length);
+      // Apply scaling
+      dnf = dnf.cols(enabled) / std::pow(element_length, n);
     }
   }
 }

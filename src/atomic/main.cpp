@@ -109,6 +109,8 @@ int main(int argc, char **argv) {
   parser.add<bool>("maverage", 0, "average Fock matrix over m values", false, false);
   parser.add<double>("dampfock", 0, "damping factor for off-diagonal elents", false, 0.7);
   parser.add<double>("dampthr", 0, "damping threshold", false, 0.1);
+  parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
+  parser.add<int>("taylor_order", 0, "order of Taylor expansion near the nucleus", false, -1);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -136,6 +138,7 @@ int main(int argc, char **argv) {
   int Nelem(parser.get<int>("nelem"));
   // Number of nodes
   int Nnodes(parser.get<int>("nnodes"));
+  int taylor_order(parser.get<int>("taylor_order"));
 
   // Order of quadrature rule
   int Nquad(parser.get<int>("nquad"));
@@ -179,6 +182,8 @@ int main(int argc, char **argv) {
 
   double dampfock(parser.get<double>("dampfock"));
   double dampthr(parser.get<double>("dampthr"));
+
+  bool zeroder(parser.get<bool>("zeroder"));
 
   // Set parameters if necessary
   arma::vec xpars, cpars;
@@ -237,6 +242,10 @@ int main(int argc, char **argv) {
   else if(Nquad<2*poly->get_nbf())
     throw std::logic_error("Insufficient radial quadrature.\n");
 
+  // Set default order of Taylor expansion
+  if(taylor_order==-1)
+    taylor_order = poly->get_nprim()-1;
+
   printf("Using %i point quadrature rule.\n",Nquad);
   printf("Angular grid spanning from l=0..%i, m=%i..%i.\n",lmax,-mmax,mmax);
 
@@ -247,9 +256,10 @@ int main(int argc, char **argv) {
   arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf);
 
   atomic::basis::TwoDBasis basis;
-  basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, Nquad, bval, lval, mval, Zl, Zr, Rhalf);
+  basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, zeroder, Nquad, bval, taylor_order, lval, mval, Zl, Zr, Rhalf);
   chkpt.write(basis);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
+  printf("%ith order Taylor series used to evaluate basis functions for r <= %e, error %e\n",taylor_order, basis.get_small_r_taylor_cutoff(), basis.get_taylor_diff());
 
   printf("One-electron matrix requires %s\n",scf::memory_size(basis.mem_1el()).c_str());
   printf("Auxiliary one-electron integrals require %s\n",scf::memory_size(basis.mem_1el_aux()).c_str());
@@ -339,6 +349,11 @@ int main(int argc, char **argv) {
   if(omega!=0.0) {
     printf("\nUsing range-separated exchange with range-separation constant omega = % .3f.\n",omega);
     printf("Using % .3f %% short-range and % .3f %% long-range exchange.\n",(kfrac+kshort)*100,kfrac*100);
+    if(yukawa) {
+      printf("Using the Yukawa kernel for range separation.\n");
+    } else {
+      printf("Using the error function kernel for range separation.\n");
+    }
   } else if(kfrac!=0.0)
     printf("\nUsing hybrid exchange with % .3f %% of exact exchange.\n",kfrac*100);
   else

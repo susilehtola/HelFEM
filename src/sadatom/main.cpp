@@ -119,12 +119,17 @@ int main(int argc, char **argv) {
   parser.add<std::string>("pot", 0, "method to use to compute potential", false, "none");
   parser.add<std::string>("occs", 0, "occupations to use", false, "auto");
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
+  parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ, 2 for SAP, 3 for TF", false, 2);
   parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
   parser.add<double>("diiseps", 0, "when to start mixing in diis", false, 1e-2);
   parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
   parser.add<int>("diisorder", 0, "length of diis history", false, 10);
+  parser.add<int>("taylor_order", 0, "order of Taylor expansion near the nucleus", false, -1);
   parser.add<bool>("saveorb", 0, "save radial orbitals to disk?", false, false);
+  parser.add<bool>("savepot", 0, "save xc potential to disk?", false, false);
+  parser.add<bool>("saveing", 0, "save xc ingredients to disk?", false, false);
+  parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   if(!parser.parse(argc, argv))
@@ -146,6 +151,7 @@ int main(int argc, char **argv) {
   int Nelem0(parser.get<int>("nelem0"));
   // Number of nodes
   int Nnodes(parser.get<int>("nnodes"));
+  int taylor_order(parser.get<int>("taylor_order"));
 
   double shift(parser.get<double>("shift"));
 
@@ -162,11 +168,15 @@ int main(int argc, char **argv) {
   double diiseps=parser.get<double>("diiseps");
   double diisthr=parser.get<double>("diisthr");
   int diisorder=parser.get<int>("diisorder");
+  int iguess(parser.get<int>("iguess"));
 
   std::string method(parser.get<std::string>("method"));
   std::string potmethod(parser.get<std::string>("pot"));
   std::string occstr(parser.get<std::string>("occs"));
   bool saveorb(parser.get<bool>("saveorb"));
+  bool savepot(parser.get<bool>("savepot"));
+  bool saveing(parser.get<bool>("saveing"));
+  bool zeroder(parser.get<bool>("zeroder"));
 
   std::string xparf(parser.get<std::string>("x_pars"));
   std::string cparf(parser.get<std::string>("c_pars"));
@@ -187,6 +197,10 @@ int main(int argc, char **argv) {
     throw std::logic_error("Insufficient radial quadrature.\n");
   // Order of quadrature rule
   printf("Using %i point quadrature rule.\n",Nquad);
+
+  // Set default order of Taylor expansion
+  if(taylor_order==-1)
+    taylor_order = poly->get_nprim()-1;
 
   // Total number of electrons is
   arma::sword numel=Z-Q;
@@ -226,7 +240,7 @@ int main(int argc, char **argv) {
   arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0);
 
   // Initialize solver
-  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, Nquad, bval, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
+  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
 
   // Set parameters if necessary
   arma::vec xpars, cpars;
@@ -249,7 +263,7 @@ int main(int argc, char **argv) {
     // Initialize with a sensible guess occupation
     sadatom::solver::rconf_t initial;
     initial.orbs=sadatom::solver::OrbitalChannel(true);
-    solver.Initialize(initial.orbs);
+    solver.Initialize(initial.orbs,iguess);
     initial.orbs.SetOccs(initial_occs(numel,lmax));
     if(initial.orbs.Nel()) {
       initial.Econf=solver.Solve(initial);
@@ -558,17 +572,19 @@ int main(int argc, char **argv) {
         occs=inocc;
     }
 
+    // Verbose operation for single configuration
+    solver.set_verbose(true);
     if(restr) {
       rconf.orbs=sadatom::solver::OrbitalChannel(true);
-      solver.Initialize(rconf.orbs);
+      solver.Initialize(rconf.orbs,iguess);
       rconf.orbs.SetOccs(occs.t());
       solver.Solve(rconf);
 
     } else {
       uconf.orbsa=sadatom::solver::OrbitalChannel(false);
       uconf.orbsb=sadatom::solver::OrbitalChannel(false);
-      solver.Initialize(uconf.orbsa);
-      solver.Initialize(uconf.orbsb);
+      solver.Initialize(uconf.orbsa,iguess);
+      solver.Initialize(uconf.orbsb,iguess);
       uconf.orbsa.SetOccs(occs.subvec(0,lmax).t());
       uconf.orbsb.SetOccs(occs.subvec(lmax+1,2*lmax+1).t());
       solver.Solve(uconf);
@@ -597,7 +613,18 @@ int main(int argc, char **argv) {
     rconf.orbs.Print(solver.Basis());
     (HARTREEINEV*rconf.orbs.GetGap()).t().print("HOMO-LUMO gap (eV)");
 
-    // Get the potential
+    // Evaluate xc ingredients
+    if(saveing) {
+      arma::mat ing(solver.XCIngredients(rconf));
+      ing.save("xcing.dat",arma::raw_ascii);
+    }
+    // Evaluate the XC potential
+    if(savepot) {
+      arma::mat pot(solver.XCPotential(rconf));
+      pot.save("xcpot.dat",arma::raw_ascii);
+    }
+
+    // Get the effective potential
     if(xp_func > 0 || cp_func > 0) {
       solver.set_func(xp_func, cp_func);
       arma::mat pot(solver.RestrictedPotential(rconf));
@@ -641,6 +668,17 @@ int main(int argc, char **argv) {
     printf("Beta  orbitals\n");
     uconf.orbsb.Print(solver.Basis());
     (HARTREEINEV*uconf.orbsb.GetGap()).t().print("Beta  HOMO-LUMO gap (eV)");
+
+    // Evaluate xc ingredients
+    if(saveing) {
+      arma::mat ing(solver.XCIngredients(uconf));
+      ing.save("xcing.dat",arma::raw_ascii);
+    }
+    // Evaluate the XC potential
+    if(savepot) {
+      arma::mat pot(solver.XCPotential(uconf));
+      pot.save("xcpot.dat",arma::raw_ascii);
+    }
 
     // Get the potential
     if(xp_func > 0 || cp_func > 0) {

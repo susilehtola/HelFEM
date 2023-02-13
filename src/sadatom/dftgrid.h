@@ -29,6 +29,10 @@ namespace helfem {
         /// Basis set
         const helfem::sadatom::basis::TwoDBasis *basp;
 
+        /// Distance from nucleus
+        arma::rowvec r;
+        /// Radial quadrature weight
+        arma::rowvec wrad;
         /// Total quadrature weight
         arma::rowvec wtot;
 
@@ -38,6 +42,8 @@ namespace helfem {
         arma::mat bf;
         /// Radial gradient
         arma::mat bf_rho;
+        /// Radial laplacian
+        arma::mat bf_rho2;
 
         /// Density helper matrices: P_{uv} chi_v, and P_{uv} nabla(chi_v)
         arma::mat Pv, Pv_rho;
@@ -113,20 +119,22 @@ namespace helfem {
         void free();
 
         /// Update values of density, restricted calculation
-        void update_density(const arma::mat & P);
+        void update_density(const arma::cube & P);
         /// Update values of density, unrestricted calculation
-        void update_density(const arma::mat & Pa, const arma::mat & Pb);
-        /// Screen out small densities
-        void screen_density(double thr);
+        void update_density(const arma::cube & Pa, const arma::cube & Pb);
 
         /// Compute number of electrons
         double compute_Nel() const;
+        /// Compute kinetic energy density
+        double compute_tau() const;
+        /// Compute laplacian
+        double compute_lapl() const;
 
         /// Initialize XC arrays
         void init_xc();
         /// Compute XC functional from density and add to total XC
-        /// array. Pot toggles evaluation of potential
-        void compute_xc(int func_id, const arma::vec & params, bool pot=true);
+        /// array. thr is density threshold. Pot toggles evaluation of potential
+        void compute_xc(int func_id, const arma::vec & params, double thr, bool pot=true);
         /// Evaluate exchange/correlation energy
         double eval_Exc() const;
         /// Zero out energy
@@ -136,9 +144,14 @@ namespace helfem {
         void eval_overlap(arma::mat & S) const;
 
         /// Evaluate Fock matrix, restricted calculation
-        void eval_Fxc(arma::mat & H) const;
+        void eval_Fxc(arma::cube & H) const;
         /// Evaluate Fock matrix, unrestricted calculation
-        void eval_Fxc(arma::mat & Ha, arma::mat & Hb, bool beta=true) const;
+        void eval_Fxc(arma::cube & Ha, arma::cube & Hb, bool beta=true) const;
+
+        /// Get the potential
+        void get_pot(arma::mat & pot) const;
+        /// Get the ingredients
+        void get_ingredients(arma::mat & ing) const;
       };
 
       /// Wrapper routine
@@ -156,9 +169,19 @@ namespace helfem {
         ~DFTGrid();
 
         /// Compute Fock matrix, exchange-correlation energy and integrated electron density, restricted case
-        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double thr);
+        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::cube & H, double & Exc, double & Nel, double thr);
         /// Compute Fock matrix, exchange-correlation energy and integrated electron density, unrestricted case
-        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, bool beta, double thr);
+        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::cube & Ha, arma::cube & Hb, double & Exc, double & Nel, bool beta, double thr);
+
+        /// Evaluate the potential
+        void eval_pot(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::mat & pot, double thr);
+        /// Compute the potential
+        void eval_pot(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::mat & pot, double thr);
+
+        /// Evaluate the ingredients
+        void eval_ing(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::mat & ing, double thr);
+        /// Compute the ingredients
+        void eval_ing(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::mat & ing, double thr);
 
         /// Evaluate overlap
         arma::mat eval_overlap();
@@ -187,7 +210,7 @@ namespace helfem {
 
       /// BLAS routine for GGA-type quadrature
       template<typename T> void increment_gga(arma::mat & H, const arma::mat & gn, const arma::Mat<T> & f, arma::Mat<T> f_x) {
-        if(gn.n_cols!=3) {
+        if(gn.n_cols!=1) {
           throw std::runtime_error("Grad rho must have three columns!\n");
         }
         if(f.n_rows != f_x.n_rows || f.n_cols != f_x.n_cols) {
@@ -205,7 +228,6 @@ namespace helfem {
           // Helper
           arma::rowvec gc;
 
-          // x gradient
           gc=arma::strans(gn.col(0));
           for(size_t j=0;j<f_x.n_cols;j++)
             for(size_t i=0;i<f_x.n_rows;i++)
@@ -215,6 +237,32 @@ namespace helfem {
 
         // Form Fock matrix
         H+=arma::real(gamma*arma::trans(f) + f*arma::trans(gamma));
+      }
+
+      /// BLAS routine for mGGA-type quadrature
+      template<typename T> void increment_mgga_lapl(arma::mat & H, const arma::mat & vlapl, const arma::Mat<T> & f, const arma::Mat<T> & l) {
+        if(f.n_cols != vlapl.n_elem) {
+          std::ostringstream oss;
+          oss << "Number of functions " << f.n_cols << " and potential values " << vlapl.n_elem << " do not match!\n";
+          throw std::runtime_error(oss.str());
+        }
+        if(H.n_rows != f.n_rows || H.n_cols != f.n_rows) {
+          std::ostringstream oss;
+          oss << "Size of basis function (" << f.n_rows << "," << f.n_cols << ") and Fock matrix (" << H.n_rows << "," << H.n_cols << ") doesn't match!\n";
+          throw std::runtime_error(oss.str());
+        }
+        if(l.n_rows != f.n_rows || l.n_cols != f.n_cols) {
+          std::ostringstream oss;
+          oss << "Size of basis function (" << f.n_rows << "," << f.n_cols << ") and Laplacian matrix (" << l.n_rows << "," << l.n_cols << ") doesn't match!\n";
+          throw std::runtime_error(oss.str());
+        }
+
+        // Form helper matrix
+        arma::Mat<T> fhlp(f);
+        for(size_t i=0;i<fhlp.n_rows;i++)
+          for(size_t j=0;j<fhlp.n_cols;j++)
+            fhlp(i,j)*=vlapl(j);
+        H+=arma::real(fhlp*arma::trans(l)+l*arma::trans(fhlp));
       }
     }
   }

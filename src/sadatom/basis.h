@@ -55,7 +55,7 @@ namespace helfem {
       public:
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, int lmax);
+        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int n_quad, const arma::vec & bval, int taylor_order, int lmax);
         /// Destructor
         ~TwoDBasis();
 
@@ -96,6 +96,8 @@ namespace helfem {
         arma::mat eval_bf(size_t iel) const;
         /// Evaluate basis functions derivatives
         arma::mat eval_df(size_t iel) const;
+        /// Evaluate basis functions second derivatives
+        arma::mat eval_lf(size_t iel) const;
         /// Get list of basis function indices in element
         arma::uvec bf_list(size_t iel) const;
 
@@ -105,6 +107,10 @@ namespace helfem {
         arma::vec get_wrad(size_t iel) const;
         /// Get r values
         arma::vec get_r(size_t iel) const;
+        /// Get small r Taylor cutoff
+        double get_small_r_taylor_cutoff() const;
+        /// Get small r Taylor cutoff
+        double get_taylor_diff() const;
 
         /// Get primitive integrals
         std::vector<arma::mat> get_prim_tei() const;
@@ -140,6 +146,9 @@ namespace helfem {
         arma::vec electron_density_gradient(const arma::mat & Prad) const;
         /// Compute the electron density laplacian
         arma::vec electron_density_laplacian(const arma::mat & Prad) const;
+        /// Compute the kinetic energy density
+        arma::vec kinetic_energy_density(const arma::cube & Pl0) const;
+
         /// Compute the exchange-correlation screening
         arma::vec xc_screening(const arma::mat & Prad, int x_func, int c_func) const;
         /// Compute the exchange-correlation screening

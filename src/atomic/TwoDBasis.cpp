@@ -35,7 +35,7 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int Zl_, int Zr_, double Rhalf_) {
+      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder_, int n_quad, const arma::vec & bval, int taylor_order, const arma::ivec & lval_, const arma::ivec & mval_, int Zl_, int Zr_, double Rhalf_) {
         // Nuclear charge
         Z=Z_;
         Zl=Zl_;
@@ -48,9 +48,9 @@ namespace helfem {
         bool zero_func_left=true;
         bool zero_deriv_left=false;
         bool zero_func_right=true;
-        bool zero_deriv_right=true;
-        polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
-        radial=RadialBasis(fem, n_quad);
+        zeroder=zeroder_;
+        polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zeroder);
+        radial=RadialBasis(fem, n_quad, taylor_order);
 
         // Construct angular basis
         lval=lval_;
@@ -108,6 +108,10 @@ namespace helfem {
         return radial.get_poly_nnodes();
       }
 
+      int TwoDBasis::get_zeroder() const {
+        return zeroder;
+      }
+
       size_t TwoDBasis::Ndummy() const {
         return lval.n_elem*radial.Nbf();
       }
@@ -122,6 +126,18 @@ namespace helfem {
 
       size_t TwoDBasis::Nang() const {
         return lval.n_elem;
+      }
+
+      double TwoDBasis::get_small_r_taylor_cutoff() const {
+        return radial.get_small_r_taylor_cutoff();
+      }
+
+      int TwoDBasis::get_taylor_order() const {
+        return radial.get_taylor_order();
+      }
+
+      double TwoDBasis::get_taylor_diff() const {
+        return radial.get_taylor_diff();
       }
 
       arma::uvec TwoDBasis::pure_indices() const {
@@ -1395,7 +1411,7 @@ namespace helfem {
           for(size_t irad=0;irad<frad.n_cols;irad++)
             // Loop over grid-point indices
             for(size_t igrid=0;igrid<frad.n_rows;igrid++)
-              lf(igrid,iang*frad.n_cols+irad) = (r(igrid)*r(igrid)*lrad(igrid,irad) + 2*r(igrid)*drad(igrid,irad) - lval(iang)*(lval(iang)+1)*frad(igrid,irad))*sph(iang)/(r(igrid)*r(igrid));
+              lf(igrid,iang*frad.n_cols+irad) = (lrad(igrid,irad) + 2*drad(igrid,irad)/r(igrid) - lval(iang)*(lval(iang)+1)*frad(igrid,irad)/(r(igrid)*r(igrid)))*sph(iang);
 
         //for(size_t i=0;i<lval.n_elem;i++)
         //lf.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=(arma::square(r)%lrad + 2*r%drad - lval(i)*(lval(i)+1)*frad) / arma::square(r) * sph(i);

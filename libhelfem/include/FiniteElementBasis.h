@@ -47,6 +47,9 @@ namespace helfem {
       /// Update the above list of basis functions
       void update_bf_list();
 
+      /// Check that basis functions are continuous
+      void check_bf_continuity() const;
+
       /// Used basis function indices in element
       arma::uvec basis_indices(size_t iel) const;
 
@@ -112,6 +115,14 @@ namespace helfem {
       void eval_df(const arma::vec & x, arma::mat & df, size_t iel) const;
       /// Evaluate second derivatives of polynomials at given points
       void eval_d2f(const arma::vec & x, arma::mat & d2f, size_t iel) const;
+      /// Evaluate third derivatives of polynomials at given points
+      void eval_d3f(const arma::vec & x, arma::mat & d3f, size_t iel) const;
+      /// Evaluate fourth derivatives of polynomials at given points
+      void eval_d4f(const arma::vec & x, arma::mat & d4f, size_t iel) const;
+      /// Evaluate fifth derivatives of polynomials at given points
+      void eval_d5f(const arma::vec & x, arma::mat & d5f, size_t iel) const;
+      /// Evaluate nth derivative
+      void eval_dnf(const arma::vec & x, arma::mat & dnf, int n, size_t iel) const;
 
       /// Evaluate polynomials at given points
       arma::mat eval_f(const arma::vec & x, size_t iel) const;
@@ -119,6 +130,14 @@ namespace helfem {
       arma::mat eval_df(const arma::vec & x, size_t iel) const;
       /// Evaluate second derivatives of polynomials at given points
       arma::mat eval_d2f(const arma::vec & x, size_t iel) const;
+      /// Evaluate third derivatives of polynomials at given points
+      arma::mat eval_d3f(const arma::vec & x, size_t iel) const;
+      /// Evaluate fourth derivatives of polynomials at given points
+      arma::mat eval_d4f(const arma::vec & x, size_t iel) const;
+      /// Evaluate fifth derivatives of polynomials at given points
+      arma::mat eval_d5f(const arma::vec & x, size_t iel) const;
+      /// Evaluate nth derivative
+      arma::mat eval_dnf(const arma::vec & x, int n, size_t iel) const;
 
       /**
        * Compute matrix elements in the finite element basis <lh|f|rh>
@@ -132,6 +151,9 @@ namespace helfem {
       arma::mat matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
       /// Same as above, but only in a single element
       arma::mat matrix_element(size_t iel, bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+
+      /// The abstract function that accomplishes it all
+      arma::mat matrix_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
 
       /// Print out the basis functions
       void print(const std::string & str="") const;

@@ -182,11 +182,6 @@ namespace helfem {
         /// Integration grid
         dftgrid::DFTGrid grid;
 
-        /// Full atomic basis set for meta-GGAs
-        atomic::basis::TwoDBasis atbasis;
-        /// Full atomic intgeration grid for meta-GGAs
-        atomic::dftgrid::DFTGrid atgrid;
-
         /// Exchange functional
         int x_func;
         /// Exchange functional parameters
@@ -242,7 +237,7 @@ namespace helfem {
 
       public:
         /// Constructor
-        SCFSolver(int Z, int finitenuc, double Rrms, int lmax, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int Nquad, const arma::vec & bval, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_);
+        SCFSolver(int Z, int finitenuc, double Rrms, int lmax, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_);
         /// Destructor
         ~SCFSolver();
 
@@ -250,12 +245,14 @@ namespace helfem {
         void set_func(int x_func_, int c_func_);
         /// Set parameters
         void set_params(const arma::vec & px, const arma::vec & pc);
+        /// Set verbosity
+        void set_verbose(bool verbose);
 
         /// Build total density
         arma::mat TotalDensity(const arma::cube & Pl) const;
 
         /// Initialize orbitals
-        void Initialize(OrbitalChannel & orbs) const;
+        void Initialize(OrbitalChannel & orbs, int iguess) const;
         /// Build the Fock operator, return the energy
         double FockBuild(rconf_t & conf);
         /// Build the Fock operator, return the energy
@@ -278,6 +275,16 @@ namespace helfem {
         arma::mat HighSpinPotential(uconf_t & conf);
         /// Compute the effective potential for the low-spin case i.e. minority spin
         arma::mat LowSpinPotential(uconf_t & conf);
+
+        /// Save the density functional potential
+        arma::mat XCPotential(rconf_t & conf);
+        /// Save the density functional potential
+        arma::mat XCPotential(uconf_t & conf);
+        /// Save the density functional ingredient
+        arma::mat XCIngredients(rconf_t & conf);
+        /// Save the density functional ingredients
+        arma::mat XCIngredients(uconf_t & conf);
+
 
         /// Get the basis
         const basis::TwoDBasis & Basis() const;

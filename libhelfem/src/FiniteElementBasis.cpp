@@ -15,6 +15,7 @@
  */
 
 #include "helfem/FiniteElementBasis.h"
+#include <cfloat>
 
 namespace helfem {
   namespace polynomial_basis {
@@ -26,6 +27,8 @@ namespace helfem {
       poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(poly_->copy());
       // Update list of basis functions
       update_bf_list();
+      // Check that basis functions are continuous
+      check_bf_continuity();
     }
 
     FiniteElementBasis::~FiniteElementBasis() {
@@ -43,6 +46,70 @@ namespace helfem {
         first_func_in_element[iel] = (iel == 0) ? 0 : last_func_in_element[iel-1] - poly->get_noverlap() + 1;
         // Last func is
         last_func_in_element[iel] = first_func_in_element[iel] + basis_indices(iel).n_elem - 1;
+      }
+    }
+
+    void FiniteElementBasis::check_bf_continuity() const {
+      if(get_nelem()==1)
+        return;
+      int noverlap(poly->get_noverlap());
+
+      arma::vec dnorm(get_nelem()-1);
+      for(size_t iel=0; iel+1<get_nelem(); iel++) {
+        // Points that correspond to lh and rh elements
+        arma::vec xrh(1), xlh(1);
+        xlh(0)=1.0;  // right-most point of left element
+        xrh(0)=-1.0; // should equal left-most point of right element
+
+        /// Check that coordinates match
+        arma::vec rlh(eval_coord(xlh, iel));
+        arma::vec rrh(eval_coord(xrh, iel+1));
+        double dr(arma::norm(rlh-rrh,2));
+        if(dr > 10*DBL_EPSILON*arma::norm(rlh,2)) {
+          rlh.print("rlh");
+          rrh.print("rrh");
+          std::ostringstream oss;
+          oss << "Coordinates do not match between elements " << iel << " and " << iel+1 << "!\n";
+          throw std::logic_error(oss.str());
+        }
+
+        // Evaluate bordering value in lh element
+        arma::mat lh(noverlap, noverlap);
+        for(int ider=0;ider<noverlap;ider++) {
+          // We want the last noverlap functions evaluated at the r
+          arma::rowvec fval(eval_dnf(xlh, ider, iel));
+          lh.col(ider) = fval.subvec(fval.n_elem-noverlap, fval.n_elem-1).t();
+        }
+
+        // Evaluate bordering value in rh element
+        arma::mat rh(noverlap, noverlap);
+        for(int ider=0;ider<noverlap;ider++) {
+          // We want the first noverlap functions
+          arma::rowvec fval(eval_dnf(xrh, ider, iel+1));
+          rh.col(ider) = fval.subvec(0, noverlap-1).t();
+        }
+
+        // The function values should go to zero at the boundaries,
+        // except the overlaid functions. The derivatives should also
+        // go to zero, except the overlaid ones. The scaling does not
+        // matter.
+        arma::mat diff(lh-rh);
+        dnorm(iel) = arma::norm(diff,2);
+        if(dnorm(iel) > sqrt(DBL_EPSILON)) {
+          printf("Discontinuity between elements %i and %i (C indexing)\n",(int) iel,(int) iel+1);
+          lh.print("lh values");
+          rh.print("rh values");
+          diff.print("difference");
+          printf("Difference norm %e\n",arma::norm(diff,2));
+        }
+      }
+      //dnorm.t().print("Difference norms");
+      arma::uword imax;
+      dnorm.max(imax);
+      printf("Finite element basis set max discontinuity %e between elements %i and %i\n",dnorm(imax),imax,imax+1);
+      fflush(stdout);
+      if(dnorm(imax) > sqrt(DBL_EPSILON)) {
+        throw std::logic_error("Finite element basis set is not continuous\n");
       }
     }
 
@@ -172,33 +239,37 @@ namespace helfem {
     }
 
     void FiniteElementBasis::eval_f(const arma::vec & x, arma::mat & f, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      p->eval_f(x,f,scaling_factor(iel));
+      eval_dnf(x,f,0,iel);
    }
 
     void FiniteElementBasis::eval_df(const arma::vec & x, arma::mat & df, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      p->eval_df(x,df,scaling_factor(iel));
+      eval_dnf(x,df,1,iel);
     }
 
     void FiniteElementBasis::eval_d2f(const arma::vec & x, arma::mat & d2f, size_t iel) const {
+      eval_dnf(x,d2f,2,iel);
+    }
+
+    void FiniteElementBasis::eval_dnf(const arma::vec & x, arma::mat & dnf, int n, size_t iel) const {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      p->eval_d2f(x,d2f,scaling_factor(iel));
+      p->eval_dnf(x,dnf,n,scaling_factor(iel));
     }
 
     arma::mat FiniteElementBasis::eval_f(const arma::vec & x, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      return p->eval_f(x,scaling_factor(iel));
+      return eval_dnf(x,0,iel);
     }
 
     arma::mat FiniteElementBasis::eval_df(const arma::vec & x, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      return p->eval_df(x,scaling_factor(iel));
+      return eval_dnf(x,1,iel);
     }
 
     arma::mat FiniteElementBasis::eval_d2f(const arma::vec & x, size_t iel) const {
+      return eval_dnf(x,2,iel);
+    }
+
+    arma::mat FiniteElementBasis::eval_dnf(const arma::vec & x, int n, size_t iel) const {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      return p->eval_d2f(x,scaling_factor(iel));
+      return p->eval_dnf(x,n,scaling_factor(iel));
     }
 
     arma::mat FiniteElementBasis::matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
@@ -226,6 +297,21 @@ namespace helfem {
     }
 
     arma::mat FiniteElementBasis::matrix_element(size_t iel, bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
+      std::function<arma::mat(const arma::vec &,size_t)> eval_lh, eval_rh;
+      if(lhder) {
+        eval_lh = [this](const arma::vec & xq, size_t iel) { return this->eval_df(xq, iel); };
+      } else {
+        eval_lh = [this](const arma::vec & xq, size_t iel) { return this->eval_f(xq, iel); };
+      }
+      if(rhder) {
+        eval_rh = [this](const arma::vec & xq, size_t iel) { return this->eval_df(xq, iel); };
+      } else {
+        eval_rh = [this](const arma::vec & xq, size_t iel) { return this->eval_f(xq, iel); };
+      }
+      return matrix_element(iel, eval_lh, eval_rh, xq, wq, f);
+    }
+
+    arma::mat FiniteElementBasis::matrix_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
       // Get coordinate values
       arma::vec r(eval_coord(xq, iel));
       // Calculate total weight per point
@@ -236,9 +322,13 @@ namespace helfem {
             wp(i)*=f(r(i));
       }
 
-      // Operands
-      arma::mat lhbf = lhder ? eval_df(xq, iel) : eval_f(xq, iel);
-      arma::mat rhbf = rhder ? eval_df(xq, iel) : eval_f(xq, iel);
+      // Evaluate basis functions
+      if(!eval_lh)
+        throw std::logic_error("Need function for evaluating left-hand basis functions!\n");
+      arma::mat lhbf = eval_lh(xq, iel);
+      if(!eval_rh)
+        throw std::logic_error("Need function for evaluating right-hand basis functions!\n");
+      arma::mat rhbf = eval_rh(xq, iel);
 
       // Include weight in the lh operand
       for(size_t i=0;i<lhbf.n_cols;i++)

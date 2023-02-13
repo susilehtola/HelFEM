@@ -213,6 +213,15 @@ namespace helfem {
           // Orbital vector
           arma::mat Cl(C.slice(l).cols(oidx));
           orbval[l]=basis.orbitals(Cl);
+
+          // Fix the phases
+          for(size_t io=0;io<orbval[l].n_cols;io++) {
+            arma::vec odens(arma::square(orbval[l].col(io)));
+            arma::uword idx;
+            odens.max(idx);
+            if(orbval[l](idx,io)<0.0)
+              orbval[l].col(io)*=-1;
+          }
         }
 
         // Save the results
@@ -588,15 +597,15 @@ namespace helfem {
         return lh.Econf < rh.Econf;
       }
 
-      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int Nquad, const arma::vec & bval, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
+      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
 
         // Construct the angular basis
         arma::ivec lval, mval;
         atomic::basis::angular_basis(lmax,lmax,lval,mval);
 
-        basis=sadatom::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, Nquad, bval, lmax);
-        atbasis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, Nquad, bval, lval, mval, 0, 0, 0.0);
+        basis=sadatom::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, zeroder, Nquad, bval, taylor_order, lmax);
         printf("Basis set has %i radial functions\n",(int) basis.Nbf());
+        printf("%ith order Taylor series used to evaluate basis functions for r <= %e, error %e\n",taylor_order, basis.get_small_r_taylor_cutoff(), basis.get_taylor_diff());
 
         // Form overlap matrix
         S=basis.overlap();
@@ -614,15 +623,13 @@ namespace helfem {
         // Form DFT grid
         grid=helfem::sadatom::dftgrid::DFTGrid(&basis);
 
-        // Default values
-        int ldft=4*lmax+10;
-        int mdft=4*lmax+5;
-        atgrid=helfem::atomic::dftgrid::DFTGrid(&atbasis,ldft,mdft);
-
         // Compute two-electron integrals
         basis.compute_tei();
         // Range separation?
         set_func(x_func_, c_func_);
+
+        // Non-verbose operation by default
+        verbose = false;
       }
 
       SCFSolver::~SCFSolver() {
@@ -640,6 +647,11 @@ namespace helfem {
         if(omega!=0.0) {
           printf("\nUsing range-separated exchange with range-separation constant omega = % .3f.\n",omega);
           printf("Using % .3f %% short-range and % .3f %% long-range exchange.\n",(kfrac+kshort)*100,kfrac*100);
+          if(yukawa) {
+            printf("Using the Yukawa kernel for range separation.\n");
+          } else {
+            printf("Using the error function kernel for range separation.\n");
+          }
         } else if(kfrac!=0.0)
           printf("\nUsing hybrid exchange with % .3f %% of exact exchange.\n",kfrac*100);
         else
@@ -656,6 +668,10 @@ namespace helfem {
         c_pars = pc;
       }
 
+      void SCFSolver::set_verbose(bool verbose_) {
+        verbose = verbose_;
+      }
+
       arma::mat SCFSolver::TotalDensity(const arma::cube & Pl) const {
         arma::mat P(Pl.slice(0));
         for(size_t l=1;l<Pl.n_slices;l++)
@@ -663,9 +679,45 @@ namespace helfem {
         return P;
       }
 
-      void SCFSolver::Initialize(OrbitalChannel & orbs) const {
+      void SCFSolver::Initialize(OrbitalChannel & orbs, int iguess) const {
         orbs.SetLmax(lmax);
-        orbs.UpdateOrbitals(ReplicateCube(H0)+KineticCube(),Sinvh);
+
+        switch(iguess) {
+        case(0):
+          // Core guess
+          orbs.UpdateOrbitals(ReplicateCube(H0)+KineticCube(),Sinvh);
+          break;
+        case(1):
+          {
+            // GSZ guess
+            auto model = new modelpotential::GSZAtom(basis.charge());
+            arma::mat Vsap(basis.model_potential(model));
+            delete model;
+            orbs.UpdateOrbitals(ReplicateCube(T+Vsap)+KineticCube(),Sinvh);
+          }
+          break;
+        case(2):
+          // SAP guess
+          {
+            auto model = new modelpotential::SAPAtom(basis.charge());
+            arma::mat Vsap(basis.model_potential(model));
+            delete model;
+            orbs.UpdateOrbitals(ReplicateCube(T+Vsap)+KineticCube(),Sinvh);
+          }
+          break;
+        case(3):
+          // TF guess
+          {
+            auto model = new modelpotential::TFAtom(basis.charge());
+            arma::mat Vsap(basis.model_potential(model));
+            delete model;
+            orbs.UpdateOrbitals(ReplicateCube(T+Vsap)+KineticCube(),Sinvh);
+          }
+          break;
+
+        default:
+          throw std::logic_error("Guess not supported\n");
+        }
       }
 
       bool is_meta(int x_func, int c_func) {
@@ -715,18 +767,9 @@ namespace helfem {
         arma::cube XC;
         double nelnum;
         if(x_func > 0 || c_func > 0) {
-          if(is_meta(x_func,c_func)) {
-            arma::mat XCfull;
-            double Ekin;
-            atgrid.eval_Fxc(x_func, x_pars, c_func, c_pars, full_density(conf.Pl), XCfull, conf.Exc, nelnum, Ekin, dftthr);
-            XC=make_m_average(XCfull,atbasis.Nrad(),atbasis.get_lval(),atbasis.get_mval());
-          } else {
-            arma::mat XCm;
-            grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P/angfac, XCm, conf.Exc, nelnum, dftthr);
-            // Potential needs to be divided as well
-            XCm/=angfac;
-            XC=ReplicateCube(XCm);
-          }
+          grid.eval_Fxc(x_func, x_pars, c_func, c_pars, conf.Pl/angfac, XC, conf.Exc, nelnum, dftthr);
+          // Potential needs to be divided as well
+          XC/=angfac;
           if(verbose) {
             printf("DFT energy %.10e\n",conf.Exc);
             printf("Error in integrated number of electrons % e\n",nelnum-conf.orbs.Nel());
@@ -803,21 +846,10 @@ namespace helfem {
         conf.Exc=0.0;
         arma::cube XCa, XCb;
         double nelnum;
-        if(is_meta(x_func,c_func)) {
-          arma::mat XCafull, XCbfull;
-          double Ekin;
-          atgrid.eval_Fxc(x_func, x_pars, c_func, c_pars, full_density(conf.Pal), full_density(conf.Pbl), XCafull, XCbfull, conf.Exc, nelnum, Ekin, true, dftthr);
-          XCa=make_m_average(XCafull,atbasis.Nrad(),atbasis.get_lval(),atbasis.get_mval());
-          XCb=make_m_average(XCbfull,atbasis.Nrad(),atbasis.get_lval(),atbasis.get_mval());
-        } else {
-          arma::mat XCam, XCbm;
-          grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa/angfac, Pb/angfac, XCam, XCbm, conf.Exc, nelnum, true, dftthr);
-          // Potential needs to be divided as well
-          XCam/=angfac;
-          XCbm/=angfac;
-          XCa=ReplicateCube(XCam);
-          XCb=ReplicateCube(XCbm);
-        }
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, conf.Pal/angfac, conf.Pbl/angfac, XCa, XCb, conf.Exc, nelnum, true, dftthr);
+        // Potential needs to be divided as well
+        XCa/=angfac;
+        XCb/=angfac;
         if(verbose) {
           printf("DFT energy %.10e\n",conf.Exc);
           printf("Error in integrated number of electrons % e\n",nelnum-conf.orbsa.Nel()-conf.orbsb.Nel());
@@ -921,8 +953,6 @@ namespace helfem {
           throw std::logic_error("Running restricted calculation with unrestricted orbitals!\n");
         if(conf.orbs.Occs().n_elem != (arma::uword) (lmax+1))
           throw std::logic_error("Occupation vector is of wrong length!\n");
-
-        verbose = false;
 
         if(verbose) {
           printf("Running SCF for orbital occupations\n");
@@ -1029,15 +1059,13 @@ namespace helfem {
 
         double E=0.0, Eold;
 
-        verbose = false;
-
         if(verbose) {
           printf("Running SCF for orbital occupations\n");
           conf.orbsa.Occs().t().print();
           conf.orbsb.Occs().t().print();
         }
 
-        // S supermatrix
+        // DIIS object. ADIIS doesn't work for (significant) fractional occupation
         bool combine=false, usediis=true, useadiis=true;
         uDIIS diis(SuperMat(S),SuperMat(Sinvh),combine, usediis,diiseps,diisthr,useadiis,verbose,diisorder);
         double diiserr;
@@ -1137,16 +1165,18 @@ namespace helfem {
         arma::vec rho(basis.electron_density(P));
         arma::vec grho(basis.electron_density_gradient(P));
         arma::vec lrho(basis.electron_density_laplacian(P));
+        arma::vec tau(basis.kinetic_energy_density(conf.Pl));
 
-        arma::mat result(Zeff.n_rows,8);
+        arma::mat result(Zeff.n_rows,9);
         result.col(0)=r;
         result.col(1)=rho;
         result.col(2)=grho;
         result.col(3)=lrho;
-        result.col(4)=vcoul;
-        result.col(5)=vxc;
-        result.col(6)=wt;
-        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+        result.col(4)=tau;
+        result.col(5)=vcoul;
+        result.col(6)=vxc;
+        result.col(7)=wt;
+        result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }
@@ -1161,6 +1191,9 @@ namespace helfem {
         arma::mat Pb=TotalDensity(conf.Pbl);
         arma::mat P(Pa+Pb);
 
+        // Total density
+        arma::cube Pl(conf.Pal+conf.Pbl);
+
         arma::vec r(basis.radii());
         arma::vec wt(basis.quadrature_weights());
         arma::vec vcoul(basis.coulomb_screening(P));
@@ -1171,18 +1204,20 @@ namespace helfem {
         arma::vec rho(basis.electron_density(P));
         arma::vec grho(basis.electron_density_gradient(P));
         arma::vec lrho(basis.electron_density_laplacian(P));
+        arma::vec tau(basis.kinetic_energy_density(Pl));
 
         printf("Electron density by quadrature: %e\n",arma::sum(wt%rho%r%r));
 
-        arma::mat result(r.n_elem,8);
+        arma::mat result(r.n_elem,9);
         result.col(0)=r;
         result.col(1)=rho;
         result.col(2)=grho;
         result.col(3)=lrho;
-        result.col(4)=vcoul;
-        result.col(5)=vxc;
-        result.col(6)=wt;
-        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+        result.col(4)=tau;
+        result.col(5)=vcoul;
+        result.col(6)=vxc;
+        result.col(7)=wt;
+        result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }
@@ -1206,16 +1241,18 @@ namespace helfem {
         arma::vec rho(basis.electron_density(P));
         arma::vec grho(basis.electron_density_gradient(P));
         arma::vec lrho(basis.electron_density_laplacian(P));
+        arma::vec tau(basis.kinetic_energy_density(conf.Pal+conf.Pbl));
 
-        arma::mat result(Zeff.n_rows,8);
+        arma::mat result(Zeff.n_rows,9);
         result.col(0)=r;
         result.col(1)=rho;
         result.col(2)=grho;
         result.col(3)=lrho;
-        result.col(4)=vcoul;
-        result.col(5)=vxc;
-        result.col(6)=wt;
-        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+        result.col(4)=tau;
+        result.col(5)=vcoul;
+        result.col(6)=vxc;
+        result.col(7)=wt;
+        result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }
@@ -1240,6 +1277,9 @@ namespace helfem {
         arma::vec rhob(basis.electron_density(Pb));
         arma::vec grhob(basis.electron_density_gradient(Pb));
         arma::vec lrhob(basis.electron_density_laplacian(Pb));
+        arma::vec taua(basis.kinetic_energy_density(conf.Pal));
+        arma::vec taub(basis.kinetic_energy_density(conf.Pbl));
+
         // Averaged potential
         arma::vec vxc((vxcm.col(0)%rhoa + vxcm.col(1)%rhob)/(rhoa+rhob));
         // Set areas of small electron density to zero
@@ -1247,15 +1287,16 @@ namespace helfem {
         vxc(arma::find(n<dftthr)).zeros();
         arma::vec Zeff(vcoul+vxc);
 
-        arma::mat result(Zeff.n_rows,8);
+        arma::mat result(Zeff.n_rows,9);
         result.col(0)=r;
         result.col(1)=rhoa+rhob;
         result.col(2)=grhoa+grhob;;
         result.col(3)=lrhoa+lrhob;
-        result.col(4)=vcoul;
-        result.col(5)=vxc;
-        result.col(6)=wt;
-        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+        result.col(4)=taua+taub;
+        result.col(5)=vcoul;
+        result.col(6)=vxc;
+        result.col(7)=wt;
+        result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }
@@ -1281,17 +1322,20 @@ namespace helfem {
         arma::vec rhob(basis.electron_density(Pb));
         arma::vec grhob(basis.electron_density_gradient(Pb));
         arma::vec lrhob(basis.electron_density_laplacian(Pb));
+        arma::vec taua(basis.kinetic_energy_density(conf.Pal));
+        arma::vec taub(basis.kinetic_energy_density(conf.Pbl));
         arma::vec Zeff(vcoul+vxc);
 
-        arma::mat result(Zeff.n_rows,8);
+        arma::mat result(Zeff.n_rows,9);
         result.col(0)=r;
         result.col(1)=rhoa+rhob;
         result.col(2)=grhoa+grhob;
         result.col(3)=lrhoa+lrhob;
-        result.col(4)=vcoul;
-        result.col(5)=vxc;
-        result.col(6)=wt;
-        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+        result.col(4)=taua+taub;
+        result.col(5)=vcoul;
+        result.col(6)=vxc;
+        result.col(7)=wt;
+        result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
       }
@@ -1317,19 +1361,50 @@ namespace helfem {
         arma::vec rhob(basis.electron_density(Pb));
         arma::vec grhob(basis.electron_density_gradient(Pb));
         arma::vec lrhob(basis.electron_density_laplacian(Pb));
+        arma::vec taua(basis.kinetic_energy_density(conf.Pal));
+        arma::vec taub(basis.kinetic_energy_density(conf.Pbl));
         arma::vec Zeff(vcoul+vxc);
 
-        arma::mat result(Zeff.n_rows,8);
+        arma::mat result(Zeff.n_rows,9);
         result.col(0)=r;
         result.col(1)=rhoa+rhob;
         result.col(2)=grhoa+grhob;
         result.col(3)=lrhoa+lrhob;
-        result.col(4)=vcoul;
-        result.col(5)=vxc;
-        result.col(6)=wt;
-        result.col(7)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+        result.col(4)=taua+taub;
+        result.col(5)=vcoul;
+        result.col(6)=vxc;
+        result.col(7)=wt;
+        result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
 
         return result;
+      }
+
+      arma::mat SCFSolver::XCPotential(rconf_t & conf) {
+        arma::mat pot;
+        double angfac(4.0*M_PI);
+        grid.eval_pot(x_func, x_pars, c_func, c_pars, conf.Pl/angfac, pot, dftthr);
+        return pot;
+      }
+
+      arma::mat SCFSolver::XCPotential(uconf_t & conf) {
+        arma::mat pot;
+        double angfac(4.0*M_PI);
+        grid.eval_pot(x_func, x_pars, c_func, c_pars, conf.Pal/angfac, conf.Pbl/angfac, pot, dftthr);
+        return pot;
+      }
+
+      arma::mat SCFSolver::XCIngredients(rconf_t & conf) {
+        arma::mat ing;
+        double angfac(4.0*M_PI);
+        grid.eval_ing(x_func, x_pars, c_func, c_pars, conf.Pl/angfac, ing, dftthr);
+        return ing;
+      }
+
+      arma::mat SCFSolver::XCIngredients(uconf_t & conf) {
+        arma::mat ing;
+        double angfac(4.0*M_PI);
+        grid.eval_ing(x_func, x_pars, c_func, c_pars, conf.Pal/angfac, conf.Pbl/angfac, ing, dftthr);
+        return ing;
       }
 
       const sadatom::basis::TwoDBasis & solver::SCFSolver::Basis() const {

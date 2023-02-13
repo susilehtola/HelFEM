@@ -143,6 +143,9 @@ void parse_xc_func(int & x_func, int & c_func, const std::string & xc) {
 }
 
 void print_info(int x_func, int c_func) {
+  printf("\nRunning with Libxc version %s\n",xc_version_string());
+  printf("%s (doi:%s)\n", xc_reference(), xc_reference_doi());
+  printf("Please cite this paper for the use of Libxc in any resulting publications.\n\n");
   if(is_exchange_correlation(x_func)) {
     printf("Used exchange-correlation functional is %s, ",get_keyword(x_func).c_str());
     print_info(x_func);
@@ -177,7 +180,7 @@ void print_info(int func_id) {
     printf("'%s', defined in the reference(s):\n", func.info->name);
     for(int i=0;i<5;i++)
       if(func.info->refs[i]!=NULL)
-	printf("%s (DOI %s)\n",func.info->refs[i]->ref,func.info->refs[i]->doi);
+	printf("%s (doi:%s)\n",func.info->refs[i]->ref,func.info->refs[i]->doi);
 #endif
     xc_func_end(&func);
 
@@ -356,8 +359,14 @@ void is_gga_mgga(int func_id, bool & gga, bool & mgga_t, bool & mgga_l) {
 #ifdef XC_FAMILY_HYB_MGGA
     case XC_FAMILY_HYB_MGGA:
 #endif
+
+#ifdef XC_FLAGS_NEEDS_TAU
+      mgga_t=func.info->flags & XC_FLAGS_NEEDS_TAU;
+#else
       mgga_t=true;
-#if defined(XC_FLAGS_NEEDS_LAPLACIAN)
+#endif
+
+#ifdef XC_FLAGS_NEEDS_LAPLACIAN
       mgga_l=func.info->flags & XC_FLAGS_NEEDS_LAPLACIAN;
 #else
       mgga_l=true;
@@ -635,7 +644,11 @@ bool tau_needed(int func_id) {
 #ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
 #endif
+#ifdef XC_FLAGS_NEEDS_TAU
+	tau=func.info->flags & XC_FLAGS_NEEDS_TAU;
+#else
 	tau=true;
+#endif
 	break;
       }
     // Free functional
@@ -662,7 +675,7 @@ bool laplacian_needed(int func_id) {
 #ifdef XC_FAMILY_HYB_MGGA
       case XC_FAMILY_HYB_MGGA:
 #endif
-#if defined(XC_FLAGS_NEEDS_LAPLACIAN)
+#ifdef XC_FLAGS_NEEDS_LAPLACIAN
 	lapl=func.info->flags & XC_FLAGS_NEEDS_LAPLACIAN;
 #else
 	lapl=true;

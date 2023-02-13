@@ -18,6 +18,7 @@
 #include "chebyshev.h"
 #include "quadrature.h"
 #include "utils.h"
+#include <cfloat>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -28,7 +29,7 @@ namespace helfem {
     namespace basis {
       RadialBasis::RadialBasis() {}
 
-      RadialBasis::RadialBasis(const polynomial_basis::FiniteElementBasis & fem_, int n_quad) : fem(fem_) {
+      RadialBasis::RadialBasis(const polynomial_basis::FiniteElementBasis & fem_, int n_quad, int taylor_order_) : fem(fem_), taylor_order(taylor_order_) {
         // Get quadrature rule
         chebyshev::chebyshev(n_quad, xq, wq);
         for (size_t i = 0; i < xq.n_elem; i++) {
@@ -37,6 +38,95 @@ namespace helfem {
           if (!std::isfinite(wq[i]))
             printf("wq[%i]=%e\n", (int)i, wq[i]);
         }
+
+        // Compute Taylor series at the origin
+        arma::vec origin(1);
+        origin(0)=-1;
+
+        size_t iel=0;
+        taylor_df.resize(taylor_order);
+        for(int i=0;i<taylor_order;i++) {
+          // f(r) = B'(0) + 1/2 B''(0) r + ...: Constant term only
+          // survives without derivative, first-order term only up to
+          // first derivative etc.
+          taylor_df[i] = fem.eval_dnf(origin, i+1, iel);
+        }
+
+        // Adjust cutoff
+        set_small_r_taylor_cutoff();
+      }
+
+      void RadialBasis::set_small_r_taylor_cutoff() {
+        // Determine small r Taylor cutoff by minimizing the
+        // difference of the analytic and Taylor values of the
+        // function and its first two derivatives.
+
+        // Start out by ensuring that rcut values are to the left of
+        // any nodes in the basis
+        std::shared_ptr<const polynomial_basis::PolynomialBasis> p(fem.get_basis(0));
+        arma::vec nodes(arma::sort(p->get_nodes()));
+        arma::vec minx(1);
+        minx(0)=nodes(1);
+        arma::vec maxr(fem.eval_coord(minx, 0));
+
+        // Now divvy out the space with a logarithmic grid
+        arma::vec rcut(arma::logspace<arma::vec>(-10, 0, 1000)*maxr(0));
+
+        // Find the primitive coordinates corresponding to the cutoffs
+        arma::vec xprim(fem.eval_prim(rcut, 0));
+
+        // Evaluate the basis functions and their derivatives at the cutoff
+        small_r_taylor_cutoff = -1.0;
+        arma::mat bf0(get_bf(xprim, 0));
+        arma::mat df0(get_df(xprim, 0));
+        arma::mat lf0(get_lf(xprim, 0));
+
+        // Taylor expansions
+        small_r_taylor_cutoff = DBL_MAX;
+        arma::mat bft(bf0), dft(df0), lft(lf0);
+        arma::uvec taylorind(arma::linspace<arma::uvec>(0, rcut.n_elem-1, rcut.n_elem));
+        get_taylor(rcut, taylorind, bft, 0);
+        get_taylor(rcut, taylorind, dft, 1);
+        get_taylor(rcut, taylorind, lft, 2);
+
+        // Differences
+        arma::mat diff_f(bft-bf0);
+        arma::mat diff_df(dft-df0);
+        arma::mat diff_lf(lft-lf0);
+
+        // Accumulated differences
+        arma::mat diffs(diff_f.n_rows,5);
+        diffs.col(0)=rcut/fem.element_length(0);
+        for(size_t i=0;i<diffs.n_rows;i++) {
+          diffs(i,1) = arma::norm(diff_f.row(i),2)/arma::norm(bf0.row(i),2);
+          diffs(i,2) = arma::norm(diff_df.row(i),2)/arma::norm(df0.row(i),2);
+          diffs(i,3) = arma::norm(diff_lf.row(i),2)/arma::norm(lf0.row(i),2);
+          diffs(i,4) = diffs(i,1)+diffs(i,2)+diffs(i,3);
+        }
+
+        // Use the first local minimum coming in from large r
+        size_t icut;
+        for(icut=rcut.n_elem-2;icut>0;icut--) {
+          if(diffs(icut,4) > diffs(icut+1,4))
+            break;
+        }
+        if(small_r_taylor_cutoff == DBL_MAX) {
+          icut=rcut.n_elem-1;
+        }
+        small_r_taylor_cutoff = rcut(icut);
+
+        // Save error
+        taylor_diff=diffs(icut,4);
+
+        /*
+        // Print out agreement at cutoff
+        printf("\nAnalytic vs Taylor\n");
+        printf("%4s %22s %22s %22s %22s %22s %22s\n","ifun","bfanal","bftayl","dfanal","dftayl","lfanal","lftayl");
+        for(size_t ifun=0;ifun<bf0.n_cols;ifun++)
+          printf("%4i % .15e % .15e % .15e % .15e % .15e % .15e\n",ifun, bf0(icut,ifun), bft(icut,ifun), df0(icut,ifun), dft(icut,ifun), lf0(icut,ifun), lft(icut,ifun));
+        diffs.row(icut).print("Relative differences at cutoff");
+        */
+        //diffs.save("taylor_diff.dat", arma::raw_ascii);
       }
 
       RadialBasis::~RadialBasis() {}
@@ -81,9 +171,23 @@ namespace helfem {
         return fem.get_poly_nnodes();
       }
 
+      double RadialBasis::get_small_r_taylor_cutoff() const {
+        return small_r_taylor_cutoff;
+      }
+
+      int RadialBasis::get_taylor_order() const {
+        return taylor_order;
+      }
+
+      double RadialBasis::get_taylor_diff() const {
+        return taylor_diff;
+      }
+
       arma::mat RadialBasis::radial_integral(int Rexp, size_t iel) const {
-        std::function<double(double)> rpowL = [Rexp](double r) { return std::pow(r, Rexp); };
-        return fem.matrix_element(iel, false, false, xq, wq, rpowL);
+        std::function<double(double)> rpowL = [Rexp](double r){return std::pow(r,Rexp+2);};
+        std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
+        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+        return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rpowL);
       }
 
       arma::mat RadialBasis::bessel_il_integral(int L, double lambda, size_t iel) const {
@@ -202,10 +306,19 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::kinetic_l(size_t iel) const {
-        return 0.5 * radial_integral(-2, iel);
+        std::function<double(double)> dummy;
+        std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
+        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+
+        return 0.5 * fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, dummy);
       }
 
-      arma::mat RadialBasis::nuclear(size_t iel) const { return -radial_integral(-1, iel); }
+      arma::mat RadialBasis::nuclear(size_t iel) const {
+        std::function<double(double)> r = [](double r){return r;};
+        std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
+        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+        return -fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r);
+      }
 
       arma::mat RadialBasis::model_potential(const modelpotential::ModelPotential *model,
                                              size_t iel) const {
@@ -322,14 +435,78 @@ namespace helfem {
         return get_bf(xq, iel);
       }
 
+      void RadialBasis::get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider) const {
+        if(taylorind[0]!=0 || taylorind[taylorind.n_elem-1] != taylorind.n_elem-1)
+          throw std::logic_error("Taylor points not consecutive!\n");
+
+        // The series of B(r)/r is
+        //  [B(0) + B'(0)r + 1/2 B''(0) r^2 + ...]/r
+        //= B'(0) + 1/2 B''(0) r + 1/6 B'''(0) r^2 + ...
+
+        /*
+        if(taylor_order<3 || taylor_order>9) {
+          std::ostringstream oss;
+          oss << "Got taylor_order = " << taylor_order << ". Taylor expansion order needs to be 3 <= taylor_order <= 9.\n";
+          throw std::logic_error(oss.str());
+        }
+        */
+
+        // Coefficients of the various derivatives in the expansion of
+        // the function itself. Note that the zeroth element already
+        // corresponds to the first derivative!
+        arma::vec taylorcoeff(taylor_order);
+        taylorcoeff(0) = 1.0;
+        for(int i=1; i<taylor_order; i++)
+          taylorcoeff(i) = taylorcoeff(i-1)/(i+1);
+        // and the corresponding r exponents
+        arma::ivec rexp(arma::linspace<arma::ivec>(0,taylor_order-1,taylor_order));
+
+        // Compute derivatives: c r^n -> c n r^(n-1)
+        for(int i=0; i<taylor_order; i++) {
+          for(int d=0; d<ider; d++) {
+            taylorcoeff(i) *= rexp(i);
+            rexp(i)--;
+          }
+        }
+
+        // Exponentiate r
+        std::vector<arma::vec> rexpval(taylor_order);
+        for(int i=ider; i < taylor_order; i++) {
+          if(rexp[i]<0)
+            throw std::logic_error("This should not have happened!\n");
+          rexpval[i] = arma::pow(r, rexp[i]);
+        }
+
+        // Collect results
+        for(size_t ifun = 0; ifun < val.n_cols; ifun++)
+          for(size_t ir = 0; ir < taylorind.n_elem; ir++) {
+            val(ir, ifun) = 0.0;
+            // Terms below this are zero
+            for(int iterm=ider;iterm < taylor_order;iterm++) {
+              val(ir, ifun) += taylorcoeff[iterm]*taylor_df[iterm](ifun)*rexpval[iterm](ir);
+            }
+          }
+      }
+
       arma::mat RadialBasis::get_bf(const arma::vec & x, size_t iel) const {
         // Element function values at quadrature points are
         arma::mat val(fem.eval_f(x, iel));
         // but we also need to put in the 1/r factor
         arma::vec r(fem.eval_coord(x, iel));
-        for (size_t j = 0; j < val.n_cols; j++)
-          for (size_t i = 0; i < val.n_rows; i++)
-            val(i, j) /= r(i);
+
+        // Indices where to apply Taylor series
+        arma::uvec taylorind;
+        if(iel==0)
+          taylorind = arma::find(r <= small_r_taylor_cutoff);
+
+        // Special handling for points close to the nucleus
+        if(taylorind.n_elem>0) {
+          get_taylor(r, taylorind, val, 0);
+        }
+        // Normal handling elsewhere
+        for (size_t ifun = 0; ifun < val.n_cols; ifun++)
+          for (size_t ir = taylorind.n_elem; ir < x.n_elem; ir++)
+            val(ir, ifun) /= r(ir);
 
         return val;
       }
@@ -343,13 +520,23 @@ namespace helfem {
         arma::mat fval(fem.eval_f(x, iel));
         arma::mat dval(fem.eval_df(x, iel));
         arma::vec r(fem.eval_coord(x, iel));
-
-        // Derivative is then
         arma::mat der(fval);
-        for (size_t j = 0; j < fval.n_cols; j++)
-          for (size_t i = 0; i < fval.n_rows; i++)
-            der(i, j) = dval(i, j) / r(i) - fval(i, j) / (r(i) * r(i));
 
+        // Indices where to apply Taylor series
+        arma::uvec taylorind;
+        if(iel==0)
+          taylorind = arma::find(r <= small_r_taylor_cutoff);
+
+        // Special handling for points close to the nucleus
+        if(taylorind.n_elem>0) {
+          get_taylor(r, taylorind, der, 1);
+        }
+        // Normal handling elsewhere
+        for (size_t ifun = 0; ifun < der.n_cols; ifun++)
+          for (size_t ir = taylorind.n_elem; ir < x.n_elem; ir++) {
+            double invr = 1.0/r(ir);
+            der(ir, ifun) = (-fval(ir, ifun) * invr + dval(ir, ifun)) * invr;
+          }
         return der;
       }
 
@@ -363,14 +550,23 @@ namespace helfem {
         arma::mat dval(fem.eval_df(x, iel));
         arma::mat lval(fem.eval_d2f(x, iel));
         arma::vec r(fem.eval_coord(x, iel));
-
-        // Laplacian is then
         arma::mat lapl(fval);
-        for (size_t j = 0; j < fval.n_cols; j++)
-          for (size_t i = 0; i < fval.n_rows; i++)
-            lapl(i, j) = lval(i, j) / r(i) -
-              2.0 * dval(i, j) / (r(i) * r(i)) +
-              2.0 * fval(i, j) / (r(i) * r(i) * r(i));
+
+        // Indices where to apply Taylor series
+        arma::uvec taylorind;
+        if(iel==0)
+          taylorind = arma::find(r <= small_r_taylor_cutoff);
+
+        // Special handling for points close to the nucleus
+        if(taylorind.n_elem>0) {
+          get_taylor(r, taylorind, lapl, 2);
+        }
+        // Normal handling elsewhere
+        for (size_t ifun = 0; ifun < lapl.n_cols; ifun++)
+          for (size_t ir = taylorind.n_elem; ir < x.n_elem; ir++) {
+            double invr = 1.0/r(ir);
+            lapl(ir, ifun) = ((2.0 * fval(ir, ifun)*invr - 2.0*dval(ir,ifun))*invr + lval(ir,ifun))*invr;
+          }
 
         return lapl;
       }

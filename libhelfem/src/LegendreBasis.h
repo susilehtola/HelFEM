@@ -36,7 +36,7 @@ namespace helfem {
       arma::mat d2f_eval(const arma::vec & x) const;
     public:
       /// Constructor
-      LegendreBasis(int nfuncs, int id);
+      LegendreBasis(int nfuncs, int id=3);
       /// Destructor
       ~LegendreBasis();
       /// Get a copy
@@ -48,11 +48,7 @@ namespace helfem {
       void drop_last(bool func, bool deriv) override;
 
       /// Evaluate polynomials at given points
-      void eval_prim_f(const arma::vec & x, arma::mat & f, double element_length) const override;
-      /// Evaluate derivatives of polynomials at given points
-      void eval_prim_df(const arma::vec & x, arma::mat & df, double element_length) const override;
-      /// Evaluate second derivatives of polynomials at given points
-      void eval_prim_d2f(const arma::vec & x, arma::mat & d2f, double element_length) const override;
+      void eval_prim_dnf(const arma::vec & x, arma::mat & f, int n, double element_length) const override;
     };
   }
 }

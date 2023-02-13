@@ -151,6 +151,12 @@ namespace helfem {
         // Make sure arguments are in the correct order
         if(Xi < xi)
           std::swap(Xi,xi);
+        // this is a power series in xi
+        if(xi == 0.0 && n>0)
+          return 0.0;
+        else if(n == 0 && xi == 0.0 && Xi == 0.0)
+          // This is an edge case and I think this should be the right value
+          return 1.0;
 
         double Phi = 0.0;
         double dPhi;
@@ -165,7 +171,7 @@ namespace helfem {
           if(std::abs(dPhi) < tol*std::abs(Phi)) break;
         }
         if(std::abs(dPhi) >= tol*std::abs(Phi))
-          fprintf(stderr,"Warning - short-range Phi not converged, ratio %e\n",dPhi/Phi);
+          fprintf(stderr,"Warning - short-range Phi not converged at xi= %e: dPhi= %e, Phi= %e ratio %e\n",xi,dPhi,Phi,dPhi/Phi);
         //fprintf(stderr,"Phi%i(%e,%e) converged in %u iterations\n",n,Xi,xi,k);
 
         return Phi/std::pow(Xi,n+1);

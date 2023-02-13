@@ -37,7 +37,7 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int n_quad, const arma::vec & bval, int lmax) {
+      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int n_quad, const arma::vec & bval, int taylor_order, int lmax) {
         // Nuclear charge
         Z=Z_;
         model=model_;
@@ -46,9 +46,8 @@ namespace helfem {
         bool zero_func_left=true;
         bool zero_deriv_left=false;
         bool zero_func_right=true;
-        bool zero_deriv_right=true;
-        polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
-        radial=atomic::basis::RadialBasis(fem, n_quad);
+        polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zeroder);
+        radial=atomic::basis::RadialBasis(fem, n_quad, taylor_order);
         // Angular basis
         lval=arma::linspace<arma::ivec>(0,lmax,lmax+1);
       }
@@ -681,23 +680,15 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::eval_bf(size_t iel) const {
-        // Evaluate radial functions
-        arma::mat rad(radial.get_bf(iel));
-
-        // Spherical harmonics contribution
-        //rad/=sqrt(4.0*M_PI);
-
-        return rad;
+        return radial.get_bf(iel);
       }
 
       arma::mat TwoDBasis::eval_df(size_t iel) const {
-        // Evaluate radial functions
-        arma::mat drad(radial.get_df(iel));
+        return radial.get_df(iel);
+      }
 
-        // Form supermatrices
-        //drad/=sqrt(4.0*M_PI);
-
-        return drad;
+      arma::mat TwoDBasis::eval_lf(size_t iel) const {
+        return radial.get_lf(iel);
       }
 
       arma::uvec TwoDBasis::bf_list(size_t iel) const {
@@ -728,6 +719,14 @@ namespace helfem {
 
       arma::vec TwoDBasis::get_r(size_t iel) const {
         return radial.get_r(iel);
+      }
+
+      double TwoDBasis::get_small_r_taylor_cutoff() const {
+        return radial.get_small_r_taylor_cutoff();
+      }
+
+      double TwoDBasis::get_taylor_diff() const {
+        return radial.get_taylor_diff();
       }
 
       double TwoDBasis::nuclear_density(const arma::mat & P) const {
@@ -876,17 +875,7 @@ namespace helfem {
       }
 
       arma::vec TwoDBasis::electron_density(size_t iel, const arma::mat & Prad, bool rsqweight) const {
-        // Radial functions in element
-        size_t ifirst, ilast;
-        radial.get_idx(iel,ifirst,ilast);
-        // Density matrix
-        arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
-        arma::mat bf(radial.get_bf(iel));
-
-        arma::vec density = arma::diagvec(bf*Psub*bf.t());
-        if(rsqweight)
-          density %= arma::square(radial.get_r(iel));
-        return density;
+        return electron_density(radial.get_xq(), iel, Prad, rsqweight);
       }
 
       arma::vec TwoDBasis::electron_density(const arma::mat & Prad) const {
@@ -909,19 +898,21 @@ namespace helfem {
       double TwoDBasis::electron_density_maximum(const arma::mat & Prad, double eps) const {
         // Evaluate the density in each quadrature point and take
         // their maximum
-        arma::vec d(radial.Nel());
+        arma::vec den(radial.Nel());
         bool rsqweight = true;
 
         for(size_t iel=0;iel<radial.Nel();iel++) {
-          d(iel)=arma::max(electron_density(iel, Prad, rsqweight));
+          den(iel)=arma::max(electron_density(iel, Prad, rsqweight));
         }
+
+        // Quadrature points
+        arma::vec xq = radial.get_xq();
 
         // Find the element with the maximum density
         arma::uword iel;
-        d.max(iel);
+        den.max(iel);
 
         // Evaluate the density in that element
-        arma::vec xq = radial.get_xq();
         arma::vec del = electron_density(xq, iel, Prad, rsqweight);
 
         // Find the maximum value
@@ -949,14 +940,21 @@ namespace helfem {
           double golden_ratio = 0.5*(sqrt(5.0)+1.0);
           while(arma::norm(a-b,"inf")>=eps) {
             arma::vec c = b - (b-a)/golden_ratio;
-            arma::vec d = a + (b-d)/golden_ratio;
+            arma::vec d = a + (b-a)/golden_ratio;
             double density_c = arma::as_scalar(electron_density(c, iel, Prad, rsqweight));
             double density_d = arma::as_scalar(electron_density(d, iel, Prad, rsqweight));
-            if(density_c < density_d) {
+            if(density_c > density_d) {
               b = d;
             } else {
               a = c;
             }
+          }
+          arma::vec cen=((a+b)/2);
+          double dmax = arma::as_scalar(electron_density(cen, iel, Prad, rsqweight));
+          if(dmax < del(imax)) {
+            std::ostringstream oss;
+            oss << "Density maximization failed! Quadrature max " << del(imax) << " optimized max " << dmax << " difference " << dmax-del(imax) << "!\n";
+            throw std::logic_error(oss.str());
           }
           // Position of maximum is
           rmax = arma::as_scalar(radial.get_r((a+b)/2,iel));
@@ -1005,8 +1003,10 @@ namespace helfem {
           arma::mat bf(radial.get_bf(iel));
           arma::mat df(radial.get_df(iel));
           arma::mat lf(radial.get_lf(iel));
+          arma::vec r(radial.get_r(iel));
 
-          l[iel]=2.0*(arma::diagvec(df*Psub*df.t()) + arma::diagvec(bf*Psub*lf.t()));
+          // Laplacian is df^2/dr^2 + 2/r df/dr
+          l[iel]=2.0*(arma::diagvec(df*Psub*df.t()) + arma::diagvec(bf*Psub*lf.t())) + 4.0*arma::diagvec(bf*Psub*df.t())/r;
         }
 
         size_t Npts=l[0].n_elem;
@@ -1019,6 +1019,54 @@ namespace helfem {
         }
 
         return n;
+      }
+
+      arma::vec TwoDBasis::kinetic_energy_density(const arma::cube & Pl0) const {
+        // Radial density matrices
+        arma::mat P(Pl0.n_rows, Pl0.n_cols, arma::fill::zeros);
+        arma::mat Pl(Pl0.n_rows, Pl0.n_cols, arma::fill::zeros);
+        for(size_t l=0; l<Pl0.n_slices; l++) {
+          P += Pl0.slice(l);
+          Pl += l*(l+1)*Pl0.slice(l);
+        }
+
+        std::vector<arma::vec> t(radial.Nel());
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          // Radial functions in element
+          size_t ifirst, ilast;
+          radial.get_idx(iel,ifirst,ilast);
+
+          // Radii
+          arma::vec r(radial.get_r(iel));
+
+          // Density matrix
+          arma::mat Psub(P.submat(ifirst,ifirst,ilast,ilast));
+          arma::mat Psubl(Pl.submat(ifirst,ifirst,ilast,ilast));
+
+          // Basis function
+          arma::mat bf(radial.get_bf(iel));
+          // Basis function derivative
+          arma::mat bf_rho(radial.get_df(iel));
+
+          arma::vec term1(arma::diagvec(bf_rho * Psub * bf_rho.t()));
+          arma::vec term2(arma::diagvec(bf * Psubl * bf.t())/arma::square(r));
+          // The second term is tricky near the nucleus since only s
+          // orbitals can contribute to the electron density but their
+          // contribution is killed off by the l(l+1) factor
+          term2(arma::find(term2<0.0)).zeros();
+          t[iel] = 0.5*(term1+term2);
+        }
+
+        size_t Npts=t[0].n_elem;
+        arma::vec tn(radial.Nel()*Npts+1);
+        tn.zeros();
+
+        // Skip the value at the nucleus at least for now...
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          tn.subvec(1+iel*Npts,(iel+1)*Npts)=t[iel];
+        }
+
+        return tn;
       }
 
       std::vector< std::pair<int, arma::mat> > TwoDBasis::Rmatrices() const {

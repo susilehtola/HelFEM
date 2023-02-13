@@ -43,9 +43,22 @@ namespace helfem {
       DFTGridWorker::~DFTGridWorker() {
       }
 
-      void DFTGridWorker::update_density(const arma::mat & P0) {
-        // Update values of density
-        arma::mat P(P0(bf_ind,bf_ind));
+      void DFTGridWorker::update_density(const arma::cube & Pc0) {
+        // In-element cube
+        arma::cube Pc(bf_ind.n_elem, bf_ind.n_elem, Pc0.n_slices);
+        for(size_t islice=0; islice<Pc0.n_slices;islice++) {
+          Pc.slice(islice) = Pc0.slice(islice)(bf_ind, bf_ind);
+        }
+        // Total density matrix
+        arma::mat P(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
+        for(size_t islice=0; islice<Pc.n_slices;islice++) {
+          P += Pc.slice(islice);
+        }
+        // and the one multiplied by l(l+1)
+        arma::mat Pl(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
+        for(size_t islice=0; islice<Pc.n_slices;islice++) {
+          Pl += islice*(islice+1)*Pc.slice(islice);
+        }
 
         // Non-polarized calculation.
         polarized=false;
@@ -60,7 +73,7 @@ namespace helfem {
 
         // Calculate gradient
         if(do_grad) {
-          grho.zeros(3,wtot.n_elem);
+          grho.zeros(1,wtot.n_elem);
           sigma.zeros(1,wtot.n_elem);
           for(size_t ip=0;ip<wtot.n_elem;ip++) {
             // Calculate values
@@ -70,17 +83,74 @@ namespace helfem {
           }
         }
 
-        // Calculate laplacian and kinetic energy density
-        if(do_tau || do_lapl)
-          throw std::logic_error("Meta-GGAs not implemented!\n");
+        // Calculate kinetic energy density
+        if(do_tau || do_lapl) {
+          arma::mat Pvp(P*arma::conj(bf_rho));
+
+          if(do_tau) {
+            arma::mat Plv(Pl*arma::conj(bf));
+            tau.zeros(1,wtot.n_elem);
+            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+              // First term: P(u,v) * \chi_u' \chi_v'
+              double term1 = arma::dot(Pvp.col(ip), bf_rho.col(ip));
+              // Second term: l(l+1) Pl(u,v) \chi_u \chi_v / r^2
+              double term2 = arma::dot(Plv.col(ip), bf.col(ip))/(r(ip)*r(ip));
+              // The second term is ill-behaved near the nucleus since
+              // only s orbitals contribute to density but that gets
+              // killed by the l(l+1) factor
+              tau(0,ip) = 0.5*(term1 + std::max(term2, 0.0));
+            }
+          }
+
+          if(do_lapl) {
+            lapl.zeros(1,wtot.n_elem);
+            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+              // First term: P(u,v) * \chi_u' \chi_v'
+              double term1 = 2.0*arma::dot(Pvp.col(ip), bf_rho.col(ip));
+              // Second term: P(u,v) \chi_u \chi_v''
+              double term2 = 2.0*arma::dot(Pv.col(ip), bf_rho2.col(ip));
+              // Third term: P(u,v) * \chi_u \chi_v' / r
+              double term3 = 4.0*arma::dot(Pv.col(ip), bf_rho.col(ip))/r(ip);
+
+              // Store values
+              lapl(0,ip)=term1+term2+term3;
+            }
+          }
+        }
       }
 
-      void DFTGridWorker::update_density(const arma::mat & Pa0, const arma::mat & Pb0) {
-        if(!Pa0.n_elem || !Pb0.n_elem) {
+      void DFTGridWorker::update_density(const arma::cube & Pac0, const arma::cube & Pbc0) {
+        if(!Pac0.n_elem || !Pbc0.n_elem) {
           throw std::runtime_error("Error - density matrix is empty!\n");
         }
-        arma::mat Pa(Pa0(bf_ind,bf_ind));
-        arma::mat Pb(Pb0(bf_ind,bf_ind));
+
+        // In-element cube
+        arma::cube Pac(bf_ind.n_elem, bf_ind.n_elem, Pac0.n_slices);
+        for(size_t islice=0; islice<Pac0.n_slices;islice++) {
+          Pac.slice(islice) = Pac0.slice(islice)(bf_ind, bf_ind);
+        }
+        arma::cube Pbc(bf_ind.n_elem, bf_ind.n_elem, Pbc0.n_slices);
+        for(size_t islice=0; islice<Pbc0.n_slices;islice++) {
+          Pbc.slice(islice) = Pbc0.slice(islice)(bf_ind, bf_ind);
+        }
+        // Total density matrix
+        arma::mat Pa(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
+        for(size_t islice=0; islice<Pac.n_slices;islice++) {
+          Pa += Pac.slice(islice);
+        }
+        arma::mat Pb(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
+        for(size_t islice=0; islice<Pbc.n_slices;islice++) {
+          Pb += Pbc.slice(islice);
+        }
+        // and the one multiplied by l(l+1)
+        arma::mat Pal(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
+        for(size_t islice=0; islice<Pac.n_slices;islice++) {
+          Pal += islice*(islice+1)*Pac.slice(islice);
+        }
+        arma::mat Pbl(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
+        for(size_t islice=0; islice<Pbc.n_slices;islice++) {
+          Pbl += islice*(islice+1)*Pbc.slice(islice);
+        }
 
         // Polarized calculation.
         polarized=true;
@@ -98,11 +168,11 @@ namespace helfem {
 
         // Calculate gradient
         if(do_grad) {
-          grho.zeros(6,wtot.n_elem);
+          grho.zeros(2,wtot.n_elem);
           sigma.zeros(3,wtot.n_elem);
           for(size_t ip=0;ip<wtot.n_elem;ip++) {
             double ga_rad=grho(0,ip)=2.0*arma::dot(Pav.col(ip),bf_rho.col(ip));
-            double gb_rad=grho(3,ip)=2.0*arma::dot(Pbv.col(ip),bf_rho.col(ip));
+            double gb_rad=grho(1,ip)=2.0*arma::dot(Pbv.col(ip),bf_rho.col(ip));
 
             // Compute sigma as well
             sigma(0,ip)=ga_rad*ga_rad;
@@ -112,39 +182,45 @@ namespace helfem {
         }
 
         // Calculate kinetic energy density
-        if(do_tau || do_lapl)
-          throw std::logic_error("Meta-GGA not implemented!\n");
-      }
+        if(do_tau || do_lapl) {
+          arma::mat Pavp(Pa*arma::conj(bf_rho));
+          arma::mat Pbvp(Pb*arma::conj(bf_rho));
 
-      void DFTGridWorker::screen_density(double thr) {
-        if(polarized) {
-          for(size_t ip=0;ip<wtot.n_elem;ip++) {
-            if(rho(0,ip)+rho(1,ip) <= thr) {
-              rho(0,ip)=0.0;
-              rho(1,ip)=0.0;
-
-              if(do_grad) {
-                sigma(0,ip)=0.0;
-                sigma(1,ip)=0.0;
-                sigma(2,ip)=0.0;
-              }
-
-              if(do_tau) {
-                tau(0,ip)=0.0;
-                tau(1,ip)=0.0;
-              }
+          if(do_tau) {
+            arma::mat Palv(Pal*arma::conj(bf));
+            arma::mat Pblv(Pbl*arma::conj(bf));
+            tau.zeros(2,wtot.n_elem);
+            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+              // First term: P(u,v) * \chi_u' \chi_v'
+              double term1a = arma::dot(Pavp.col(ip), bf_rho.col(ip));
+              double term1b = arma::dot(Pbvp.col(ip), bf_rho.col(ip));
+              // Second term: l(l+1) Pl(u,v) \chi_u \chi_v / r^2
+              double term2a = arma::dot(Palv.col(ip), bf.col(ip))/(r(ip)*r(ip));
+              double term2b = arma::dot(Pblv.col(ip), bf.col(ip))/(r(ip)*r(ip));
+              // The second term is ill-behaved near the nucleus since
+              // only s orbitals contribute to density but that gets
+              // killed by the l(l+1) factor
+              tau(0,ip) = 0.5*(term1a + std::max(term2a, 0.0));
+              tau(1,ip) = 0.5*(term1b + std::max(term2b, 0.0));
             }
           }
-        } else {
-          for(size_t ip=0;ip<wtot.n_elem;ip++) {
-            if(rho(0,ip) <= thr) {
-              rho(0,ip)=0.0;
-              if(do_grad) {
-                sigma(0,ip)=0.0;
-              }
-              if(do_tau) {
-                tau(0,ip)=0.0;
-              }
+
+          if(do_lapl) {
+            lapl.zeros(2,wtot.n_elem);
+            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+              // First term: P(u,v) * \chi_u' \chi_v'
+              double term1a = 2.0*arma::dot(Pavp.col(ip), bf_rho.col(ip));
+              double term1b = 2.0*arma::dot(Pbvp.col(ip), bf_rho.col(ip));
+              // Second term: P(u,v) \chi_u \chi_v''
+              double term2a = 2.0*arma::dot(Pav.col(ip), bf_rho2.col(ip));
+              double term2b = 2.0*arma::dot(Pbv.col(ip), bf_rho2.col(ip));
+              // Third term: P(u,v) * \chi_u \chi_v' / r
+              double term3a = 4.0*arma::dot(Pav.col(ip), bf_rho.col(ip))/r(ip);
+              double term3b = 4.0*arma::dot(Pbv.col(ip), bf_rho.col(ip))/r(ip);
+
+              // Store values
+              lapl(0,ip)=term1a+term2a+term3a;
+              lapl(1,ip)=term1b+term2b+term3b;
             }
           }
         }
@@ -161,6 +237,32 @@ namespace helfem {
         }
 
         return nel;
+      }
+
+      double DFTGridWorker::compute_tau() const {
+        double t=0.0;
+        if(!polarized) {
+          for(size_t ip=0;ip<tau.n_cols;ip++)
+            t+=wtot(ip)*tau(0,ip);
+        } else {
+          for(size_t ip=0;ip<tau.n_cols;ip++)
+            t+=wtot(ip)*(tau(0,ip)+tau(1,ip));
+        }
+
+        return t;
+      }
+
+      double DFTGridWorker::compute_lapl() const {
+        double l=0.0;
+        if(!polarized) {
+          for(size_t ip=0;ip<lapl.n_cols;ip++)
+            l+=wtot(ip)*lapl(0,ip);
+        } else {
+          for(size_t ip=0;ip<lapl.n_cols;ip++)
+            l+=wtot(ip)*(lapl(0,ip)+lapl(1,ip));
+        }
+
+        return l;
       }
 
       void DFTGridWorker::init_xc() {
@@ -201,7 +303,7 @@ namespace helfem {
         exc.zeros(wtot.n_elem);
       }
 
-      void DFTGridWorker::compute_xc(int func_id, const arma::vec & p, bool pot) {
+      void DFTGridWorker::compute_xc(int func_id, const arma::vec & p, double thr, bool pot) {
         // Compute exchange-correlation functional
 
         // Which functional is in question?
@@ -250,6 +352,8 @@ namespace helfem {
           oss << "Functional "<<func_id<<" not found!";
           throw std::runtime_error(oss.str());
         }
+        // Set density threshold
+        xc_func_set_dens_threshold(&func, thr);
 
         // Set parameters
         if(p.n_elem) {
@@ -264,9 +368,9 @@ namespace helfem {
         if(has_exc(func_id)) {
           if(pot) {
             if(mgga_t || mgga_l) {// meta-GGA
-              double * laplp = mgga_t ? lapl.memptr() : NULL;
+              double * laplp = mgga_l ? lapl.memptr() : NULL;
               double * taup = mgga_t ? tau.memptr() : NULL;
-              double * vlaplp = mgga_t ? vlapl_wrk.memptr() : NULL;
+              double * vlaplp = mgga_l ? vlapl_wrk.memptr() : NULL;
               double * vtaup = mgga_t ? vtau_wrk.memptr() : NULL;
               xc_mgga_exc_vxc(&func, N, rho.memptr(), sigma.memptr(), laplp, taup, exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr(), vlaplp, vtaup);
             } else if(gga) // GGA
@@ -275,7 +379,7 @@ namespace helfem {
               xc_lda_exc_vxc(&func, N, rho.memptr(), exc_wrk.memptr(), vxc_wrk.memptr());
           } else {
             if(mgga_t || mgga_l) { // meta-GGA
-              double * laplp = mgga_t ? lapl.memptr() : NULL;
+              double * laplp = mgga_l ? lapl.memptr() : NULL;
               double * taup = mgga_t ? tau.memptr() : NULL;
               xc_mgga_exc(&func, N, rho.memptr(), sigma.memptr(), laplp, taup, exc_wrk.memptr());
             } else if(gga) // GGA
@@ -287,15 +391,80 @@ namespace helfem {
         } else {
           if(pot) {
             if(mgga_t || mgga_l) { // meta-GGA
-              double * laplp = mgga_t ? lapl.memptr() : NULL;
+              double * laplp = mgga_l ? lapl.memptr() : NULL;
               double * taup = mgga_t ? tau.memptr() : NULL;
-              double * vlaplp = mgga_t ? vlapl_wrk.memptr() : NULL;
+              double * vlaplp = mgga_l ? vlapl_wrk.memptr() : NULL;
               double * vtaup = mgga_t ? vtau_wrk.memptr() : NULL;
               xc_mgga_vxc(&func, N, rho.memptr(), sigma.memptr(), laplp, taup, vxc_wrk.memptr(), vsigma_wrk.memptr(), vlaplp, vtaup);
             } else if(gga) // GGA
               xc_gga_vxc(&func, N, rho.memptr(), sigma.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr());
             else // LDA
               xc_lda_vxc(&func, N, rho.memptr(), vxc_wrk.memptr());
+          }
+        }
+
+        // Check for NaNs
+        for(size_t i=0; i<N; i++) {
+          double e = has_exc(func_id) ? exc_wrk[i] : 0.0;
+          double rhoa=0.0, rhob=0.0, sigmaaa=0.0, sigmaab=0.0, sigmabb=0.0, lapla=0.0, laplb=0.0, taua=0.0, taub=0.0;
+          double vrhoa=0.0, vrhob=0.0, vsigmaaa=0.0, vsigmaab=0.0, vsigmabb=0.0, vlapla=0.0, vlaplb=0.0, vtaua=0.0, vtaub=0.0;
+          if(polarized) {
+            rhoa = rho(0,i);
+            rhob = rho(1,i);
+            vrhoa = vxc(0,i);
+            vrhob = vxc(1,i);
+            if(gga || mgga_t || mgga_l) {
+              sigmaaa = sigma(0,i);
+              sigmaab = sigma(1,i);
+              sigmabb = sigma(2,i);
+              vsigmaaa = vsigma(0,i);
+              vsigmaab = vsigma(1,i);
+              vsigmabb = vsigma(2,i);
+            }
+            if(mgga_l) {
+              lapla = lapl(0,i);
+              laplb = lapl(1,i);
+              vlapla = vlapl(0,i);
+              vlaplb = vlapl(1,i);
+            }
+            if(mgga_t) {
+              taua = tau(0,i);
+              taub = tau(1,i);
+              vtaua = vtau(0,i);
+              vtaub = vtau(1,i);
+            }
+          } else {
+            rhoa = 0.5*rho(i,0);
+            rhob = 0.5*rho(i,0);
+            vrhoa = vxc(i,0);
+            vrhob = vxc(i,0);
+            if(gga || mgga_t || mgga_l) {
+              sigmaaa = 0.25*sigma(i,0);
+              sigmaab = 0.25*sigma(i,0);
+              sigmabb = 0.25*sigma(i,0);
+              vsigmaaa = vsigma(i,0);
+              vsigmaab = vsigma(i,0);
+              vsigmabb = vsigma(i,0);
+            }
+            if(mgga_l) {
+              lapla = 0.5*lapl(i,0);
+              laplb = 0.5*lapl(i,0);
+              vlapla = vlapl(i,0);
+              vlaplb = vlapl(i,0);
+            }
+            if(mgga_t) {
+              taua = 0.5*tau(i,0);
+              taub = 0.5*tau(i,0);
+              vtaua = vtau(i,0);
+              vtaub = vtau(i,0);
+            }
+          }
+
+          if(std::isnan(e) || std::isnan(vrhoa) || std::isnan(vrhob) || std::isnan(vsigmaaa) || std::isnan(vsigmaab) || std::isnan(vsigmabb) || std::isnan(vlapla) || std::isnan(vlaplb) || std::isnan(vtaua) || std::isnan(vtaub)) {
+            printf("NaN encountered for functional id = %i with input\n", func_id);
+
+            printf("input: %e %e %e % e %e %e %e % e % e\n",rhoa,rhob,sigmaaa,sigmaab,sigmabb,lapla,laplb,taua,taub);
+            printf("output: % e % e % e % e % e % e % e % e % e % e\n",e,vrhoa,vrhob,vsigmaaa,vsigmaab,vsigmabb,vlapla,vlaplb,vtaua,vtaub);
           }
         }
 
@@ -316,6 +485,111 @@ namespace helfem {
         xc_func_end(&func);
       }
 
+      void DFTGridWorker::get_pot(arma::mat & pot) const {
+        double vrhoa=0.0, vrhob=0.0, vsigmaaa=0.0, vsigmaab=0.0, vsigmabb=0.0, vlapla=0.0, vlaplb=0.0, vtaua=0.0, vtaub=0.0;
+
+        pot.zeros(11,wtot.n_elem);
+        for(size_t i=0; i<wtot.n_elem; i++) {
+          if(polarized) {
+            vrhoa = vxc(0,i);
+            vrhob = vxc(1,i);
+            if(do_gga) {
+              vsigmaaa = vsigma(0,i);
+              vsigmaab = vsigma(1,i);
+              vsigmabb = vsigma(2,i);
+            }
+            if(do_mgga_l) {
+              vlapla = vlapl(0,i);
+              vlaplb = vlapl(1,i);
+            }
+            if(do_mgga_t) {
+              vtaua = vtau(0,i);
+              vtaub = vtau(1,i);
+            }
+          } else {
+            vrhoa = vxc(i,0);
+            vrhob = vxc(i,0);
+            if(do_gga) {
+              vsigmaaa = vsigma(i,0);
+              vsigmaab = vsigma(i,0);
+              vsigmabb = vsigma(i,0);
+            }
+            if(do_mgga_l) {
+              vlapla = vlapl(i,0);
+              vlaplb = vlapl(i,0);
+            }
+            if(do_mgga_t) {
+              vtaua = vtau(i,0);
+              vtaub = vtau(i,0);
+            }
+          }
+
+          pot(0,i) = r(i);
+          pot(1,i) = exc[i];
+          pot(2,i) = vrhoa;
+          pot(3,i) = vrhob;
+          pot(4,i) = vsigmaaa;
+          pot(5,i) = vsigmaab;
+          pot(6,i) = vsigmabb;
+          pot(7,i) = vlapla;
+          pot(8,i) = vlaplb;
+          pot(9,i) = vtaua;
+          pot(10,i) = vtaub;
+        }
+      }
+
+      void DFTGridWorker::get_ingredients(arma::mat & ing) const {
+        double rhoa=0.0, rhob=0.0, sigmaaa=0.0, sigmaab=0.0, sigmabb=0.0, lapla=0.0, laplb=0.0, taua=0.0, taub=0.0;
+
+        ing.zeros(10,wtot.n_elem);
+        for(size_t i=0; i<wtot.n_elem; i++) {
+          if(polarized) {
+            rhoa = rho(0,i);
+            rhob = rho(1,i);
+            if(do_gga) {
+              sigmaaa = sigma(0,i);
+              sigmaab = sigma(1,i);
+              sigmabb = sigma(2,i);
+            }
+            if(do_mgga_l) {
+              lapla = lapl(0,i);
+              laplb = lapl(1,i);
+            }
+            if(do_mgga_t) {
+              taua = tau(0,i);
+              taub = tau(1,i);
+            }
+          } else {
+            rhoa = 0.5*rho(i,0);
+            rhob = 0.5*rho(i,0);
+            if(do_gga) {
+              sigmaaa = 0.25*sigma(i,0);
+              sigmaab = 0.25*sigma(i,0);
+              sigmabb = 0.25*sigma(i,0);
+            }
+            if(do_mgga_l) {
+              lapla = 0.5*lapl(i,0);
+              laplb = 0.5*lapl(i,0);
+            }
+            if(do_mgga_t) {
+              taua = 0.5*tau(i,0);
+              taub = 0.5*tau(i,0);
+            }
+          }
+
+          ing(0,i) = r(i);
+          ing(1,i) = rhoa;
+          ing(2,i) = rhob;
+          ing(3,i) = sigmaaa;
+          ing(4,i) = sigmaab;
+          ing(5,i) = sigmabb;
+          ing(6,i) = lapla;
+          ing(7,i) = laplb;
+          ing(8,i) = taua;
+          ing(9,i) = taub;
+        }
+      }
+
       double DFTGridWorker::eval_Exc() const {
         arma::rowvec dens(rho.row(0));
         if(polarized)
@@ -333,7 +607,7 @@ namespace helfem {
         So.submat(bf_ind,bf_ind)+=S;
       }
 
-      void DFTGridWorker::eval_Fxc(arma::mat & Ho) const {
+      void DFTGridWorker::eval_Fxc(arma::cube & Ho) const {
         if(polarized) {
           throw std::runtime_error("Refusing to compute restricted Fock matrix with unrestricted density.\n");
         }
@@ -341,6 +615,10 @@ namespace helfem {
         // Work matrix
         arma::mat H(bf_ind.n_elem,bf_ind.n_elem);
         H.zeros();
+
+        // l-dependent term
+        arma::mat Hl(bf_ind.n_elem,bf_ind.n_elem);
+        Hl.zeros();
 
         {
           // LDA potential
@@ -350,34 +628,58 @@ namespace helfem {
           // Increment matrix
           increment_lda<double>(H,vrho,bf);
         }
+        if(H.has_nan())
+          fprintf(stderr,"NaN in Hamiltonian after LDA!\n");
 
         if(do_gga) {
           // Get vsigma
           arma::rowvec vs(vsigma.row(0));
           // Get grad rho
-          arma::uvec idx(arma::linspace<arma::uvec>(0,2,3));
+          arma::uvec idx(arma::linspace<arma::uvec>(0,0,1));
           arma::mat gr(arma::trans(grho.rows(idx)));
           // Multiply grad rho by vsigma and the weights
-          for(size_t i=0;i<gr.n_rows;i++) {
-            gr(i,0)*=2.0*wtot(i)*vs(i);
+          gr.col(0)%=2.0*(wtot%vs).t();
+          // If we also have laplacian dependence, we get an extra term
+          if(do_mgga_l) {
+            gr.col(0)+=(2.0*vlapl.row(0)%r%(wrad*4.0*M_PI)).t();
           }
           // Increment matrix
           increment_gga<double>(H,gr,bf,bf_rho);
+          if(H.has_nan())
+            fprintf(stderr,"NaN in Hamiltonian after GGA!\n");
         }
 
-        if(do_mgga_t) {
-          arma::rowvec vt(vtau.row(0));
-          vt%=0.5*wtot;
+        if(do_mgga_t || do_mgga_l) {
+          arma::rowvec vtl(wtot.n_elem, arma::fill::zeros);
+          if(do_mgga_t)
+            vtl+=0.5*vtau.row(0);
+          if(do_mgga_l)
+            vtl+=2.0*vlapl.row(0);
+          vtl%=wtot;
+          // Base term
+          increment_lda<double>(H,vtl,bf_rho);
 
-          increment_lda<double>(H,vt,bf_rho);
+          if(do_mgga_t) {
+            // l(l+1) term: r^-2 cancels out the factor in the total weight
+            vtl=vtau.row(0)%(0.5*wrad*4.0*M_PI);
+            increment_lda<double>(Hl,vtl,bf);
+          }
+          if(do_mgga_l) {
+            // Laplacian term
+            vtl=vlapl.row(0)%wtot;
+            increment_mgga_lapl<double>(H,vtl,bf,bf_rho2);
+          }
+          if(H.has_nan())
+            fprintf(stderr,"NaN in Hamiltonian after mGGA!\n");
         }
-        if(do_mgga_l)
-          throw std::logic_error("Laplacian not implemented!\n");
 
-        Ho(bf_ind,bf_ind)+=H;
+        // Collect results
+        for(size_t islice=0;islice<Ho.n_slices;islice++) {
+          Ho.slice(islice)(bf_ind,bf_ind) += H + islice*(islice+1)*Hl;
+        }
       }
 
-      void DFTGridWorker::eval_Fxc(arma::mat & Hao, arma::mat & Hbo, bool beta) const {
+      void DFTGridWorker::eval_Fxc(arma::cube & Hao, arma::cube & Hbo, bool beta) const {
         if(!polarized) {
           throw std::runtime_error("Refusing to compute unrestricted Fock matrix with restricted density.\n");
         }
@@ -386,6 +688,11 @@ namespace helfem {
         Ha.zeros(bf_ind.n_elem,bf_ind.n_elem);
         if(beta)
           Hb.zeros(bf_ind.n_elem,bf_ind.n_elem);
+
+        arma::mat Hal, Hbl;
+        Hal.zeros(bf_ind.n_elem,bf_ind.n_elem);
+        if(beta)
+          Hbl.zeros(bf_ind.n_elem,bf_ind.n_elem);
 
         {
           // LDA potential
@@ -403,7 +710,7 @@ namespace helfem {
         }
         if(Ha.has_nan() || (beta && Hb.has_nan()))
           //throw std::logic_error("NaN encountered!\n");
-          fprintf(stderr,"NaN in Hamiltonian!\n");
+          fprintf(stderr,"NaN in Hamiltonian after LDA!\n");
 
         if(do_gga) {
           // Get vsigma
@@ -411,15 +718,17 @@ namespace helfem {
           arma::rowvec vs_ab(vsigma.row(1));
 
           // Get grad rho
-          arma::uvec idxa(arma::linspace<arma::uvec>(0,2,3));
-          arma::uvec idxb(arma::linspace<arma::uvec>(3,5,3));
+          arma::uvec idxa(arma::linspace<arma::uvec>(0,0,1));
+          arma::uvec idxb(arma::linspace<arma::uvec>(1,1,1));
           arma::mat gr_a0(arma::trans(grho.rows(idxa)));
           arma::mat gr_b0(arma::trans(grho.rows(idxb)));
 
           // Multiply grad rho by vsigma and the weights
           arma::mat gr_a(gr_a0);
-          for(size_t i=0;i<gr_a.n_rows;i++) {
-            gr_a(i,0)=wtot(i)*(2.0*vs_aa(i)*gr_a0(i,0) + vs_ab(i)*gr_b0(i,0));
+          gr_a.col(0)=(wtot%(2.0*vs_aa%gr_a0.col(0).t() + vs_ab%gr_b0.col(0).t())).t();
+          // If we also have laplacian dependence, we get an extra term
+          if(do_mgga_l) {
+            gr_a.col(0)+=2.0*(vlapl.row(0)%r%(wrad*4.0*M_PI)).t();
           }
           // Increment matrix
           increment_gga<double>(Ha,gr_a,bf,bf_rho);
@@ -427,20 +736,72 @@ namespace helfem {
           if(beta) {
             arma::rowvec vs_bb(vsigma.row(2));
             arma::mat gr_b(gr_b0);
-            for(size_t i=0;i<gr_b.n_rows;i++) {
-              gr_b(i,0)=wtot(i)*(2.0*vs_bb(i)*gr_b0(i,0) + vs_ab(i)*gr_a0(i,0));
+            gr_b.col(0)=(wtot%(2.0*vs_bb%gr_b0.col(0).t() + vs_ab%gr_a0.col(0).t())).t();
+            if(do_mgga_l) {
+              gr_b.col(0)+=2.0*(vlapl.row(1)%r%(wrad*4.0*M_PI)).t();
             }
             increment_gga<double>(Hb,gr_b,bf,bf_rho);
           }
+          if(Ha.has_nan() || (beta && Hb.has_nan()))
+            //throw std::logic_error("NaN encountered!\n");
+            fprintf(stderr,"NaN in Hamiltonian after GGA!\n");
         }
 
         if(do_mgga_t || do_mgga_l) {
-          throw std::logic_error("Meta-GGA not implemented!\n");
+          arma::rowvec vtl_a(wtot.n_elem, arma::fill::zeros);
+          if(do_mgga_t)
+            vtl_a += 0.5*vtau.row(0);
+          if(do_mgga_l)
+            vtl_a += 2.0*vlapl.row(0);
+          vtl_a %= wtot;
+
+          // Base term
+          increment_lda<double>(Ha,vtl_a,bf_rho);
+
+          if(do_mgga_t) {
+            // l(l+1) term: r^-2 cancels out the factor in the total weight
+            vtl_a=vtau.row(0)%(0.5*wrad*4.0*M_PI);
+            increment_lda<double>(Hal,vtl_a,bf);
+          }
+          if(do_mgga_l) {
+            vtl_a=vlapl.row(0)%wtot;
+            increment_mgga_lapl<double>(Ha,vtl_a,bf,bf_rho2);
+          }
+          if(beta) {
+            arma::rowvec vtl_b(wtot.n_elem, arma::fill::zeros);
+            if(do_mgga_t)
+              vtl_b += 0.5*vtau.row(1);
+            if(do_mgga_l)
+              vtl_b += 2.0*vlapl.row(1);
+            vtl_b %= wtot;
+
+            // Base term
+            increment_lda<double>(Hb,vtl_b,bf_rho);
+
+            if(do_mgga_t) {
+              // l(l+1) term: r^-2 cancels out the factor in the total weight
+              vtl_b=vtau.row(1)%(0.5*wrad*4.0*M_PI);
+              increment_lda<double>(Hbl,vtl_b,bf);
+            }
+            if(do_mgga_l) {
+              vtl_b=vlapl.row(1)%wtot;
+              increment_mgga_lapl<double>(Hb,vtl_b,bf,bf_rho2);
+            }
+          }
+          if(Ha.has_nan() || (beta && Hb.has_nan()))
+            //throw std::logic_error("NaN encountered!\n");
+            fprintf(stderr,"NaN in Hamiltonian after mGGA!\n");
         }
 
-        Hao(bf_ind,bf_ind)+=Ha;
-        if(beta)
-          Hbo(bf_ind,bf_ind)+=Hb;
+        // Collect results
+        for(size_t islice=0;islice<Hao.n_slices;islice++) {
+          Hao.slice(islice)(bf_ind,bf_ind) += Ha + islice*(islice+1)*Hal;
+        }
+        if(beta) {
+          for(size_t islice=0;islice<Hbo.n_slices;islice++) {
+            Hbo.slice(islice)(bf_ind,bf_ind) += Hb + islice*(islice+1)*Hbl;
+          }
+        }
       }
 
       void DFTGridWorker::check_grad_tau_lapl(int x_func, int c_func) {
@@ -481,16 +842,13 @@ namespace helfem {
       void DFTGridWorker::compute_bf(size_t iel) {
         // Update function list
         bf_ind=basp->bf_list(iel);
-
-        // Get radii and radial weights
-        arma::vec r(basp->get_r(iel));
-        arma::vec wrad(basp->get_wrad(iel));
+        // Get radii
+        r=basp->get_r(iel).t();
+        // Get radial weights
+        wrad=basp->get_wrad(iel).t();
 
         // Update total weights
-        wtot.zeros(wrad.n_elem);
-        for(size_t ir=0;ir<wrad.n_elem;ir++) {
-          wtot(ir)=4.0*M_PI*wrad(ir)*std::pow(r(ir),2);
-        }
+        wtot = 4.0*M_PI*wrad%arma::square(r);
 
         // Compute basis function values
         bf=arma::trans(basp->eval_bf(iel));
@@ -500,7 +858,7 @@ namespace helfem {
         }
 
         if(do_lapl) {
-          throw std::logic_error("Laplacian not implemented.\n");
+          bf_rho2=arma::trans(basp->eval_lf(iel));
         }
       }
 
@@ -513,13 +871,16 @@ namespace helfem {
       DFTGrid::~DFTGrid() {
       }
 
-      void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double thr) {
-        H.zeros(P.n_rows,P.n_rows);
+      void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::cube & H, double & Exc, double & Nel, double thr) {
+        H.zeros(P.n_rows,P.n_rows,P.n_slices);
 
         double exc=0.0;
         double nel=0.0;
+        double tau=0.0;
+        double lapl=0.0;
+
 #ifdef _OPENMP
-#pragma omp parallel reduction(+:exc,nel)
+#pragma omp parallel reduction(+:exc,nel,tau,lapl)
 #endif
         {
           DFTGridWorker grid(basp);
@@ -532,14 +893,14 @@ namespace helfem {
             grid.compute_bf(iel);
             grid.update_density(P);
             nel+=grid.compute_Nel();
+            tau+=grid.compute_tau();
+            lapl+=grid.compute_lapl();
 
             grid.init_xc();
-            if(thr>0.0)
-              grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func,x_pars);
+              grid.compute_xc(x_func,x_pars,thr);
             if(c_func>0)
-              grid.compute_xc(c_func,c_pars);
+              grid.compute_xc(c_func,c_pars,thr);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(H);
@@ -551,14 +912,14 @@ namespace helfem {
             grid.compute_bf(iel);
             grid.update_density(P);
             nel+=grid.compute_Nel();
+            tau+=grid.compute_tau();
+            lapl+=grid.compute_lapl();
 
             grid.init_xc();
-            if(thr>0.0)
-              grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func,x_pars);
+              grid.compute_xc(x_func,x_pars,thr);
             if(c_func>0)
-              grid.compute_xc(c_func,c_pars);
+              grid.compute_xc(c_func,c_pars,thr);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(H);
@@ -568,11 +929,18 @@ namespace helfem {
         // Save outputs
         Exc=exc;
         Nel=nel;
+
+#if 0
+        if(tau!=0.0)
+          printf("Tau integral %.10e\n",tau);
+        if(lapl!=0.0)
+          printf("Laplacian integral %.10e\n",lapl);
+#endif
       }
 
-      void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, bool beta, double thr) {
-        Ha.zeros(Pa.n_rows,Pa.n_rows);
-        Hb.zeros(Pb.n_rows,Pb.n_rows);
+      void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::cube & Ha, arma::cube & Hb, double & Exc, double & Nel, bool beta, double thr) {
+        Ha.zeros(Pa.n_rows,Pa.n_rows,Pa.n_slices);
+        Hb.zeros(Pb.n_rows,Pb.n_rows,Pb.n_slices);
 
         double exc=0.0;
         double nel=0.0;
@@ -592,12 +960,10 @@ namespace helfem {
             nel+=grid.compute_Nel();
 
             grid.init_xc();
-            if(thr>0.0)
-              grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func,x_pars);
+              grid.compute_xc(x_func,x_pars,thr);
             if(c_func>0)
-              grid.compute_xc(c_func,c_pars);
+              grid.compute_xc(c_func,c_pars,thr);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(Ha,Hb,beta);
@@ -611,12 +977,10 @@ namespace helfem {
             nel+=grid.compute_Nel();
 
             grid.init_xc();
-            if(thr>0.0)
-              grid.screen_density(thr);
             if(x_func>0)
-              grid.compute_xc(x_func,x_pars);
+              grid.compute_xc(x_func,x_pars,thr);
             if(c_func>0)
-              grid.compute_xc(c_func,c_pars);
+              grid.compute_xc(c_func,c_pars,thr);
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(Ha,Hb,beta);
@@ -656,6 +1020,156 @@ namespace helfem {
         }
 
         return S;
+      }
+
+      void DFTGrid::eval_pot(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::mat & pot, double thr) {
+        // Compute number of quadrature points
+        size_t Nquad=basp->get_r(0).n_elem;
+        size_t Nelem=basp->get_rad_Nel();
+        // exc vxca vxcb vsigmaaa vsigmaab vsigmabb vlapla vlaplb vtaua vtaub
+        pot.zeros(11, Nquad*Nelem);
+
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+          DFTGridWorker grid(basp);
+          grid.check_grad_tau_lapl(x_func,c_func);
+
+#ifdef _OPENMP
+#pragma omp for
+#endif
+          for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+            grid.compute_bf(iel);
+            grid.update_density(P);
+
+            grid.init_xc();
+            if(x_func>0)
+              grid.compute_xc(x_func,x_pars,thr);
+            if(c_func>0)
+              grid.compute_xc(c_func,c_pars,thr);
+
+            // Store the potential
+            arma::mat subpot;
+            grid.get_pot(subpot);
+            pot.cols(iel*Nquad, (iel+1)*Nquad-1)=subpot;
+          }
+        }
+        // Swap rows and columns
+        pot = pot.t();
+      }
+
+      void DFTGrid::eval_pot(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars,  const arma::cube & Pa, const arma::cube & Pb, arma::mat & pot, double thr) {
+        // Compute number of quadrature points
+        size_t Nquad=basp->get_r(0).n_elem;
+        size_t Nelem=basp->get_rad_Nel();
+        // exc vxca vxcb vsigmaaa vsigmaab vsigmabb vlapla vlaplb vtaua vtaub
+        pot.zeros(11, Nquad*Nelem);
+
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+          DFTGridWorker grid(basp);
+          grid.check_grad_tau_lapl(x_func,c_func);
+
+#ifdef _OPENMP
+#pragma omp for
+#endif
+          for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+            grid.compute_bf(iel);
+            grid.update_density(Pa,Pb);
+
+            grid.init_xc();
+            if(x_func>0)
+              grid.compute_xc(x_func,x_pars,thr);
+            if(c_func>0)
+              grid.compute_xc(c_func,c_pars,thr);
+
+            // Store the potential
+            arma::mat subpot;
+            grid.get_pot(subpot);
+            pot.cols(iel*Nquad, (iel+1)*Nquad-1)=subpot;
+          }
+        }
+        // Swap rows and columns
+        pot = pot.t();
+      }
+
+      void DFTGrid::eval_ing(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::mat & ing, double thr) {
+        // Compute number of quadrature points
+        size_t Nquad=basp->get_r(0).n_elem;
+        size_t Nelem=basp->get_rad_Nel();
+        // rhoa rhob sigmaaa sigmaab sigmabb lapla laplb taua taub
+        ing.zeros(10, Nquad*Nelem);
+
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+          DFTGridWorker grid(basp);
+          grid.check_grad_tau_lapl(x_func,c_func);
+
+#ifdef _OPENMP
+#pragma omp for
+#endif
+          for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+            grid.compute_bf(iel);
+            grid.update_density(P);
+
+            // We need to evaluate the xc functional to initialize the variables
+            grid.init_xc();
+            if(x_func>0)
+              grid.compute_xc(x_func,x_pars,thr);
+            if(c_func>0)
+              grid.compute_xc(c_func,c_pars,thr);
+
+            // Store
+            arma::mat subing;
+            grid.get_ingredients(subing);
+            ing.cols(iel*Nquad, (iel+1)*Nquad-1)=subing;
+          }
+        }
+        // Swap rows and columns
+        ing = ing.t();
+      }
+
+      void DFTGrid::eval_ing(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars,  const arma::cube & Pa, const arma::cube & Pb, arma::mat & ing, double thr) {
+        // Compute number of quadrature points
+        size_t Nquad=basp->get_r(0).n_elem;
+        size_t Nelem=basp->get_rad_Nel();
+        // rhoa rhob sigmaaa sigmaab sigmabb lapla laplb taua taub
+        ing.zeros(10, Nquad*Nelem);
+
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+          DFTGridWorker grid(basp);
+          grid.check_grad_tau_lapl(x_func,c_func);
+
+#ifdef _OPENMP
+#pragma omp for
+#endif
+          for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+            grid.compute_bf(iel);
+            grid.update_density(Pa,Pb);
+
+            // We need to evaluate the xc functional to initialize the variables
+            grid.init_xc();
+            if(x_func>0)
+              grid.compute_xc(x_func,x_pars,thr);
+            if(c_func>0)
+              grid.compute_xc(c_func,c_pars,thr);
+
+            // Store
+            arma::mat subing;
+            grid.get_ingredients(subing);
+            ing.cols(iel*Nquad, (iel+1)*Nquad-1)=subing;
+          }
+        }
+        // Swap rows and columns
+        ing = ing.t();
       }
     }
   }

@@ -32,11 +32,24 @@ namespace helfem {
         /// Finite element basis
         polynomial_basis::FiniteElementBasis fem;
 
+        /// Value of r for which to switch over to evaluating basis
+        /// functions by Taylor series
+        double small_r_taylor_cutoff;
+        /// Order of Taylor series
+        int taylor_order;
+        /// Difference at cutoff
+        double taylor_diff;
+
+        /// Derivatives of basis functions at origin
+        std::vector<arma::rowvec> taylor_df;
+        /// Set the cutoff
+        void set_small_r_taylor_cutoff();
+
       public:
         /// Dummy constructor
         RadialBasis();
         /// Construct radial basis
-        RadialBasis(const polynomial_basis::FiniteElementBasis & fem, int n_quad);
+        RadialBasis(const polynomial_basis::FiniteElementBasis & fem, int n_quad, int taylor_order);
         /// Explicit destructor
         ~RadialBasis();
 
@@ -56,6 +69,12 @@ namespace helfem {
         int get_poly_id() const;
         /// Get number of nodes in polynomial basis
         int get_poly_nnodes() const;
+        /// Get small r Taylor cutoff
+        double get_small_r_taylor_cutoff() const;
+        /// Get the order of the Taylor series
+        int get_taylor_order() const;
+        /// Get the error in the Taylor series
+        double get_taylor_diff() const;
 
         /// Get number of overlapping functions
         size_t get_noverlap() const;
@@ -135,6 +154,9 @@ namespace helfem {
         arma::mat get_lf(size_t iel) const;
         /// Evaluate basis functions at given points
         arma::mat get_lf(const arma::vec & x, size_t iel) const;
+        /// Evaluate small-r Taylor series
+        void get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider) const;
+
         /// Get quadrature weights
         arma::vec get_wrad(size_t iel) const;
         /// Get quadrature weights
