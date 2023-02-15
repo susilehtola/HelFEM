@@ -258,13 +258,13 @@ namespace helfem {
       arma::mat V(std::pow(poly->get_nbf(),2),x.n_elem);
       V.zeros();
       for(size_t ip=0;ip<x.n_elem;ip++) {
-        // int_0^r Bi(r) Bj(r)
+        // \int_0^r Bi(r) Bj(r) dr
         for(size_t jp=0;jp<=ip;jp++)
           V.col(ip)+=zero.col(jp)*r(jp);
         // divided by r
         V.col(ip) /= r(ip);
 
-        // plus the integral to infinity
+        // plus the integral to infinity \int_r^\infty r^{-1} Bi(r) Bj(r) dr
         for(size_t jp=ip;jp<x.n_elem;jp++)
           V.col(ip)+=minusone.col(jp);
       }
