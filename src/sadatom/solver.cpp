@@ -1159,7 +1159,7 @@ namespace helfem {
 
         arma::vec r(basis.radii());
         arma::vec wt(basis.quadrature_weights());
-        arma::mat vcoul(basis.coulomb_screening(P));
+        arma::vec vcoul(basis.coulomb_screening(P));
         arma::vec vxc(basis.xc_screening(P,x_func,c_func));
         arma::vec Zeff(vcoul+vxc);
         arma::vec rho(basis.electron_density(P));
@@ -1177,6 +1177,9 @@ namespace helfem {
         result.col(6)=vxc;
         result.col(7)=wt;
         result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+
+        printf("Electron density by quadrature: %.10e\n",arma::sum(wt%rho%r%r));
+        printf("Quadrature of tabulated Coulomb potential yields Coulomb energy %.10e\n",arma::sum(0.5*r%rho%wt%vcoul));
 
         return result;
       }
@@ -1206,8 +1209,6 @@ namespace helfem {
         arma::vec lrho(basis.electron_density_laplacian(P));
         arma::vec tau(basis.kinetic_energy_density(Pl));
 
-        printf("Electron density by quadrature: %e\n",arma::sum(wt%rho%r%r));
-
         arma::mat result(r.n_elem,9);
         result.col(0)=r;
         result.col(1)=rho;
@@ -1218,6 +1219,9 @@ namespace helfem {
         result.col(6)=vxc;
         result.col(7)=wt;
         result.col(8)=arma::ones<arma::vec>(Zeff.n_elem)*basis.charge()-Zeff;
+
+        printf("Electron density by quadrature: %.10e\n",arma::sum(wt%rho%r%r));
+        printf("Quadrature of tabulated Coulomb potential yields Coulomb energy %.10e\n",arma::sum(0.5*r%rho%wt%vcoul));
 
         return result;
       }

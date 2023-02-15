@@ -45,7 +45,7 @@ namespace helfem {
     }
 
     double bessel_il(double r, int L) {
-      // GSL calculates exp(-|x|)k_l(x)
+      // GSL calculates exp(-|x|)i_l(x)
       return exp(std::abs(r))*gsl_sf_bessel_il_scaled(L, r);
     }
 
@@ -57,9 +57,9 @@ namespace helfem {
     }
 
     double bessel_kl(double r, int L) {
-      // GSL calculates exp(-|x|)k_l(x). Also, the definition in GSL
+      // GSL calculates exp(x)k_l(x). Also, the definition in GSL
       // is \sqrt(\pi/(2x)), not \sqrt(2/(\pi x))
-      return exp(std::abs(r))*gsl_sf_bessel_kl_scaled(L, r) / M_PI_2;
+      return exp(-r)*gsl_sf_bessel_kl_scaled(L, r) / M_PI_2;
     }
 
     arma::vec bessel_kl(const arma::vec & r, int L) {
