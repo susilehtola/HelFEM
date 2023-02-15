@@ -1159,7 +1159,7 @@ namespace helfem {
 
         arma::vec r(basis.radii());
         arma::vec wt(basis.quadrature_weights());
-        arma::mat vcoul(basis.coulomb_screening(P));
+        arma::vec vcoul(basis.coulomb_screening(P));
         arma::vec vxc(basis.xc_screening(P,x_func,c_func));
         arma::vec Zeff(vcoul+vxc);
         arma::vec rho(basis.electron_density(P));
