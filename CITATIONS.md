@@ -5,7 +5,7 @@ The core of the program has been described in two articles focusing on the atomi
 There's also an article that discusses calculations with spherically averaged densities at the HF, LDA and GGA levels of theory:
 * S. Lehtola, Fully numerical calculations on atoms with fractional occupations and range-separated exchange functionals, Phys. Rev. A 101, 012516 (2020). doi:10.1103/PhysRevA.101.012516
 The formulation for meta-GGA functionals has been discussed in
-* S. Lehtola, Meta-GGA density functional calculations on atoms with spherically symmetric densities in the finite element formalism, to appear on the arXiv
+* S. Lehtola, Meta-GGA density functional calculations on atoms with spherically symmetric densities in the finite element formalism. arXiv:2302.06284
 
 The Lagrange interpolating basis was discussed in the first article, doi:10.1002/qua.25945. High-order Hermite interpolating functions and their importance in meta-GGA calculations has been discussed in
 * S. Lehtola, Atomic electronic structure calculations with Hermite interpolating polynomials. arXiv:2302.00440
