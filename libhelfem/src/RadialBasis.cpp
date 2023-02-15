@@ -187,7 +187,11 @@ namespace helfem {
         std::function<double(double)> rpowL = [Rexp](double r){return std::pow(r,Rexp+2);};
         std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
         radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-        return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rpowL);
+        arma::mat ret(fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rpowL));
+        if(ret.has_nan()) {
+          printf("radial_integral(%i,%i) has NaN!\n",Rexp,(int) iel);
+        }
+        return ret;
       }
 
       arma::mat RadialBasis::bessel_il_integral(int L, double lambda, size_t iel) const {
@@ -347,7 +351,9 @@ namespace helfem {
         // Integral by quadrature
         std::shared_ptr<const polynomial_basis::PolynomialBasis> p(fem.get_basis(iel));
         arma::mat tei(quadrature::twoe_integral(Rmin, Rmax, xq, wq, p, L));
-
+        if(tei.has_nan()) {
+          printf("twoe_integral(%i,%i) has NaN!\n",L,(int) iel);
+        }
         return tei;
       }
 
