@@ -20,7 +20,7 @@
 
 namespace helfem {
   namespace quadrature {
-    static arma::vec twoe_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L) {
+    arma::vec twoe_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, const std::function<double(double,double)> & fsmallbig, const std::function<double(double)> & fbig) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is
@@ -33,8 +33,14 @@ namespace helfem {
       // and half-length of original interval is
       double rlen0(0.5*(rmax0-rmin0));
 
+      // Compute fsmallbig(r)
+      arma::vec fsmallbigr(r.n_elem);
+      for(size_t i=0;i<r.n_elem;i++)
+        fsmallbigr(i)=fsmallbig(r(i),rmax);
+      double fbigr=fbig(rmax);
+
       // Calculate total weight per point
-      arma::vec wp((wx%arma::pow(r,L))*rlen);
+      arma::vec wp(wx%fsmallbigr*rlen);
 
       // Calculate x values the polynomials should be evaluated at
       arma::vec xpoly((r-rmid0*arma::ones<arma::vec>(x.n_elem))/rlen0);
@@ -52,7 +58,7 @@ namespace helfem {
       return inner;
     }
 
-    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L) {
+    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, const std::function<double(double,double)> & fsmallbig, const std::function<double(double)> & fbig) {
       // Midpoint is at
       double rmid(0.5*(rmax+rmin));
       // and half-length of interval is
@@ -61,18 +67,27 @@ namespace helfem {
       arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
 
       // Compute the "inner" integrals as function of r.
-      arma::mat inner(x.n_elem,std::pow(poly->get_nbf(),2));
-      inner.row(0)=arma::trans(twoe_inner_integral_wrk(rmin, r(0), rmin, rmax, x, wx, poly, L));
       // Every subinterval uses a fresh nquad points!
+      arma::mat inner(x.n_elem,std::pow(poly->get_nbf(),2));
+      inner.row(0)=arma::trans(twoe_inner_integral_wrk(rmin, r(0), rmin, rmax, x, wx, poly, fsmallbig, fbig));
       for(size_t ip=1;ip<x.n_elem;ip++)
-        inner.row(ip)=inner.row(ip-1)+arma::trans(twoe_inner_integral_wrk(r(ip-1), r(ip), rmin, rmax, x, wx, poly, L));
+        inner.row(ip)=arma::trans(twoe_inner_integral_wrk(r(ip-1), r(ip), rmin, rmax, x, wx, poly, fsmallbig, fbig));
 
-      // Put in the 1/r^(L+1) factors now that the integrals have been computed
-      arma::vec rpopl(arma::pow(r,L+1));
-      for(size_t ip=0;ip<x.n_elem;ip++)
-        inner.row(ip)/=rpopl(ip);
+      // For numerical stability, each integral segment is scaled by
+      // R^(-L-1), since first integrating r^L and then multiplying by
+      // R^(-L-1) is unstable for small R and large L due to loss of
+      // precision. We undo the conversion here
+      for(size_t ip=1;ip<x.n_elem;ip++)
+        inner.row(ip) += inner.row(ip-1)*(fbig(r(ip))/fbig(r(ip-1)));
 
       return inner;
+    }
+
+    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L) {
+      // Kernel functions
+      std::function<double(double,double)> fsmallbig = [L](double r, double R) {return std::pow(r/R,L)/R;};
+      std::function<double(double)> fbig = [L](double r) {return std::pow(r,-L-1);};
+      return twoe_inner_integral(rmin, rmax, x, wx, poly, fsmallbig, fbig);
     }
 
     arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L) {
@@ -111,59 +126,11 @@ namespace helfem {
       return ints;
     }
 
-    static arma::vec yukawa_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, double lambda) {
-      // Midpoint is at
-      double rmid(0.5*(rmax+rmin));
-      // and half-length of interval is
-      double rlen(0.5*(rmax-rmin));
-      // r values are then
-      arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
-
-      // Midpoint of original interval is at
-      double rmid0(0.5*(rmax0+rmin0));
-      // and half-length of original interval is
-      double rlen0(0.5*(rmax0-rmin0));
-
-      // Calculate total weight per point
-      arma::vec wp((wx%utils::bessel_il(r*lambda,L))*rlen);
-
-      // Calculate x values the polynomials should be evaluated at
-      arma::vec xpoly((r-rmid0*arma::ones<arma::vec>(x.n_elem))/rlen0);
-      // Evaluate the polynomials at these points
-      arma::mat bf(poly->eval_dnf(xpoly,0,rlen0));
-
-      // Put in weight
-      arma::mat wbf(bf);
-      for(size_t i=0;i<wbf.n_cols;i++)
-        wbf.col(i)%=wp;
-
-      // The integrals are then
-      arma::vec inner(arma::vectorise(arma::trans(wbf)*bf));
-
-      return inner;
-    }
-
     arma::mat yukawa_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, double lambda) {
-      // Midpoint is at
-      double rmid(0.5*(rmax+rmin));
-      // and half-length of interval is
-      double rlen(0.5*(rmax-rmin));
-      // r values are then
-      arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
-
-      // Compute the "inner" integrals as function of r.
-      arma::mat inner(x.n_elem,std::pow(poly->get_nbf(),2));
-      inner.row(0)=arma::trans(yukawa_inner_integral_wrk(rmin, r(0), rmin, rmax, x, wx, poly, L, lambda));
-      // Every subinterval uses a fresh nquad points!
-      for(size_t ip=1;ip<x.n_elem;ip++)
-        inner.row(ip)=inner.row(ip-1)+arma::trans(yukawa_inner_integral_wrk(r(ip-1), r(ip), rmin, rmax, x, wx, poly, L, lambda));
-
-      // Put in the k_L(r) factors now that the integrals have been computed
-      arma::vec rpopl(utils::bessel_kl(r*lambda,L));
-      for(size_t ip=0;ip<x.n_elem;ip++)
-        inner.row(ip)*=rpopl(ip);
-
-      return inner;
+      // Kernel functions
+      std::function<double(double,double)> fsmallbig = [L, lambda](double r, double R) {return utils::bessel_il(r*lambda,L)*utils::bessel_kl(R*lambda,L);};
+      std::function<double(double)> fbig = [L, lambda](double r) {return utils::bessel_kl(r*lambda,L);};
+      return twoe_inner_integral(rmin, rmax, x, wx, poly, fsmallbig, fbig);
     }
 
     arma::mat yukawa_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, double lambda) {
@@ -268,16 +235,23 @@ namespace helfem {
       zero.zeros();
       arma::mat minusone(std::pow(poly->get_nbf(),2),x.n_elem);
       minusone.zeros();
+
+      std::function<double(double)> fsmall = [](double r) {return 1.0;};
+      std::function<double(double)> fbig = [](double r) {return 1/r;};
+
+      std::function<double(double,double)> fsmallbig = [](double r, double R) {return 1.0/R;};
+      std::function<double(double,double)> fbigsmall = [](double r, double R) {return 1/r;};
+
       // Every subinterval uses a fresh nquad points!
       for(size_t ip=0;ip<x.n_elem;ip++) {
         double low = ip ? r(ip-1) : rmin;
         double high = r(ip);
-        zero.col(ip)=twoe_inner_integral_wrk(low, high, rmin, rmax, x, wx, poly, 0);
+        zero.col(ip)=twoe_inner_integral_wrk(low, high, rmin, rmax, x, wx, poly, fsmallbig, fbig);
       }
       for(size_t ip=0;ip<x.n_elem;ip++) {
         double low = r(ip);
         double high = (ip == x.n_elem-1) ? rmax : r(ip+1);
-        minusone.col(ip)=twoe_inner_integral_wrk(low, high, rmin, rmax, x, wx, poly, -1);
+        minusone.col(ip)=twoe_inner_integral_wrk(low, high, rmin, rmax, x, wx, poly, fbigsmall, fsmall);
       }
 
       // The potential itself
@@ -286,7 +260,7 @@ namespace helfem {
       for(size_t ip=0;ip<x.n_elem;ip++) {
         // int_0^r Bi(r) Bj(r)
         for(size_t jp=0;jp<=ip;jp++)
-          V.col(ip)+=zero.col(jp);
+          V.col(ip)+=zero.col(jp)*r(jp);
         // divided by r
         V.col(ip) /= r(ip);
 
