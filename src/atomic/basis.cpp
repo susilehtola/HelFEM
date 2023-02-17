@@ -119,7 +119,7 @@ namespace helfem {
       arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf) {
         // Construct the radial basis
         arma::vec bval;
-        if(model != modelpotential::POINT_NUCLEUS) {
+        if(model != modelpotential::POINT_NUCLEUS && model != modelpotential::REGULARIZED_NUCLEUS) {
           printf("Finite-nucleus grid\n");
 
           if(Zl != 0 || Zr != 0)

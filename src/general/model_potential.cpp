@@ -19,6 +19,9 @@ namespace helfem {
       case(SPHERICAL_NUCLEUS):
         printf("Getting uniformly charged spherical nucleus with Z=%i Rrms=%e\n",Z,Rrms);
         return new SphericalNucleus(Z,Rrms);
+      case(REGULARIZED_NUCLEUS):
+        printf("Getting regularized nucleus with Z=%i a=%e\n",Z,Rrms);
+        return new RegularizedNucleus(Z,Rrms);
       case(NOSUCH_NUCLEUS):
         throw std::logic_error("No such nucleus!\n");
       }

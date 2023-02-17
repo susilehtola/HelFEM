@@ -12,6 +12,7 @@ list(APPEND LIBHELFEM_PUBLIC_HEADERS
     "FiniteElementBasis.h"
     "RadialBasis.h"
     "SphericalNucleus.h"
+    "RegularizedNucleus.h"
 )
 foreach(header IN LISTS LIBHELFEM_PUBLIC_HEADERS)
     configure_file("include/${header}" "include/${header}" COPYONLY)
@@ -37,11 +38,11 @@ add_library(helfem
     src/GaussianNucleus.cpp
     src/HollowNucleus.cpp
     src/PointNucleus.cpp
+    src/RegularizedNucleus.cpp
     src/SphericalNucleus.cpp
     src/FiniteElementBasis.cpp
     src/RadialBasis.cpp
 )
 target_include_directories(helfem PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include/")
-
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/include/" DESTINATION include)
 install(TARGETS helfem DESTINATION lib)

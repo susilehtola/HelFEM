@@ -7,6 +7,7 @@
 #include <HollowNucleus.h>
 #include <SphericalNucleus.h>
 #include <GaussianNucleus.h>
+#include <RegularizedNucleus.h>
 #include "RadialPotential.h"
 
 namespace helfem {
@@ -17,6 +18,7 @@ namespace helfem {
           GAUSSIAN_NUCLEUS,
           SPHERICAL_NUCLEUS,
           HOLLOW_NUCLEUS,
+          REGULARIZED_NUCLEUS,
           NOSUCH_NUCLEUS
     } nuclear_model_t;
     /// Get nuclear model
