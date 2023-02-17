@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Installation directory
-export target=$(pwd) # this installs the binaries under bin/ in the present directory
+export target=$(pwd)/install # this installs the binaries under install/bin/ in the present directory
 
 if [[ ! -d objdir ]]; then
     mkdir objdir
