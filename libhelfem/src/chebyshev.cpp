@@ -60,7 +60,7 @@ namespace helfem {
       // Compute radii
       rad.zeros(nrad);
       wrad.zeros(nrad);
-      for(size_t ir=0;ir<nrad;ir++) {
+      for(int ir=0;ir<nrad;ir++) {
         // Calculate value of radius
         double ixc=xc.n_elem-1-ir;
         double r=1.0/M_LN2*log(2.0/(1.0-xc(ixc)));
