@@ -2,11 +2,11 @@
 #define NUCLEAR_MODEL_H
 
 #include <armadillo>
-#include <helfem/ModelPotential.h>
-#include <helfem/PointNucleus.h>
-#include <helfem/HollowNucleus.h>
-#include <helfem/SphericalNucleus.h>
-#include <helfem/GaussianNucleus.h>
+#include <ModelPotential.h>
+#include <PointNucleus.h>
+#include <HollowNucleus.h>
+#include <SphericalNucleus.h>
+#include <GaussianNucleus.h>
 #include "RadialPotential.h"
 
 namespace helfem {

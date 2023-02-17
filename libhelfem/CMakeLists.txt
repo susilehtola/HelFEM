@@ -1,7 +1,7 @@
 set(LIBHELFEM_VERSION "v0.0.1-alpha")
 
 # Version information
-configure_file("include/helfem.source.h" "include/helfem.h")
+configure_file("include/helfem.source.h" "helfem.h")
 list(APPEND LIBHELFEM_PUBLIC_HEADERS
     "ModelPotential.h"
     "GaussianNucleus.h"
@@ -14,7 +14,7 @@ list(APPEND LIBHELFEM_PUBLIC_HEADERS
     "SphericalNucleus.h"
 )
 foreach(header IN LISTS LIBHELFEM_PUBLIC_HEADERS)
-    configure_file("include/${header}" "include/helfem/${header}" COPYONLY)
+    configure_file("include/${header}" "include/${header}" COPYONLY)
 endforeach()
 
 add_library(helfem
