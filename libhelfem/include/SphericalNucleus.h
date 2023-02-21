@@ -16,7 +16,7 @@
 #ifndef MODELPOTENTIAL_SPHERICALNUCLEUS_H
 #define MODELPOTENTIAL_SPHERICALNUCLEUS_H
 
-#include <helfem/ModelPotential.h>
+#include <ModelPotential.h>
 
 namespace helfem {
   namespace modelpotential {

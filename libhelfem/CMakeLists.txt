@@ -43,6 +43,6 @@ add_library(helfem
     src/FiniteElementBasis.cpp
     src/RadialBasis.cpp
 )
-target_include_directories(helfem PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include/")
+target_include_directories(helfem PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/include/" DESTINATION include)
 install(TARGETS helfem DESTINATION lib)

@@ -17,7 +17,7 @@
 #define INTEGRALS_H
 
 #include <armadillo>
-#include "helfem/FiniteElementBasis.h"
+#include "FiniteElementBasis.h"
 
 namespace helfem {
   namespace quadrature {

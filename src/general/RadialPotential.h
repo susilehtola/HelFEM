@@ -1,7 +1,7 @@
 #ifndef MODELPOTENTIAL_RADIALPOTENTIAL_H
 #define MODELPOTENTIAL_RADIALPOTENTIAL_H
 
-#include <helfem/ModelPotential.h>
+#include <ModelPotential.h>
 
 namespace helfem {
   namespace modelpotential {

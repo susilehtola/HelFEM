@@ -14,7 +14,7 @@
  * of the License, or (at your option) any later version.
  */
 
-#include "helfem/FiniteElementBasis.h"
+#include "FiniteElementBasis.h"
 #include <cfloat>
 
 namespace helfem {

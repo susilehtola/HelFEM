@@ -17,7 +17,7 @@
 #define DIATOMIC_BASIS_H
 
 #include <armadillo>
-#include "helfem/FiniteElementBasis.h"
+#include "FiniteElementBasis.h"
 #include "../general/gaunt.h"
 #include "../general/legendretable.h"
 
