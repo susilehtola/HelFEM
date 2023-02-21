@@ -51,5 +51,28 @@ namespace helfem {
       x=reverse(x);
       w=reverse(w);
     }
+
+    void radial_chebyshev(int nrad, arma::vec & rad, arma::vec & wrad) {
+      // Get Chebyshev nodes and weights for radial part
+      arma::vec xc, wc;
+      chebyshev(nrad,xc,wc);
+
+      // Compute radii
+      rad.zeros(nrad);
+      wrad.zeros(nrad);
+      for(int ir=0;ir<nrad;ir++) {
+        // Calculate value of radius
+        double ixc=xc.n_elem-1-ir;
+        double r=1.0/M_LN2*log(2.0/(1.0-xc(ixc)));
+
+        // Jacobian of transformation is
+        double jac=1.0/M_LN2/(1.0-xc(ixc));
+        // so total quadrature weight (excluding r^2!) is
+        double w=wc[ixc]*jac;
+
+        rad(ixc) = r;
+        wrad(ixc) = w;
+      }
+    }
   }
 }

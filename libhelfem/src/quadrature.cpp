@@ -37,7 +37,6 @@ namespace helfem {
       arma::vec fsmallbigr(r.n_elem);
       for(size_t i=0;i<r.n_elem;i++)
         fsmallbigr(i)=fsmallbig(r(i),rmax);
-      double fbigr=fbig(rmax);
 
       // Calculate total weight per point
       arma::vec wp(wx%fsmallbigr*rlen);

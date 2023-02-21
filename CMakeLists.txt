@@ -96,6 +96,9 @@ if(USE_OPENMP)
  endif()
 endif()
 
+# Include libhelfem headers
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/libhelfem/include")
+
 # Compile code
 add_subdirectory(libhelfem)
 if(HELFEM_BINARIES)

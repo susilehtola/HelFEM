@@ -18,6 +18,9 @@ which leads to fast convergence of the self-consistent field calculations. The p
 Calculations in finite magnetic fields have been described in:
 * S. Lehtola, M. Dimitrova, and D. Sundholm, Fully numerical electronic structure calculations on diatomic molecules in weak to strong magnetic fields, Mol. Phys. (2019), doi:10.1080/00268976.2019.1597989. arXiv:1812.06274
 
+while the implementation of the regularized nuclear potential proposed by Gygi in doi:10.1021/acs.jctc.2c01191 has been described in
+* S. Lehtola, Note on “All-Electron Plane-Wave Electronic Structure Calculations”. arXiv:2302.09557
+
 There is also a review paper discussing fully numerical calculations on atoms and diatomic molecules in general:
 * S. Lehtola, A review on non-relativistic fully numerical electronic structure calculations on atoms and diatomic molecules, Int. J. Quantum Chem. 2019, e25968. doi:10.1002/qua.25968. arXiv:1902.01431
 

@@ -25,6 +25,12 @@ namespace helfem {
        \f$ \int_{-1}^{1} f(x) dx \f$
     */
     void chebyshev(int n, arma::vec & x, arma::vec & w);
+
+    /// Modified Gauss-Chebyshev quadrature of the second kind for
+    /// calculating \f$\int_{0}^{\infty} f(r) dr\f$. NB! For
+    /// integration in spherical coordinates, you need to plug in the
+    /// r^2 factor as well.
+    void radial_chebyshev(int n, arma::vec & r, arma::vec & wr);
   }
 }
 
