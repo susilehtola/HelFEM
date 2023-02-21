@@ -14,7 +14,7 @@
  * of the License, or (at your option) any later version.
  */
 #include "quadrature.h"
-#include "helfem/PolynomialBasis.h"
+#include "PolynomialBasis.h"
 #include "chebyshev.h"
 #include "lobatto.h"
 #include "LIPBasis.h"

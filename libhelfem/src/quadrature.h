@@ -18,8 +18,8 @@
 
 #include <armadillo>
 #include <memory>
-#include <helfem/ModelPotential.h>
-#include <helfem/PolynomialBasis.h>
+#include <ModelPotential.h>
+#include <PolynomialBasis.h>
 
 namespace helfem {
   namespace quadrature {

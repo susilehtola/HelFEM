@@ -19,7 +19,7 @@
 #include <armadillo>
 #include <memory>
 #include "../general/legendretable.h"
-#include "helfem/PolynomialBasis.h"
+#include "PolynomialBasis.h"
 
 namespace helfem {
   namespace diatomic {

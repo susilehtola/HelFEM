@@ -14,8 +14,8 @@
  * of the License, or (at your option) any later version.
  */
 
-#include "helfem/PolynomialBasis.h"
-#include "helfem/FiniteElementBasis.h"
+#include "PolynomialBasis.h"
+#include "FiniteElementBasis.h"
 #include "chebyshev.h"
 #include "quadrature.h"
 

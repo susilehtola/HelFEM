@@ -19,7 +19,7 @@
 #include <armadillo>
 #include "../general/model_potential.h"
 #include "../general/sap.h"
-#include <helfem/RadialBasis.h>
+#include <RadialBasis.h>
 
 namespace helfem {
   namespace atomic {

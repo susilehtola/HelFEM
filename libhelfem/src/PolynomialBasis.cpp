@@ -14,7 +14,7 @@
  * of the License, or (at your option) any later version.
  */
 
-#include "helfem/PolynomialBasis.h"
+#include "PolynomialBasis.h"
 #include "lobatto.h"
 #include "LIPBasis.h"
 #include "HIPBasis.h"

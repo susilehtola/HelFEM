@@ -16,7 +16,7 @@
 #ifndef MODELPOTENTIAL_HOLLOWNUCLEUS_H
 #define MODELPOTENTIAL_HOLLOWNUCLEUS_H
 
-#include <helfem/ModelPotential.h>
+#include <ModelPotential.h>
 
 namespace helfem {
   namespace modelpotential {
