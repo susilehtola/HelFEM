@@ -926,11 +926,11 @@ namespace helfem {
           arma::vec a(1), b(1);
 
           if(imax == 0) {
-            a(0) = xq(imax);
+            a(0) = -1.0;
             b(0) = xq(imax+1);
           } else if(imax == xq.n_elem-1) {
             a(0) = xq(imax-1);
-            b(0) = xq(imax);
+            b(0) = 1.0;
           } else {
             a(0) = xq(imax-1);
             b(0) = xq(imax+1);
