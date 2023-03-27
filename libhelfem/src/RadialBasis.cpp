@@ -95,12 +95,15 @@ namespace helfem {
         arma::mat diff_lf(lft-lf0);
 
         // Accumulated differences
-        arma::mat diffs(diff_f.n_rows,5);
+        arma::mat diffs(diff_f.n_rows,5,arma::fill::zeros);
         diffs.col(0)=rcut/fem.element_length(0);
         for(size_t i=0;i<diffs.n_rows;i++) {
           diffs(i,1) = arma::norm(diff_f.row(i),2)/arma::norm(bf0.row(i),2);
-          diffs(i,2) = arma::norm(diff_df.row(i),2)/arma::norm(df0.row(i),2);
-          diffs(i,3) = arma::norm(diff_lf.row(i),2)/arma::norm(lf0.row(i),2);
+          // Only try to maximize fit of derivatives if they are nonzero
+          if(taylor_order>=1)
+            diffs(i,2) = arma::norm(diff_df.row(i),2)/arma::norm(df0.row(i),2);
+          if(taylor_order>1)
+            diffs(i,3) = arma::norm(diff_lf.row(i),2)/arma::norm(lf0.row(i),2);
           diffs(i,4) = diffs(i,1)+diffs(i,2)+diffs(i,3);
         }
 

@@ -132,6 +132,7 @@ int main(int argc, char **argv) {
   parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
+  parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.0015);
   if(!parser.parse(argc, argv))
     throw std::logic_error("Error parsing arguments!\n");
 
@@ -169,6 +170,8 @@ int main(int argc, char **argv) {
   double diisthr=parser.get<double>("diisthr");
   int diisorder=parser.get<int>("diisorder");
   int iguess(parser.get<int>("iguess"));
+
+  double vdw_thr=parser.get<double>("vdwthr");
 
   std::string method(parser.get<std::string>("method"));
   std::string potmethod(parser.get<std::string>("pot"));
@@ -604,6 +607,9 @@ int main(int argc, char **argv) {
     printf("Electron density gradient at the nucleus is % e\n",gnucd);
     printf("Cusp condition is %.10f\n",-1.0/(2*Z)*gnucd/nucd);
 
+    double rvdw(solver.vdw_radius(rconf,vdw_thr));
+    printf("\nEstimated vdW radius with density threshold %e is %.2f bohr = %.2f Å\n",vdw_thr,rvdw,rvdw*BOHRINANGSTROM);
+
     printf("\nResult in NIST format\n");
     printf("Etot  = % 18.9f\n",rconf.Econf);
     printf("Ekin  = % 18.9f\n",rconf.Ekin);
@@ -655,6 +661,8 @@ int main(int argc, char **argv) {
     printf("\nElectron density          at the nucleus is % e\n",nucd);
     printf("Electron density gradient at the nucleus is % e\n",gnucd);
     printf("Cusp condition is %.10f\n",-1.0/(2*Z)*gnucd/nucd);
+
+    printf("\nEstimated vdW radius with thr=%e is % .3f\n",vdw_thr,solver.vdw_radius(uconf,vdw_thr));
 
     printf("\nResult in NIST format\n");
     printf("Etot  = % 18.9f\n",uconf.Econf);
