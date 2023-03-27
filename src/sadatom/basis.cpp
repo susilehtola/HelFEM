@@ -963,6 +963,71 @@ namespace helfem {
         return rmax;
       }
 
+      double TwoDBasis::vdw_radius(const arma::mat & Prad, double thr, double eps) const {
+        // Need to multiply output of electron_density by this factor to get the point-wise density
+        double angfac=1.0/(4.0*M_PI);
+
+        // Evaluate the density in each quadrature point and take
+        // their maximum
+        bool rsqweight = false;
+        size_t iel;
+        for(iel=radial.Nel()-1;iel<radial.Nel();iel--) {
+          arma::vec den(angfac*electron_density(iel, Prad, rsqweight));
+          if(arma::max(den)>thr) {
+            // We found the element
+            break;
+          }
+        }
+
+        // Now find the position in the element where the density is = eps.
+        // Evaluate the difference in density from eps.
+        // Quadrature points
+        arma::vec xq = radial.get_xq();
+        arma::vec diff = angfac*electron_density(xq, iel, Prad, rsqweight);
+        diff-=thr*arma::ones<arma::vec>(diff.n_elem);
+        diff=arma::abs(diff);
+
+        // Find the smallest value
+        arma::uword imax;
+        diff.min(imax);
+
+        // Refine the position.
+
+        double rvdw=0.0;
+        {
+          // Primitive coordinates
+          arma::vec a(1), b(1);
+
+          if(imax == 0) {
+            a(0) = -1.0;
+            b(0) = xq(imax+1);
+          } else if(imax == xq.n_elem-1) {
+            a(0) = xq(imax-1);
+            b(0) = 1.0;
+          } else {
+            a(0) = xq(imax-1);
+            b(0) = xq(imax+1);
+          }
+
+          // Bisection
+          while(arma::norm(a-b,"inf")>=eps) {
+            arma::vec m = a + (b-a)/2.0;
+            double density_m = angfac*arma::as_scalar(electron_density(m, iel, Prad, rsqweight));
+            if(density_m < eps) {
+              b = m;
+            } else {
+              a = m;
+            }
+          }
+          // Coordinate is
+          arma::vec cen=((a+b)/2);
+          // Position of maximum is
+          rvdw = arma::as_scalar(radial.get_r(cen,iel));
+        }
+
+        return rvdw;
+      }
+
       arma::vec TwoDBasis::electron_density_gradient(const arma::mat & Prad) const {
         std::vector<arma::vec> d(radial.Nel());
         for(size_t iel=0;iel<radial.Nel();iel++) {

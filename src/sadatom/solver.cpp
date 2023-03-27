@@ -1430,6 +1430,14 @@ namespace helfem {
       double SCFSolver::nuclear_density_gradient(const uconf_t & conf) const {
         return basis.nuclear_density_gradient(TotalDensity(conf.Pal+conf.Pbl));
       }
+
+      double SCFSolver::vdw_radius(const rconf_t & conf, double thr) const {
+        return basis.vdw_radius(TotalDensity(conf.Pl), thr);
+      }
+
+      double SCFSolver::vdw_radius(const uconf_t & conf, double thr) const {
+        return basis.vdw_radius(TotalDensity(conf.Pal+conf.Pbl), thr);
+      }
     }
   }
 }
