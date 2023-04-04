@@ -17,7 +17,6 @@
 #include "PolynomialBasis.h"
 #include "FiniteElementBasis.h"
 #include "chebyshev.h"
-#include "quadrature.h"
 
 using namespace helfem;
 
