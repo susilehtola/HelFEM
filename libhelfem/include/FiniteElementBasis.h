@@ -152,7 +152,17 @@ namespace helfem {
       /// Same as above, but only in a single element
       arma::mat matrix_element(size_t iel, bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
 
-      /// The abstract function that accomplishes it all
+      /**
+       * Compute matrix elements in the finite element basis <lh|f|rh>
+       *
+       * eval_lh: function to evaluate lh basis functions
+       * eval_rh: function to evaluate rh basis functions
+       * xq:    quadrature nodes
+       * wq:    quadrature weights
+       * f(r):  additional weight function, use nullptr for unit weight
+       */
+      arma::mat FiniteElementBasis::matrix_element(const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      /// The driver function
       arma::mat matrix_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
 
       /// Print out the basis functions
