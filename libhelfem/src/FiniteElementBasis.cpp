@@ -272,7 +272,7 @@ namespace helfem {
       return p->eval_dnf(x,n,scaling_factor(iel));
     }
 
-    arma::mat FiniteElementBasis::matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
+    arma::mat FiniteElementBasis::matrix_element(const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
       // Compute matrix elements in parallel
       std::vector<arma::mat> matel(get_nelem());
 #ifdef _OPENMP
@@ -294,6 +294,21 @@ namespace helfem {
       }
 
       return M;
+    }
+
+    arma::mat FiniteElementBasis::matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
+      std::function<arma::mat(const arma::vec &,size_t)> eval_lh, eval_rh;
+      if(lhder) {
+        eval_lh = [this](const arma::vec & xq, size_t iel) { return this->eval_df(xq, iel); };
+      } else {
+        eval_lh = [this](const arma::vec & xq, size_t iel) { return this->eval_f(xq, iel); };
+      }
+      if(rhder) {
+        eval_rh = [this](const arma::vec & xq, size_t iel) { return this->eval_df(xq, iel); };
+      } else {
+        eval_rh = [this](const arma::vec & xq, size_t iel) { return this->eval_f(xq, iel); };
+      }
+      return matrix_element(eval_lh, eval_rh, xq, wq, f);
     }
 
     arma::mat FiniteElementBasis::matrix_element(size_t iel, bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
