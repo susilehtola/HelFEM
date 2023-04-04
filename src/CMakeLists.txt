@@ -35,7 +35,7 @@ target_link_libraries(gaunt_test helfem-common legendre)
 add_executable(sphtest general/sphtest.cpp)
 target_link_libraries(sphtest helfem-common legendre)
 
-add_executable(harmonic harmonic/main.cpp harmonic/quadrature.cpp)
+add_executable(harmonic harmonic/main.cpp)
 target_link_libraries(harmonic helfem-common legendre)
 
 add_executable(atomic atomic/main.cpp)
