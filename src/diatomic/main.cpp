@@ -520,8 +520,8 @@ int main(int argc, char **argv) {
   chkpt.write("quad",quad);
 
   // Nuclear dipole and quadrupole
-  const double nucdip=(Z2-Z1)*Rbond/2.0;
-  const double nucquad=(Z1+Z2)*Rbond*Rbond/4.0;
+  const double nucdip=(Z2-Z1)*Rhalf;
+  const double nucquad=(Z1+Z2)*Rhalf*Rhalf;
 
   // Electric field coupling (minus sign cancels one from charge)
   const arma::mat Vel(Ez*dip + Qzz*quad/3.0);
@@ -997,6 +997,8 @@ int main(int argc, char **argv) {
   printf("%-21s energy: % .16f\n","Nucleus-field",Enucfield);
   printf("%-21s energy: % .16f\n","Total",Etot);
   printf("%-21s energy: % .16f\n","Virial ratio",-Etot/Ekin);
+
+  printf("%-21s  force: %e\n", "Hellmann-Feynman", (2*Ekin+Epot+Enucr+Ecoul+Exx+Exc)/Rbond);
 
   double eldip=-arma::trace(dip*P);
   double elquad=-arma::trace(quad*P);
