@@ -142,15 +142,27 @@ namespace helfem {
       /**
        * Compute matrix elements in the finite element basis <lh|f|rh>
        *
-       * lhder: instead of basis function, use basis function derivative
-       * rhder: instead of basis function, use basis function derivative
+       * lhder: use lhder derivative of lh basis function
+       * rhder: use rhder derivative of rh basis function
        * xq:    quadrature nodes
        * wq:    quadrature weights
        * f(r):  additional weight function, use nullptr for unit weight
        */
-      arma::mat matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      arma::mat matrix_element(int lhder, int rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
       /// Same as above, but only in a single element
-      arma::mat matrix_element(size_t iel, bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      arma::mat matrix_element(size_t iel, int lhder, int rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+
+      /**
+       * Compute vector elements in the finite element basis <lh|f|rh>
+       *
+       * der:   use der derivative of basis function
+       * xq:    quadrature nodes
+       * wq:    quadrature weights
+       * f(r):  additional weight function, use nullptr for unit weight
+       */
+      arma::vec vector_element(int der, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      /// Same as above, but only in a single element
+      arma::vec vector_element(size_t iel, int der, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
 
       /**
        * Compute matrix elements in the finite element basis <lh|f|rh>
@@ -161,9 +173,21 @@ namespace helfem {
        * wq:    quadrature weights
        * f(r):  additional weight function, use nullptr for unit weight
        */
-      arma::mat FiniteElementBasis::matrix_element(const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      arma::mat matrix_element(const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
       /// The driver function
       arma::mat matrix_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+
+      /**
+       * Compute vector elements in the finite element basis <bf|f>
+       *
+       * eval_bf: function to evaluate basis functions
+       * xq:    quadrature nodes
+       * wq:    quadrature weights
+       * f(r):  additional weight function, use nullptr for unit weight
+       */
+      arma::vec vector_element(const std::function<arma::mat(arma::vec,size_t)> & eval_bf, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      /// The driver function
+      arma::vec vector_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_bf, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
 
       /// Print out the basis functions
       void print(const std::string & str="") const;

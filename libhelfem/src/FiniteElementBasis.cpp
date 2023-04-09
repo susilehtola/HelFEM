@@ -106,7 +106,7 @@ namespace helfem {
       //dnorm.t().print("Difference norms");
       arma::uword imax;
       dnorm.max(imax);
-      printf("Finite element basis set max discontinuity %e between elements %i and %i\n",dnorm(imax),imax,imax+1);
+      printf("Finite element basis set max discontinuity %e between elements %i and %i\n",dnorm(imax),(int) imax,(int) imax+1);
       fflush(stdout);
       if(dnorm(imax) > sqrt(DBL_EPSILON)) {
         throw std::logic_error("Finite element basis set is not continuous\n");
@@ -279,7 +279,7 @@ namespace helfem {
 #pragma omp parallel for
 #endif
       for(size_t iel=0; iel<get_nelem(); iel++) {
-        matel[iel] = matrix_element(iel, lhder, rhder, xq, wq, f);
+        matel[iel] = matrix_element(iel, eval_lh, eval_rh, xq, wq, f);
       }
 
       // Fill in the global matrix
@@ -296,33 +296,39 @@ namespace helfem {
       return M;
     }
 
-    arma::mat FiniteElementBasis::matrix_element(bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      std::function<arma::mat(const arma::vec &,size_t)> eval_lh, eval_rh;
-      if(lhder) {
-        eval_lh = [this](const arma::vec & xq, size_t iel) { return this->eval_df(xq, iel); };
-      } else {
-        eval_lh = [this](const arma::vec & xq, size_t iel) { return this->eval_f(xq, iel); };
+    arma::vec FiniteElementBasis::vector_element(const std::function<arma::mat(arma::vec,size_t)> & eval, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
+      // Compute matrix elements in parallel
+      std::vector<arma::vec> vecel(get_nelem());
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+      for(size_t iel=0; iel<get_nelem(); iel++) {
+        vecel[iel] = vector_element(iel, eval, xq, wq, f);
       }
-      if(rhder) {
-        eval_rh = [this](const arma::vec & xq, size_t iel) { return this->eval_df(xq, iel); };
-      } else {
-        eval_rh = [this](const arma::vec & xq, size_t iel) { return this->eval_f(xq, iel); };
+
+      // Fill in the global vector
+      arma::vec V(get_nbf(),arma::fill::zeros);
+      for(size_t iel=0; iel<get_nelem(); iel++) {
+        // Indices in matrix
+        size_t ifirst, ilast;
+        get_idx(iel, ifirst, ilast);
+
+        // Accumulate
+        V.subvec(ifirst, ilast) += vecel[iel];
       }
+
+      return V;
+    }
+
+    arma::mat FiniteElementBasis::matrix_element(int lhder, int rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
+      std::function<arma::mat(const arma::vec &,size_t)> eval_lh = [this,lhder](const arma::vec & x, size_t iel) {return this->eval_dnf(x, lhder, iel);};
+      std::function<arma::mat(const arma::vec &,size_t)> eval_rh = [this,rhder](const arma::vec & x, size_t iel) {return this->eval_dnf(x, rhder, iel);};
       return matrix_element(eval_lh, eval_rh, xq, wq, f);
     }
 
-    arma::mat FiniteElementBasis::matrix_element(size_t iel, bool lhder, bool rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      std::function<arma::mat(const arma::vec &,size_t)> eval_lh, eval_rh;
-      if(lhder) {
-        eval_lh = [this](const arma::vec & xq, size_t iel) { return this->eval_df(xq, iel); };
-      } else {
-        eval_lh = [this](const arma::vec & xq, size_t iel) { return this->eval_f(xq, iel); };
-      }
-      if(rhder) {
-        eval_rh = [this](const arma::vec & xq, size_t iel) { return this->eval_df(xq, iel); };
-      } else {
-        eval_rh = [this](const arma::vec & xq, size_t iel) { return this->eval_f(xq, iel); };
-      }
+    arma::mat FiniteElementBasis::matrix_element(size_t iel, int lhder, int rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
+      std::function<arma::mat(const arma::vec &,size_t)> eval_lh = [this,lhder](const arma::vec & x, size_t iel) {return this->eval_dnf(x, lhder, iel);};
+      std::function<arma::mat(const arma::vec &,size_t)> eval_rh = [this,rhder](const arma::vec & x, size_t iel) {return this->eval_dnf(x, rhder, iel);};
       return matrix_element(iel, eval_lh, eval_rh, xq, wq, f);
     }
 
@@ -350,6 +356,40 @@ namespace helfem {
         lhbf.col(i)%=wp;
 
       return arma::trans(lhbf)*rhbf;
+    }
+
+    arma::vec FiniteElementBasis::vector_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_bf, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
+      // Get coordinate values
+      arma::vec r(eval_coord(xq, iel));
+      // Calculate total weight per point
+      arma::vec wp(wq*scaling_factor(iel));
+      // Include the function
+      if(f) {
+          for(size_t i=0; i<wp.n_elem; i++)
+            wp(i)*=f(r(i));
+      }
+
+      // Evaluate basis functions
+      if(!eval_bf)
+        throw std::logic_error("Need function for evaluating basis functions!\n");
+      arma::mat bf = eval_bf(xq, iel);
+
+      return bf.t()*wp;
+    }
+
+    arma::vec FiniteElementBasis::vector_element(int der, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
+      std::function<arma::mat(const arma::vec &,size_t)> eval_f = [this,der](const arma::vec & x, size_t iel) {return this->eval_dnf(x, der, iel);};
+      return vector_element(eval_f, xq, wq, f);
+    }
+
+    arma::vec FiniteElementBasis::vector_element(size_t iel, int der, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
+      std::function<arma::mat(const arma::vec &,size_t)> eval_f = [this,der](const arma::vec & x, size_t iel) {return this->eval_dnf(x, der, iel);};
+      return vector_element(iel, eval_f, xq, wq, f);
+    }
+
+    void FiniteElementBasis::print(const std::string & str) const {
+      printf("%s",str.c_str());
+      bval.print("bval");
     }
   }
 }
