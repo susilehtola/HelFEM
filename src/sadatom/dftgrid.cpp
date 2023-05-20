@@ -434,29 +434,29 @@ namespace helfem {
               vtaub = vtau(1,i);
             }
           } else {
-            rhoa = 0.5*rho(i,0);
-            rhob = 0.5*rho(i,0);
-            vrhoa = vxc(i,0);
-            vrhob = vxc(i,0);
+            rhoa = 0.5*rho(0,i);
+            rhob = 0.5*rho(0,i);
+            vrhoa = vxc(0,i);
+            vrhob = vxc(0,i);
             if(gga || mgga_t || mgga_l) {
-              sigmaaa = 0.25*sigma(i,0);
-              sigmaab = 0.25*sigma(i,0);
-              sigmabb = 0.25*sigma(i,0);
-              vsigmaaa = vsigma(i,0);
-              vsigmaab = vsigma(i,0);
-              vsigmabb = vsigma(i,0);
+              sigmaaa = 0.25*sigma(0,i);
+              sigmaab = 0.25*sigma(0,i);
+              sigmabb = 0.25*sigma(0,i);
+              vsigmaaa = vsigma(0,i);
+              vsigmaab = vsigma(0,i);
+              vsigmabb = vsigma(0,i);
             }
             if(mgga_l) {
-              lapla = 0.5*lapl(i,0);
-              laplb = 0.5*lapl(i,0);
-              vlapla = vlapl(i,0);
-              vlaplb = vlapl(i,0);
+              lapla = 0.5*lapl(0,i);
+              laplb = 0.5*lapl(0,i);
+              vlapla = vlapl(0,i);
+              vlaplb = vlapl(0,i);
             }
             if(mgga_t) {
-              taua = 0.5*tau(i,0);
-              taub = 0.5*tau(i,0);
-              vtaua = vtau(i,0);
-              vtaub = vtau(i,0);
+              taua = 0.5*tau(0,i);
+              taub = 0.5*tau(0,i);
+              vtaua = vtau(0,i);
+              vtaub = vtau(0,i);
             }
           }
 
