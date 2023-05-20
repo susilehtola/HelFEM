@@ -7,10 +7,12 @@ levels of theory. Hundreds of functionals at the local spin density
 approximation (LDA), generalized gradient approximation (GGA), and
 meta-GGA levels of theory are supported.
 
-The program has been described in the following three articles:
-* S. Lehtola, [Fully numerical Hartree‐Fock and density functional calculations. I. Atoms](http://doi.org/10.1002/qua.25945). Int. J. Quantum Chem. 2019, e25945. doi:10.1002/qua.25945. arXiv:1810.11651
-* S. Lehtola, [Fully numerical Hartree‐Fock and density functional calculations. II. Diatomic molecules](http://doi.org/10.1002/qua.25944). Int. J. Quantum Chem. 2019, e25944. doi:10.1002/qua.25944. arXiv:1810.11653
-* S. Lehtola, [Fully numerical calculations on atoms with fractional occupations and range-separated exchange functionals](http://doi.org/10.1002/qua.25944), Phys. Rev. A 101, 012516 (2020). doi:10.1103/PhysRevA.101.012516
+The program has been described in the following five articles:
+* S. Lehtola, [Fully numerical Hartree‐Fock and density functional calculations. I. Atoms](https://doi.org/10.1002/qua.25945). Int. J. Quantum Chem. 2019, e25945. doi:10.1002/qua.25945. arXiv:1810.11651
+* S. Lehtola, [Fully numerical Hartree‐Fock and density functional calculations. II. Diatomic molecules](https://doi.org/10.1002/qua.25944). Int. J. Quantum Chem. 2019, e25944. doi:10.1002/qua.25944. arXiv:1810.11653
+* S. Lehtola, [Fully numerical calculations on atoms with fractional occupations and range-separated exchange functionals](https://doi.org/10.1002/qua.25944), Phys. Rev. A 101, 012516 (2020). doi:10.1103/PhysRevA.101.012516. arXiv:1908.02528
+* S. Lehtola, [Meta-GGA density functional calculations on atoms with spherically symmetric densities in the finite element formalism](https://doi.org/10.1021/acs.jctc.3c00183), J. Chem. Theory Comput. 19, 2502 (2023). doi:10.1021/acs.jctc.3c00183 arXiv:2302.06284
+* S. Lehtola, [Atomic electronic structure calculations with Hermite interpolating polynomials](https://doi.org/10.1021/acs.jpca.3c00729). J. Phys. Chem. A 127, 4180 (2023). doi:10.1021/acs.jpca.3c00729. arXiv:2302.00440
 
 The program can also be used to form starting potentials for molecular electronic structure calculations with the superposition of atomic potentials method described in [J. Chem. Theory Comput. 15, 1593 (2019)](http://doi.org/10.1021/acs.jctc.8b01089), as discussed in [J. Chem. Phys. 152, 144105 (2020)](http://doi.org/10.1063/5.0004046).
 
