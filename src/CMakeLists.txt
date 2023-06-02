@@ -60,5 +60,5 @@ add_executable(diatomic_dgrid diatomic/density_grid.cpp)
 target_link_libraries(diatomic_dgrid helfem-common legendre)
 
 # Install libraries and main executables
-install (TARGETS helfem-common legendre atomic diatomic diatomic_cbasis
-diatomic_cpl gensap DESTINATION bin OPTIONAL)
+install (TARGETS atomic diatomic diatomic_cbasis diatomic_cpl gensap DESTINATION bin OPTIONAL)
+install (TARGETS helfem-common legendre DESTINATION lib OPTIONAL)
