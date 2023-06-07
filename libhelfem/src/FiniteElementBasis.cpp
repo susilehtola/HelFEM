@@ -70,7 +70,7 @@ namespace helfem {
           rrh.print("rrh");
           (rrh-rlh).print("rrh-rlh");
           std::ostringstream oss;
-          oss << "Coordinates do not match between elements " << iel << " and " << iel+1 << "!\n";
+          oss << "Coordinates do not match between elements " << iel << " and " << iel+1 << ", difference " << dr << " tolerance " << 100*DBL_EPSILON*arma::norm(rlh,2) << "!\n";
           throw std::logic_error(oss.str());
         }
 
