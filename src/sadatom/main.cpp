@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
   parser.add<double>("zexp0", 0, "parameter in radial grid", false, 2.0);
   parser.add<int>("nelem", 0, "number of elements", true);
-  parser.add<int>("nelem0", 0, "number of elements", 0, false);
+  parser.add<int>("nelem0", 0, "number of elements", false, 0);
   parser.add<int>("finitenuc", 0, "finite nuclear model", false, 0);
   parser.add<double>("Rrms", 0, "nuclear rms radius", false, 0.0);
   parser.add<int>("Q", 0, "charge of system", false, 0);
