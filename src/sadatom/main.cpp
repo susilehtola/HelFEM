@@ -133,8 +133,11 @@ int main(int argc, char **argv) {
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.0015);
+  parser.parse_check(argc, argv);
+/*
   if(!parser.parse(argc, argv))
     throw std::logic_error("Error parsing arguments!\n");
+*/
 
   // Get parameters
   double Rmax(parser.get<double>("Rmax"));
