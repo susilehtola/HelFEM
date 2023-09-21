@@ -79,11 +79,11 @@ if(HELFEM_FIND_DEPS)
 
         find_package(LibXc REQUIRED PATHS ".")
         message("LibXc_FOUND=${LibXc_FOUND}")
-        message("LIBXC_INCLUDE_DIRS=${LIBXC_INCLUDE_DIRS}")
-        message("LIBXC_LIBRARIES=${LIBXC_LIBRARIES}")
+        message("LIBXC_INCLUDE_DIRS=${Libxc_INCLUDE_DIRS}")
+        message("LIBXC_LIBRARIES=${Libxc_LIBRARIES}")
 
-        include_directories("${HDF5_INCLUDE_DIRS}" "${LIBXC_INCLUDE_DIRS}")
-        link_libraries("${HDF5_LIBRARIES}" "${LIBXC_LIBRARIES}")
+        include_directories("${HDF5_INCLUDE_DIRS}" "${Libxc_INCLUDE_DIRS}")
+        link_libraries("${HDF5_LIBRARIES}" "${Libxc_LIBRARIES}")
     endif()
 endif()
 
