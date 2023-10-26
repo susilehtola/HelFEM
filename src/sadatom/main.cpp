@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
   parser.add<double>("zexp0", 0, "parameter in radial grid", false, 2.0);
   parser.add<int>("nelem", 0, "number of elements", true);
-  parser.add<int>("nelem0", 0, "number of elements", 0, false);
+  parser.add<int>("nelem0", 0, "number of elements", false, 0);
   parser.add<int>("finitenuc", 0, "finite nuclear model", false, 0);
   parser.add<double>("Rrms", 0, "nuclear rms radius", false, 0.0);
   parser.add<int>("Q", 0, "charge of system", false, 0);
@@ -133,8 +133,11 @@ int main(int argc, char **argv) {
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.0015);
+  parser.parse_check(argc, argv);
+/*
   if(!parser.parse(argc, argv))
     throw std::logic_error("Error parsing arguments!\n");
+*/
 
   // Get parameters
   double Rmax(parser.get<double>("Rmax"));
