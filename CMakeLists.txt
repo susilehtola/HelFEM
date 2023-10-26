@@ -77,8 +77,8 @@ if(HELFEM_FIND_DEPS)
         message("HDF5_INCLUDE_DIRS: ${HDF5_INCLUDE_DIRS}")
         message("HDF5_LIBRARIES: ${HDF5_LIBRARIES}")
 
-        find_package(LibXc REQUIRED PATHS ".")
-        message("LibXc_FOUND=${LibXc_FOUND}")
+        find_package(Libxc REQUIRED PATHS ".")
+        message("Libxc_FOUND=${Libxc_FOUND}")
         message("LIBXC_INCLUDE_DIRS=${Libxc_INCLUDE_DIRS}")
         message("LIBXC_LIBRARIES=${Libxc_LIBRARIES}")
 
