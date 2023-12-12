@@ -101,6 +101,9 @@ namespace helfem {
         /// Get list of basis function indices in element
         arma::uvec bf_list(size_t iel) const;
 
+        /// Evaluate orbitals
+        arma::vec eval_orbs(const arma::mat & C, double r) const;
+
         /// Get number of radial elements
         size_t get_rad_Nel() const;
         /// Get radial quadrature weights

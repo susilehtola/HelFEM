@@ -173,6 +173,28 @@ namespace helfem {
       return 0.5*(element_begin(iel) + element_end(iel));
     }
 
+    size_t FiniteElementBasis::find_element(double x) const {
+      // Find the element x is in
+      size_t element_left = 0;
+      size_t element_right = get_nelem()-1;
+
+      if(x <= element_end(element_left))
+        return element_left;
+      if(x >= element_begin(element_right))
+        return element_right;
+
+      size_t element_middle;
+      while(true) {
+        element_middle = (element_right + element_left) / 2;
+        if(x >= element_begin(element_middle) && x <= element_end(element_middle))
+          return element_middle;
+        else if(x < element_begin(element_middle))
+          element_right = element_middle;
+        else
+          element_left = element_middle;
+      }
+    }
+
     arma::vec FiniteElementBasis::get_bval() const {
       return bval;
     }

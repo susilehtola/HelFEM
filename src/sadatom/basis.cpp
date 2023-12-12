@@ -709,6 +709,10 @@ namespace helfem {
         return idx;
       }
 
+      arma::vec TwoDBasis::eval_orbs(const arma::mat & C, double r) const {
+        return radial.eval_orbs(C,r);
+      }
+
       size_t TwoDBasis::get_rad_Nel() const {
         return radial.Nel();
       }

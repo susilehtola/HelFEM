@@ -133,6 +133,7 @@ int main(int argc, char **argv) {
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.0015);
+  parser.add<bool>("completeness", 0, "Compute completeness and importance profiles?", false, false);
   parser.parse_check(argc, argv);
 /*
   if(!parser.parse(argc, argv))
@@ -183,6 +184,7 @@ int main(int argc, char **argv) {
   bool savepot(parser.get<bool>("savepot"));
   bool saveing(parser.get<bool>("saveing"));
   bool zeroder(parser.get<bool>("zeroder"));
+  bool completeness(parser.get<bool>("completeness"));
 
   std::string xparf(parser.get<std::string>("x_pars"));
   std::string cparf(parser.get<std::string>("c_pars"));
@@ -621,6 +623,17 @@ int main(int argc, char **argv) {
     printf("Exc   = % 18.9f\n",rconf.Exc);
     rconf.orbs.Print(solver.Basis());
     (HARTREEINEV*rconf.orbs.GetGap()).t().print("HOMO-LUMO gap (eV)");
+
+    if(completeness) {
+      solver.gto_completeness_profile();
+      printf("Evaluated GTO completeness profile\n");
+      solver.sto_completeness_profile();
+      printf("Evaluated STO completeness profile\n");
+      solver.gto_importance_profile(rconf);
+      printf("Evaluated GTO importance profile\n");
+      solver.sto_importance_profile(rconf);
+      printf("Evaluated STO importance profile\n");
+    }
 
     // Evaluate xc ingredients
     if(saveing) {
