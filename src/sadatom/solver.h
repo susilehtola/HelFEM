@@ -235,6 +235,10 @@ namespace helfem {
         /// Replicate matrix into a cube
         arma::cube ReplicateCube(const arma::mat & M) const;
 
+        /// Compute completeness profile
+        arma::mat ao_completeness_profile(const arma::vec & expn, const std::function<arma::mat(int l, const arma::vec &r)> & eval_ao) const;
+        /// Compute importance profile
+        arma::mat ao_importance_profile(const rconf_t & conf, const arma::vec & expn, const std::function<arma::mat(int l, const arma::vec &r)> & eval_ao) const;
       public:
         /// Constructor
         SCFSolver(int Z, int finitenuc, double Rrms, int lmax, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_);
@@ -285,7 +289,6 @@ namespace helfem {
         /// Save the density functional ingredients
         arma::mat XCIngredients(uconf_t & conf);
 
-
         /// Get the basis
         const basis::TwoDBasis & Basis() const;
         /// Compute the nuclear density
@@ -300,6 +303,15 @@ namespace helfem {
         double vdw_radius(const rconf_t & conf, double thr) const;
         /// Compute the nuclear density gradient
         double vdw_radius(const uconf_t & conf, double thr) const;
+
+        /// Compute the GTO completeness profile
+        void gto_completeness_profile(double minexp=1e-5, double maxexp=1e10, size_t nexp=501) const;
+        /// Compute the STO completeness profile
+        void sto_completeness_profile(double minexp=1e-5, double maxexp=1e10, size_t nexp=501) const;
+        /// Compute the GTO importance profile
+        void gto_importance_profile(const rconf_t & conf, double minexp=1e-5, double maxexp=1e10, size_t nexp=501) const;
+        /// Compute the STO importance profile
+        void sto_importance_profile(const rconf_t & conf, double minexp=1e-5, double maxexp=1e10, size_t nexp=501) const;
       };
     }
   }

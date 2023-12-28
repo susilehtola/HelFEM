@@ -19,6 +19,7 @@
 
 #include "basis.h"
 #include "../general/model_potential.h"
+#include "../sadatom/solver.h"
 
 namespace helfem {
   namespace diatomic {
@@ -76,6 +77,8 @@ namespace helfem {
         /// Set unit potential
         void unit_pot();
 
+        /// Compute AO projection
+        void ao_projection(const std::function<arma::vec(double r)> & compute_ao, probe_t p);
         /// Compute GTO projection
         void gto(int l, const arma::vec & expn, probe_t p);
         /// Compute STO projection
@@ -99,6 +102,13 @@ namespace helfem {
         /// Angular rule
         int lang;
 
+        /// Left-hand and right-hand atomic basis sets
+        sadatom::basis::TwoDBasis lh_basis, rh_basis;
+        /// Left-hand and right-hand atomic orbitals
+        arma::cube lh_orbs, rh_orbs;
+        /// Occupations
+        arma::ivec lh_occs, rh_occs;
+
       public:
         /// Dummy constructor
         TwoDGrid();
@@ -120,6 +130,12 @@ namespace helfem {
         arma::mat sto_projection(int l, int m, const arma::vec & expn, probe_t p);
         /// Compute STO overlap
         arma::mat sto_overlap(int l, int m, const arma::vec & expn, probe_t p);
+
+        /// Compute atomic orbital projection
+        arma::mat atomic_projection(int l, int m, probe_t p);
+
+        /// Compute atoms
+        void compute_atoms(int Zl, int Zr);
       };
     }
   }

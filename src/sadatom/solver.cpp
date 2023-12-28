@@ -19,6 +19,8 @@
 #include "../general/dftfuncs.h"
 #include "../general/scf_helpers.h"
 #include "../general/diis.h"
+#include "../general/lcao.h"
+#include "../general/elements.h"
 
 // Shell types
 static const char shtype[]="spdfgh";
@@ -899,6 +901,148 @@ namespace helfem {
         conf.Econf=conf.Ekin+conf.Epot+conf.Ecoul+conf.Exc;
 
         return conf.Econf;
+      }
+
+      void SCFSolver::gto_importance_profile(const rconf_t & conf, double minexp, double maxexp, size_t nexp) const {
+        arma::vec expn(arma::exp10(arma::linspace<arma::vec>(log10(minexp),log10(maxexp),nexp)));
+        std::function<arma::mat(int l, const arma::vec &r)> eval_gto = [expn](int l, const arma::vec & r) {
+          arma::mat value(r.n_elem, expn.n_elem, arma::fill::zeros);
+          for(size_t ix=0;ix<expn.n_elem;ix++)
+            for(size_t ir=0;ir<r.n_elem;ir++)
+              value(ir,ix) = lcao::radial_GTO(r(ir),l,expn(ix));
+          return value;
+        };
+        arma::mat I = ao_importance_profile(conf, expn, eval_gto);
+        std::ostringstream oss;
+        oss << element_symbols[basis.charge()] << "_gto_importance.dat";
+        I.save(oss.str(),arma::raw_ascii);
+      }
+
+      void SCFSolver::sto_importance_profile(const rconf_t & conf, double minexp, double maxexp, size_t nexp) const {
+        arma::vec expn(arma::exp10(arma::linspace<arma::vec>(log10(minexp),log10(maxexp),nexp)));
+        std::function<arma::mat(int l, const arma::vec &r)> eval_sto = [expn](int l, const arma::vec & r) {
+          arma::mat value(r.n_elem, expn.n_elem, arma::fill::zeros);
+          for(size_t ix=0;ix<expn.n_elem;ix++)
+            for(size_t ir=0;ir<r.n_elem;ir++)
+              value(ir,ix) = lcao::radial_STO(r(ir),l,expn(ix));
+          return value;
+        };
+        arma::mat I = ao_importance_profile(conf, expn, eval_sto);
+        std::ostringstream oss;
+        oss << element_symbols[basis.charge()] << "_sto_importance.dat";
+        I.save(oss.str(),arma::raw_ascii);
+      }
+
+      void SCFSolver::gto_completeness_profile(double minexp, double maxexp, size_t nexp) const {
+        arma::vec expn(arma::exp10(arma::linspace<arma::vec>(log10(minexp),log10(maxexp),nexp)));
+        std::function<arma::mat(int l, const arma::vec &r)> eval_gto = [expn](int l, const arma::vec & r) {
+          arma::mat value(r.n_elem, expn.n_elem, arma::fill::zeros);
+          for(size_t ix=0;ix<expn.n_elem;ix++)
+            for(size_t ir=0;ir<r.n_elem;ir++)
+              value(ir,ix) = lcao::radial_GTO(r(ir),l,expn(ix));
+          return value;
+        };
+        arma::mat I = ao_completeness_profile(expn, eval_gto);
+        std::ostringstream oss;
+        oss << element_symbols[basis.charge()] << "_gto_completeness.dat";
+        I.save(oss.str(),arma::raw_ascii);
+      }
+
+      void SCFSolver::sto_completeness_profile(double minexp, double maxexp, size_t nexp) const {
+        arma::vec expn(arma::exp10(arma::linspace<arma::vec>(log10(minexp),log10(maxexp),nexp)));
+        std::function<arma::mat(int l, const arma::vec &r)> eval_sto = [expn](int l, const arma::vec & r) {
+          arma::mat value(r.n_elem, expn.n_elem, arma::fill::zeros);
+          for(size_t ix=0;ix<expn.n_elem;ix++)
+            for(size_t ir=0;ir<r.n_elem;ir++)
+              value(ir,ix) = lcao::radial_STO(r(ir),l,expn(ix));
+          return value;
+        };
+        arma::mat I = ao_completeness_profile(expn, eval_sto);
+        std::ostringstream oss;
+        oss << element_symbols[basis.charge()] << "_sto_completeness.dat";
+        I.save(oss.str(),arma::raw_ascii);
+      }
+
+      arma::mat SCFSolver::ao_importance_profile(const rconf_t & conf, const arma::vec & expn, const std::function<arma::mat(int l, const arma::vec &r)> & eval_ao) const {
+        // Pick the orbital occupations
+        arma::ivec occs = conf.orbs.Occs();
+        // Pick the orbital coefficients
+        arma::cube C = conf.orbs.Coeffs();
+        // Maximum angular momentum
+        int lmax=occs.n_elem-1;
+        while(occs(lmax)==0.0)
+          lmax--;
+
+        // Returned profile
+        arma::mat I(expn.n_elem, lmax+2, arma::fill::zeros);
+        I.col(0) = expn;
+
+        for(int l=0; l<=lmax;l++) {
+          // Evaluator
+
+          // Determine number of occupied orbitals
+          int nocc = std::ceil(occs(l) / (2.0*(2.0*l+1.0)));
+          // The occupied orbitals are
+          arma::mat Cocc = C.slice(l).cols(0,nocc-1);
+
+          // Compute the projection of the AOs on the occupied orbitals
+          arma::mat ao_projection(nocc, expn.n_elem, arma::fill::zeros);
+          for(size_t iel=0; iel < basis.get_rad_Nel(); iel++) {
+            // Get the values of the radii
+            arma::vec r(basis.get_r(iel));
+            arma::vec wr(basis.get_wrad(iel));
+            // Evaluate AOs
+            arma::mat gto(eval_ao(l, r));
+            // Evaluate the basis functions
+            arma::mat bf(basis.eval_bf(iel));
+            arma::uvec bf_list(basis.bf_list(iel));
+            // Orbitals are then
+            arma::mat orbs = bf*Cocc.rows(bf_list);
+            // Projection of AO onto orbitals is
+            ao_projection += orbs.t()*arma::diagmat(wr%r%r)*gto;
+          }
+
+          // Compute the importance profile
+          for(size_t ix=0;ix<expn.n_elem;ix++) {
+            I(ix, l+1) = arma::norm(ao_projection.col(ix), 2);
+          }
+        }
+
+        return I;
+      }
+
+      arma::mat SCFSolver::ao_completeness_profile(const arma::vec & expn, const std::function<arma::mat(int l, const arma::vec &r)> & eval_ao) const {
+        // Returned profile
+        arma::mat Y(expn.n_elem, lmax+2, arma::fill::zeros);
+        Y.col(0) = expn;
+
+        for(int l=0; l<=lmax;l++) {
+          // Compute the projection of the AOs on the element basis
+          arma::mat ao_projection(expn.n_elem, basis.Nbf(), arma::fill::zeros);
+          for(size_t iel=0; iel < basis.get_rad_Nel(); iel++) {
+            // Get the values of the radii
+            arma::vec r(basis.get_r(iel));
+            arma::vec wr(basis.get_wrad(iel));
+            // Evaluate AOs
+            arma::mat ao(eval_ao(l, r));
+            // Evaluate the basis functions
+            arma::mat bf(basis.eval_bf(iel));
+            arma::uvec bf_list(basis.bf_list(iel));
+            // Projection of AOs onto orbitals is
+            ao_projection.cols(bf_list) += ao.t()*arma::diagmat(wr%r%r)*bf;
+          }
+          // Convert into the orthonormal basis
+          ao_projection = ao_projection * Sinvh;
+          // and take the transpose for easier manipulation
+          ao_projection = ao_projection.t();
+
+          // Compute the completeness profile
+          for(size_t ix=0;ix<expn.n_elem;ix++) {
+            Y(ix, l+1) = arma::norm(ao_projection.col(ix), 2);
+          }
+        }
+
+        return Y;
       }
 
       arma::mat SCFSolver::SuperMat(const arma::mat & M) const {

@@ -497,6 +497,27 @@ namespace helfem {
           }
       }
 
+      arma::vec RadialBasis::eval_orbs(const arma::mat & C, double r) const {
+        if(r > fem.element_end(fem.get_nelem()-1)) {
+          // The wave function is zero here
+          arma::vec val(C.n_cols, arma::fill::zeros);
+          return val;
+        } else {
+          // Find the element we are in
+          size_t iel = fem.find_element(r);
+          // Find the value of the primitive coordinate
+          arma::vec x(fem.eval_prim(arma::vec({r}), iel));
+
+          // Evaluate the basis functions in the element
+          arma::mat val(get_bf(x, iel));
+          // Figure out the corresponding indices of the basis functions
+          size_t ifirst, ilast;
+          get_idx(iel, ifirst, ilast);
+          arma::mat Csub(C.rows(ifirst, ilast));
+          return (val*Csub).t();
+        }
+      }
+
       arma::mat RadialBasis::get_bf(const arma::vec & x, size_t iel) const {
         // Element function values at quadrature points are
         arma::mat val(fem.eval_f(x, iel));

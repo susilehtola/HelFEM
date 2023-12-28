@@ -157,6 +157,9 @@ namespace helfem {
         /// Evaluate small-r Taylor series
         void get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider) const;
 
+        /// Evaluate orbitals at a given point
+        arma::vec eval_orbs(const arma::mat & C, double r) const;
+
         /// Get quadrature weights
         arma::vec get_wrad(size_t iel) const;
         /// Get quadrature weights

@@ -90,6 +90,9 @@ namespace helfem {
       /// Element length
       double element_length(size_t iel) const;
 
+      /// Find the element the point is at
+      size_t find_element(double x) const;
+
       /// Evaluate real coordinate values from primitive coordinates
       arma::vec eval_coord(const arma::vec & xprim, size_t iel) const;
       /// Evaluate primitive coordinate values from real coordinates
