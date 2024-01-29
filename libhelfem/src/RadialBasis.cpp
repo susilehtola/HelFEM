@@ -357,6 +357,13 @@ namespace helfem {
         return -fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r);
       }
 
+      arma::mat RadialBasis::confinement(size_t iel, const int N, const double r_0) const {
+	std::function<double(double)> r_power = [&N](double r){return std::pow(r, N + 2);};
+	std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
+	radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+	return std::pow(r_0, -N) * fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r_power);
+      }
+
       arma::mat RadialBasis::model_potential(const modelpotential::ModelPotential *model,
                                              size_t iel) const {
         std::function<double(double)> modelpot = [model](double r) { return model->V(r); };
