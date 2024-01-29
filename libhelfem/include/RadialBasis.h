@@ -116,6 +116,8 @@ namespace helfem {
         arma::mat kinetic_l(size_t iel) const;
         /// Compute nuclear attraction matrix in element
         arma::mat nuclear(size_t iel) const;
+	/// Compute confinement potential matrix in element
+	arma::mat confinement(size_t iel, const int N, const double r_0) const;
         /// Compute model potential matrix in element
         arma::mat model_potential(const modelpotential::ModelPotential *nuc,
                                   size_t iel) const;
