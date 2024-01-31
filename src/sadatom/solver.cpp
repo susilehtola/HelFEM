@@ -602,6 +602,38 @@ namespace helfem {
       SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
 
         // Construct the angular basis
+	arma::ivec lval, mval;
+        atomic::basis::angular_basis(lmax,lmax,lval,mval);
+
+        basis=sadatom::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, zeroder, Nquad, bval, taylor_order, lmax);
+        printf("Basis set has %i radial functions\n",(int) basis.Nbf());
+        printf("%ith order Taylor series used to evaluate basis functions for r <= %e, error %e\n",taylor_order, basis.get_small_r_taylor_cutoff(), basis.get_taylor_diff());
+
+        // Form overlap matrix
+	S=basis.overlap();
+        // Get half-inverse
+	Sinvh=basis.Sinvh();
+        // Form kinetic energy matrix
+	T=basis.kinetic();
+        // Form kinetic energy matrix
+	Tl=basis.kinetic_l();
+        // Form nuclear attraction energy matrix
+	Vnuc=basis.nuclear();
+        // Form core Hamiltonian
+	H0=T+Vnuc;
+        // Form DFT grid
+	grid=helfem::sadatom::dftgrid::DFTGrid(&basis);
+        // Compute two-electron integrals
+	basis.compute_tei();
+        // Range separation?
+	set_func(x_func_, c_func_);
+        // Non-verbose operation by default
+	verbose = false;
+      }
+
+      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_, int conf_N, double conf_R) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
+
+        // Construct the angular basis
         arma::ivec lval, mval;
         atomic::basis::angular_basis(lmax,lmax,lval,mval);
 
@@ -619,8 +651,10 @@ namespace helfem {
         Tl=basis.kinetic_l();
         // Form nuclear attraction energy matrix
         Vnuc=basis.nuclear();
+	// Form confinement potential energy matrix
+	Vconf=basis.confinement(conf_N,conf_R);
         // Form core Hamiltonian
-        H0=T+Vnuc;
+        H0=T+Vnuc+Vconf;
 
         // Form DFT grid
         grid=helfem::sadatom::dftgrid::DFTGrid(&basis);
@@ -763,6 +797,12 @@ namespace helfem {
           fflush(stdout);
         }
 
+	// Confinement potential energy
+	if (conf_N) {
+	  arma::mat Vconf(basis.confinement(conf_N, conf_R));
+	  conf.Econfinement+=arma::trace(P*Vconf);
+	}
+
         // Exchange-correlation
         conf.Exc=0.0;
 
@@ -809,7 +849,7 @@ namespace helfem {
           conf.Fl+=XC;
 
         // Update energy
-        conf.Econf=conf.Ekin+conf.Epot+conf.Ecoul+conf.Exc;
+        conf.Econf=conf.Ekin+conf.Epot+conf.Ecoul+conf.Exc+conf.Econfinement;
 
         return conf.Econf;
       }
@@ -842,6 +882,12 @@ namespace helfem {
         if(verbose) {
           printf("Coulomb energy %.10e\n",conf.Ecoul);
           fflush(stdout);
+        }
+
+	// Confinement potential energy
+	if (conf_N) {
+          arma::mat Vconf(basis.confinement(conf_N, conf_R));
+          conf.Econfinement+=arma::trace(P*Vconf);
         }
 
         // Exchange-correlation
@@ -898,7 +944,7 @@ namespace helfem {
         }
 
         // Update energy
-        conf.Econf=conf.Ekin+conf.Epot+conf.Ecoul+conf.Exc;
+        conf.Econf=conf.Ekin+conf.Epot+conf.Ecoul+conf.Exc+conf.Econfinement;
 
         return conf.Econf;
       }
@@ -1166,6 +1212,7 @@ namespace helfem {
           printf("%-21s energy: % .16f\n","Kinetic",conf.Ekin);
           printf("%-21s energy: % .16f\n","Nuclear attraction",conf.Epot);
           printf("%-21s energy: % .16f\n","Coulomb",conf.Ecoul);
+	  printf("%-21s energy: % .16f\n","Confinement",conf.Econfinement);
           printf("%-21s energy: % .16f\n","Exchange-correlation",conf.Exc);
           printf("%-21s energy: % .16f\n","Total",conf.Econf);
           printf("%-21s energy: % .16f\n","Virial ratio",-conf.Econf/conf.Ekin);
@@ -1272,6 +1319,7 @@ namespace helfem {
           printf("%-21s energy: % .16f\n","Kinetic",conf.Ekin);
           printf("%-21s energy: % .16f\n","Nuclear attraction",conf.Epot);
           printf("%-21s energy: % .16f\n","Coulomb",conf.Ecoul);
+	  printf("%-21s energy: % .16f\n","Confinement",conf.Econfinement);
           printf("%-21s energy: % .16f\n","Exchange-correlation",conf.Exc);
           printf("%-21s energy: % .16f\n","Total",conf.Econf);
           printf("%-21s energy: % .16f\n","Virial ratio",-conf.Econf/conf.Ekin);

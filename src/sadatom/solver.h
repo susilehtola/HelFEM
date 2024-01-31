@@ -136,6 +136,8 @@ namespace helfem {
         double Epot;
         /// Coulomb repulsion energy
         double Ecoul;
+	/// confinement potential energy
+	double Econfinement;
         /// Exchange-correlation energy
         double Exc;
         /// Converged?
@@ -161,6 +163,8 @@ namespace helfem {
         double Epot;
         /// Coulomb repulsion energy
         double Ecoul;
+	/// Confinement potential energy
+	double Econfinement;
         /// Exchange-correlation energy
         double Exc;
         /// Converged?
@@ -202,6 +206,8 @@ namespace helfem {
         arma::mat Tl;
         /// Nuclear attraction
         arma::mat Vnuc;
+	/// Confinement potential
+	arma::mat Vconf;
         /// Core Hamiltonian
         arma::mat H0;
 
@@ -224,6 +230,10 @@ namespace helfem {
         /// Verbose operation?
         bool verbose;
 
+	/// Confinement parameters
+	int conf_N;
+	double conf_R;
+
         /// Form supermatrix
         arma::mat SuperMat(const arma::mat & M) const;
         /// Form supermatrix from cube
@@ -242,6 +252,9 @@ namespace helfem {
       public:
         /// Constructor
         SCFSolver(int Z, int finitenuc, double Rrms, int lmax, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_);
+	
+	SCFSolver(int Z, int finitenuc, double Rrms, int lmax, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int
+maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_, int conf_N_, double conf_R_);
         /// Destructor
         ~SCFSolver();
 
