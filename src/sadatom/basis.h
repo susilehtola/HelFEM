@@ -83,6 +83,8 @@ namespace helfem {
         arma::mat kinetic_l() const;
         /// Form nuclear attraction matrix
         arma::mat nuclear() const;
+	/// Form confinement potential matrix
+	arma::mat confinement(const int N, const double r_0) const;
         /// Form model potential matrix
 	arma::mat model_potential(const modelpotential::ModelPotential * model) const;
         /// Form Coulomb matrix
