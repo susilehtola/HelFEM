@@ -478,8 +478,13 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::confinement(const int N, const double r_0) const {
+        // Full matrix
+        arma::mat O(Ndummy(),Ndummy());
+        O.zeros();
+	if(N==0)
+	  return remove_boundaries(O);
 
-	 // Build radial elements
+	// Build radial elements
         size_t Nrad(radial.Nbf());
         arma::mat Orad(Nrad,Nrad);
         Orad.zeros();
@@ -492,9 +497,6 @@ namespace helfem {
 	  Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.confinement(iel, N, r_0);
         }
 
-        // Full matrix
-        arma::mat O(Ndummy(),Ndummy());
-        O.zeros();
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++)
           set_sub(O,iang,iang,Orad);

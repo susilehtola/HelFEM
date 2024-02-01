@@ -631,7 +631,7 @@ namespace helfem {
 	verbose = false;
       }
 
-      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_, int conf_N, double conf_R) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
+      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_, int conf_N_, double conf_R_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_), conf_N(conf_N_), conf_R(conf_R_) {
 
         // Construct the angular basis
         arma::ivec lval, mval;
@@ -799,9 +799,14 @@ namespace helfem {
 
 	// Confinement potential energy
 	if (conf_N) {
-	  arma::mat Vconf(basis.confinement(conf_N, conf_R));
-	  conf.Econfinement+=arma::trace(P*Vconf);
+	  conf.Econfinement=arma::trace(P*Vconf);
+	} else {
+	  conf.Econfinement=0.0;
 	}
+        if(verbose) {
+          printf("Confinement energy %.10e\n",conf.Econfinement);
+          fflush(stdout);
+        }
 
         // Exchange-correlation
         conf.Exc=0.0;
@@ -886,8 +891,13 @@ namespace helfem {
 
 	// Confinement potential energy
 	if (conf_N) {
-          arma::mat Vconf(basis.confinement(conf_N, conf_R));
-          conf.Econfinement+=arma::trace(P*Vconf);
+          conf.Econfinement=arma::trace(P*Vconf);
+        } else {
+	  conf.Econfinement=0.0;
+	}
+	if(verbose) {
+          printf("Confinement energy %.10e\n",conf.Econfinement);
+          fflush(stdout);
         }
 
         // Exchange-correlation
