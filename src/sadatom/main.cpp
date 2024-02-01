@@ -628,6 +628,7 @@ int main(int argc, char **argv) {
     printf("Ekin  = % 18.9f\n",rconf.Ekin);
     printf("Ecoul = % 18.9f\n",rconf.Ecoul);
     printf("Eenuc = % 18.9f\n",rconf.Epot);
+    printf("Econf = % 18.9f\n",rconf.Econfinement);
     printf("Exc   = % 18.9f\n",rconf.Exc);
     rconf.orbs.Print(solver.Basis());
     (HARTREEINEV*rconf.orbs.GetGap()).t().print("HOMO-LUMO gap (eV)");
@@ -696,6 +697,7 @@ int main(int argc, char **argv) {
     printf("Ekin  = % 18.9f\n",uconf.Ekin);
     printf("Ecoul = % 18.9f\n",uconf.Ecoul);
     printf("Eenuc = % 18.9f\n",uconf.Epot);
+    printf("Econf = % 18.9f\n",uconf.Econfinement);
     printf("Exc   = % 18.9f\n",uconf.Exc);
     printf("Alpha orbitals\n");
     uconf.orbsa.Print(solver.Basis());
