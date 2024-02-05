@@ -111,6 +111,7 @@ int main(int argc, char **argv) {
   arma::vec mugrid(Ngrid,arma::fill::zeros);
   arma::vec cthgrid(Ngrid,arma::fill::zeros);
   arma::vec phigrid(Ngrid,arma::fill::zeros);
+  arma::vec wquad(Ngrid,arma::fill::zeros);
   arma::cx_mat orbagrid(Ngrid,nela,arma::fill::zeros);
   arma::cx_mat orbbgrid;
   if(nelb)
@@ -181,6 +182,7 @@ int main(int argc, char **argv) {
         // Volume element is
         double shmu(sinh(r(irad)));
         double chmu(cosh(r(irad)));
+        wquad(igrid)=wr(irad)*wang(iang);
         dV(igrid)=std::pow(basis.get_Rhalf(),3)*shmu*(chmu*chmu - cth(iang)*cth(iang))*wr(irad)*wang(iang);
 
         // Orbital values
@@ -213,6 +215,7 @@ int main(int argc, char **argv) {
   Checkpoint savechk(output,true);
   savechk.write("mu",mugrid);
   savechk.write("dV",dV);
+  savechk.write("wquad",wquad);
   savechk.write("cth",cthgrid);
   savechk.write("phi",phigrid);
   savechk.write("P",den);
