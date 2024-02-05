@@ -1,7 +1,16 @@
 # CMake project file for HelFEM
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.5)
 project (helfem CXX Fortran)
 set(CMAKE_CXX_STANDARD 11)
+
+# Ensure we are building out-of-source so that the tests work (issue 120)
+get_filename_component(srcdir "${CMAKE_SOURCE_DIR}" REALPATH)
+get_filename_component(bindir "${CMAKE_BINARY_DIR}" REALPATH)
+if("${srcdir}" STREQUAL "${bindir}")
+  message(FATAL_ERROR "HelFEM should not be configured & built in the source directory.
+Please create a separate build directory and rerun cmake from the build directory.
+For example: mkdir objdir; cd build; cmake ..")
+endif()
 
 # Following options can be used to configure the HelFEM CMake build. They can be set by
 # passing the corresponding -D flags to CMake, e.g.:
