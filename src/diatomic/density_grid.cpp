@@ -77,6 +77,11 @@ int main(int argc, char **argv) {
   loadchk.read("nela",nela);
   loadchk.read("nelb",nelb);
 
+  // Inverse overlap
+  arma::mat Sinvh;
+  loadchk.read("Sinvh", Sinvh);
+  arma::mat Sinv(Sinvh*Sinvh.t());
+
   // mu array
   std::vector<arma::vec> mu(basis.get_rad_Nel()), wmu(basis.get_rad_Nel());
   for(size_t iel=0;iel<mu.size();iel++) {
@@ -116,10 +121,18 @@ int main(int argc, char **argv) {
   arma::cx_mat orbbgrid;
   if(nelb)
     orbbgrid.zeros(Ngrid,nelb);
+  arma::cx_mat Torbagrid(Ngrid,nela,arma::fill::zeros);
+  arma::cx_mat Torbbgrid;
+  if(nelb)
+    Torbbgrid.zeros(Ngrid,nelb);
 
   arma::cx_mat Sa(nela,nela,arma::fill::zeros), Sb;
   if(nelb>0)
     Sb.zeros(nelb,nelb);
+
+  arma::mat T(basis.kinetic());
+  arma::mat STCa = Sinv*T*Ca;
+  arma::mat STCb = Sinv*T*Cb;
 
   size_t igrid=0;
   // Loop over radial elements
@@ -135,6 +148,15 @@ int main(int argc, char **argv) {
     if(nelb) {
       Cbsub=Cb.cols(0,nelb-1);
       Cbsub=Cbsub.rows(bidx);
+    }
+
+    // Kinetic energy submatrix
+    arma::mat STCasub(STCa.cols(0,nela-1));
+    STCasub = STCasub.rows(bidx);
+    arma::mat STCbsub;
+    if(nelb) {
+	STCbsub = STCb.cols(0,nelb-1);
+	STCbsub = STCb.rows(bidx);
     }
 
     // Radial values
@@ -170,6 +192,12 @@ int main(int argc, char **argv) {
         if(nelb)
           orbbval = bf*Cbsub;
 
+	// Compute action of kinetic energy operator on orbitals
+	arma::cx_rowvec Torbaval = bf*STCasub;
+        arma::cx_rowvec Torbbval;
+        if(nelb)
+	    Torbbval = bf*STCbsub;
+
         // Store result
         dena(igrid)=std::real(arma::cdot(orbaval,orbaval));
         denb(igrid)=nelb ? std::real(arma::cdot(orbbval,orbbval)) : 0.0;
@@ -189,6 +217,10 @@ int main(int argc, char **argv) {
         orbagrid.row(igrid) = orbaval;
         if(nelb)
           orbbgrid.row(igrid) = orbbval;
+
+	Torbagrid.row(igrid) = Torbaval;
+	if(nelb)
+	    Torbbgrid.row(igrid) = Torbbval;
 
         Sa += arma::trans(orbaval)*dV(igrid)*orbaval;
         if(nelb)
@@ -227,11 +259,18 @@ int main(int argc, char **argv) {
     savechk.write("orbb.re",arma::real(orbbgrid));
     savechk.write("orbb.im",arma::imag(orbbgrid));
   }
+  savechk.write("Torba.re",arma::real(Torbagrid));
+  savechk.write("Torba.im",arma::imag(Torbagrid));
+  if(nelb) {
+    savechk.write("Torbb.re",arma::real(Torbbgrid));
+    savechk.write("Torbb.im",arma::imag(Torbbgrid));
+  }
   savechk.write("Rh",basis.get_Rhalf());
   savechk.write("Z1",basis.get_Z1());
   savechk.write("Z2",basis.get_Z2());
   int mmax = arma::max(basis.get_mval());
   savechk.write("mmax",mmax);
+
   printf("Saved density to file %s\n",output.c_str());
 
   return 0;
