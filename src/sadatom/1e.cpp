@@ -119,7 +119,9 @@ int main(int argc, char **argv) {
     arma::eig_sym(E,C,H0);
     C = Sinvh*C;
 
-    E.print("Eigenvalues");
+    std::ostringstream oss;
+    oss << "l=" << l << " eigenvalues";
+    E.print(oss.str());
 
     // Evaluate orbitals on grid
     std::vector<arma::mat> c(radial.Nel());
@@ -144,6 +146,9 @@ int main(int argc, char **argv) {
     std::ostringstream oss;
     oss << "orbs_" << l;
     chkpt.write(oss.str(), Cv);
+    oss.str("");
+    oss << "E_" << l;
+    chkpt.write(oss.str(), E);
   }
 
   // Get the radii and quadrature weights as well
