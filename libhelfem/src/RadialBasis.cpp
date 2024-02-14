@@ -307,9 +307,32 @@ namespace helfem {
         return radial_integral(rh, 0);
       }
 
+      arma::mat RadialBasis::overlap(size_t iel) const {
+        std::function<double(double)> dummy;
+        return fem.matrix_element(iel, false, false, xq, wq, dummy);
+      }
+
+      arma::mat RadialBasis::overlap() const {
+        std::function<double(double)> dummy;
+        return fem.matrix_element(false, false, xq, wq, dummy);
+      }
+
+      arma::mat RadialBasis::kinetic() const {
+        std::function<double(double)> dummy;
+        return 0.5*fem.matrix_element(true, true, xq, wq, dummy);
+      }
+
       arma::mat RadialBasis::kinetic(size_t iel) const {
         std::function<double(double)> dummy;
         return 0.5*fem.matrix_element(iel, true, true, xq, wq, dummy);
+      }
+
+      arma::mat RadialBasis::kinetic_l() const {
+        std::function<double(double)> dummy;
+        std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
+        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+
+        return 0.5 * fem.matrix_element(radial_bf, radial_bf, xq, wq, dummy);
       }
 
       arma::mat RadialBasis::kinetic_l(size_t iel) const {
@@ -318,6 +341,13 @@ namespace helfem {
         radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
 
         return 0.5 * fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, dummy);
+      }
+
+      arma::mat RadialBasis::nuclear() const {
+        std::function<double(double)> r = [](double r){return r;};
+        std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
+        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+        return -fem.matrix_element(radial_bf, radial_bf, xq, wq, r);
       }
 
       arma::mat RadialBasis::nuclear(size_t iel) const {

@@ -107,13 +107,22 @@ namespace helfem {
         /// Compute Bessel k_L integral
         arma::mat bessel_kl_integral(int L, double lambda, size_t iel) const;
 
+        /// Compute overlap matrix
+        arma::mat overlap() const;
         /// Compute overlap matrix in element
         arma::mat overlap(size_t iel) const;
+
+        /// Compute primitive kinetic energy matrix (excluding l part)
+        arma::mat kinetic() const;
         /// Compute primitive kinetic energy matrix in element (excluding l
         /// part)
         arma::mat kinetic(size_t iel) const;
         /// Compute l part of kinetic energy matrix
+        arma::mat kinetic_l() const;
+        /// Compute l part of kinetic energy matrix in element
         arma::mat kinetic_l(size_t iel) const;
+        /// Compute nuclear attraction matrix
+        arma::mat nuclear() const;
         /// Compute nuclear attraction matrix in element
         arma::mat nuclear(size_t iel) const;
         /// Compute model potential matrix in element
