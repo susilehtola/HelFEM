@@ -285,6 +285,7 @@ int main(int argc, char **argv) {
   printf("Auxiliary two-electron integrals require %s\n",scf::memory_size(basis.mem_2el_aux()).c_str());
 
   double Enucr=Z1*Z2/Rbond;
+  chkpt.write("Enucr",Enucr);
   printf("Left- and right-hand nuclear charges are %i and %i at distance % .3f\n",Z1,Z2,Rbond);
   printf("Nuclear repulsion energy is %e\n",Enucr);
   printf("Number of electrons is %i %i\n",nela,nelb);
@@ -799,6 +800,10 @@ int main(int argc, char **argv) {
     Epot=arma::trace(P*Vnuc);
     Eefield=arma::trace(P*Vel);
     Emfield=arma::trace(P*Vmag)-Bz/2.0*(nela-nelb);
+    chkpt.write("Ekin",Ekin);
+    chkpt.write("Epot",Epot);
+    chkpt.write("Eefield",Eefield);
+    chkpt.write("Emfield",Emfield);
 
     // Form Coulomb matrix
     timer.set();
@@ -808,6 +813,7 @@ int main(int argc, char **argv) {
     printf("Coulomb energy %.10e % .6f\n",Ecoul,tJ);
     fflush(stdout);
     chkpt.write("J",J);
+    chkpt.write("Ecoul",Ecoul);
 
     // Form exchange matrix
     timer.set();
@@ -834,6 +840,7 @@ int main(int argc, char **argv) {
 
     chkpt.write("Ka",Ka);
     chkpt.write("Kb",Kb);
+    chkpt.write("Exx",Exx);
 
     // Exchange-correlation
     Exc=0.0;
@@ -858,6 +865,7 @@ int main(int argc, char **argv) {
 
     chkpt.write("XCa",XCa);
     chkpt.write("XCb",XCb);
+    chkpt.write("Exc",Exc);
 
     // Fock matrices
     arma::mat Fa(H0+J);
