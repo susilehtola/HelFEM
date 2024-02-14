@@ -152,7 +152,7 @@ int main(int argc, char **argv) {
   }
 
   // Get the radii and quadrature weights as well
-  std::vector<arma::mat> r(radial.Nel()), wr(radial.Nel());
+  std::vector<arma::vec> r(radial.Nel()), wr(radial.Nel());
   for(size_t iel=0;iel<radial.Nel();iel++) {
     r[iel]=radial.get_r(iel);
     wr[iel]=radial.get_wrad(iel);
