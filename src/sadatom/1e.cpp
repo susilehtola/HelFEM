@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
       Cv.rows(iel*Npts,(iel+1)*Npts-1)=c[iel];
     }
 
-    std::ostringstream oss;
+    oss.str("");
     oss << "orbs_" << l;
     chkpt.write(oss.str(), Cv);
     oss.str("");
