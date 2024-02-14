@@ -18,6 +18,9 @@ target_include_directories(helfem-common PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../
 add_executable(gensap sadatom/main.cpp)
 target_link_libraries(gensap helfem-common legendre)
 
+add_executable(1e_atom sadatom/1e.cpp)
+target_link_libraries(1e_atom helfem-common legendre)
+
 add_library(legendre
   legendre/accuracy.f90 legendre/input_output.f90
   legendre/itoc.f90 legendre/Matrix_Print.f90 legendre/Data_Module.f90
