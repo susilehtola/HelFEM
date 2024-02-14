@@ -50,6 +50,9 @@ target_link_libraries(diatomic helfem-common legendre)
 add_executable(diatomic_cbasis diatomic/corebasis.cpp)
 target_link_libraries(diatomic_cbasis helfem-common legendre)
 
+add_executable(diatomic_1e diatomic/1e.cpp)
+target_link_libraries(diatomic_1e helfem-common legendre)
+
 add_executable(diatomic_cpl diatomic/completeness.cpp)
 target_link_libraries(diatomic_cpl helfem-common legendre)
 
