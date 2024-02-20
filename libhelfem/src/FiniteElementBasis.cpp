@@ -204,6 +204,20 @@ namespace helfem {
       return element_midpoint(iel) * arma::ones<arma::vec>(x.n_elem) + scaling_factor(iel) * x;
     }
 
+    arma::vec FiniteElementBasis::eval_coord(const arma::vec & x) const {
+      arma::vec r(get_nelem()*x.n_elem);
+      for(size_t iel=0;iel<get_nelem();iel++)
+        r.subvec(iel*x.n_elem, (iel+1)*x.n_elem-1) = eval_coord(x, iel);
+      return r;
+    }
+
+    arma::vec FiniteElementBasis::eval_weights(const arma::vec & w) const {
+      arma::vec wr(get_nelem()*w.n_elem);
+      for(size_t iel=0;iel<get_nelem();iel++)
+        wr.subvec(iel*w.n_elem, (iel+1)*w.n_elem-1) = w*scaling_factor(iel);
+      return wr;
+    }
+
     arma::vec FiniteElementBasis::eval_prim(const arma::vec & y, size_t iel) const {
       if(arma::min(y) < element_begin(iel) || arma::max(y) > element_end(iel)) {
         throw std::logic_error("coordinates don't correspond to this element!\n");
@@ -292,6 +306,16 @@ namespace helfem {
     arma::mat FiniteElementBasis::eval_dnf(const arma::vec & x, int n, size_t iel) const {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
       return p->eval_dnf(x,n,scaling_factor(iel));
+    }
+
+    arma::mat FiniteElementBasis::eval_dnf(const arma::vec & x, int n) const {
+      arma::mat f(get_nelem()*x.n_elem,get_nbf());
+      for(size_t iel=0;iel<get_nelem();iel++) {
+        size_t ifirst = first_func_in_element(iel);
+        size_t ilast = last_func_in_element(iel);
+        f.submat(iel*x.n_elem, ifirst, (iel+1)*x.n_elem-1, ilast) = eval_dnf(x, n, iel);
+      }
+      return f;
     }
 
     arma::mat FiniteElementBasis::matrix_element(const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
