@@ -95,8 +95,15 @@ namespace helfem {
 
       /// Evaluate real coordinate values from primitive coordinates
       arma::vec eval_coord(const arma::vec & xprim, size_t iel) const;
+      /// Evaluate full set of coordinate valuess from primitive coordinates
+      arma::vec eval_coord(const arma::vec & xq) const;
+
       /// Evaluate primitive coordinate values from real coordinates
       arma::vec eval_prim(const arma::vec & xreal, size_t iel) const;
+
+      /// Evaluate full set of weights for primitive weights
+      arma::vec eval_weights(const arma::vec & wq) const;
+
       /// Element size scaling factor
       double scaling_factor(size_t iel) const;
 
@@ -141,6 +148,9 @@ namespace helfem {
       arma::mat eval_d5f(const arma::vec & x, size_t iel) const;
       /// Evaluate nth derivative
       arma::mat eval_dnf(const arma::vec & x, int n, size_t iel) const;
+
+      /// Evaluate the nth derivative at all quadrature points
+      arma::mat eval_dnf(const arma::vec & xq, int n) const;
 
       /**
        * Compute matrix elements in the finite element basis <lh|f|rh>
