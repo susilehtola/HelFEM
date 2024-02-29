@@ -54,6 +54,7 @@ namespace helfem {
 
         // Adjust cutoff
         set_small_r_taylor_cutoff();
+
       }
 
       void RadialBasis::set_small_r_taylor_cutoff() {
@@ -363,6 +364,21 @@ namespace helfem {
 	radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
 	return std::pow(r_0, -N) * fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r_power);
       }
+
+      arma::mat RadialBasis::confinement(size_t iel, const double r_min, const double r_conf) const {
+	double epsilon = 5e-16;
+        double exp = 2.7182818284;
+        std::function<double(double)> r_exp = [r_min, r_conf, epsilon, exp](double r) {
+          if (r < r_min + (r_conf - r_min) / ( - std::log(epsilon)))
+	    return 0.0;
+	  else
+	    return std::pow(exp, - (r_conf - r_min) / (r - r_min)) / (r_conf - r);
+	};
+	std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
+	radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+	return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r_exp);
+      }
+	
 
       arma::mat RadialBasis::model_potential(const modelpotential::ModelPotential *model,
                                              size_t iel) const {
