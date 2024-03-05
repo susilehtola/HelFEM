@@ -652,10 +652,11 @@ namespace helfem {
         // Form nuclear attraction energy matrix
         Vnuc=basis.nuclear();
 	// Form confinement potential energy matrix
-	if (iconf == 1)
-	  Vconf=basis.confinement(conf_N,conf_R);
-	if (iconf == 2)
+	if (iconf == 2) {
 	  Vconf=basis.confinement(r_min, conf_R);
+	} else {
+	  Vconf=basis.confinement(conf_N,conf_R);
+	}
         // Form core Hamiltonian
         H0=T+Vnuc+Vconf;
 
