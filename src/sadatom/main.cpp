@@ -193,12 +193,6 @@ int main(int argc, char **argv) {
   std::string xparf(parser.get<std::string>("x_pars"));
   std::string cparf(parser.get<std::string>("c_pars"));
 
-  // Confinement parameters
-  int iconf(parser.get<int>("iconf"));
-  double conf_R(parser.get<double>("conf_R"));
-  int conf_N(parser.get<int>("conf_N"));
-  double r_min(parser.get<double>("r_min"));
-
   std::vector<std::string> rcalc(2);
   rcalc[0]="unrestricted";
   rcalc[1]="restricted";
@@ -257,6 +251,18 @@ int main(int argc, char **argv) {
   // Radial basis
   arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0);
 
+  // Confinement parameters
+  int iconf(parser.get<int>("iconf"));
+  double conf_R;
+  double r_min;
+  if(iconf == 2) {
+    double conf_R(parser.get<double>("Rmax"));
+    double r_min = bval(bval.n_elem - 2);
+  } else {
+    double conf_R(parser.get<double>("conf_R"));
+  }
+  int conf_N(parser.get<int>("conf_N"));
+  
   // Initialize solver
   sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder, iconf, conf_N, conf_R, r_min);
 
