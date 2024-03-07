@@ -653,9 +653,10 @@ namespace helfem {
         Vnuc=basis.nuclear();
 	// Form confinement potential energy matrix
 	if (iconf == 2) {
+	  std::cout << "conf_R: " << conf_R << " min_R: " << r_min << std::endl;
 	  Vconf=basis.confinement(r_min, conf_R);
 	} else {
-	  Vconf=basis.confinement(conf_N,conf_R);
+	  Vconf=basis.confinement(conf_N, conf_R);
 	}
         // Form core Hamiltonian
         H0=T+Vnuc+Vconf;

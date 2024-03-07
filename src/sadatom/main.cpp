@@ -256,13 +256,13 @@ int main(int argc, char **argv) {
   double conf_R;
   double r_min;
   if(iconf == 2) {
-    double conf_R(parser.get<double>("Rmax"));
-    double r_min = bval(bval.n_elem - 2);
+    conf_R += Rmax;
+    r_min += bval(bval.n_elem - 2);
   } else {
     double conf_R(parser.get<double>("conf_R"));
   }
   int conf_N(parser.get<int>("conf_N"));
-  
+
   // Initialize solver
   sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder, iconf, conf_N, conf_R, r_min);
 

@@ -372,7 +372,7 @@ namespace helfem {
           if (r < r_min + (r_conf - r_min) / ( - std::log(epsilon)))
 	    return 0.0;
 	  else
-	    return std::pow(exp, - (r_conf - r_min) / (r - r_min)) / (r_conf - r);
+	    return std::pow(exp, (r_min - r_conf) / (r - r_min)) / (r_conf - r);
 	};
 	std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
 	radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
