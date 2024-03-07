@@ -168,8 +168,8 @@ namespace helfem {
           size_t Nrad(radial.Nbf());
           arma::mat Vrad(Nrad,Nrad);
           Vrad.zeros();
-          if(!r_c)
-            return Vrad;
+          //if(!r_c)
+          //  return Vrad;
 
           // Loop over elements
 	  for(size_t iel=0;iel<radial.Nel();iel++) {
