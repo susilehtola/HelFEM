@@ -23,6 +23,7 @@
 #include "solver.h"
 #include "configurations.h"
 #include <cfloat>
+#include <cmath>
 
 arma::ivec initial_occs(int Z, int lmax) {
   // Guess occupations
@@ -137,7 +138,6 @@ int main(int argc, char **argv) {
   parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential", false, 0);
   parser.add<int>("conf_N", 0, "Exponent in polynomial confinement potential", false, 0);
   parser.add<double>("conf_R", 0, "Confinement radius", false, 0.0);
-  parser.add<double>("r_min", 0, "Minimum r value in exponential confinement potential", false, 0.0);
   parser.parse_check(argc, argv);
 /*
   if(!parser.parse(argc, argv))
@@ -258,8 +258,10 @@ int main(int argc, char **argv) {
   if(iconf == 2) {
     conf_R += Rmax;
     r_min += bval(bval.n_elem - 2);
-  } else {
-    double conf_R(parser.get<double>("conf_R"));
+  }
+  if(iconf == 1) {
+    double cutoff(parser.get<double>("conf_R"));
+    conf_R += cutoff;
   }
   int conf_N(parser.get<int>("conf_N"));
 
