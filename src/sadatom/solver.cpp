@@ -654,8 +654,7 @@ namespace helfem {
 	// Form confinement potential energy matrix
 	if (iconf == 2) {
 	  Vconf=basis.confinement(r_min, conf_R);
-	}
-	if (iconf == 1) {
+	} else {
 	  Vconf=basis.confinement(conf_N, conf_R);
 	}
         // Form core Hamiltonian
