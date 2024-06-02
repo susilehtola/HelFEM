@@ -358,25 +358,32 @@ namespace helfem {
         return -fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r);
       }
 
-      arma::mat RadialBasis::confinement(size_t iel, const int N, const double r_0) const {
-	std::function<double(double)> r_power = [N](double r){return std::pow(r, N + 2);};
-	std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
-	radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-	return std::pow(r_0, -N) * fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r_power);
+      int factorial(int n) {
+	if (n == 0 || n == 1) 
+	  return 1; 
+	return n * factorial(n - 1); 
       }
 
-      arma::mat RadialBasis::confinement(size_t iel, const double r_min, const double r_conf) const {
-	double epsilon = 5e-16;
+      arma::mat RadialBasis::confinement(size_t iel, const int N, const double r_0, const int iconf) const {
         double exp = 2.7182818284;
-        std::function<double(double)> r_exp = [r_min, r_conf, epsilon, exp](double r) {
-          if (r < r_min + (r_conf - r_min) / ( - std::log(epsilon)))
-	    return 0.0;
-	  else
-	    return std::pow(exp, (r_min - r_conf) / (r - r_min)) / (r_conf - r);
-	};
-	std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
-	radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-	return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r_exp);
+	if (iconf==2) {
+	  std::function<double(double)> r_exp = [r_0, N, exp](double r) {
+	    double V;
+	    V += std::pow(exp, (r / r_0));
+	    for (int k=0; k<N; k++)
+	      V -= (1 / factorial(k) * std::pow((r / r_0), k));
+	    return V;
+	  };
+	  std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
+	  radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+	  return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r_exp);
+	}
+	if (iconf==1) {
+	  std::function<double(double)> rN = [N](double r) { return std::pow(r, N); };
+          std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
+          radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+          return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rN);
+	}
       }
 	
 
@@ -391,7 +398,7 @@ namespace helfem {
           return -sqrt(4.0 * M_PI / (2 * L + 1)) * radial_integral(-L - 1, iel) *
             std::pow(Rhalf, L);
         else if (fem.element_end(iel) >= Rhalf)
-          return -sqrt(4.0 * M_PI / (2 * L + 1)) * radial_integral(L, iel) *
+	  return -sqrt(4.0 * M_PI / (2 * L + 1)) * radial_integral(L, iel) *
             std::pow(Rhalf, -L - 1);
         else {
           throw std::logic_error("Nucleus placed within element!\n");

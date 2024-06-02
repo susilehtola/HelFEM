@@ -146,40 +146,35 @@ namespace helfem {
         }
       }
 
-      arma::mat TwoDBasis::confinement(const int N, const double r_0) const {
+      arma::mat TwoDBasis::confinement(const int N, const double r_0, const int iconf) const {
           size_t Nrad(radial.Nbf());
           arma::mat Vrad(Nrad,Nrad);
           Vrad.zeros();
-	  if(N==0)
+	  if(!N)
 	    return Vrad;
-	  
-          // Loop over elements
-          for(size_t iel=0;iel<radial.Nel();iel++) {
-            // Where are we in the matrix?
-            size_t ifirst, ilast;
-            radial.get_idx(iel,ifirst,ilast);
-            Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(N,iel);
-          }
 
-          return Vrad * std::pow(r_0, -N);
-      }
-
-      arma::mat TwoDBasis::confinement(const double r_min, const double r_c) const {
-          size_t Nrad(radial.Nbf());
-          arma::mat Vrad(Nrad,Nrad);
-          Vrad.zeros();
-          if(!r_min)
-            return Vrad;
-
-          // Loop over elements
-	  for(size_t iel=0;iel<radial.Nel();iel++) {
-            // Where are we in the matrix?
-	    size_t ifirst, ilast;
-            radial.get_idx(iel,ifirst,ilast);
-            Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.confinement(iel, r_min, r_c);
-          }
-
-          return Vrad;
+	  if (iconf==1) {
+	    // Loop over elements
+	    for(size_t iel=0;iel<radial.Nel();iel++) {
+	      // Where are we in the matrix?
+	      size_t ifirst, ilast;
+	      radial.get_idx(iel,ifirst,ilast);
+	      Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(N,iel);
+	    }
+	    if(N<0)
+	      return -Vrad * std::pow(r_0, -N);
+	    return Vrad * std::pow(r_0, -N);
+	  }
+	  if (iconf==2) {
+	    // Loop over elements
+	    for(size_t iel=0;iel<radial.Nel();iel++) {
+	      // Where are we in the matrix?
+	      size_t ifirst, ilast;
+	      radial.get_idx(iel,ifirst,ilast);
+	      Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.confinement(iel, N, r_0, iconf);
+	    }
+	    return Vrad;
+	  }
       }
 
       arma::mat TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {

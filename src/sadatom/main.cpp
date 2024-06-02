@@ -254,19 +254,10 @@ int main(int argc, char **argv) {
   // Confinement parameters
   int iconf(parser.get<int>("iconf"));
   double conf_R(parser.get<double>("conf_R"));
-  double r_min;
-  if(iconf == 2) {
-    conf_R += Rmax;
-    r_min += bval(bval.n_elem - 2);
-  }
-  //if(iconf == 1) {
-  //  double cutoff(parser.get<double>("conf_R"));
-  //  conf_R += cutoff;
-  //}
   int conf_N(parser.get<int>("conf_N"));
 
   // Initialize solver
-  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder, iconf, conf_N, conf_R, r_min);
+  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder, iconf, conf_N, conf_R);
 
   // Set parameters if necessary
   arma::vec xpars, cpars;

@@ -111,6 +111,7 @@ int main(int argc, char **argv) {
   parser.add<double>("dampthr", 0, "damping threshold", false, 0.1);
   parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
   parser.add<int>("taylor_order", 0, "order of Taylor expansion near the nucleus", false, -1);
+  parser.add<int>("iconf", 0, "type of confinement potential: 1 for polynomial, 2 for exponential", false, 0);
   parser.add<int>("conf_N", 0, "exponent in confinement potential", false, 0);
   parser.add<double>("conf_R", 0, "confinement radius", false, 0.0);
   parser.parse_check(argc, argv);
@@ -189,6 +190,7 @@ int main(int argc, char **argv) {
 
   int conf_N(parser.get<int>("conf_N"));
   double conf_R(parser.get<double>("conf_R"));
+  int iconf(parser.get<int>("iconf"));
 
   // Set parameters if necessary
   arma::vec xpars, cpars;
@@ -463,7 +465,7 @@ int main(int argc, char **argv) {
   // Confinement potential
   if(conf_N)
     printf("Computing confinement potential\n");
-  arma::mat Vconf=basis.confinement(conf_N, conf_R);
+  arma::mat Vconf=basis.confinement(conf_N, conf_R, iconf);
   chkpt.write("Vconf",Vconf);
   
   // Dipole coupling
