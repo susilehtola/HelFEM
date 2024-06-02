@@ -234,7 +234,6 @@ namespace helfem {
 	int iconf;
 	int conf_N;
 	double conf_R;
-	double r_min;
 
         /// Form supermatrix
         arma::mat SuperMat(const arma::mat & M) const;
@@ -256,7 +255,7 @@ namespace helfem {
         SCFSolver(int Z, int finitenuc, double Rrms, int lmax, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_);
 	
 	SCFSolver(int Z, int finitenuc, double Rrms, int lmax, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int
-		  maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_, int iconf_, int conf_N_, double conf_R_, double r_min_);
+		  maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_, int iconf_, int conf_N_, double conf_R_);
         /// Destructor
         ~SCFSolver();
 
