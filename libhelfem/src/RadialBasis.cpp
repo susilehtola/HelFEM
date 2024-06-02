@@ -371,7 +371,8 @@ namespace helfem {
 	    double V;
 	    V += std::pow(exp, (r / r_0));
 	    for (int k=0; k<N; k++)
-	      V -= (1 / factorial(k) * std::pow((r / r_0), k));
+	      V -= (1.0 / factorial(k)) * std::pow((r / r_0), k);
+	    V *= factorial(N);
 	    return V;
 	  };
 	  std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
