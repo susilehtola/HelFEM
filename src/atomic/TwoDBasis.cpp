@@ -489,13 +489,30 @@ namespace helfem {
         arma::mat Orad(Nrad,Nrad);
         Orad.zeros();
 
-        // Loop over elements
-        for(size_t iel=0;iel<radial.Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
-	  Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.confinement(iel, N, r_0, iconf);
-        }
+	if (iconf==1) {
+	  // Loop over elements
+	  for(size_t iel=0;iel<radial.Nel();iel++) {
+	    // Where are we in the matrix?
+	    size_t ifirst, ilast;
+	    radial.get_idx(iel,ifirst,ilast);
+	    Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(N,iel);
+	  }
+	  if(N<0)
+	    Orad *= -std::pow(r_0, -N);
+	  else
+	    Orad *= std::pow(r_0, -N);
+
+	} else if (iconf==2) {
+	  // Loop over elements
+	  for(size_t iel=0;iel<radial.Nel();iel++) {
+	    // Where are we in the matrix?
+	    size_t ifirst, ilast;
+	    radial.get_idx(iel,ifirst,ilast);
+	    // r_0 is handled by other routine
+	    Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.exponential_confinement(iel, N, r_0);
+	  }
+	}
+	else throw std::logic_error("Case not implemented!\n");
 
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++)
