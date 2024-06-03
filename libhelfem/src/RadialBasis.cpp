@@ -364,29 +364,28 @@ namespace helfem {
 	return n * factorial(n - 1); 
       }
 
-      arma::mat RadialBasis::confinement(size_t iel, const int N, const double r_0, const int iconf) const {
-        double exp = 2.7182818284;
-	if (iconf==2) {
-	  std::function<double(double)> r_exp = [r_0, N, exp](double r) {
-	    double V;
-	    V += std::pow(exp, (r / r_0));
-	    for (int k=0; k<N; k++)
-	      V -= (1.0 / factorial(k)) * std::pow((r / r_0), k);
-	    V *= factorial(N);
-	    return V;
-	  };
-	  std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
-	  radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-	  return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r_exp);
-	}
-	if (iconf==1) {
-	  std::function<double(double)> rN = [N](double r) { return std::pow(r, N); };
-          std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
-          radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-          return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rN);
-	}
+      arma::mat RadialBasis::exponential_confinement(size_t iel, int N, double r_0) const {
+	std::function<double(double)> r_exp = [r_0, N](double r) {
+	  const double r_ratio = r/r_0;
+	  double fact = 1.0;
+
+	  double V=0.0;
+	  double r_ratio_pow_k = 1.0;
+	  for (int k=0; k<N; k++) {
+	    // r^k / k!
+	    V -= r_ratio_pow_k / fact;
+	    // Prepare values for next iteration
+	    fact *= k+1;
+	    r_ratio_pow_k *= r_ratio;
+	  }
+	  V += std::exp(r_ratio);
+	  V *= factorial(N);
+	  return V;
+	};
+	std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
+	radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+	return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r_exp);
       }
-	
 
       arma::mat RadialBasis::model_potential(const modelpotential::ModelPotential *model,
                                              size_t iel) const {

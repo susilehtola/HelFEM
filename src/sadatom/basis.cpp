@@ -164,17 +164,19 @@ namespace helfem {
 	    if(N<0)
 	      return -Vrad * std::pow(r_0, -N);
 	    return Vrad * std::pow(r_0, -N);
-	  }
-	  if (iconf==2) {
+
+	  } else if (iconf==2) {
 	    // Loop over elements
 	    for(size_t iel=0;iel<radial.Nel();iel++) {
 	      // Where are we in the matrix?
 	      size_t ifirst, ilast;
 	      radial.get_idx(iel,ifirst,ilast);
-	      Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.confinement(iel, N, r_0, iconf);
+	      // r_0 is handled by other routine
+	      Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.exponential_confinement(iel, N, r_0);
 	    }
 	    return Vrad;
 	  }
+	  else throw std::logic_error("Case not implemented!\n");
       }
 
       arma::mat TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {
