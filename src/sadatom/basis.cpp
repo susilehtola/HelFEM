@@ -146,7 +146,7 @@ namespace helfem {
         }
       }
 
-      arma::mat TwoDBasis::confinement(const int N, const double r_0, const int iconf) const {
+      arma::mat TwoDBasis::confinement(int N, double r_0, int iconf) const {
           size_t Nrad(radial.Nbf());
           arma::mat Vrad(Nrad,Nrad);
           Vrad.zeros();
