@@ -599,37 +599,7 @@ namespace helfem {
         return lh.Econf < rh.Econf;
       }
 
-      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
-
-        // Construct the angular basis
-	arma::ivec lval, mval;
-        atomic::basis::angular_basis(lmax,lmax,lval,mval);
-
-        basis=sadatom::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, zeroder, Nquad, bval, taylor_order, lmax);
-        printf("Basis set has %i radial functions\n",(int) basis.Nbf());
-        printf("%ith order Taylor series used to evaluate basis functions for r <= %e, error %e\n",taylor_order, basis.get_small_r_taylor_cutoff(), basis.get_taylor_diff());
-
-        // Form overlap matrix
-	S=basis.overlap();
-        // Get half-inverse
-	Sinvh=basis.Sinvh();
-        // Form kinetic energy matrix
-	T=basis.kinetic();
-        // Form kinetic energy matrix
-	Tl=basis.kinetic_l();
-        // Form nuclear attraction energy matrix
-	Vnuc=basis.nuclear();
-        // Form core Hamiltonian
-	H0=T+Vnuc;
-        // Form DFT grid
-	grid=helfem::sadatom::dftgrid::DFTGrid(&basis);
-        // Compute two-electron integrals
-	basis.compute_tei();
-        // Range separation?
-	set_func(x_func_, c_func_);
-        // Non-verbose operation by default
-	verbose = false;
-      }
+      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_), iconf(0), conf_N(0), conf_R(0.0) {}
 
       SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_, int iconf_, int conf_N_, double conf_R_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_), iconf(iconf_), conf_N(conf_N_), conf_R(conf_R_) {
 
