@@ -768,11 +768,7 @@ namespace helfem {
         }
 
 	// Confinement potential energy
-	if (iconf) {
-	  conf.Econfinement=arma::trace(P*Vconf);
-	} else {
-	  conf.Econfinement=0.0;
-	}
+	conf.Econfinement=arma::trace(P*Vconf);
         if(verbose) {
           printf("Confinement energy %.10e\n",conf.Econfinement);
           fflush(stdout);
@@ -860,11 +856,7 @@ namespace helfem {
         }
 
 	// Confinement potential energy
-	if (iconf) {
-          conf.Econfinement=arma::trace(P*Vconf);
-        } else {
-	  conf.Econfinement=0.0;
-	}
+	conf.Econfinement=arma::trace(P*Vconf);
 	if(verbose) {
           printf("Confinement energy %.10e\n",conf.Econfinement);
           fflush(stdout);
