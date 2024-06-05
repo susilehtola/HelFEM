@@ -23,7 +23,6 @@
 #include "solver.h"
 #include "configurations.h"
 #include <cfloat>
-#include <cmath>
 
 arma::ivec initial_occs(int Z, int lmax) {
   // Guess occupations

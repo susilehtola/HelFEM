@@ -361,16 +361,17 @@ namespace helfem {
       int factorial(int n) {
 	if (n==0)
 	  return 1;
-	for (int k=1; k<=n; k++)
-	  k *= k;
-	return k;
+	int fact=1;
+	for (int k=0; k<n; k++)
+	  fact *= k+1;
+	return fact;
       }
 
       arma::mat RadialBasis::exponential_confinement(size_t iel, int N, double r_0) const {
 	std::function<double(double)> r_exp = [r_0, N](double r) {
 	  const double r_ratio = r/r_0;
 	  double fact = 1.0;
-
+	  
 	  double V=0.0;
 	  double r_ratio_pow_k = 1.0;
 	  for (int k=0; k<N; k++) {
