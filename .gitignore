@@ -1,2 +1,5 @@
 CMake.system
 objdir/
+LibXcConfig.cmake
+.gitignore
+*~
