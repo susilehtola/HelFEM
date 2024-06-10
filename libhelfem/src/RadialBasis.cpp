@@ -383,6 +383,7 @@ namespace helfem {
 	  }
 	  V += std::exp(r_ratio);
 	  V *= factorial(N);
+	  V *= std::pow(r, 2);
 	  return V;
 	};
 	std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
