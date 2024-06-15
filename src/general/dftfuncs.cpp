@@ -397,7 +397,7 @@ double exact_exchange(int func_id) {
       throw std::runtime_error(oss.str());
     }
 
-#if XC_MAJOR_VERSION < 7
+#if XC_MAJOR_VERSION < 8
     switch(func.info->family)
       {
 #ifdef XC_FAMILY_HYB_LDA
@@ -440,7 +440,7 @@ bool is_supported(int func_id) {
       throw std::runtime_error(oss.str());
     }
     // Get flag
-#if XC_MAJOR_VERSION > 6
+#if XC_MAJOR_VERSION > 7
     switch(xc_hyb_type(&func)) {
     case(XC_HYB_SEMILOCAL):
     case(XC_HYB_HYBRID):
@@ -472,7 +472,7 @@ void is_range_separated(int func_id, bool & erf, bool & yukawa, bool check) {
       throw std::runtime_error(oss.str());
     }
     // Get flag
-#if XC_MAJOR_VERSION < 7
+#if XC_MAJOR_VERSION < 8
     erf=(func.info->flags & XC_FLAGS_HYB_CAM) || (func.info->flags & XC_FLAGS_HYB_LC);
     yukawa=(func.info->flags & XC_FLAGS_HYB_CAMY) || (func.info->flags & XC_FLAGS_HYB_LCY);
 #else
@@ -516,7 +516,7 @@ void range_separation(int func_id, double & omega, double & alpha, double & beta
       throw std::runtime_error(oss.str());
     }
 
-#if XC_MAJOR_VERSION > 6
+#if XC_MAJOR_VERSION > 7
     switch(xc_hyb_type(&func)) {
     case(XC_HYB_SEMILOCAL):
       break;
