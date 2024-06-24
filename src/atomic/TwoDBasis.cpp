@@ -477,6 +477,50 @@ namespace helfem {
         return remove_boundaries(V);
       }
 
+      arma::mat TwoDBasis::confinement(const int N, const double r_0, const int iconf) const {
+        // Full matrix
+        arma::mat O(Ndummy(),Ndummy());
+        O.zeros();
+	if(N==0)
+	  return remove_boundaries(O);
+
+	// Build radial elements
+        size_t Nrad(radial.Nbf());
+        arma::mat Orad(Nrad,Nrad);
+        Orad.zeros();
+
+	if (iconf==1) {
+	  // Loop over elements
+	  for(size_t iel=0;iel<radial.Nel();iel++) {
+	    // Where are we in the matrix?
+	    size_t ifirst, ilast;
+	    radial.get_idx(iel,ifirst,ilast);
+	    Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(N,iel);
+	  }
+	  if(N<0)
+	    Orad *= -std::pow(r_0, -N);
+	  else
+	    Orad *= std::pow(r_0, -N);
+
+	} else if (iconf==2) {
+	  // Loop over elements
+	  for(size_t iel=0;iel<radial.Nel();iel++) {
+	    // Where are we in the matrix?
+	    size_t ifirst, ilast;
+	    radial.get_idx(iel,ifirst,ilast);
+	    // r_0 is handled by other routine
+	    Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.exponential_confinement(iel, N, r_0);
+	  }
+	}
+	else throw std::logic_error("Case not implemented!\n");
+
+        // Fill elements
+        for(size_t iang=0;iang<lval.n_elem;iang++)
+          set_sub(O,iang,iang,Orad);
+
+        return remove_boundaries(O);
+      }
+
       arma::mat TwoDBasis::dipole_z() const {
         // Build radial elements
         size_t Nrad(radial.Nbf());
