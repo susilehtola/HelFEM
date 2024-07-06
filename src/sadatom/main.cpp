@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
   parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
-  parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.0015);
+  parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.001);
   parser.add<bool>("completeness", 0, "Compute completeness and importance profiles?", false, false);
   parser.parse_check(argc, argv);
 /*
