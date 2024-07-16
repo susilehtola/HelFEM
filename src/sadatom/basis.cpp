@@ -882,10 +882,10 @@ namespace helfem {
         return electron_density(radial.get_xq(), iel, Prad, rsqweight);
       }
 
-      arma::vec TwoDBasis::electron_density(const arma::mat & Prad) const {
+      arma::vec TwoDBasis::electron_density(const arma::mat & Prad, bool rsqweight) const {
         std::vector<arma::vec> d(radial.Nel());
         for(size_t iel=0;iel<radial.Nel();iel++) {
-          d[iel]=electron_density(iel, Prad);
+          d[iel]=electron_density(iel, Prad, rsqweight);
         }
         size_t Npts=d[0].n_elem;
 
@@ -899,11 +899,10 @@ namespace helfem {
         return n;
       }
 
-      double TwoDBasis::electron_density_maximum(const arma::mat & Prad, double eps) const {
+      double TwoDBasis::electron_density_maximum(const arma::mat & Prad, bool rsqweight, double eps) const {
         // Evaluate the density in each quadrature point and take
         // their maximum
         arma::vec den(radial.Nel());
-        bool rsqweight = true;
 
         for(size_t iel=0;iel<radial.Nel();iel++) {
           den(iel)=arma::max(electron_density(iel, Prad, rsqweight));
@@ -967,28 +966,31 @@ namespace helfem {
         return rmax;
       }
 
-      double TwoDBasis::vdw_radius(const arma::mat & Prad, double thr, double eps) const {
+      double TwoDBasis::vdw_radius(const arma::mat & Prad, bool rsqweight, double vdw_threshold, double eps) const {
         // Need to multiply output of electron_density by this factor to get the point-wise density
         double angfac=1.0/(4.0*M_PI);
 
         // Evaluate the density in each quadrature point and take
         // their maximum
-        bool rsqweight = false;
         size_t iel;
         for(iel=radial.Nel()-1;iel<radial.Nel();iel--) {
           arma::vec den(angfac*electron_density(iel, Prad, rsqweight));
-          if(arma::max(den)>thr) {
+          if(arma::max(den)>vdw_threshold) {
             // We found the element
             break;
           }
         }
+        if(iel>radial.Nel()) {
+          // No point of density is above threshold!
+          return 0.0;
+        }
 
-        // Now find the position in the element where the density is = eps.
-        // Evaluate the difference in density from eps.
+        // Now find the position in the element where the density is = vdw_threshold.
+        // Evaluate the difference in density from the threshold value.
         // Quadrature points
         arma::vec xq = radial.get_xq();
         arma::vec diff = angfac*electron_density(xq, iel, Prad, rsqweight);
-        diff-=thr*arma::ones<arma::vec>(diff.n_elem);
+        diff-=vdw_threshold*arma::ones<arma::vec>(diff.n_elem);
         diff=arma::abs(diff);
 
         // Find the smallest value
@@ -1014,14 +1016,21 @@ namespace helfem {
           }
 
           // Bisection
+          size_t ibisect=0;
           while(arma::norm(a-b,"inf")>=eps) {
             arma::vec m = a + (b-a)/2.0;
             double density_m = angfac*arma::as_scalar(electron_density(m, iel, Prad, rsqweight));
+
             if(density_m < eps) {
               b = m;
-            } else {
+            } else if(density_m > eps) {
               a = m;
-            }
+            } else if(density_m == eps)
+              break;
+
+            ibisect++;
+            if(ibisect==100)
+              throw std::runtime_error("bisection did not converge in 100 iterations\n");
           }
           // Coordinate is
           arma::vec cen=((a+b)/2);

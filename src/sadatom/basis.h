@@ -141,12 +141,12 @@ namespace helfem {
         /// Compute the electron density in given element at default quadrature points
         arma::vec electron_density(size_t iel, const arma::mat & Prad, bool rsqweight = false) const;
         /// Compute the electron density in given element at default quadrature points
-        double electron_density_maximum(const arma::mat & Prad, double eps=1e-10) const;
+        double electron_density_maximum(const arma::mat & Prad, bool rsqweight = true, double eps=1e-10) const;
         /// Compute the van der Waals radius, see doi:10.1002/chem.201602949
-        double vdw_radius(const arma::mat & Prad, double thr=0.001, double eps=1e-10) const;
+        double vdw_radius(const arma::mat & Prad, bool rsqweight = false, double thr=0.001, double eps=1e-10) const;
 
         /// Compute the electron density
-        arma::vec electron_density(const arma::mat & Prad) const;
+        arma::vec electron_density(const arma::mat & Prad, bool rsqweight = false) const;
         /// Compute the electron density gradient
         arma::vec electron_density_gradient(const arma::mat & Prad) const;
         /// Compute the electron density laplacian
