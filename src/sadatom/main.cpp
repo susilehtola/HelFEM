@@ -612,8 +612,10 @@ int main(int argc, char **argv) {
     printf("Electron density gradient at the nucleus is % e\n",gnucd);
     printf("Cusp condition is %.10f\n",-1.0/(2*Z)*gnucd/nucd);
 
-    double rvdw(solver.vdw_radius(rconf,vdw_thr));
+    double rvdw(solver.vdw_radius(rconf,vdw_thr,false));
+    double rvdwr2(solver.vdw_radius(rconf,vdw_thr,true));
     printf("\nEstimated vdW radius with density threshold %e is %.2f bohr = %.2f Å\n",vdw_thr,rvdw,rvdw*BOHRINANGSTROM);
+    printf("vdW radius including r^2 factor is %.2f bohr = %.2f Å\n",rvdwr2,rvdwr2*BOHRINANGSTROM);
 
     printf("\nResult in NIST format\n");
     printf("Etot  = % 18.9f\n",rconf.Econf);
@@ -678,7 +680,10 @@ int main(int argc, char **argv) {
     printf("Electron density gradient at the nucleus is % e\n",gnucd);
     printf("Cusp condition is %.10f\n",-1.0/(2*Z)*gnucd/nucd);
 
-    printf("\nEstimated vdW radius with thr=%e is % .3f\n",vdw_thr,solver.vdw_radius(uconf,vdw_thr));
+    double rvdw(solver.vdw_radius(uconf,vdw_thr,false));
+    double rvdwr2(solver.vdw_radius(uconf,vdw_thr,true));
+    printf("\nEstimated vdW radius with density threshold %e is %.2f bohr = %.2f Å\n",vdw_thr,rvdw,rvdw*BOHRINANGSTROM);
+    printf("vdW radius including r^2 factor is %.2f bohr = %.2f Å\n",rvdwr2,rvdwr2*BOHRINANGSTROM);
 
     printf("\nResult in NIST format\n");
     printf("Etot  = % 18.9f\n",uconf.Econf);

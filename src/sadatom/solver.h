@@ -300,9 +300,9 @@ namespace helfem {
         /// Compute the nuclear density gradient
         double nuclear_density_gradient(const uconf_t & conf) const;
         /// Compute the van der Waals radius
-        double vdw_radius(const rconf_t & conf, double thr) const;
+        double vdw_radius(const rconf_t & conf, double thr, bool rsqweight) const;
         /// Compute the nuclear density gradient
-        double vdw_radius(const uconf_t & conf, double thr) const;
+        double vdw_radius(const uconf_t & conf, double thr, bool rsqweight) const;
 
         /// Compute the GTO completeness profile
         void gto_completeness_profile(double minexp=1e-5, double maxexp=1e10, size_t nexp=501) const;
