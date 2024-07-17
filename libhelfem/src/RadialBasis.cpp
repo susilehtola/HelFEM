@@ -54,6 +54,7 @@ namespace helfem {
 
         // Adjust cutoff
         set_small_r_taylor_cutoff();
+
       }
 
       void RadialBasis::set_small_r_taylor_cutoff() {
@@ -357,6 +358,39 @@ namespace helfem {
         return -fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r);
       }
 
+      int factorial(int n) {
+	if (n==0)
+	  return 1;
+	int fact=1;
+	for (int k=0; k<n; k++)
+	  fact *= k+1;
+	return fact;
+      }
+
+      arma::mat RadialBasis::exponential_confinement(size_t iel, int N, double r_0) const {
+	std::function<double(double)> r_exp = [r_0, N](double r) {
+	  const double r_ratio = r/r_0;
+	  double fact = 1.0;
+	  
+	  double V=0.0;
+	  double r_ratio_pow_k = 1.0;
+	  for (int k=0; k<N; k++) {
+	    // r^k / k!
+	    V -= r_ratio_pow_k / fact;
+	    // Prepare values for next iteration
+	    fact *= k+1;
+	    r_ratio_pow_k *= r_ratio;
+	  }
+	  V += std::exp(r_ratio);
+	  V *= factorial(N);
+	  V *= std::pow(r, 2);
+	  return V;
+	};
+	std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
+	radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+	return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r_exp);
+      }
+
       arma::mat RadialBasis::model_potential(const modelpotential::ModelPotential *model,
                                              size_t iel) const {
         std::function<double(double)> modelpot = [model](double r) { return model->V(r); };
@@ -368,7 +402,7 @@ namespace helfem {
           return -sqrt(4.0 * M_PI / (2 * L + 1)) * radial_integral(-L - 1, iel) *
             std::pow(Rhalf, L);
         else if (fem.element_end(iel) >= Rhalf)
-          return -sqrt(4.0 * M_PI / (2 * L + 1)) * radial_integral(L, iel) *
+	  return -sqrt(4.0 * M_PI / (2 * L + 1)) * radial_integral(L, iel) *
             std::pow(Rhalf, -L - 1);
         else {
           throw std::logic_error("Nucleus placed within element!\n");
