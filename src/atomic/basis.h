@@ -34,6 +34,9 @@ namespace helfem {
       /// Form the grid in the general case, using the above routines
       arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf);
 
+      /// Form the grid in case of added boundary due to confinement
+      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf, bool add_el, double r);
+
       /// Constructs an angular basis
       void angular_basis(int lmax, int mmax, arma::ivec & lval, arma::ivec & mval);
     }

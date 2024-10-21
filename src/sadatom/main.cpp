@@ -10,7 +10,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either vbvalrsion 2
  * of the License, or (at your option) any later version.
  */
 #include "../general/cmdline.h"
@@ -137,6 +137,7 @@ int main(int argc, char **argv) {
   parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential", false, 0);
   parser.add<int>("conf_N", 0, "Exponent in polynomial confinement potential", false, 0);
   parser.add<double>("conf_R", 0, "Confinement radius", false, 0.0);
+  parser.add<bool>("add_el", 0, "Add element boundary at confinement radius", false, 0.0);
   parser.parse_check(argc, argv);
 /*
   if(!parser.parse(argc, argv))
@@ -247,13 +248,14 @@ int main(int argc, char **argv) {
       throw std::logic_error("Optimized effective potential is not implemented in the spherically symmetric program.\n");
   }
 
-  // Radial basis
-  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0);
-
   // Confinement parameters
+  bool add_el(parser.get<bool>("add_el"));
   int iconf(parser.get<int>("iconf"));
   double conf_R(parser.get<double>("conf_R"));
   int conf_N(parser.get<int>("conf_N"));
+  
+  // Radial basis
+  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0, add_el, conf_R);
 
   // Initialize solver
   sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder, iconf, conf_N, conf_R);

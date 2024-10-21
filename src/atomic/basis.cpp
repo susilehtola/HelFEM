@@ -10,7 +10,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either vbrsion 2
  * of the License, or (at your option) any later version.
  */
 #include "basis.h"
@@ -117,6 +117,11 @@ namespace helfem {
       }
 
       arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf) {
+	arma::vec bval = form_grid(model, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf, false, 0.0);
+	return bval;
+      }
+      
+      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf, bool add_el, double r) {
         // Construct the radial basis
         arma::vec bval;
         if(model != modelpotential::POINT_NUCLEUS && model != modelpotential::REGULARIZED_NUCLEUS) {
@@ -144,6 +149,23 @@ namespace helfem {
           printf("Normal grid\n");
           bval=atomic::basis::normal_grid(Nelem,Rmax,igrid,zexp);
         }
+
+	if(add_el) {
+	  // Check that r is not in bval
+	  bool in_bval = false;
+	  for (size_t i = 0; i < bval.n_elem; i++)
+	    if (bval(i) == r)
+	      in_bval = true;
+
+	  // Add
+	  if (!in_bval) {
+	    arma::vec newbval(bval.n_elem + 1);
+	    newbval.subvec(0, bval.n_elem - 1) = bval;
+	    newbval(bval.n_elem) = r;
+	    bval = arma::sort(newbval, "ascend");
+	  }
+
+	}
 
         bval.print("Grid");
 
