@@ -468,7 +468,7 @@ int main(int argc, char **argv) {
   arma::mat Vconf(basis.Nbf(),basis.Nbf(),arma::fill::zeros);
   if(conf_N) {
     printf("Computing confinement potential\n");
-    arma::mat Vconf=basis.confinement(conf_N, conf_R, iconf, shift_pot);
+    Vconf=basis.confinement(conf_N, conf_R, iconf, shift_pot);
   }
   chkpt.write("Vconf",Vconf);
   
