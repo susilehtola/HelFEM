@@ -359,11 +359,9 @@ namespace helfem {
       }
 
       int factorial(int n) {
-	if (n==0)
-	  return 1;
 	int fact=1;
-	for (int k=0; k<n; k++)
-	  fact *= k+1;
+	for (int k=2; k<=n; k++)
+	  fact *= k;
 	return fact;
       }
 
