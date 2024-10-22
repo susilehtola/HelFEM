@@ -489,32 +489,13 @@ namespace helfem {
         arma::mat Orad(Nrad,Nrad);
         Orad.zeros();
 
-	// Attractive potential does not make sense for shift_pot != 0
-	if(N<0 and shift_pot != 0.0)
-	  throw std::logic_error("Cannot have a divergent potential with a shift!\n");
-
-	std::function<arma::mat(size_t iel)> confinement;
-
-	double factor = 1.0;
-	if(iconf==1) {
-	  confinement = [this, N, shift_pot](size_t iel) {return radial.polynomial_confinement(iel, N, shift_pot);};
-	  if(N<0)
-	    factor = std::pow(std::abs(r_0), N);
-	  else
-	    factor = std::pow(std::abs(r_0), -N);
-	} else if(iconf==2) {
-	  confinement = [this, N, r_0, shift_pot](size_t iel) {return radial.exponential_confinement(iel, N, r_0, shift_pot);};
-	} else
-	  throw std::logic_error("Case not implemented!\n");
-
 	// Loop over elements
 	for(size_t iel=0;iel<radial.Nel();iel++) {
 	  // Where are we in the matrix?
 	  size_t ifirst, ilast;
 	  radial.get_idx(iel,ifirst,ilast);
-	  Orad.submat(ifirst,ifirst,ilast,ilast)+=confinement(iel);
+	  Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.confinement_potential(iel,N,r_0,iconf,shift_pot);
 	}
-	Orad *= factor;
 
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++)

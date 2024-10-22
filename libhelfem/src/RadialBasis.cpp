@@ -393,6 +393,34 @@ namespace helfem {
 	return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r_exp);
       }
 
+      arma::mat RadialBasis::confinement_potential(size_t iel, int N, double r_0, int iconf, double shift_pot) const {
+	// Attractive potential does not make sense for shift_pot != 0
+
+	// sign of r0 controls if the potential is attractive or repulsive
+	int sign = (r_0<0) ? -1 : 1;
+	r_0 = std::abs(r_0);
+
+	if(iconf==1) {
+	  if(N<0) {
+	    if(shift_pot != 0.0)
+	      throw std::logic_error("Cannot have a divergent potential with a shift!\n");
+	    return sign*std::pow(r_0, N)*polynomial_confinement(iel, N, shift_pot);
+	  } else {
+	    return sign*std::pow(r_0, -N)*polynomial_confinement(iel, N, shift_pot);
+	  }
+
+	} else if(iconf==2) {
+	  if(N<0)
+	    throw std::logic_error("Exponential confinement potential does not make sense with negative N!\n");
+	  if(N==0)
+	    throw std::logic_error("Exponential confinement potential requires N >= 1!");
+
+	  return exponential_confinement(iel, N, r_0, shift_pot);
+	} else
+	  throw std::logic_error("Case not implemented!\n");
+      }
+
+
       arma::mat RadialBasis::model_potential(const modelpotential::ModelPotential *model,
                                              size_t iel) const {
         std::function<double(double)> modelpot = [model](double r) { return model->V(r); };

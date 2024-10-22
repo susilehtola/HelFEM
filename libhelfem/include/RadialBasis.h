@@ -129,6 +129,9 @@ namespace helfem {
 	arma::mat polynomial_confinement(size_t iel, int N, double shift_pot) const;
 	/// Compute exponential confinement potential matrix in element
 	arma::mat exponential_confinement(size_t iel, int N, double r_0, double shift_pot) const;
+	/// Driver for computing confinement potential
+	arma::mat confinement_potential(size_t iel, int N, double r_0, int iconf, double shift_pot) const;
+
         /// Compute model potential matrix in element
         arma::mat model_potential(const modelpotential::ModelPotential *nuc,
                                   size_t iel) const;
