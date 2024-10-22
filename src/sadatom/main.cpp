@@ -134,11 +134,16 @@ int main(int argc, char **argv) {
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.001);
   parser.add<bool>("completeness", 0, "Compute completeness and importance profiles?", false, false);
+  parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential", false, 0);
+  parser.add<int>("conf_N", 0, "Exponent in polynomial confinement potential", false, 0);
+  parser.add<double>("conf_R", 0, "Confinement radius", false, 0.0);
+  parser.add<double>("shift_conf", 0, "Shift confinement potential r -> r - R", false, 0.0);
+  parser.add<bool>("add_conf", 0, "Add element boundary at shifted potential radius R?", false, true);
   parser.parse_check(argc, argv);
-/*
-  if(!parser.parse(argc, argv))
+  /*
+    if(!parser.parse(argc, argv))
     throw std::logic_error("Error parsing arguments!\n");
-*/
+  */
 
   // Get parameters
   double Rmax(parser.get<double>("Rmax"));
@@ -244,11 +249,18 @@ int main(int argc, char **argv) {
       throw std::logic_error("Optimized effective potential is not implemented in the spherically symmetric program.\n");
   }
 
+  // Confinement parameters
+  bool add_conf(parser.get<bool>("add_conf"));
+  int iconf(parser.get<int>("iconf"));
+  double conf_R(parser.get<double>("conf_R"));
+  int conf_N(parser.get<int>("conf_N"));
+  double shift_conf(parser.get<double>("shift_conf"));
+
   // Radial basis
-  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0);
+  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0, add_conf, shift_conf);
 
   // Initialize solver
-  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
+  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder, iconf, conf_N, conf_R, shift_conf);
 
   // Set parameters if necessary
   arma::vec xpars, cpars;
@@ -622,6 +634,7 @@ int main(int argc, char **argv) {
     printf("Ekin  = % 18.9f\n",rconf.Ekin);
     printf("Ecoul = % 18.9f\n",rconf.Ecoul);
     printf("Eenuc = % 18.9f\n",rconf.Epot);
+    printf("Econf = % 18.9f\n",rconf.Econfinement);
     printf("Exc   = % 18.9f\n",rconf.Exc);
     rconf.orbs.Print(solver.Basis());
     (HARTREEINEV*rconf.orbs.GetGap()).t().print("HOMO-LUMO gap (eV)");
@@ -690,6 +703,7 @@ int main(int argc, char **argv) {
     printf("Ekin  = % 18.9f\n",uconf.Ekin);
     printf("Ecoul = % 18.9f\n",uconf.Ecoul);
     printf("Eenuc = % 18.9f\n",uconf.Epot);
+    printf("Econf = % 18.9f\n",uconf.Econfinement);
     printf("Exc   = % 18.9f\n",uconf.Exc);
     printf("Alpha orbitals\n");
     uconf.orbsa.Print(solver.Basis());

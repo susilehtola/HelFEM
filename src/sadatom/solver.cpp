@@ -599,7 +599,9 @@ namespace helfem {
         return lh.Econf < rh.Econf;
       }
 
-      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_) {
+      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_), iconf(0), conf_N(0), conf_R(0.0), shift_pot(0.0) {}
+
+      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_, int iconf_, int conf_N_, double conf_R_, double shift_pot_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_), iconf(iconf_), conf_N(conf_N_), conf_R(conf_R_), shift_pot(shift_pot_) {
 
         // Construct the angular basis
         arma::ivec lval, mval;
@@ -619,8 +621,10 @@ namespace helfem {
         Tl=basis.kinetic_l();
         // Form nuclear attraction energy matrix
         Vnuc=basis.nuclear();
+	// Form confinement potential energy matrix
+	Vconf=basis.confinement(conf_N, conf_R, iconf, shift_pot);
         // Form core Hamiltonian
-        H0=T+Vnuc;
+        H0=T+Vnuc+Vconf;
 
         // Form DFT grid
         grid=helfem::sadatom::dftgrid::DFTGrid(&basis);
@@ -763,6 +767,13 @@ namespace helfem {
           fflush(stdout);
         }
 
+	// Confinement potential energy
+	conf.Econfinement=arma::trace(P*Vconf);
+        if(verbose) {
+          printf("Confinement energy %.10e\n",conf.Econfinement);
+          fflush(stdout);
+        }
+
         // Exchange-correlation
         conf.Exc=0.0;
 
@@ -809,7 +820,7 @@ namespace helfem {
           conf.Fl+=XC;
 
         // Update energy
-        conf.Econf=conf.Ekin+conf.Epot+conf.Ecoul+conf.Exc;
+        conf.Econf=conf.Ekin+conf.Epot+conf.Ecoul+conf.Exc+conf.Econfinement;
 
         return conf.Econf;
       }
@@ -841,6 +852,13 @@ namespace helfem {
         conf.Ecoul=0.5*arma::trace(P*J);
         if(verbose) {
           printf("Coulomb energy %.10e\n",conf.Ecoul);
+          fflush(stdout);
+        }
+
+	// Confinement potential energy
+	conf.Econfinement=arma::trace(P*Vconf);
+	if(verbose) {
+          printf("Confinement energy %.10e\n",conf.Econfinement);
           fflush(stdout);
         }
 
@@ -898,7 +916,7 @@ namespace helfem {
         }
 
         // Update energy
-        conf.Econf=conf.Ekin+conf.Epot+conf.Ecoul+conf.Exc;
+        conf.Econf=conf.Ekin+conf.Epot+conf.Ecoul+conf.Exc+conf.Econfinement;
 
         return conf.Econf;
       }
@@ -1166,6 +1184,7 @@ namespace helfem {
           printf("%-21s energy: % .16f\n","Kinetic",conf.Ekin);
           printf("%-21s energy: % .16f\n","Nuclear attraction",conf.Epot);
           printf("%-21s energy: % .16f\n","Coulomb",conf.Ecoul);
+	  printf("%-21s energy: % .16f\n","Confinement",conf.Econfinement);
           printf("%-21s energy: % .16f\n","Exchange-correlation",conf.Exc);
           printf("%-21s energy: % .16f\n","Total",conf.Econf);
           printf("%-21s energy: % .16f\n","Virial ratio",-conf.Econf/conf.Ekin);
@@ -1272,6 +1291,7 @@ namespace helfem {
           printf("%-21s energy: % .16f\n","Kinetic",conf.Ekin);
           printf("%-21s energy: % .16f\n","Nuclear attraction",conf.Epot);
           printf("%-21s energy: % .16f\n","Coulomb",conf.Ecoul);
+	  printf("%-21s energy: % .16f\n","Confinement",conf.Econfinement);
           printf("%-21s energy: % .16f\n","Exchange-correlation",conf.Exc);
           printf("%-21s energy: % .16f\n","Total",conf.Econf);
           printf("%-21s energy: % .16f\n","Virial ratio",-conf.Econf/conf.Ekin);

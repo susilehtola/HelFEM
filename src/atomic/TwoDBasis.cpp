@@ -477,6 +477,33 @@ namespace helfem {
         return remove_boundaries(V);
       }
 
+      arma::mat TwoDBasis::confinement(const int N, double r_0, const int iconf, const double shift_pot) const {
+        // Full matrix
+        arma::mat O(Ndummy(),Ndummy());
+        O.zeros();
+	if(N==0)
+	  return remove_boundaries(O);
+
+	// Build radial elements
+        size_t Nrad(radial.Nbf());
+        arma::mat Orad(Nrad,Nrad);
+        Orad.zeros();
+
+	// Loop over elements
+	for(size_t iel=0;iel<radial.Nel();iel++) {
+	  // Where are we in the matrix?
+	  size_t ifirst, ilast;
+	  radial.get_idx(iel,ifirst,ilast);
+	  Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.confinement_potential(iel,N,r_0,iconf,shift_pot);
+	}
+
+        // Fill elements
+        for(size_t iang=0;iang<lval.n_elem;iang++)
+          set_sub(O,iang,iang,Orad);
+
+        return remove_boundaries(O);
+      }
+
       arma::mat TwoDBasis::dipole_z() const {
         // Build radial elements
         size_t Nrad(radial.Nbf());

@@ -117,6 +117,10 @@ namespace helfem {
       }
 
       arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf) {
+	return form_grid(model, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf, false, 0.0);
+      }
+
+      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf, bool add_el, double shift_conf) {
         // Construct the radial basis
         arma::vec bval;
         if(model != modelpotential::POINT_NUCLEUS && model != modelpotential::REGULARIZED_NUCLEUS) {
@@ -144,6 +148,23 @@ namespace helfem {
           printf("Normal grid\n");
           bval=atomic::basis::normal_grid(Nelem,Rmax,igrid,zexp);
         }
+
+	if(add_el) {
+	  // Check that r is not in bval
+	  bool in_bval = false;
+	  for (size_t i = 0; i < bval.n_elem; i++)
+	    if (bval(i) == shift_conf)
+	      in_bval = true;
+
+	  // Add
+	  if (!in_bval) {
+	    arma::vec newbval(bval.n_elem + 1);
+	    newbval.subvec(0, bval.n_elem - 1) = bval;
+	    newbval(bval.n_elem) = shift_conf;
+	    bval = arma::sort(newbval, "ascend");
+	  }
+
+	}
 
         bval.print("Grid");
 

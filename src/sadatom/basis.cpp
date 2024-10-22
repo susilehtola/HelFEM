@@ -146,6 +146,24 @@ namespace helfem {
         }
       }
 
+      arma::mat TwoDBasis::confinement(int N, double r_0, int iconf, double shift_pot) const {
+          size_t Nrad(radial.Nbf());
+          arma::mat Vrad(Nrad,Nrad);
+          Vrad.zeros();
+	  if(!N)
+	    return Vrad;
+
+	  // Loop over elements
+	  for(size_t iel=0;iel<radial.Nel();iel++) {
+	    // Where are we in the matrix?
+	    size_t ifirst, ilast;
+	    radial.get_idx(iel,ifirst,ilast);
+	    // r_0 is handled by other routine
+	    Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.confinement_potential(iel, N, r_0, iconf, shift_pot);
+	  }
+	  return Vrad;
+      }
+
       arma::mat TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {
         size_t Nrad(radial.Nbf());
         arma::mat Vrad(Nrad,Nrad);

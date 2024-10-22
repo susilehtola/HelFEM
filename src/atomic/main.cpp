@@ -111,6 +111,10 @@ int main(int argc, char **argv) {
   parser.add<double>("dampthr", 0, "damping threshold", false, 0.1);
   parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
   parser.add<int>("taylor_order", 0, "order of Taylor expansion near the nucleus", false, -1);
+  parser.add<int>("iconf", 0, "type of confinement potential: 1 for polynomial, 2 for exponential", false, 0);
+  parser.add<int>("conf_N", 0, "exponent in confinement potential", false, 0);
+  parser.add<double>("conf_R", 0, "confinement radius", false, 0.0);
+  parser.add<double>("shift_conf", 0, "Shift confinement potential r -> r - R", false, 0.0);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -184,6 +188,11 @@ int main(int argc, char **argv) {
   double dampthr(parser.get<double>("dampthr"));
 
   bool zeroder(parser.get<bool>("zeroder"));
+
+  int conf_N(parser.get<int>("conf_N"));
+  double conf_R(parser.get<double>("conf_R"));
+  int iconf(parser.get<int>("iconf"));
+  double shift_conf(parser.get<double>("shift_conf"));
 
   // Set parameters if necessary
   arma::vec xpars, cpars;
@@ -455,6 +464,14 @@ int main(int argc, char **argv) {
   if(Zl!=0 || Zr !=0)
     printf("Done in %.6f\n",tnuc.get());
 
+  // Confinement potential
+  arma::mat Vconf(basis.Nbf(),basis.Nbf(),arma::fill::zeros);
+  if(conf_N) {
+    printf("Computing confinement potential\n");
+    Vconf=basis.confinement(conf_N, conf_R, iconf, shift_conf);
+  }
+  chkpt.write("Vconf",Vconf);
+
   // Dipole coupling
   arma::mat dip(basis.dipole_z());
   chkpt.write("dip",dip);
@@ -469,7 +486,7 @@ int main(int argc, char **argv) {
   arma::mat Vmag(basis.Bz_field(Bz));
   chkpt.write("Vmag",Vmag);
   // Form Hamiltonian
-  arma::mat H0(T+Vnuc+Vel+Vmag);
+  arma::mat H0(T+Vnuc+Vel+Vmag+Vconf);
   chkpt.write("H0",H0);
 
   printf("One-electron matrices formed in %.6f\n",timer.get());
@@ -546,44 +563,44 @@ int main(int argc, char **argv) {
       default:
         // Project lowest orbitals
         printf("Guess orbitals from previous calculation\n");
-        {
-	  // Projector
-	  arma::mat P((Sinvh*arma::trans(Sinvh))*S12);
+      {
+	// Projector
+	arma::mat P((Sinvh*arma::trans(Sinvh))*S12);
 
-	  // Orbitals
-	  arma::mat C;
+	// Orbitals
+	arma::mat C;
 
-	  // Alpha orbitals
-	  loadchk.read("Ca",C);
-	  // Project onto new basis: C1 = S11^-1 S12 C2
-	  Ca=P*C;
+	// Alpha orbitals
+	loadchk.read("Ca",C);
+	// Project onto new basis: C1 = S11^-1 S12 C2
+	Ca=P*C;
 
-	  // Beta orbitals
-	  loadchk.read("Cb",C);
-	  Cb=P*C;
+	// Beta orbitals
+	loadchk.read("Cb",C);
+	Cb=P*C;
 
-	  // Run Gram-Schmidt to make sure orbitals are orthonormal
-	  for(int ia=0;ia<nela;ia++) {
-	    for(int ja=0;ja<ia;ja++)
-	      Ca.col(ia)-= Ca.col(ja)*(arma::trans(Ca.col(ja))*S*Ca.col(ia));
-	    Ca.col(ia) /= sqrt(arma::as_scalar(arma::trans(Ca.col(ia))*S*Ca.col(ia)));
-	  }
-
-	  for(int ib=0;ib<nelb;ib++) {
-	    for(int jb=0;jb<ib;jb++)
-	      Cb.col(ib) -= Cb.col(jb)*(arma::trans(Cb.col(jb))*S*Cb.col(ib));
-	    Cb.col(ib) /= sqrt(arma::as_scalar(arma::trans(Cb.col(ib))*S*Cb.col(ib)));
-	  }
-
-	  // Read in orbital energies
-	  loadchk.read("Ea",Ea);
-	  if(Ea.n_elem<Ca.n_cols)
-	    Ea=Ea.subvec(0,Ca.n_cols-1);
-	  loadchk.read("Eb",Eb);
-	  if(Eb.n_elem<Cb.n_cols)
-	    Eb=Eb.subvec(0,Cb.n_cols-1);
+	// Run Gram-Schmidt to make sure orbitals are orthonormal
+	for(int ia=0;ia<nela;ia++) {
+	  for(int ja=0;ja<ia;ja++)
+	    Ca.col(ia)-= Ca.col(ja)*(arma::trans(Ca.col(ja))*S*Ca.col(ia));
+	  Ca.col(ia) /= sqrt(arma::as_scalar(arma::trans(Ca.col(ia))*S*Ca.col(ia)));
 	}
-	break;
+
+	for(int ib=0;ib<nelb;ib++) {
+	  for(int jb=0;jb<ib;jb++)
+	    Cb.col(ib) -= Cb.col(jb)*(arma::trans(Cb.col(jb))*S*Cb.col(ib));
+	  Cb.col(ib) /= sqrt(arma::as_scalar(arma::trans(Cb.col(ib))*S*Cb.col(ib)));
+	}
+
+	// Read in orbital energies
+	loadchk.read("Ea",Ea);
+	if(Ea.n_elem<Ca.n_cols)
+	  Ea=Ea.subvec(0,Ca.n_cols-1);
+	loadchk.read("Eb",Eb);
+	if(Eb.n_elem<Cb.n_cols)
+	  Eb=Eb.subvec(0,Cb.n_cols-1);
+      }
+      break;
       }
     } else {
       modelpotential::ModelPotential * model;
@@ -690,7 +707,7 @@ int main(int argc, char **argv) {
     basis.compute_erfc(omega);
   printf("Done in %.6f\n",timer.get());
 
-  double Ekin=0.0, Epot=0.0, Ecoul=0.0, Exx=0.0, Exc=0.0, Eefield=0.0, Emfield=0.0, Etot=0.0;
+  double Ekin=0.0, Epot=0.0, Ecoul=0.0, Exx=0.0, Exc=0.0, Eefield=0.0, Emfield=0.0, Econf=0.0, Etot=0.0;
   double Eold=0.0;
 
   bool usediis=true, useadiis=true, diiscomb=false;
@@ -723,6 +740,7 @@ int main(int argc, char **argv) {
     Epot=arma::trace(P*Vnuc);
     Eefield=arma::trace(P*Vel);
     Emfield=arma::trace(P*Vmag)-Bz/2.0*(nela-nelb);
+    Econf=arma::trace(P*Vconf);
 
     // Form Coulomb matrix
     timer.set();
@@ -832,7 +850,7 @@ int main(int argc, char **argv) {
     chkpt.write("Fb",Fb);
 
     // Update energy
-    Etot=Ekin+Epot+Eefield+Emfield+Ecoul+Exx+Exc+Enucr;
+    Etot=Ekin+Epot+Eefield+Emfield+Ecoul+Exx+Exc+Enucr+Econf;
     double dE=Etot-Eold;
 
     printf("Total energy is % .10f\n",Etot);
@@ -982,6 +1000,7 @@ int main(int argc, char **argv) {
   printf("%-21s energy: % .16f\n","Exchange-correlation",Exc);
   printf("%-21s energy: % .16f\n","Electric field",Eefield);
   printf("%-21s energy: % .16f\n","Magnetic field",Emfield);
+  printf("%-21s energy: % .16f\n", "Confinement potential",Econf);
   printf("%-21s energy: % .16f\n","Total",Etot);
   printf("%-21s energy: % .16f\n","Virial ratio",-Etot/Ekin);
 
