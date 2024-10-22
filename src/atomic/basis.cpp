@@ -121,7 +121,7 @@ namespace helfem {
 	return bval;
       }
       
-      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf, bool add_el, double r) {
+      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf, bool add_el, double shift_conf) {
         // Construct the radial basis
         arma::vec bval;
         if(model != modelpotential::POINT_NUCLEUS && model != modelpotential::REGULARIZED_NUCLEUS) {
@@ -154,14 +154,14 @@ namespace helfem {
 	  // Check that r is not in bval
 	  bool in_bval = false;
 	  for (size_t i = 0; i < bval.n_elem; i++)
-	    if (bval(i) == r)
+	    if (bval(i) == shift_conf)
 	      in_bval = true;
 
 	  // Add
 	  if (!in_bval) {
 	    arma::vec newbval(bval.n_elem + 1);
 	    newbval.subvec(0, bval.n_elem - 1) = bval;
-	    newbval(bval.n_elem) = r;
+	    newbval(bval.n_elem) = shift_conf;
 	    bval = arma::sort(newbval, "ascend");
 	  }
 

@@ -137,8 +137,8 @@ int main(int argc, char **argv) {
   parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential", false, 0);
   parser.add<int>("conf_N", 0, "Exponent in polynomial confinement potential", false, 0);
   parser.add<double>("conf_R", 0, "Confinement radius", false, 0.0);
-  parser.add<bool>("add_el", 0, "Add element boundary at confinement radius", false, 0.0);
-  parser.add<double>("shift_pot", 0, "Shift confinement potential r -> r - R", false, 0.0);
+  parser.add<double>("shift_conf", 0, "Shift confinement potential r -> r - R", false, 0.0);
+  parser.add<bool>("add_conf", 0, "Add element boundary at shifted potential radius R?", false, true);
   parser.parse_check(argc, argv);
 /*
   if(!parser.parse(argc, argv))
@@ -250,17 +250,17 @@ int main(int argc, char **argv) {
   }
 
   // Confinement parameters
-  bool add_el(parser.get<bool>("add_el"));
+  bool add_conf(parser.get<bool>("add_conf"));
   int iconf(parser.get<int>("iconf"));
   double conf_R(parser.get<double>("conf_R"));
   int conf_N(parser.get<int>("conf_N"));
-  double shift_pot(parser.get<double>("shift_pot"));
+  double shift_conf(parser.get<double>("shift_conf"));
   
   // Radial basis
-  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0, add_el, shift_pot);
+  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0, add_conf, shift_conf);
 
   // Initialize solver
-  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder, iconf, conf_N, conf_R, shift_pot);
+  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder, iconf, conf_N, conf_R, shift_conf);
 
   // Set parameters if necessary
   arma::vec xpars, cpars;
