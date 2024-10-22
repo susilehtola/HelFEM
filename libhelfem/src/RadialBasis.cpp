@@ -373,8 +373,7 @@ namespace helfem {
 	    return 0.0;
 	  return std::pow(r-shift_pot,N+2);
 	};
-	std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
-        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+	std::function<arma::mat(const arma::vec &,size_t)> radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
         return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rpow);
       }
       
