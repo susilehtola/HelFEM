@@ -114,6 +114,7 @@ int main(int argc, char **argv) {
   parser.add<int>("iconf", 0, "type of confinement potential: 1 for polynomial, 2 for exponential", false, 0);
   parser.add<int>("conf_N", 0, "exponent in confinement potential", false, 0);
   parser.add<double>("conf_R", 0, "confinement radius", false, 0.0);
+  parser.add<double>("shift_pot", 0, "Shift confinement potential r -> r - R", false, 0.0);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -191,6 +192,7 @@ int main(int argc, char **argv) {
   int conf_N(parser.get<int>("conf_N"));
   double conf_R(parser.get<double>("conf_R"));
   int iconf(parser.get<int>("iconf"));
+  double shift_pot(parser.get<double>("shift_pot"));
 
   // Set parameters if necessary
   arma::vec xpars, cpars;
@@ -466,7 +468,7 @@ int main(int argc, char **argv) {
   arma::mat Vconf(basis.Nbf(),basis.Nbf(),arma::fill::zeros);
   if(conf_N) {
     printf("Computing confinement potential\n");
-    arma::mat Vconf=basis.confinement(conf_N, conf_R, iconf);
+    arma::mat Vconf=basis.confinement(conf_N, conf_R, iconf, shift_pot);
   }
   chkpt.write("Vconf",Vconf);
   

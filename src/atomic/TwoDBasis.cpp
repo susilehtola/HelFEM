@@ -477,7 +477,7 @@ namespace helfem {
         return remove_boundaries(V);
       }
 
-      arma::mat TwoDBasis::confinement(const int N, const double r_0, const int iconf) const {
+      arma::mat TwoDBasis::confinement(const int N, const double r_0, const int iconf, const double shift_pot) const {
         // Full matrix
         arma::mat O(Ndummy(),Ndummy());
         O.zeros();
@@ -495,7 +495,7 @@ namespace helfem {
 	    // Where are we in the matrix?
 	    size_t ifirst, ilast;
 	    radial.get_idx(iel,ifirst,ilast);
-	    Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(N,iel);
+	    Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.polynomial_confinement(iel, N, shift_pot);
 	  }
 	  if(N<0)
 	    Orad *= -std::pow(r_0, -N);
@@ -509,7 +509,7 @@ namespace helfem {
 	    size_t ifirst, ilast;
 	    radial.get_idx(iel,ifirst,ilast);
 	    // r_0 is handled by other routine
-	    Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.exponential_confinement(iel, N, r_0);
+	    Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.exponential_confinement(iel, N, r_0, shift_pot);
 	  }
 	}
 	else throw std::logic_error("Case not implemented!\n");

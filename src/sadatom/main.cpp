@@ -138,6 +138,7 @@ int main(int argc, char **argv) {
   parser.add<int>("conf_N", 0, "Exponent in polynomial confinement potential", false, 0);
   parser.add<double>("conf_R", 0, "Confinement radius", false, 0.0);
   parser.add<bool>("add_el", 0, "Add element boundary at confinement radius", false, 0.0);
+  parser.add<double>("shift_pot", 0, "Shift confinement potential r -> r - R", false, 0.0);
   parser.parse_check(argc, argv);
 /*
   if(!parser.parse(argc, argv))
@@ -253,12 +254,13 @@ int main(int argc, char **argv) {
   int iconf(parser.get<int>("iconf"));
   double conf_R(parser.get<double>("conf_R"));
   int conf_N(parser.get<int>("conf_N"));
+  double shift_pot(parser.get<double>("shift_pot"));
   
   // Radial basis
-  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0, add_el, conf_R);
+  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0, add_el, shift_pot);
 
   // Initialize solver
-  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder, iconf, conf_N, conf_R);
+  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder, iconf, conf_N, conf_R, shift_pot);
 
   // Set parameters if necessary
   arma::vec xpars, cpars;

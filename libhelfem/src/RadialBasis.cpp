@@ -367,9 +367,22 @@ namespace helfem {
 	return fact;
       }
 
-      arma::mat RadialBasis::exponential_confinement(size_t iel, int N, double r_0) const {
-	std::function<double(double)> r_exp = [r_0, N](double r) {
-	  const double r_ratio = r/r_0;
+      arma::mat RadialBasis::polynomial_confinement(size_t iel, int N, double shift_pot) const {
+	std::function<double(double)> rpow = [N, shift_pot](double r){
+	  if(r<shift_pot)
+	    return 0.0;
+	  return std::pow(r-shift_pot,N+2);
+	};
+	std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
+        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+        return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rpow);
+      }
+      
+      arma::mat RadialBasis::exponential_confinement(size_t iel, int N, double r_0, double shift_pot) const {
+	std::function<double(double)> r_exp = [r_0, N, shift_pot](double r) {
+	  if(r<shift_pot)
+	    return 0.0;
+      	  const double r_ratio = (r-shift_pot)/r_0;
 	  double fact = 1.0;
 	  
 	  double V=0.0;

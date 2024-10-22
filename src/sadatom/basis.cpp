@@ -146,7 +146,7 @@ namespace helfem {
         }
       }
 
-      arma::mat TwoDBasis::confinement(int N, double r_0, int iconf) const {
+      arma::mat TwoDBasis::confinement(int N, double r_0, int iconf, double shift_pot) const {
           size_t Nrad(radial.Nbf());
           arma::mat Vrad(Nrad,Nrad);
           Vrad.zeros();
@@ -159,7 +159,7 @@ namespace helfem {
 	      // Where are we in the matrix?
 	      size_t ifirst, ilast;
 	      radial.get_idx(iel,ifirst,ilast);
-	      Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(N,iel);
+	      Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.polynomial_confinement(iel, N, shift_pot);
 	    }
 	    if(N<0)
 	      return -Vrad * std::pow(r_0, -N);
@@ -172,7 +172,7 @@ namespace helfem {
 	      size_t ifirst, ilast;
 	      radial.get_idx(iel,ifirst,ilast);
 	      // r_0 is handled by other routine
-	      Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.exponential_confinement(iel, N, r_0);
+	      Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.exponential_confinement(iel, N, r_0, shift_pot);
 	    }
 	    return Vrad;
 	  }
