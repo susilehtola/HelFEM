@@ -412,7 +412,7 @@ namespace helfem {
           return -sqrt(4.0 * M_PI / (2 * L + 1)) * radial_integral(-L - 1, iel) *
             std::pow(Rhalf, L);
         else if (fem.element_end(iel) >= Rhalf)
-	  return -sqrt(4.0 * M_PI / (2 * L + 1)) * radial_integral(L, iel) *
+          return -sqrt(4.0 * M_PI / (2 * L + 1)) * radial_integral(L, iel) *
             std::pow(Rhalf, -L - 1);
         else {
           throw std::logic_error("Nucleus placed within element!\n");
