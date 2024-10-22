@@ -54,7 +54,6 @@ namespace helfem {
 
         // Adjust cutoff
         set_small_r_taylor_cutoff();
-
       }
 
       void RadialBasis::set_small_r_taylor_cutoff() {
@@ -127,7 +126,7 @@ namespace helfem {
         printf("\nAnalytic vs Taylor\n");
         printf("%4s %22s %22s %22s %22s %22s %22s\n","ifun","bfanal","bftayl","dfanal","dftayl","lfanal","lftayl");
         for(size_t ifun=0;ifun<bf0.n_cols;ifun++)
-          printf("%4i % .15e % .15e % .15e % .15e % .15e % .15e\n",ifun, bf0(icut,ifun), bft(icut,ifun), df0(icut,ifun), dft(icut,ifun), lf0(icut,ifun), lft(icut,ifun));
+	printf("%4i % .15e % .15e % .15e % .15e % .15e % .15e\n",ifun, bf0(icut,ifun), bft(icut,ifun), df0(icut,ifun), dft(icut,ifun), lf0(icut,ifun), lft(icut,ifun));
         diffs.row(icut).print("Relative differences at cutoff");
         */
         //diffs.save("taylor_diff.dat", arma::raw_ascii);
@@ -358,13 +357,6 @@ namespace helfem {
         return -fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r);
       }
 
-      int factorial(int n) {
-	int fact=1;
-	for (int k=2; k<=n; k++)
-	  fact *= k;
-	return fact;
-      }
-
       arma::mat RadialBasis::polynomial_confinement(size_t iel, int N, double shift_pot) const {
 	std::function<double(double)> rpow = [N, shift_pot](double r){
 	  if(r<shift_pot)
@@ -374,14 +366,14 @@ namespace helfem {
 	std::function<arma::mat(const arma::vec &,size_t)> radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
         return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rpow);
       }
-      
+
       arma::mat RadialBasis::exponential_confinement(size_t iel, int N, double r_0, double shift_pot) const {
 	std::function<double(double)> r_exp = [r_0, N, shift_pot](double r) {
 	  if(r<shift_pot)
 	    return 0.0;
-      	  const double r_ratio = (r-shift_pot)/r_0;
+	  const double r_ratio = (r-shift_pot)/r_0;
 	  double fact = 1.0;
-	  
+
 	  double V=0.0;
 	  double r_ratio_pow_k = 1.0;
 	  for (int k=0; k<N; k++) {
@@ -392,7 +384,7 @@ namespace helfem {
 	    r_ratio_pow_k *= r_ratio;
 	  }
 	  V += std::exp(r_ratio);
-	  V *= factorial(N);
+	  V *= fact;
 	  V *= std::pow(r, 2);
 	  return V;
 	};
@@ -527,11 +519,11 @@ namespace helfem {
         //= B'(0) + 1/2 B''(0) r + 1/6 B'''(0) r^2 + ...
 
         /*
-        if(taylor_order<3 || taylor_order>9) {
+	  if(taylor_order<3 || taylor_order>9) {
           std::ostringstream oss;
           oss << "Got taylor_order = " << taylor_order << ". Taylor expansion order needs to be 3 <= taylor_order <= 9.\n";
           throw std::logic_error(oss.str());
-        }
+	  }
         */
 
         // Coefficients of the various derivatives in the expansion of

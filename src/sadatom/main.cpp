@@ -140,10 +140,10 @@ int main(int argc, char **argv) {
   parser.add<double>("shift_conf", 0, "Shift confinement potential r -> r - R", false, 0.0);
   parser.add<bool>("add_conf", 0, "Add element boundary at shifted potential radius R?", false, true);
   parser.parse_check(argc, argv);
-/*
-  if(!parser.parse(argc, argv))
+  /*
+    if(!parser.parse(argc, argv))
     throw std::logic_error("Error parsing arguments!\n");
-*/
+  */
 
   // Get parameters
   double Rmax(parser.get<double>("Rmax"));
@@ -255,7 +255,7 @@ int main(int argc, char **argv) {
   double conf_R(parser.get<double>("conf_R"));
   int conf_N(parser.get<int>("conf_N"));
   double shift_conf(parser.get<double>("shift_conf"));
-  
+
   // Radial basis
   arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0, add_conf, shift_conf);
 

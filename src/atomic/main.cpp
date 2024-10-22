@@ -471,7 +471,7 @@ int main(int argc, char **argv) {
     Vconf=basis.confinement(conf_N, conf_R, iconf, shift_pot);
   }
   chkpt.write("Vconf",Vconf);
-  
+
   // Dipole coupling
   arma::mat dip(basis.dipole_z());
   chkpt.write("dip",dip);
@@ -563,44 +563,44 @@ int main(int argc, char **argv) {
       default:
         // Project lowest orbitals
         printf("Guess orbitals from previous calculation\n");
-        {
-	  // Projector
-	  arma::mat P((Sinvh*arma::trans(Sinvh))*S12);
+      {
+	// Projector
+	arma::mat P((Sinvh*arma::trans(Sinvh))*S12);
 
-	  // Orbitals
-	  arma::mat C;
+	// Orbitals
+	arma::mat C;
 
-	  // Alpha orbitals
-	  loadchk.read("Ca",C);
-	  // Project onto new basis: C1 = S11^-1 S12 C2
-	  Ca=P*C;
+	// Alpha orbitals
+	loadchk.read("Ca",C);
+	// Project onto new basis: C1 = S11^-1 S12 C2
+	Ca=P*C;
 
-	  // Beta orbitals
-	  loadchk.read("Cb",C);
-	  Cb=P*C;
+	// Beta orbitals
+	loadchk.read("Cb",C);
+	Cb=P*C;
 
-	  // Run Gram-Schmidt to make sure orbitals are orthonormal
-	  for(int ia=0;ia<nela;ia++) {
-	    for(int ja=0;ja<ia;ja++)
-	      Ca.col(ia)-= Ca.col(ja)*(arma::trans(Ca.col(ja))*S*Ca.col(ia));
-	    Ca.col(ia) /= sqrt(arma::as_scalar(arma::trans(Ca.col(ia))*S*Ca.col(ia)));
-	  }
-
-	  for(int ib=0;ib<nelb;ib++) {
-	    for(int jb=0;jb<ib;jb++)
-	      Cb.col(ib) -= Cb.col(jb)*(arma::trans(Cb.col(jb))*S*Cb.col(ib));
-	    Cb.col(ib) /= sqrt(arma::as_scalar(arma::trans(Cb.col(ib))*S*Cb.col(ib)));
-	  }
-
-	  // Read in orbital energies
-	  loadchk.read("Ea",Ea);
-	  if(Ea.n_elem<Ca.n_cols)
-	    Ea=Ea.subvec(0,Ca.n_cols-1);
-	  loadchk.read("Eb",Eb);
-	  if(Eb.n_elem<Cb.n_cols)
-	    Eb=Eb.subvec(0,Cb.n_cols-1);
+	// Run Gram-Schmidt to make sure orbitals are orthonormal
+	for(int ia=0;ia<nela;ia++) {
+	  for(int ja=0;ja<ia;ja++)
+	    Ca.col(ia)-= Ca.col(ja)*(arma::trans(Ca.col(ja))*S*Ca.col(ia));
+	  Ca.col(ia) /= sqrt(arma::as_scalar(arma::trans(Ca.col(ia))*S*Ca.col(ia)));
 	}
-	break;
+
+	for(int ib=0;ib<nelb;ib++) {
+	  for(int jb=0;jb<ib;jb++)
+	    Cb.col(ib) -= Cb.col(jb)*(arma::trans(Cb.col(jb))*S*Cb.col(ib));
+	  Cb.col(ib) /= sqrt(arma::as_scalar(arma::trans(Cb.col(ib))*S*Cb.col(ib)));
+	}
+
+	// Read in orbital energies
+	loadchk.read("Ea",Ea);
+	if(Ea.n_elem<Ca.n_cols)
+	  Ea=Ea.subvec(0,Ca.n_cols-1);
+	loadchk.read("Eb",Eb);
+	if(Eb.n_elem<Cb.n_cols)
+	  Eb=Eb.subvec(0,Cb.n_cols-1);
+      }
+      break;
       }
     } else {
       modelpotential::ModelPotential * model;
