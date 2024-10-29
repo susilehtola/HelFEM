@@ -204,6 +204,11 @@ namespace helfem {
       return element_midpoint(iel) * arma::ones<arma::vec>(x.n_elem) + scaling_factor(iel) * x;
     }
 
+    double FiniteElementBasis::eval_coord(double x, size_t iel) const {
+      // The coordinates are
+      return element_midpoint(iel) + scaling_factor(iel) * x;
+    }
+
     arma::vec FiniteElementBasis::eval_coord(const arma::vec & x) const {
       arma::vec r(get_nelem()*x.n_elem);
       for(size_t iel=0;iel<get_nelem();iel++)
@@ -378,11 +383,15 @@ namespace helfem {
       return matrix_element(iel, eval_lh, eval_rh, xq, wq, f);
     }
 
-    arma::mat FiniteElementBasis::matrix_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
+    arma::mat FiniteElementBasis::matrix_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f, double x_left, double x_right) const {
+
+      // todo: figure out how to transform xq from [-1,1] to [x_left, x_right] and the same transformation for wq
+      arma::vec x_shifted((x_right-x_left)/2.0*xq + (x_right+x_left)/2.0*arma::ones<arma::vec>(xq.n_elem));
+
       // Get coordinate values
-      arma::vec r(eval_coord(xq, iel));
+      arma::vec r(eval_coord(x_shifted, iel));
       // Calculate total weight per point
-      arma::vec wp(wq*scaling_factor(iel));
+      arma::vec wp(wq*scaling_factor(iel)*(x_right-x_left)/2.0);
       // Include the function
       if(f) {
           for(size_t i=0; i<wp.n_elem; i++)
@@ -392,10 +401,10 @@ namespace helfem {
       // Evaluate basis functions
       if(!eval_lh)
         throw std::logic_error("Need function for evaluating left-hand basis functions!\n");
-      arma::mat lhbf = eval_lh(xq, iel);
+      arma::mat lhbf = eval_lh(x_shifted, iel);
       if(!eval_rh)
         throw std::logic_error("Need function for evaluating right-hand basis functions!\n");
-      arma::mat rhbf = eval_rh(xq, iel);
+      arma::mat rhbf = eval_rh(x_shifted, iel);
 
       // Include weight in the lh operand
       for(size_t i=0;i<lhbf.n_cols;i++)

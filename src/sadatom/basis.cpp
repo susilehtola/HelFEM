@@ -917,7 +917,7 @@ namespace helfem {
         return n;
       }
 
-      double TwoDBasis::electron_density_maximum(const arma::mat & Prad, bool rsqweight, double eps) const {
+      double TwoDBasis::electron_density_maximum_radius(const arma::mat & Prad, bool rsqweight, double eps) const {
         // Evaluate the density in each quadrature point and take
         // their maximum
         arma::vec den(radial.Nel());
@@ -984,9 +984,10 @@ namespace helfem {
         return rmax;
       }
 
-      double TwoDBasis::vdw_radius(const arma::mat & Prad, bool rsqweight, double vdw_threshold, double eps) const {
+      double TwoDBasis::vdw_radius(const arma::mat & Prad, double vdw_threshold, double eps) const {
         // Need to multiply output of electron_density by this factor to get the point-wise density
         double angfac=1.0/(4.0*M_PI);
+	bool rsqweight=false;
 
         // Evaluate the density in each quadrature point and take
         // their maximum
@@ -1057,6 +1058,55 @@ namespace helfem {
         }
 
         return rvdw;
+      }
+
+      double TwoDBasis::electron_count_radius(const arma::mat & Prad, const double eps, const double conv_thr) const {
+	// Vector with electron density contributions from each element
+	std::vector<double> densities(radial.Nel());
+	for(size_t iel=0;iel<radial.Nel();iel++) {
+	  // Radial functions in element
+	  size_t ifirst, ilast;
+	  radial.get_idx(iel,ifirst,ilast);
+	  // Density matrix
+	  arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
+	  // Overlap matrix
+	  arma::mat S(radial.overlap(iel));
+	  densities[iel]=arma::trace(Psub*S);
+	}
+
+	// Search for the correct element
+	double s_left=eps;
+	size_t ielement;
+	for(ielement=radial.Nel()-1;ielement<radial.Nel();ielement--) {
+	  if(s_left>densities[ielement])
+	    s_left-=densities[ielement];
+	  else
+	    break;
+	}
+
+	// Radial functions in element
+	size_t ifirst, ilast;
+	radial.get_idx(ielement,ifirst,ilast);
+	// Density matrix within the element
+	arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
+
+	// Search for the radius within element
+	double result;
+	// Element limits
+	double a=-1.0, b=1.0;
+	double m=a+(b-a)/2.0;
+	while(b-a>=conv_thr) {
+	  m=a+(b-a)/2.0;
+	  result=arma::trace(Psub*radial.radial_integral(0,ielement,m,1.0));
+	  if(result<s_left)
+	    b=m;
+	  else if(result>s_left)
+	    a=m;
+	  else
+	    break;
+	}
+
+	return arma::as_scalar(radial.get_r(m, ielement));
       }
 
       arma::vec TwoDBasis::electron_density_gradient(const arma::mat & Prad) const {

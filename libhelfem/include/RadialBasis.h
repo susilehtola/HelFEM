@@ -100,7 +100,7 @@ namespace helfem {
                                   size_t iel) const;
         /// Compute radial matrix elements <r^n> in element (overlap is n=0,
         /// nuclear is n=-1)
-        arma::mat radial_integral(int n, size_t iel) const;
+        arma::mat radial_integral(int n, size_t iel, double x_left = -1.0, double x_right = 1.0) const;
 
         /// Compute Bessel i_L integral
         arma::mat bessel_il_integral(int L, double lambda, size_t iel) const;
@@ -184,6 +184,8 @@ namespace helfem {
         arma::vec get_r(size_t iel) const;
         /// Get r values
         arma::vec get_r(const arma::vec & x, size_t iel) const;
+	/// Get r value
+        double get_r(double x, size_t iel) const;
 
         /// Evaluate nuclear density
         double nuclear_density(const arma::mat &P) const;

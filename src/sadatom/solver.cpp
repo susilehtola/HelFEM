@@ -181,7 +181,7 @@ namespace helfem {
           }
 
           // Electron density maximum
-          printf(" %e\n",basis.electron_density_maximum(P));
+          printf(" %e\n",basis.electron_density_maximum_radius(P));
         }
       }
 
@@ -1595,12 +1595,20 @@ namespace helfem {
         return basis.nuclear_density_gradient(TotalDensity(conf.Pal+conf.Pbl));
       }
 
-      double SCFSolver::vdw_radius(const rconf_t & conf, double thr, bool rsqweight) const {
-        return basis.vdw_radius(TotalDensity(conf.Pl), rsqweight, thr);
+      double SCFSolver::vdw_radius(const rconf_t & conf, double thr) const {
+        return basis.vdw_radius(TotalDensity(conf.Pl), thr);
       }
 
-      double SCFSolver::vdw_radius(const uconf_t & conf, double thr, bool rsqweight) const {
-        return basis.vdw_radius(TotalDensity(conf.Pal+conf.Pbl), rsqweight, thr);
+      double SCFSolver::vdw_radius(const uconf_t & conf, double thr) const {
+        return basis.vdw_radius(TotalDensity(conf.Pal+conf.Pbl), thr);
+      }
+
+      double SCFSolver::electron_count_radius(const rconf_t & conf, const double eps) const {
+        return basis.electron_count_radius(TotalDensity(conf.Pl), eps);
+      }
+
+      double SCFSolver::electron_count_radius(const uconf_t & conf, const double eps) const {
+        return basis.electron_count_radius(TotalDensity(conf.Pal+conf.Pbl), eps);
       }
     }
   }
