@@ -186,11 +186,12 @@ namespace helfem {
         return taylor_diff;
       }
 
-      arma::mat RadialBasis::radial_integral(int Rexp, size_t iel) const {
+
+      arma::mat RadialBasis::radial_integral(int Rexp, size_t iel, double x_left, double x_right) const {
         std::function<double(double)> rpowL = [Rexp](double r){return std::pow(r,Rexp+2);};
         std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
         radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-        arma::mat ret(fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rpowL));
+        arma::mat ret(fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rpowL, x_left, x_right));
         if(ret.has_nan()) {
           printf("radial_integral(%i,%i) has NaN!\n",Rexp,(int) iel);
         }
@@ -709,6 +710,10 @@ namespace helfem {
       }
 
       arma::vec RadialBasis::get_r(const arma::vec & x, size_t iel) const {
+        return fem.eval_coord(x, iel);
+      }
+
+      double RadialBasis::get_r(double x, size_t iel) const {
         return fem.eval_coord(x, iel);
       }
 

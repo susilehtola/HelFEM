@@ -95,6 +95,8 @@ namespace helfem {
 
       /// Evaluate real coordinate values from primitive coordinates
       arma::vec eval_coord(const arma::vec & xprim, size_t iel) const;
+      /// Evaluate real coordinate values from primitive coordinates
+      double eval_coord(double xprim, size_t iel) const;
       /// Evaluate full set of coordinate valuess from primitive coordinates
       arma::vec eval_coord(const arma::vec & xq) const;
 
@@ -188,7 +190,8 @@ namespace helfem {
        */
       arma::mat matrix_element(const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
       /// The driver function
-      arma::mat matrix_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      arma::mat matrix_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f, double x_left = -1.0, double x_right = 1.0) const;
+
 
       /**
        * Compute vector elements in the finite element basis <bf|f>

@@ -133,6 +133,7 @@ int main(int argc, char **argv) {
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.001);
+  parser.add<double>("eps_el", 0, "Density threshold for atomic size with electron density inclusion", false, 0.078130238); // PBE0 H atom gives same radius as vdW routine with 1e-3 threshold, as defined by Rahm 2016
   parser.add<bool>("completeness", 0, "Compute completeness and importance profiles?", false, false);
   parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential", false, 0);
   parser.add<int>("conf_N", 0, "Exponent in polynomial confinement potential", false, 0);
@@ -181,6 +182,8 @@ int main(int argc, char **argv) {
   int iguess(parser.get<int>("iguess"));
 
   double vdw_thr=parser.get<double>("vdwthr");
+
+  double eps_el=parser.get<double>("eps_el");
 
   std::string method(parser.get<std::string>("method"));
   std::string potmethod(parser.get<std::string>("pot"));
@@ -624,10 +627,11 @@ int main(int argc, char **argv) {
     printf("Electron density gradient at the nucleus is % e\n",gnucd);
     printf("Cusp condition is %.10f\n",-1.0/(2*Z)*gnucd/nucd);
 
-    double rvdw(solver.vdw_radius(rconf,vdw_thr,false));
-    double rvdwr2(solver.vdw_radius(rconf,vdw_thr,true));
-    printf("\nEstimated vdW radius with density threshold %e is %.2f bohr = %.2f Å\n",vdw_thr,rvdw,rvdw*BOHRINANGSTROM);
-    printf("vdW radius including r^2 factor is %.2f bohr = %.2f Å\n",rvdwr2,rvdwr2*BOHRINANGSTROM);
+    double rvdw(solver.vdw_radius(rconf,vdw_thr));
+    printf("\nEstimated vdW radius with density threshold %e is %.6f bohr = %.6f A\n",vdw_thr,rvdw,rvdw*BOHRINANGSTROM);
+
+    double rincl(solver.electron_count_radius(rconf,eps_el));
+    printf("Atomic radius from electron density inclusion with threshold %e is %.6f bohr = %.6f A\n",eps_el,rincl,rincl*BOHRINANGSTROM);
 
     printf("\nResult in NIST format\n");
     printf("Etot  = % 18.9f\n",rconf.Econf);
@@ -693,10 +697,25 @@ int main(int argc, char **argv) {
     printf("Electron density gradient at the nucleus is % e\n",gnucd);
     printf("Cusp condition is %.10f\n",-1.0/(2*Z)*gnucd/nucd);
 
-    double rvdw(solver.vdw_radius(uconf,vdw_thr,false));
-    double rvdwr2(solver.vdw_radius(uconf,vdw_thr,true));
-    printf("\nEstimated vdW radius with density threshold %e is %.2f bohr = %.2f Å\n",vdw_thr,rvdw,rvdw*BOHRINANGSTROM);
-    printf("vdW radius including r^2 factor is %.2f bohr = %.2f Å\n",rvdwr2,rvdwr2*BOHRINANGSTROM);
+    double rvdw(solver.vdw_radius(uconf,vdw_thr));
+    printf("\nEstimated vdW radius with density threshold %e is %.6f bohr = %.6f A\n",vdw_thr,rvdw,rvdw*BOHRINANGSTROM);
+
+    double rincl(solver.electron_count_radius(uconf,eps_el));
+    printf("Atomic radius from electron density inclusion with threshold %e is %.6f bohr = %.6f A\n",eps_el,rincl,rincl*BOHRINANGSTROM);
+
+    double eps_left=0;
+    double eps_right=1;
+    while(eps_right-eps_left>1e-10) {
+      eps_el = (eps_right+eps_left)/2.0;
+      double radius = solver.electron_count_radius(uconf,eps_el);
+      if(radius > 2.928573)
+	eps_left = eps_el;
+      else if(radius < 2.928573)
+	eps_right = eps_el;
+      else
+	break;
+    }
+    printf("Converged eps_el = %.9f + %.9f\n",eps_el,0.5*(eps_right-eps_left));
 
     printf("\nResult in NIST format\n");
     printf("Etot  = % 18.9f\n",uconf.Econf);
