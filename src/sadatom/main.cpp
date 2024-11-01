@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.001);
-  parser.add<double>("eps_el", 0, "Density threshold for atomic size with electron density inclusion", false, 0.078130238); // PBE0 H atom gives same radius as vdW routine with 1e-3 threshold, as defined by Rahm 2016
+  parser.add<double>("eps_el", 0, "Density threshold for atomic size with electron density inclusion", false, 0.078130234); // PBE0 H atom gives same radius as vdW routine with 1e-3 threshold, as defined by Rahm 2016
   parser.add<bool>("completeness", 0, "Compute completeness and importance profiles?", false, false);
   parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential", false, 0);
   parser.add<int>("conf_N", 0, "Exponent in polynomial confinement potential", false, 0);
@@ -708,9 +708,9 @@ int main(int argc, char **argv) {
     while(eps_right-eps_left>1e-10) {
       eps_el = (eps_right+eps_left)/2.0;
       double radius = solver.electron_count_radius(uconf,eps_el);
-      if(radius > 2.928573)
+      if(radius > rvdw)
 	eps_left = eps_el;
-      else if(radius < 2.928573)
+      else if(radius < rvdw)
 	eps_right = eps_el;
       else
 	break;
