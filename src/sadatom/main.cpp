@@ -700,9 +700,10 @@ int main(int argc, char **argv) {
 
     double rvdw(solver.vdw_radius(uconf,vdw_thr));
     printf("\nEstimated vdW radius with density threshold %e is %.6f bohr = %.6f A\n",vdw_thr,rvdw,rvdw*BOHRINANGSTROM);
+    printf("Note that this criterion is sensitive to numerical noise.\n");
 
     double rincl(solver.electron_count_radius(uconf,eps_el));
-    printf("Atomic radius from electron density inclusion with threshold %e is %.6f bohr = %.6f A\n",eps_el,rincl,rincl*BOHRINANGSTROM);
+    printf("Estimated vdW radius with electron count threshold %e is %.6f bohr = %.6f A\n",eps_el,rincl,rincl*BOHRINANGSTROM);
 
     printf("\nResult in NIST format\n");
     printf("Etot  = % 18.9f\n",uconf.Econf);
