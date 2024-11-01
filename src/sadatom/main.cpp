@@ -703,20 +703,6 @@ int main(int argc, char **argv) {
     double rincl(solver.electron_count_radius(uconf,eps_el));
     printf("Atomic radius from electron density inclusion with threshold %e is %.6f bohr = %.6f A\n",eps_el,rincl,rincl*BOHRINANGSTROM);
 
-    double eps_left=0;
-    double eps_right=1;
-    while(eps_right-eps_left>1e-10) {
-      eps_el = (eps_right+eps_left)/2.0;
-      double radius = solver.electron_count_radius(uconf,eps_el);
-      if(radius > rvdw)
-	eps_left = eps_el;
-      else if(radius < rvdw)
-	eps_right = eps_el;
-      else
-	break;
-    }
-    printf("Converged eps_el = %.9f + %.9f\n",eps_el,0.5*(eps_right-eps_left));
-
     printf("\nResult in NIST format\n");
     printf("Etot  = % 18.9f\n",uconf.Econf);
     printf("Ekin  = % 18.9f\n",uconf.Ekin);
