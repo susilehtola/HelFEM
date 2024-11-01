@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.001);
-  parser.add<double>("eps_el", 0, "Density threshold for atomic size with electron density inclusion", false, 0.078130234); // PBE0 H atom gives same radius as vdW routine with 1e-3 threshold, as defined by Rahm 2016
+  parser.add<double>("eps_el", 0, "Density threshold for atomic size with electron density inclusion", false, 0.073416683704840394115); // H atom analytical solution gives same radius as vdW routine with 1e-3 threshold as used by Rahm 2016
   parser.add<bool>("completeness", 0, "Compute completeness and importance profiles?", false, false);
   parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential", false, 0);
   parser.add<int>("conf_N", 0, "Exponent in polynomial confinement potential", false, 0);
@@ -629,9 +629,10 @@ int main(int argc, char **argv) {
 
     double rvdw(solver.vdw_radius(rconf,vdw_thr));
     printf("\nEstimated vdW radius with density threshold %e is %.6f bohr = %.6f A\n",vdw_thr,rvdw,rvdw*BOHRINANGSTROM);
+    printf("Note that this criterion is sensitive to numerical noise.\n");
 
     double rincl(solver.electron_count_radius(rconf,eps_el));
-    printf("Atomic radius from electron density inclusion with threshold %e is %.6f bohr = %.6f A\n",eps_el,rincl,rincl*BOHRINANGSTROM);
+    printf("Estimated vdW radius with electron count threshold %e is %.6f bohr = %.6f A\n",eps_el,rincl,rincl*BOHRINANGSTROM);
 
     printf("\nResult in NIST format\n");
     printf("Etot  = % 18.9f\n",rconf.Econf);
