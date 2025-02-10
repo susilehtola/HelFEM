@@ -228,6 +228,7 @@ namespace helfem {
 
         // Save the results
         arma::vec r(basis.radii());
+	arma::vec wt(basis.quadrature_weights());
 
         std::ostringstream oss;
         oss << symbol << "_orbs.dat";
@@ -257,6 +258,7 @@ namespace helfem {
         // Orbital values
         for(size_t ir=0;ir<orbval[0].n_rows;ir++) {
           fprintf(out,"%e",r(ir));
+	  fprintf(out," % e",wt(ir));
           for(int l=0;l<=lmax;l++)
             for(size_t ic=0;ic<orbval[l].n_cols;ic++) {
               fprintf(out," % e",orbval[l](ir,ic));
