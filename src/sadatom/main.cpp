@@ -135,10 +135,11 @@ int main(int argc, char **argv) {
   parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.001);
   parser.add<double>("eps_el", 0, "Density threshold for atomic size with electron density inclusion", false, 0.073416683704840394115); // H atom analytical solution gives same radius as vdW routine with 1e-3 threshold as used by Rahm 2016
   parser.add<bool>("completeness", 0, "Compute completeness and importance profiles?", false, false);
-  parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential", false, 0);
+  parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential, 3 for barrier", false, 0);
   parser.add<int>("conf_N", 0, "Exponent in polynomial confinement potential", false, 0);
   parser.add<double>("conf_R", 0, "Confinement radius", false, 0.0);
-  parser.add<double>("shift_conf", 0, "Shift confinement potential r -> r - R", false, 0.0);
+  parser.add<double>("conf_barrier", 0, "Confinement barrier height", false, 0.0);
+  parser.add<double>("shift_conf", 0, "Where does confinement start?", false, 0.0);
   parser.add<bool>("add_conf", 0, "Add element boundary at shifted potential radius R?", false, true);
   parser.parse_check(argc, argv);
   /*
@@ -257,13 +258,14 @@ int main(int argc, char **argv) {
   int iconf(parser.get<int>("iconf"));
   double conf_R(parser.get<double>("conf_R"));
   int conf_N(parser.get<int>("conf_N"));
+  double conf_barrier(parser.get<double>("conf_barrier"));
   double shift_conf(parser.get<double>("shift_conf"));
 
   // Radial basis
   arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0, add_conf, shift_conf);
 
   // Initialize solver
-  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder, iconf, conf_N, conf_R, shift_conf);
+  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder, iconf, conf_N, conf_R, conf_barrier, shift_conf);
 
   // Set parameters if necessary
   arma::vec xpars, cpars;

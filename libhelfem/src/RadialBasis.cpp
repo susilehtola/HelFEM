@@ -394,7 +394,18 @@ namespace helfem {
 	return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r_exp);
       }
 
-      arma::mat RadialBasis::confinement_potential(size_t iel, int N, double r_0, int iconf, double shift_pot) const {
+      arma::mat RadialBasis::barrier_confinement(size_t iel, double V, double shift_pot) const {
+	std::function<double(double)> barrier = [V, shift_pot](double r) {
+	  if(r<shift_pot)
+	    return 0.0;
+	  return V * std::pow(r, 2);
+	};
+	std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
+	radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+	return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, barrier);
+      }
+	  
+      arma::mat RadialBasis::confinement_potential(size_t iel, int N, double r_0, int iconf, double V, double shift_pot) const {
 	// Attractive potential does not make sense for shift_pot != 0
 
 	// sign of r0 controls if the potential is attractive or repulsive
@@ -417,6 +428,11 @@ namespace helfem {
 	    throw std::logic_error("Exponential confinement potential requires N >= 1!");
 
 	  return exponential_confinement(iel, N, r_0, shift_pot);
+	
+	} else if(iconf==3) {
+	  if(V<0)
+	    throw std::logic_error("Can not have attractive barrier!\n");
+	  return barrier_confinement(iel, V, shift_pot);
 	} else
 	  throw std::logic_error("Case not implemented!\n");
       }

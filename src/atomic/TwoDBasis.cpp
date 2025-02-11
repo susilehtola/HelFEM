@@ -477,11 +477,12 @@ namespace helfem {
         return remove_boundaries(V);
       }
 
-      arma::mat TwoDBasis::confinement(const int N, double r_0, const int iconf, const double shift_pot) const {
+      arma::mat TwoDBasis::confinement(const int N, double r_0, const int iconf, const double V, const double shift_pot) const {
         // Full matrix
         arma::mat O(Ndummy(),Ndummy());
         O.zeros();
-	if(N==0)
+
+	if(iconf==0)
 	  return remove_boundaries(O);
 
 	// Build radial elements
@@ -494,7 +495,7 @@ namespace helfem {
 	  // Where are we in the matrix?
 	  size_t ifirst, ilast;
 	  radial.get_idx(iel,ifirst,ilast);
-	  Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.confinement_potential(iel,N,r_0,iconf,shift_pot);
+	  Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.confinement_potential(iel,N,r_0,iconf,V,shift_pot);
 	}
 
         // Fill elements
