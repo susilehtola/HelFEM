@@ -601,9 +601,9 @@ namespace helfem {
         return lh.Econf < rh.Econf;
       }
 
-      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_), iconf(0), conf_N(0), conf_R(0.0), shift_pot(0.0) {}
+      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_), iconf(0), conf_N(0), conf_R(0.0), conf_barrier(0.0), shift_pot(0.0) {}
 
-      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_, int iconf_, int conf_N_, double conf_R_, double shift_pot_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_), iconf(iconf_), conf_N(conf_N_), conf_R(conf_R_), shift_pot(shift_pot_) {
+      SCFSolver::SCFSolver(int Z, int finitenuc, double Rrms, int lmax_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder, int Nquad, const arma::vec & bval, int taylor_order, int x_func_, int c_func_, int maxit_, double shift_, double convthr_, double dftthr_, double diiseps_, double diisthr_, int diisorder_, int iconf_, int conf_N_, double conf_R_, double conf_barrier_, double shift_pot_) : lmax(lmax_), maxit(maxit_), shift(shift_), convthr(convthr_), dftthr(dftthr_), diiseps(diiseps_), diisthr(diisthr_), diisorder(diisorder_), iconf(iconf_), conf_N(conf_N_), conf_R(conf_R_), conf_barrier(conf_barrier_), shift_pot(shift_pot_) {
 
         // Construct the angular basis
         arma::ivec lval, mval;
@@ -624,7 +624,7 @@ namespace helfem {
         // Form nuclear attraction energy matrix
         Vnuc=basis.nuclear();
 	// Form confinement potential energy matrix
-	Vconf=basis.confinement(conf_N, conf_R, iconf, shift_pot);
+	Vconf=basis.confinement(conf_N, conf_R, iconf, conf_barrier, shift_pot);
         // Form core Hamiltonian
         H0=T+Vnuc+Vconf;
 
