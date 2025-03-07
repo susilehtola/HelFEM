@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
   parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.001);
   parser.add<double>("eps_el", 0, "Density threshold for atomic size with electron density inclusion", false, 0.073416683704840394115); // H atom analytical solution gives same radius as vdW routine with 1e-3 threshold as used by Rahm 2016
   parser.add<bool>("completeness", 0, "Compute completeness and importance profiles?", false, false);
-  parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential, 3 for barrier", false, 0);
+  parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential, 3 for barrier, 4 for Blum et al.", false, 0);
   parser.add<int>("conf_N", 0, "Exponent in polynomial confinement potential", false, 0);
   parser.add<double>("conf_R", 0, "Confinement radius", false, 0.0);
   parser.add<double>("conf_barrier", 0, "Confinement barrier height", false, 0.0);
@@ -260,6 +260,10 @@ int main(int argc, char **argv) {
   int conf_N(parser.get<int>("conf_N"));
   double conf_barrier(parser.get<double>("conf_barrier"));
   double shift_conf(parser.get<double>("shift_conf"));
+
+  // Truncate radial grid in case of Blum et al. confinement potential
+  if(iconf==4)
+    Rmax=conf_R;
 
   // Radial basis
   arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0, add_conf, shift_conf);
