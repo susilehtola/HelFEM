@@ -262,8 +262,12 @@ int main(int argc, char **argv) {
   double shift_conf(parser.get<double>("shift_conf"));
 
   // Truncate radial grid in case of Junquera et al. confinement potential
-  if(iconf==4)
-    Rmax=conf_R;
+  if(iconf==4) {
+    if(Rmax != conf_R) {
+      printf("Using the Junquera et al potential: setting Rmax to conf_R!\n");
+      Rmax=conf_R;
+    }
+  }
 
   // Radial basis
   arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0, add_conf, shift_conf);
