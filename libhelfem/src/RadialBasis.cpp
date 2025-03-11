@@ -405,12 +405,12 @@ namespace helfem {
 	return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, barrier);
       }
 
-      arma::mat RadialBasis::blum_confinement(size_t iel, int V0, double r_c, double shift_pot) const {
-	std::function<double(double)> r_exp = [r_c, V0, shift_pot](double r) {
+      arma::mat RadialBasis::junq_confinement(size_t iel, int N, int V0, double r_c, double shift_pot) const {
+	std::function<double(double)> r_exp = [N, r_c, V0, shift_pot](double r) {
 	  if(r<shift_pot)
 	    return 0.0;
-	  const double r_d = std::pow((r_c-r),2);
-	  const double r_e = -2.0 / (r - shift_pot);
+	  const double r_d = std::pow((r_c-r),N);
+	  const double r_e = - (r_c - shift_pot) / (r - shift_pot);
 	  double V = 0.0;
 	  V += std::exp(r_e) / r_d;
 	  V *= V0;
@@ -451,9 +451,11 @@ namespace helfem {
 	    throw std::logic_error("Can not have attractive barrier!\n");
 	  return barrier_confinement(iel, V, shift_pot);
 	} else if(iconf==4) {
+	  if(N<=0)
+	    throw std::logic_error("Junquera confinement potential requires N >= 1!");
 	  if(V<=0)
-	    throw std::logic_error("Blum confinement potential requires N >= 1!");
-	  return blum_confinement(iel, V, r_0, shift_pot);
+	    throw std::logic_error("Can not have attractive Junquera potential!\n");
+	  return junq_confinement(iel, N, V, r_0, shift_pot);
 	} else
 	  throw std::logic_error("Case not implemented!\n");
       }
