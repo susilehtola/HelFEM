@@ -132,7 +132,7 @@ namespace helfem {
 	/// Compute barrier confinement potential matrix in element
 	arma::mat barrier_confinement(size_t iel, double V, double r_c) const;
 	/// Compute Junquera et al. confinement potential matrix in element
-	arma::mat junq_confinement(size_t iel, int N, int V0, double r_c, double shift_pot) const;
+	arma::mat junq_confinement(size_t iel, int N, double V0, double r_c, double shift_pot) const;
 	/// Driver for computing confinement potential
 	arma::mat confinement_potential(size_t iel, int N, double r_0, int iconf, double V, double shift_pot) const;
 

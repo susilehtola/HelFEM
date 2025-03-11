@@ -405,17 +405,13 @@ namespace helfem {
 	return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, barrier);
       }
 
-      arma::mat RadialBasis::junq_confinement(size_t iel, int N, int V0, double r_c, double shift_pot) const {
+      arma::mat RadialBasis::junq_confinement(size_t iel, int N, double V0, double r_c, double shift_pot) const {
 	std::function<double(double)> r_exp = [N, r_c, V0, shift_pot](double r) {
 	  if(r<shift_pot)
 	    return 0.0;
-	  const double r_d = std::pow((r_c-r),N);
-	  const double r_e = - (r_c - shift_pot) / (r - shift_pot);
-	  double V = 0.0;
-	  V += std::exp(r_e) / r_d;
-	  V *= V0;
-	  V *= std::pow(r, 2);
-	  return V;
+	  const double denominator = std::pow(r_c-r,N);
+	  const double exponential = std::exp(-(r_c - shift_pot) / (r - shift_pot));
+	  return V0 * exponential / denominator * std::pow(r,2);
 	};
 	std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
 	radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
