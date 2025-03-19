@@ -56,6 +56,25 @@ arma::vec helfem::utils::get_grid(double rmax, int num_el, int igrid, double zex
            arma::ones<arma::vec>(num_el + 1);
     break;
 
+  // geometric grid, Cancès and Mourad 2018
+  case (5):
+    if (helfem::verbose)
+      printf("Using geometric grid of doi:10.2140/camcos.2018.13.139, s = %e\n", zexp);
+    if(zexp<=0.0 or zexp>=1.0)
+      throw std::logic_error("Invalid value for s parameter!\n");
+    // We compute the h_k, see p. 158
+    {
+      arma::vec hk(num_el);
+      hk(num_el-1) = (1.0-zexp)/(1.0-std::pow(zexp,num_el))*rmax;
+      for(int iel=num_el-2;iel>=0;iel--)
+        hk(iel)=zexp*hk(iel+1);
+      // and then set the nodes
+      bval.zeros(num_el+1);
+      for(int iel=0;iel<num_el;iel++)
+        bval(iel+1) = bval(iel) + hk(iel);
+    }
+    break;
+
   default:
     throw std::logic_error("Invalid choice for grid\n");
   }
