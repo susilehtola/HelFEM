@@ -111,11 +111,11 @@ int main(int argc, char **argv) {
   parser.add<double>("dampthr", 0, "damping threshold", false, 0.1);
   parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
   parser.add<int>("taylor_order", 0, "order of Taylor expansion near the nucleus", false, -1);
-  parser.add<int>("iconf", 0, "type of confinement potential: 1 for polynomial, 2 for exponential, 3 for barrier", false, 0);
-  parser.add<int>("conf_N", 0, "exponent in confinement potential", false, 0);
-  parser.add<double>("conf_R", 0, "confinement radius", false, 0.0);
-  parser.add<double>("conf_barrier", 0, "confinement barrier height", false, 0.0);
-  parser.add<double>("shift_conf", 0, "Shift confinement potential r -> r - R", false, 0.0);
+  parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential, 3 for barrier, 4 for Junquera et al.", false, 0);
+  parser.add<int>("conf_N", 0, "Exponent in confinement potential", false, 0);
+  parser.add<double>("conf_R", 0, "Confinement radius", false, 0.0);
+  parser.add<double>("conf_barrier", 0, "Confinement barrier height", false, 0.0);
+  parser.add<double>("shift_conf", 0, "Where does confinement start?", false, 0.0);
   parser.add<bool>("add_conf", 0, "Add element boundary at shifted potential radius R?", false, true);
   parser.parse_check(argc, argv);
 
