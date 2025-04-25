@@ -65,9 +65,10 @@ namespace helfem {
         arma::vec rlh(eval_coord(xlh, iel));
         arma::vec rrh(eval_coord(xrh, iel+1));
         double dr(arma::norm(rlh-rrh,2));
-        if(dr > 10*DBL_EPSILON*arma::norm(rlh,2)) {
+        if(dr > 10*DBL_EPSILON*(1+arma::norm(rlh,2))) {
           rlh.print("rlh");
           rrh.print("rrh");
+          (rrh-rlh).print("rrh-rlh");
           std::ostringstream oss;
           oss << "Coordinates do not match between elements " << iel << " and " << iel+1 << "!\n";
           throw std::logic_error(oss.str());
