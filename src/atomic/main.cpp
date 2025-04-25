@@ -116,6 +116,7 @@ int main(int argc, char **argv) {
   parser.add<double>("conf_R", 0, "confinement radius", false, 0.0);
   parser.add<double>("conf_barrier", 0, "confinement barrier height", false, 0.0);
   parser.add<double>("shift_conf", 0, "Shift confinement potential r -> r - R", false, 0.0);
+  parser.add<bool>("add_conf", 0, "Add element boundary at shifted potential radius R?", false, true);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -190,12 +191,6 @@ int main(int argc, char **argv) {
 
   bool zeroder(parser.get<bool>("zeroder"));
 
-  int conf_N(parser.get<int>("conf_N"));
-  double conf_R(parser.get<double>("conf_R"));
-  double conf_barrier(parser.get<double>("conf_barrier"));
-  int iconf(parser.get<int>("iconf"));
-  double shift_conf(parser.get<double>("shift_conf"));
-
   // Set parameters if necessary
   arma::vec xpars, cpars;
   if(xparf.size()) {
@@ -260,11 +255,19 @@ int main(int argc, char **argv) {
   printf("Using %i point quadrature rule.\n",Nquad);
   printf("Angular grid spanning from l=0..%i, m=%i..%i.\n",lmax,-mmax,mmax);
 
+  // Confinement parameters
+  bool add_conf(parser.get<bool>("add_conf"));
+  int conf_N(parser.get<int>("conf_N"));
+  double conf_R(parser.get<double>("conf_R"));
+  double conf_barrier(parser.get<double>("conf_barrier"));
+  int iconf(parser.get<int>("iconf"));
+  double shift_conf(parser.get<double>("shift_conf"));
+
   // Construct the angular basis
   arma::ivec lval, mval;
   atomic::basis::angular_basis(lmax,mmax,lval,mval);
   // and the radial one
-  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf);
+  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf, add_conf, shift_conf);
 
   atomic::basis::TwoDBasis basis;
   basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, zeroder, Nquad, bval, taylor_order, lval, mval, Zl, Zr, Rhalf);
