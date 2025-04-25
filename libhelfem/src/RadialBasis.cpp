@@ -442,7 +442,7 @@ namespace helfem {
 	    throw std::logic_error("Junquera confinement potential requires N >= 1!");
 	  if(V<=0)
 	    throw std::logic_error("Cannot have attractive Junquera potential!\n");
-	  return junq_confinement(iel, N, V, r_0, shift_pot);
+	  return junq_confinement(iel, N, V, arma::max(get_bval()), shift_pot);
 	} else
 	  throw std::logic_error("Case not implemented!\n");
       }
