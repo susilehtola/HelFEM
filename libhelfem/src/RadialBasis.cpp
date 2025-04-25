@@ -386,23 +386,16 @@ namespace helfem {
 	  }
 	  V += std::exp(r_ratio);
 	  V *= fact;
-	  V *= std::pow(r, 2);
 	  return V;
 	};
-	std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
-	radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-	return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r_exp);
+        return fem.matrix_element(iel, false, false, xq, wq, r_exp);
       }
 
       arma::mat RadialBasis::barrier_confinement(size_t iel, double V, double shift_pot) const {
 	std::function<double(double)> barrier = [V, shift_pot](double r) {
-	  if(r<shift_pot)
-	    return 0.0;
-	  return V * std::pow(r, 2);
+          return (r<shift_pot) ? 0.0 : V;
 	};
-	std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
-	radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-	return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, barrier);
+        return fem.matrix_element(iel, false, false, xq, wq, barrier);
       }
 
       arma::mat RadialBasis::junq_confinement(size_t iel, int N, double V0, double r_c, double shift_pot) const {
@@ -411,11 +404,9 @@ namespace helfem {
 	    return 0.0;
 	  const double denominator = std::pow(r_c-r,N);
 	  const double exponential = std::exp(-(r_c - shift_pot) / (r - shift_pot));
-	  return V0 * exponential / denominator * std::pow(r,2);
+	  return V0 * exponential / denominator;
 	};
-	std::function<arma::mat(const arma::vec &, size_t)> radial_bf;
-	radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-	return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r_exp);
+        return fem.matrix_element(iel, false, false, xq, wq, r_exp);
       }
       
       arma::mat RadialBasis::confinement_potential(size_t iel, int N, double r_0, int iconf, double V, double shift_pot) const {
@@ -444,13 +435,13 @@ namespace helfem {
 	
 	} else if(iconf==3) {
 	  if(V<0)
-	    throw std::logic_error("Can not have attractive barrier!\n");
+	    throw std::logic_error("Cannot have attractive barrier!\n");
 	  return barrier_confinement(iel, V, shift_pot);
 	} else if(iconf==4) {
 	  if(N<=0)
 	    throw std::logic_error("Junquera confinement potential requires N >= 1!");
 	  if(V<=0)
-	    throw std::logic_error("Can not have attractive Junquera potential!\n");
+	    throw std::logic_error("Cannot have attractive Junquera potential!\n");
 	  return junq_confinement(iel, N, V, r_0, shift_pot);
 	} else
 	  throw std::logic_error("Case not implemented!\n");
