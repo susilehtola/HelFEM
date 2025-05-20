@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
   std::string method(parser.get<std::string>("method"));
   double dftthr(parser.get<double>("dftthr"));
   int restr(parser.get<int>("restricted"));
-  
+
   int primbas(parser.get<int>("primbas"));
   int taylor_order(parser.get<int>("taylor_order"));
   std::string xparf(parser.get<std::string>("x_pars"));
@@ -91,6 +91,18 @@ int main(int argc, char **argv) {
   int njellium(parser.get<int>("njellium"));
   double rs(parser.get<double>("rs"));
   bool vacancy(parser.get<bool>("vacancy"));
+
+  // Parse xc parameters
+  arma::vec x_pars, c_pars;
+  if(xparf.size()) {
+    x_pars = scf::parse_xc_params(xparf);
+    x_pars.t().print("Exchange functional parameters");
+  }
+  if(cparf.size()) {
+    c_pars = scf::parse_xc_params(cparf);
+    c_pars.t().print("Correlation functional parameters");
+  }
+
 
   // Get primitive basis
   auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::get_basis(primbas,Nnodes)));
@@ -138,13 +150,10 @@ int main(int argc, char **argv) {
     printf("%i jellium electrons with rs = % .3f leads to R = % .3f lmax = %i\n",njellium,rs,R,lmax);
   }
 
-  // Total number of electrons is
-  arma::sword numel=Z-Q+njellium;
-
   // Uniform part of grid
-  arma::vec bval_unif=atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nuelem, R, 1, 0.0, 0, 0, 0, Z, 0, 0, 0.0, false, 0.0);
+  arma::vec bval_unif = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nuelem, R, 1, 0.0, 0, 0, 0, Z, 0, 0, 0.0, false, 0.0);
   // Atomic grid
-  arma::vec bval_atom=atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nelem, bval_unif(1), igrid, zexp, 0, 0, 0.0, Z, 0, 0, 0.0, false, 0.0);
+  arma::vec bval_atom = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nelem, bval_unif(1), igrid, zexp, 0, 0, 0.0, Z, 0, 0, 0.0, false, 0.0);
 
   // Glue grids together
   arma::vec bval(bval_atom.n_elem+bval_unif.n_elem-2);
@@ -188,8 +197,102 @@ int main(int argc, char **argv) {
   // Compute two-electron integrals
   basis.compute_tei();
 
-  
+  // OOO data
+  arma::uvec number_of_blocks_per_particle_type({(arma::sword) (lmax+1)});
+  arma::vec maximum_occupation(lmax+1);
+  arma::vec number_of_particles({(double) (Z+njellium)});
+  std::vector<std::string> block_descriptions(lmax+1);
+  for(int l=0;l<=lmax;l++) {
+    maximum_occupation(l) = 2*(2*l+1);
 
-  
+    std::ostringstream oss;
+    oss << "l=" << l;
+    block_descriptions[l] = oss.str();
+  }
+
+  OpenOrbitalOptimizer::FockBuilder<double, double> fock_builder = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm) {
+    const auto & orbitals = dm.first;
+    const auto & occupations = dm.second;
+
+    // Kinetic energy
+    double Ekin=0.0;
+    // Radial density matrix
+    arma::mat Prad(Sinvh.n_rows, Sinvh.n_rows, arma::fill::zeros);
+    arma::cube Pl(Sinvh.n_rows, Sinvh.n_rows, lmax+1, arma::fill::zeros);
+    for(int l=0;l<=lmax;l++) {
+      // Nothing to do
+      if(arma::max(arma::abs(occupations[l]))==0.0)
+        continue;
+
+      // Same radial basis for all l!
+      arma::mat C = Sinvh*orbitals[l];
+      arma::mat P = C*occupations[l]*C.t();
+      Pl.slice(l) = P;
+      Prad += P;
+
+      // Kinetic energy
+      Ekin += arma::trace(P*T) + l*(l+1)*arma::trace(P*Tl);
+    }
+
+    double Enuc=arma::trace(Prad*Vnuc);
+    double Eunif=arma::trace(Prad*Vunif);
+
+    // Coulomb matrix
+    double angfac(4.0*M_PI);
+    arma::mat J(basis.coulomb(Prad/angfac));
+
+    double Exc=0.0;
+    arma::cube XC;
+    double nelnum;
+    if(x_func > 0 || c_func > 0) {
+      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pl/angfac, XC, Exc, nelnum, dftthr);
+      // Potential needs to be divided as well
+      XC/=angfac;
+      if(verbose) {
+        printf("DFT energy %.10e\n",Exc);
+        printf("Error in integrated number of electrons % e\n",nelnum-(Z-Q+njellium));
+        fflush(stdout);
+      }
+    }
+
+    double Ecoul = 0.5*arma::trace(Prad*J);
+    double Etot = Ekin + Enuc + Eunif + Ecoul + Exc;
+
+    if(true) {
+      printf("kinetic energy         % .10f\n",Ekin);
+      printf("nuclear attraction     % .10f\n",Enuc);
+      printf("background attraction  % .10f\n",Eunif);
+      printf("Coulomb repulsion      % .10f\n",Ecoul);
+      printf("exchange-correlation   % .10f\n",Exc);
+      printf("total energy           % .10f\n",Etot);
+    }
+
+    OpenOrbitalOptimizer::FockMatrix<double> fock(lmax+1);
+    for(int l=0;l<=lmax;l++) {
+      fock[l] = Sinvh.t() * (H0 + l*(l+1)*Tl + J + XC.slice(l)) * Sinvh;
+    }
+    return std::make_pair(Etot,fock);
+  };
+
+  OpenOrbitalOptimizer::FockMatrix<double> core_fock(lmax+1);
+  for(int l=0;l<=lmax;l++) {
+    core_fock[l] = Sinvh.t() * (T + Vnuc + l*(l+1)*Tl) * Sinvh;
+  }
+
+  // Check the jellium eigenvalues
+
+    arma::vec E;
+    arma::mat C;
+    arma::eig_sym(E, C, core_fock[l]);
+    printf("l = %i eigenvalues\n",l);
+    E.t().print();
+  }
+
+
+  OpenOrbitalOptimizer::SCFSolver scfsolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles, fock_builder, block_descriptions);
+  scfsolver.initialize_with_fock(core_fock);
+  scfsolver.run_optimal_damping();
+
+
   return 0;
 }
