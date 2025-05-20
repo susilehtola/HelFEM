@@ -105,6 +105,31 @@ namespace helfem {
             });
       }
 
+      helfem::Matrix TwoDBasis::background_potential(double rs, double r_inner, double r_outer) const {
+        std::function<double(double, double)> sphere_pot = [&](double r, double R) {
+          if(r<R) {
+            return (3.0*R*R - r*r)/(8.0*M_PI*rs*rs*rs);
+          } else {
+            return 1.0/(4.0*M_PI)*std::pow(R/rs,3)/r;
+          }
+        };
+
+        std::function<double(double)> potfunc = [&](double r) {
+          // The background potential is the difference between the
+          // uniform background charge, and the vacancy in the
+          // middle. Since the potential is attractive for electrons,
+          // we flip the sign here.
+          return -sphere_pot(r,r_outer)+sphere_pot(r,r_inner);
+        };
+
+        // The potential is only C^1 at the sphere radii; hand them to
+        // the auto-converging quadrature as breakpoints.
+        return radial.matrix_element(
+            atomic::basis::FEMRadialBasis::BasisKind::B0,
+            atomic::basis::FEMRadialBasis::BasisKind::B0,
+            potfunc, {r_inner, r_outer});
+      }
+
       helfem::Matrix TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {
         return helfem::assemble_radial_diagonal(radial,
             [&](size_t iel) { return radial.model_potential(pot, iel); });
