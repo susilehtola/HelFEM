@@ -58,6 +58,10 @@ elseif(TARGET openorbitaloptimizer)
     target_link_libraries(gensap openorbitaloptimizer)
 endif()
 
+add_executable(aij sadatom/aij.cpp)
+target_include_directories(aij PUBLIC "/home/work/openorbital/")
+target_link_libraries(aij helfem-common legendre)
+
 add_executable(1e_atom sadatom/1e.cpp)
 target_link_libraries(1e_atom helfem-common legendre)
 
