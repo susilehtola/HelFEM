@@ -52,11 +52,8 @@ int main(int argc, char **argv) {
   parser.add<int>("Q", 0, "charge of system", false, 0);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
-  parser.add<int>("maxit", 0, "maximum number of iterations", false, 200);
-  parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
   parser.add<std::string>("method", 0, "method to use", false, "lda_x");
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
-  parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
   parser.add<int>("taylor_order", 0, "order of Taylor expansion near the nucleus", false, -1);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
@@ -77,11 +74,8 @@ int main(int argc, char **argv) {
 
   int Nnodes(parser.get<int>("nnodes"));
   int Nquad(parser.get<int>("nquad"));
-  int maxit(parser.get<int>("maxit"));
-  double convthr(parser.get<double>("convthr"));
   std::string method(parser.get<std::string>("method"));
   double dftthr(parser.get<double>("dftthr"));
-  int restr(parser.get<int>("restricted"));
 
   int primbas(parser.get<int>("primbas"));
   int taylor_order(parser.get<int>("taylor_order"));
@@ -145,25 +139,32 @@ int main(int argc, char **argv) {
   int lmax = consistent_lmax(njellium);
 
   if(vacancy) {
-    printf("%i jellium electrons with rs = % .3f and vacancy model leads to r_inner = % .3f r_outer = % .3f lmax = %i\n",njellium,rs,r_inner,r_outer,lmax);
+    printf("%i jellium electrons with rs = % .3f and vacancy model leads to r_inner = % .10f r_outer = % .10f lmax = %i\n",njellium,rs,r_inner,r_outer,lmax);
   } else {
-    printf("%i jellium electrons with rs = % .3f leads to R = % .3f lmax = %i\n",njellium,rs,R,lmax);
+    printf("%i jellium electrons with rs = % .3f leads to R = % .10f lmax = %i\n",njellium,rs,R,lmax);
   }
+
 
   // Uniform part of grid
   arma::vec bval_unif = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nuelem, R, 1, 0.0, 0, 0, 0, Z, 0, 0, 0.0, false, 0.0);
-  // Atomic grid
-  arma::vec bval_atom = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nelem, bval_unif(1), igrid, zexp, 0, 0, 0.0, Z, 0, 0, 0.0, false, 0.0);
+  arma::vec bval;
+  if(Nelem>0) {
+    // Atomic grid
+    arma::vec bval_atom = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nelem, bval_unif(1), igrid, zexp, 0, 0, 0.0, Z, 0, 0, 0.0, false, 0.0);
 
-  // Glue grids together
-  arma::vec bval(bval_atom.n_elem+bval_unif.n_elem-2);
-  bval.subvec(0,bval_atom.n_elem-1) = bval_atom;
-  if(bval_atom(bval_atom.n_elem-1) != bval_unif(1)) {
-    std::ostringstream oss;
-    oss << "Grids don't coincide: difference " << bval_atom(bval_atom.n_elem-1) - bval_unif(1) << "!\n";
-    throw std::logic_error(oss.str());
+    // Glue grids together
+    bval=arma::vec(bval_atom.n_elem+bval_unif.n_elem-2);
+    bval.subvec(0,bval_atom.n_elem-1) = bval_atom;
+    if(bval_atom(bval_atom.n_elem-1) != bval_unif(1)) {
+      std::ostringstream oss;
+      oss << "Grids don't coincide: difference " << bval_atom(bval_atom.n_elem-1) - bval_unif(1) << "!\n";
+      throw std::logic_error(oss.str());
+    }
+    bval.subvec(bval_atom.n_elem,bval.n_elem-1) = bval_unif.subvec(2,bval_unif.n_elem-1);
+
+  } else {
+    bval=bval_unif;
   }
-  bval.subvec(bval_atom.n_elem,bval.n_elem-1) = bval_unif.subvec(2,bval_unif.n_elem-1);
 
   // Handle vacancy case
   if(vacancy) {
@@ -197,10 +198,139 @@ int main(int argc, char **argv) {
   // Compute two-electron integrals
   basis.compute_tei();
 
+  // Jellium Hamiltonian
+  OpenOrbitalOptimizer::FockMatrix<double> H_jellium(lmax+1);
+  for(int l=0;l<=lmax;l++) {
+    // Uniform potential is cancelled out by the jellium density
+    H_jellium[l] = Sinvh.t() * (T + l*(l+1)*Tl) * Sinvh;
+  }
+
+  // Compute the jellium eigenvalues
+  std::vector<arma::mat> Cjellium(lmax+1);
+  std::vector<arma::vec> Ejellium(lmax+1);
+  std::vector<std::tuple<double,int,int>> jellium_energies;
+  for(int l=0;l<=lmax;l++) {
+    arma::eig_sym(Ejellium[l], Cjellium[l], H_jellium[l]);
+    // Convert to non-orthogonal basis
+    Cjellium[l] = Sinvh*Cjellium[l];
+
+    printf("l = %i eigenvalues\n",l);
+    Ejellium[l].t().print();
+
+    for(size_t io=0;io<Ejellium[l].n_elem;io++)
+      jellium_energies.push_back(std::make_tuple(Ejellium[l](io),l,io));
+  }
+  std::sort(jellium_energies.begin(), jellium_energies.end(), [](std::tuple<double,int,int> const & t1, std::tuple<double,int,int> const & t2) {
+    return std::get<0>(t1) < std::get<0>(t2);
+  });
+
+  // Jellium aufbau
+  int njellium_filled = 0;
+  arma::uvec nfilled(lmax+1,arma::fill::zeros);
+  for(size_t io=0;io<jellium_energies.size();io++) {
+    auto l=std::get<1>(jellium_energies[io]);
+    int capacity = 2*(2*l+1);
+    nfilled(l)++;
+    njellium_filled += capacity;
+    if(njellium_filled>njellium)
+      break;
+  }
+  nfilled.t().print("Number of filled jellium orbitals");
+
+  // Orthogonal basis for atom in the jellium
+  std::vector<arma::mat> orthogonal_basis(lmax+1);
+  for(int l=0;l<=lmax;l++) {
+    //orthogonal_basis[l] = Cjellium[l].cols(nfilled(l),Cjellium[l].n_cols-1);
+    orthogonal_basis[l] = Cjellium[l];
+  }
+
+  // Fock builder for atom in static i.e. frozen jellium
+  OpenOrbitalOptimizer::FockBuilder<double, double> static_fock_builder = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm) {
+    const auto & orbitals = dm.first;
+    const auto & occupations = dm.second;
+
+    // Kinetic energy
+    double Ekin=0.0;
+    // Radial density matrix
+    arma::mat Prad(Sinvh.n_rows, Sinvh.n_rows, arma::fill::zeros);
+    arma::cube Pl(Sinvh.n_rows, Sinvh.n_rows, lmax+1, arma::fill::zeros);
+
+    // Atomic part
+    for(int l=0;l<=lmax;l++) {
+      // Nothing to do
+      if(arma::max(arma::abs(occupations[l]))==0.0)
+        continue;
+
+      // We are now in the orthogonal basis
+      arma::mat C = orthogonal_basis[l]*orbitals[l];
+      arma::mat P = C*arma::diagmat(occupations[l])*C.t();
+      Pl.slice(l) += P;
+      Prad += P;
+
+      // Kinetic energy
+      Ekin += l*(l+1)*arma::trace(P*Tl);
+    }
+
+    // Include jellium?
+    if(false) {
+      for(int l=0;l<=lmax;l++) {
+        // Nothing to do
+        if(nfilled(l)==0)
+          continue;
+
+        // We are now in the orthogonal basis
+        arma::mat C = Cjellium[l].cols(0,nfilled(l)-1);
+        arma::mat P = 2*C*C.t();
+        Pl.slice(l) += P;
+        Prad += P;
+
+        // Kinetic energy
+        Ekin += l*(l+1)*arma::trace(P*Tl);
+      }
+    }
+    Ekin += arma::trace(Prad*T);
+    double Enuc=arma::trace(Prad*Vnuc);
+
+    // Coulomb matrix
+    double angfac(4.0*M_PI);
+    arma::mat J(basis.coulomb(Prad/angfac));
+
+    double Exc=0.0;
+    arma::cube XC;
+    double nelnum;
+    if(x_func > 0 || c_func > 0) {
+      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pl/angfac, XC, Exc, nelnum, dftthr);
+      // Potential needs to be divided as well
+      XC/=angfac;
+      if(verbose) {
+        printf("DFT energy %.10e\n",Exc);
+        printf("Error in integrated number of electrons % e\n",nelnum-(Z-Q));
+        fflush(stdout);
+      }
+    }
+
+    double Ecoul = 0.5*arma::trace(Prad*J);
+    double Etot = Ekin + Enuc + Ecoul + Exc;
+
+    if(true) {
+      printf("kinetic energy         % .10f\n",Ekin);
+      printf("nuclear attraction     % .10f\n",Enuc);
+      printf("Coulomb repulsion      % .10f\n",Ecoul);
+      printf("exchange-correlation   % .10f\n",Exc);
+      printf("total energy           % .10f\n",Etot);
+    }
+
+    OpenOrbitalOptimizer::FockMatrix<double> fock(lmax+1);
+    for(int l=0;l<=lmax;l++) {
+      fock[l] = orthogonal_basis[l].t() * (T + Vnuc + l*(l+1)*Tl + J + XC.slice(l)) * orthogonal_basis[l];
+    }
+    return std::make_pair(Etot,fock);
+  };
+
   // OOO data
   arma::uvec number_of_blocks_per_particle_type({(arma::sword) (lmax+1)});
   arma::vec maximum_occupation(lmax+1);
-  arma::vec number_of_particles({(double) (Z+njellium)});
+  arma::vec number_of_particles({(double) Z-Q});
   std::vector<std::string> block_descriptions(lmax+1);
   for(int l=0;l<=lmax;l++) {
     maximum_occupation(l) = 2*(2*l+1);
@@ -209,7 +339,21 @@ int main(int argc, char **argv) {
     oss << "l=" << l;
     block_descriptions[l] = oss.str();
   }
+  maximum_occupation.t().print("Max occ");
 
+  // Include nuclear potential in the core guess
+  OpenOrbitalOptimizer::FockMatrix<double> core_fock(lmax+1);
+  for(int l=0;l<=lmax;l++)
+    core_fock[l] = orthogonal_basis[l].t() * (T + Vnuc + l*(l+1)*Tl) * orthogonal_basis[l];
+
+  OpenOrbitalOptimizer::SCFSolver scfsolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles, static_fock_builder, block_descriptions);
+  scfsolver.initialize_with_fock(core_fock);
+  scfsolver.run_optimal_damping();
+  //scfsolver.run();
+  number_of_particles(0) = (double) (Z-Q+njellium);
+
+
+  // Fock builder
   OpenOrbitalOptimizer::FockBuilder<double, double> fock_builder = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm) {
     const auto & orbitals = dm.first;
     const auto & occupations = dm.second;
@@ -226,7 +370,7 @@ int main(int argc, char **argv) {
 
       // Same radial basis for all l!
       arma::mat C = Sinvh*orbitals[l];
-      arma::mat P = C*occupations[l]*C.t();
+      arma::mat P = C*arma::diagmat(occupations[l])*C.t();
       Pl.slice(l) = P;
       Prad += P;
 
@@ -274,24 +418,6 @@ int main(int argc, char **argv) {
     return std::make_pair(Etot,fock);
   };
 
-  OpenOrbitalOptimizer::FockMatrix<double> core_fock(lmax+1);
-  for(int l=0;l<=lmax;l++) {
-    core_fock[l] = Sinvh.t() * (T + Vnuc + l*(l+1)*Tl) * Sinvh;
-  }
-
-  // Check the jellium eigenvalues
-
-    arma::vec E;
-    arma::mat C;
-    arma::eig_sym(E, C, core_fock[l]);
-    printf("l = %i eigenvalues\n",l);
-    E.t().print();
-  }
-
-
-  OpenOrbitalOptimizer::SCFSolver scfsolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles, fock_builder, block_descriptions);
-  scfsolver.initialize_with_fock(core_fock);
-  scfsolver.run_optimal_damping();
 
 
   return 0;
