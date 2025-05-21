@@ -82,6 +82,8 @@ int main(int argc, char **argv) {
     c_pars.t().print("Correlation functional parameters");
   }
 
+  printf("Running restricted %s calculation with Rmax=%e and %i elements.\n",method.c_str(),Rmax,Nelem);
+
   // Get primitive basis
   auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::get_basis(primbas,Nnodes)));
 
@@ -107,10 +109,11 @@ int main(int argc, char **argv) {
     throw std::logic_error("The specified correlation functional is not currently supported in HelFEM.\n");
 
   arma::vec bval = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nelem, Rmax, igrid, zexp, 0, 0, 0.0, Z, 0, 0, 0.0, false, 0.0);
-  bval.print("bval");
 
   bool zeroder = false;
   auto basis = sadatom::basis::TwoDBasis(Z, modelpotential::POINT_NUCLEUS, 0.0, poly, zeroder, Nquad, bval, taylor_order, lmax);
+  printf("Basis set has %i radial functions\n",(int) basis.Nbf());
+  printf("%ith order Taylor series used to evaluate basis functions for r <= %e, error %e\n",taylor_order, basis.get_small_r_taylor_cutoff(), basis.get_taylor_diff());
 
   // Form overlap matrix
   arma::mat S=basis.overlap();
@@ -122,22 +125,14 @@ int main(int argc, char **argv) {
   arma::mat Tl=basis.kinetic_l();
   // Form nuclear attraction energy matrix
   arma::mat Vnuc=basis.nuclear();
-  // Form core Hamiltonian
-  arma::mat H0=T+Vnuc;
 
   // Form DFT grid
   auto grid = helfem::sadatom::dftgrid::DFTGrid(&basis);
   // Compute two-electron integrals
   basis.compute_tei();
 
-  // Core Hamiltonian
-  OpenOrbitalOptimizer::FockMatrix<double> Hcore(lmax+1);
-  for(int l=0;l<=lmax;l++) {
-    Hcore[l] = Sinvh.t() * (H0 + l*(l+1)*Tl) * Sinvh;
-  }
-
   // OOO data
-  arma::uvec number_of_blocks_per_particle_type({(arma::sword) (lmax+1)});
+  arma::uvec number_of_blocks_per_particle_type({(arma::uword) (lmax+1)});
   arma::vec maximum_occupation(lmax+1);
   arma::vec number_of_particles({(double) Z-Q});
   std::vector<std::string> block_descriptions(lmax+1);
@@ -167,14 +162,15 @@ int main(int argc, char **argv) {
 
       // Same radial basis for all l!
       arma::mat C = Sinvh*orbitals[l];
-      arma::mat P = C*occupations[l]*C.t();
+      arma::mat P = C*arma::diagmat(occupations[l])*C.t();
       Pl.slice(l) = P;
       Prad += P;
 
       // Kinetic energy
-      Ekin += arma::trace(P*T) + l*(l+1)*arma::trace(P*Tl);
+      Ekin += arma::trace(P*T);
+      if(l>0)
+        Ekin += l*(l+1)*arma::trace(P*Tl);
     }
-
     double Enuc=arma::trace(Prad*Vnuc);
 
     // Coulomb matrix
@@ -197,7 +193,6 @@ int main(int argc, char **argv) {
 
     double Ecoul = 0.5*arma::trace(Prad*J);
     double Etot = Ekin + Enuc + Ecoul + Exc;
-
     if(true) {
       printf("kinetic energy         % .10f\n",Ekin);
       printf("nuclear attraction     % .10f\n",Enuc);
@@ -208,13 +203,53 @@ int main(int argc, char **argv) {
 
     OpenOrbitalOptimizer::FockMatrix<double> fock(lmax+1);
     for(int l=0;l<=lmax;l++) {
-      fock[l] = Sinvh.t() * (H0 + l*(l+1)*Tl + J + XC.slice(l)) * Sinvh;
+      // Core Hamiltonian and Coulomb
+      fock[l] = T + l*(l+1)*Tl + Vnuc + J;
+      // DFT contribution
+      if(x_func>0 || c_func>0)
+        fock[l] += XC.slice(l);
+      // Go to orthonormal basis
+      fock[l] = Sinvh.t() * fock[l] * Sinvh;
     }
     return std::make_pair(Etot,fock);
-  };  
+  };
+
+  // Determine core guess
+  OpenOrbitalOptimizer::Orbitals<double> OrbitalGuess(lmax+1);
+  for(int l=0;l<=lmax;l++) {
+    arma::mat H = Sinvh.t() * (T + l*(l+1)*Tl + Vnuc) * Sinvh;
+    arma::vec E;
+    arma::eig_sym(E,OrbitalGuess[l],H);
+  }
+
+  // Orbital occupations
+  auto config = sadatom::get_configuration(Z);
+  OpenOrbitalOptimizer::OrbitalOccupations<double> Occupations(lmax+1);
+  for(int l=0;l<=lmax;l++) {
+    Occupations[l].zeros(Sinvh.n_cols);
+
+    arma::sword filled=0;
+    for(size_t io=0;io<Sinvh.n_cols;io++) {
+      arma::sword fill = std::min((arma::sword) 2*(2*l+1), config(l)-filled);
+      Occupations[l](io) = fill;
+      filled += fill;
+      if(filled >= config(l))
+        break;
+    }
+  }
+
+  // Core guess
+  OpenOrbitalOptimizer::Orbitals<double> CoreH(lmax+1);
+  for(int l=0;l<=lmax;l++) {
+    CoreH[l] = Sinvh.t() * (T + l*(l+1)*Tl + Vnuc) * Sinvh;
+  }
 
   OpenOrbitalOptimizer::SCFSolver scfsolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles, fock_builder, block_descriptions);
-  scfsolver.initialize_with_fock(Hcore);
+  scfsolver.initialize_with_fock(CoreH);
+  //scfsolver.initialize_with_orbitals(OrbitalGuess, Occupations);
+  //scfsolver.frozen_occupations(true);
+  //scfsolver.optimal_damping_threshold(1e10);
+  //scfsolver.verbosity(10);
   scfsolver.run();
 
   return 0;
