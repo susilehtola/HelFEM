@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
   parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
   parser.add<int>("nelem", 0, "number of elements", true);
-  parser.add<int>("nufreq", 0, "frequency of uniform elements", false, 2);
+  parser.add<double>("nufreq", 0, "frequency of uniform elements", false, 0.5);
   parser.add<std::string>("Z", 0, "nuclear charge", true);
   parser.add<int>("Q", 0, "charge of system", false, 0);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
   int igrid(parser.get<int>("grid"));
   double zexp(parser.get<double>("zexp"));
   int Nelem(parser.get<int>("nelem"));
-  int Nufreq(parser.get<int>("nufreq"));
+  double Nufreq(parser.get<double>("nufreq"));
 
   int Z(get_Z(parser.get<std::string>("Z")));
   int Q(parser.get<int>("Q"));
@@ -145,7 +145,7 @@ int main(int argc, char **argv) {
   // Suitable uniform spacing to account for Friedel oscillations is pi/k_F
   double friedel_period = std::cbrt(4*M_PI*M_PI/9)*rs;
   // Number of uniform elements is thus
-  int Nuelem = std::ceil(R/friedel_period)*Nufreq;
+  int Nuelem = std::ceil(R/friedel_period*Nufreq);
 
   if(vacancy) {
     printf("%i jellium electrons with rs = % .3f and vacancy model leads to r_inner = % .10f r_outer = % .10f lmax = %i\n",njellium,rs,r_inner,r_outer,lmax);
