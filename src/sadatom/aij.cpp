@@ -153,6 +153,7 @@ int main(int argc, char **argv) {
     printf("%i jellium electrons with rs = % .3f leads to R = % .10f lmax = %i\n",njellium,rs,R,lmax);
   }
   printf("Friedel period is % .3f, using %i uniform elements.\n", friedel_period, Nuelem);
+  double Erep = 3*std::pow(R,5)/(5*std::pow(rs,6));
 
   // Uniform part of grid
   arma::vec bval_unif = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nuelem, R, 1, 0.0, 0, 0, 0, Z, 0, 0, 0.0, false, 0.0);
@@ -398,11 +399,12 @@ int main(int argc, char **argv) {
     }
 
     double Ecoul = 0.5*arma::trace(Prad*J);
-    double Etot = Ekin + Enuc + Eunif + Ecoul + Exc;
+    double Etot = Ekin + Enuc + Eunif + Erep + Ecoul + Exc;
 
     if(true) {
       printf("kinetic energy         % .10f\n",Ekin);
       printf("nuclear attraction     % .10f\n",Enuc);
+      printf("background repulsion   % .10f\n",Erep);
       printf("background attraction  % .10f\n",Eunif);
       printf("Coulomb repulsion      % .10f\n",Ecoul);
       printf("exchange-correlation   % .10f\n",Exc);
@@ -499,11 +501,12 @@ int main(int argc, char **argv) {
     }
 
     double Ecoul = 0.5*arma::trace(Prad*J);
-    double Etot = Ekin + Enuc + Eunif + Ecoul + Exc;
+    double Etot = Ekin + Enuc + Eunif + Erep + Ecoul + Exc;
 
     if(true) {
       printf("kinetic energy         % .10f\n",Ekin);
       printf("nuclear attraction     % .10f\n",Enuc);
+      printf("background repulsion   % .10f\n",Erep);
       printf("background attraction  % .10f\n",Eunif);
       printf("Coulomb repulsion      % .10f\n",Ecoul);
       printf("exchange-correlation   % .10f\n",Exc);
@@ -564,10 +567,11 @@ int main(int argc, char **argv) {
     }
 
     double Ecoul = 0.5*arma::trace(Prad*J);
-    double Etot = Ekin + Eunif + Ecoul + Exc;
+    double Etot = Ekin + Eunif + Ecoul + Erep + Exc;
 
     if(true) {
       printf("kinetic energy         % .10f\n",Ekin);
+      printf("background repulsion   % .10f\n",Erep);
       printf("background attraction  % .10f\n",Eunif);
       printf("Coulomb repulsion      % .10f\n",Ecoul);
       printf("exchange-correlation   % .10f\n",Exc);
