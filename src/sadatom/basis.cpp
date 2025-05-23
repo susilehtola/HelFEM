@@ -107,10 +107,11 @@ namespace helfem {
 
       helfem::Matrix TwoDBasis::background_potential(double rs, double r_inner, double r_outer) const {
         std::function<double(double, double)> sphere_pot = [&](double r, double R) {
+          const double prefac = std::pow(R/rs,3)/(4.0*M_PI);
           if(r<R) {
-            return (3.0*R*R - r*r)/(8.0*M_PI*rs*rs*rs);
+            return prefac*(3.0 - std::pow(r/R,2))/(2*R);
           } else {
-            return 1.0/(4.0*M_PI)*std::pow(R/rs,3)/r;
+            return prefac/r;
           }
         };
 
