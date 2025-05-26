@@ -590,15 +590,43 @@ int main(int argc, char **argv) {
     return std::make_pair(Etot,fock);
   };
 
+  std::function<void(const OpenOrbitalOptimizer::DensityMatrix<double, double> &, const std::string &)> save_density = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm, const std::string & fname) {
+    const auto & orbitals = dm.first;
+    const auto & occupations = dm.second;
+    // Radial density matrix
+    arma::mat Prad(Sinvh.n_rows, Sinvh.n_rows, arma::fill::zeros);
+    for(int l=0;l<=lmax;l++) {
+      // Nothing to do
+      if(arma::max(arma::abs(occupations[l]))==0.0)
+        continue;
+
+      // Same radial basis for all l!
+      arma::mat C = Sinvh*orbitals[l];
+      arma::mat P = C*arma::diagmat(occupations[l])*C.t();
+      Prad += P;
+    }
+
+    arma::vec r(basis.radii());
+    arma::vec density(basis.electron_density(Prad, false));
+    size_t Npoints(r.n_elem);
+    // and pack it for libxc
+    arma::mat rho_arr(Npoints,2);
+    rho_arr.col(0)=r;
+    rho_arr.col(1)=density;
+    rho_arr.save(fname, arma::raw_ascii);
+  };
+
   // Start with jellium
   OpenOrbitalOptimizer::SCFSolver scfsolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles_jellium, jellium_builder, block_descriptions_jellium);
   scfsolver.maximum_iterations(maxiter);
   scfsolver.convergence_threshold(convthr);
   scfsolver.initialize_with_fock(coreH_without_nuc);
   double frozen_jellium_energy = scfsolver.get_energy();
+  save_density(scfsolver.get_solution(), "density_frozen_jellium.dat");
   scfsolver.run_optimal_damping();
   //scfsolver.run();
   double jellium_energy = scfsolver.get_energy();
+  save_density(scfsolver.get_solution(), "density_jellium.dat");
 
   // Then do the atom
   scfsolver = OpenOrbitalOptimizer::SCFSolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles_atom, atom_builder, block_descriptions_atom);
@@ -608,6 +636,7 @@ int main(int argc, char **argv) {
   scfsolver.run_optimal_damping();
   //scfsolver.run();
   double atom_energy = scfsolver.get_energy();
+  save_density(scfsolver.get_solution(), "density_atom.dat");
 
   // Then do the fixed atom-in-jellium
   scfsolver = OpenOrbitalOptimizer::SCFSolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles_atom, static_aij_builder, block_descriptions_aij_frozen);
@@ -617,6 +646,7 @@ int main(int argc, char **argv) {
   scfsolver.run_optimal_damping();
   //scfsolver.run();
   double static_aij_energy = scfsolver.get_energy();
+  save_density(scfsolver.get_solution(), "density_atom_in_frozen_jellium.dat");
 
   // Update variables for aij solution
   scfsolver=OpenOrbitalOptimizer::SCFSolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles_aij, aij_builder, block_descriptions_aij);
@@ -626,6 +656,7 @@ int main(int argc, char **argv) {
   scfsolver.run_optimal_damping();
   //scfsolver.run();
   double aij_energy = scfsolver.get_energy();
+  save_density(scfsolver.get_solution(), "density_atom_in_jellium.dat");
 
   printf("Energy of atom:                   % .6f Eh\n",atom_energy);
   printf("Energy of atom in frozen jellium: % .6f Eh\n",static_aij_energy);
