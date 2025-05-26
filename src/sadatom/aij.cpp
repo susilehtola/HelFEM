@@ -577,6 +577,7 @@ int main(int argc, char **argv) {
       printf("background attraction  % .10f\n",Eunif);
       printf("Coulomb repulsion      % .10f\n",Ecoul);
       printf("exchange-correlation   % .10f\n",Exc);
+      printf("total Coulomb terms    % .10f\n",Erep+Eunif+Ecoul);
       printf("total energy           % .10f\n",Etot);
     }
 
