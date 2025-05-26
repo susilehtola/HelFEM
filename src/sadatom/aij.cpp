@@ -605,6 +605,8 @@ int main(int argc, char **argv) {
       arma::mat P = C*arma::diagmat(occupations[l])*C.t();
       Prad += P;
     }
+    // Remove the angular factor
+    Prad /= 4.0*M_PI;
 
     arma::vec r(basis.radii());
     arma::vec density(basis.electron_density(Prad, false));
