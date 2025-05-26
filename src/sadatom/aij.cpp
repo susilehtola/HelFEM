@@ -37,7 +37,9 @@ int consistent_lmax(int njellium) {
       return (int) i;
   }
 
-  return -1;
+  std::ostringstream oss;
+  oss << "Magic numbers not tabulated for njellium=" << njellium << "!\n";
+  throw std::logic_error(oss.str());
 }
 
 int main(int argc, char **argv) {
