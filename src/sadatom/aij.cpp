@@ -193,6 +193,31 @@ int main(int argc, char **argv) {
   printf("Basis set has %i radial functions\n",(int) basis.Nbf());
   printf("%ith order Taylor series used to evaluate basis functions for r <= %e, error %e\n",taylor_order, basis.get_small_r_taylor_cutoff(), basis.get_taylor_diff());
 
+  std::function<double(double, double)> sphere_pot = [&](double r, double R) {
+    const double prefac = std::pow(R/rs,3);
+    if(r<R) {
+      return prefac*(3.0 - std::pow(r/R,2))/(2*R);
+    } else {
+      return prefac/r;
+    }
+  };
+
+  std::function<double(double)> potfunc = [&](double r) {
+    // The background potential is the difference between the
+    // uniform background charge, and the vacancy in the
+    // middle. Since the potential is attractive for electrons,
+    // we flip the sign here.
+    if(r_inner>0)
+      return -sphere_pot(r,r_outer)+sphere_pot(r,r_inner);
+    else
+      return -sphere_pot(r,r_outer);
+  };
+
+  // Energy of nucleus in external field
+  double Enucfield = -Z*potfunc(0);
+  printf("potfunc(0) = %e Enucfield = %e\n",potfunc(0),Enucfield);
+  fflush(stdout);
+
   // Form overlap matrix
   arma::mat S=basis.overlap();
   // Get half-inverse
@@ -204,7 +229,7 @@ int main(int argc, char **argv) {
   // Form nuclear attraction energy matrix
   arma::mat Vnuc=basis.nuclear();
   // Uniform background potential
-  arma::mat Vunif=basis.background_potential(rs, r_inner, r_outer);
+  arma::mat Vunif=basis.potential(potfunc);
 
   // Form DFT grid
   auto grid = helfem::sadatom::dftgrid::DFTGrid(&basis);
@@ -401,11 +426,12 @@ int main(int argc, char **argv) {
     }
 
     double Ecoul = 0.5*arma::trace(Prad*J);
-    double Etot = Ekin + Enuc + Eunif + Erep + Ecoul + Exc;
+    double Etot = Ekin + Enuc + Enucfield + Eunif + Erep + Ecoul + Exc;
 
     if(true) {
       printf("kinetic energy         % .10f\n",Ekin);
       printf("nuclear attraction     % .10f\n",Enuc);
+      printf("nucleus-field term     % .10f\n",Enucfield);
       printf("background repulsion   % .10f\n",Erep);
       printf("background attraction  % .10f\n",Eunif);
       printf("Coulomb repulsion      % .10f\n",Ecoul);
@@ -503,11 +529,12 @@ int main(int argc, char **argv) {
     }
 
     double Ecoul = 0.5*arma::trace(Prad*J);
-    double Etot = Ekin + Enuc + Eunif + Erep + Ecoul + Exc;
+    double Etot = Ekin + Enuc + Enucfield + Eunif + Erep + Ecoul + Exc;
 
     if(true) {
       printf("kinetic energy         % .10f\n",Ekin);
       printf("nuclear attraction     % .10f\n",Enuc);
+      printf("nucleus-field term     % .10f\n",Enucfield);
       printf("background repulsion   % .10f\n",Erep);
       printf("background attraction  % .10f\n",Eunif);
       printf("Coulomb repulsion      % .10f\n",Ecoul);
@@ -667,7 +694,7 @@ int main(int argc, char **argv) {
   double aij_energy = scfsolver.get_energy();
   save_density(scfsolver.get_solution(), "density_atom_in_jellium.dat");
 
-  double static_atom_attraction = arma::trace(atom_density*Vunif);
+  double static_atom_attraction = arma::trace(atom_density*Vunif) + Enucfield;
 
   printf("Energy of atom:                       % .6f Eh\n",atom_energy);
   printf("Atom-background interaction energy:   % .6f Eh\n",static_atom_attraction);
