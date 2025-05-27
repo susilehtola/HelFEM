@@ -591,7 +591,7 @@ int main(int argc, char **argv) {
     return std::make_pair(Etot,fock);
   };
 
-  std::function<void(const OpenOrbitalOptimizer::DensityMatrix<double, double> &, const std::string &)> save_density = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm, const std::string & fname) {
+  std::function<arma::mat(const OpenOrbitalOptimizer::DensityMatrix<double, double> &)> radial_density_matrix = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm) {
     const auto & orbitals = dm.first;
     const auto & occupations = dm.second;
     // Radial density matrix
@@ -606,6 +606,11 @@ int main(int argc, char **argv) {
       arma::mat P = C*arma::diagmat(occupations[l])*C.t();
       Prad += P;
     }
+    return Prad;
+  };
+
+  std::function<void(const OpenOrbitalOptimizer::DensityMatrix<double, double> &, const std::string &)> save_density = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm, const std::string & fname) {
+    auto Prad = radial_density_matrix(dm);
     // Remove the angular factor
     Prad /= 4.0*M_PI;
 
@@ -640,6 +645,7 @@ int main(int argc, char **argv) {
   //scfsolver.run();
   double atom_energy = scfsolver.get_energy();
   save_density(scfsolver.get_solution(), "density_atom.dat");
+  auto atom_density(radial_density_matrix(scfsolver.get_solution()));
 
   // Then do the fixed atom-in-jellium
   scfsolver = OpenOrbitalOptimizer::SCFSolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles_atom, static_aij_builder, block_descriptions_aij_frozen);
@@ -661,14 +667,17 @@ int main(int argc, char **argv) {
   double aij_energy = scfsolver.get_energy();
   save_density(scfsolver.get_solution(), "density_atom_in_jellium.dat");
 
-  printf("Energy of atom:                   % .6f Eh\n",atom_energy);
-  printf("Energy of atom in frozen jellium: % .6f Eh\n",static_aij_energy);
-  printf("Energy of frozen jellium:         % .6f Eh\n",frozen_jellium_energy);
-  printf("Static  AiJ immersion energy:     % .4f eV\n",(static_aij_energy-frozen_jellium_energy-atom_energy)*HARTREEINEV);
+  double static_atom_attraction = arma::trace(atom_density*Vunif);
 
-  printf("Energy of atom in jellium:        % .6f Eh\n",aij_energy);
-  printf("Energy of relaxed jellium:        % .6f Eh\n",jellium_energy);
-  printf("Relaxed AiJ immersion energy:     % .4f eV\n",(aij_energy-jellium_energy-atom_energy)*HARTREEINEV);
+  printf("Energy of atom:                       % .6f Eh\n",atom_energy);
+  printf("Atom-background interaction energy:   % .6f Eh\n",static_atom_attraction);
+  printf("Energy of atom in frozen jellium:     % .6f Eh\n",static_aij_energy);
+  printf("Energy of frozen jellium:             % .6f Eh\n",frozen_jellium_energy);
+  printf("Static  AiJ immersion energy:         % .4f eV\n",(static_aij_energy-frozen_jellium_energy-atom_energy-static_atom_attraction)*HARTREEINEV);
+
+  printf("Energy of atom in jellium:            % .6f Eh\n",aij_energy);
+  printf("Energy of relaxed jellium:            % .6f Eh\n",jellium_energy);
+  printf("Relaxed AiJ immersion energy:         % .4f eV\n",(aij_energy-jellium_energy-atom_energy-static_atom_attraction)*HARTREEINEV);
 
   return 0;
 }
