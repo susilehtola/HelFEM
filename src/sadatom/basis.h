@@ -98,8 +98,12 @@ namespace helfem {
         helfem::Matrix nuclear() const;
 	/// Form confinement potential matrix
 	helfem::Matrix confinement(int N, double r_0, int iconf, double V, double shift_pot) const;
-        /// Uniform background potential
-        helfem::Matrix background_potential(double rs, double r_inner, double r_outer) const;
+        /// Matrix elements of an arbitrary radial potential. Optional
+        /// breakpoints mark radii where the potential is non-smooth
+        /// (e.g. the jellium sphere edges), so the auto-converging
+        /// quadrature can split the integration there.
+        helfem::Matrix potential(const std::function<double(double)> & potfunc,
+                                 const std::vector<double> & breakpoints = std::vector<double>()) const;
         /// Form model potential matrix
 	helfem::Matrix model_potential(const modelpotential::ModelPotential * model) const;
         /// Form Coulomb matrix
