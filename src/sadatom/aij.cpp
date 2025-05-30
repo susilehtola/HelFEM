@@ -65,6 +65,7 @@ int main(int argc, char **argv) {
   parser.add<double>("convthr", 0, "Convergence threshold", false, 1e-7);
   parser.add<bool>("vacancy", 0, "Jellium vacancy model?", false, false);
   parser.add<int>("maxiter", 0, "maximum number of iterations", false, 1024);
+  parser.add<bool>("zeroright", 0, "Zero the right-hand function value", false, false);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -92,6 +93,8 @@ int main(int argc, char **argv) {
 
   int maxiter(parser.get<int>("maxiter"));
   double convthr(parser.get<double>("convthr"));
+
+  bool zeroright(parser.get<bool>("zeroright"));
 
   // Parse xc parameters
   arma::vec x_pars, c_pars;
@@ -189,7 +192,7 @@ int main(int argc, char **argv) {
   bval.print("bval");
 
   bool zeroder = false;
-  auto basis = sadatom::basis::TwoDBasis(Z, modelpotential::POINT_NUCLEUS, 0.0, poly, zeroder, Nquad, bval, taylor_order, lmax);
+  auto basis = sadatom::basis::TwoDBasis(Z, modelpotential::POINT_NUCLEUS, 0.0, poly, zeroder, Nquad, bval, taylor_order, lmax, zeroright);
   printf("Basis set has %i radial functions\n",(int) basis.Nbf());
   printf("%ith order Taylor series used to evaluate basis functions for r <= %e, error %e\n",taylor_order, basis.get_small_r_taylor_cutoff(), basis.get_taylor_diff());
 
@@ -658,7 +661,9 @@ int main(int argc, char **argv) {
   scfsolver.initialize_with_fock(coreH_without_nuc);
   double frozen_jellium_energy = scfsolver.get_energy();
   save_density(scfsolver.get_solution(), "density_frozen_jellium.dat");
-  scfsolver.run_optimal_damping();
+  try {
+    scfsolver.run_optimal_damping();
+  } catch(...) {};
   //scfsolver.run();
   double jellium_energy = scfsolver.get_energy();
   save_density(scfsolver.get_solution(), "density_jellium.dat");
@@ -668,7 +673,9 @@ int main(int argc, char **argv) {
   scfsolver.maximum_iterations(maxiter);
   scfsolver.convergence_threshold(convthr);
   scfsolver.initialize_with_fock(coreH_with_nuc);
-  scfsolver.run_optimal_damping();
+  try {
+    scfsolver.run_optimal_damping();
+  } catch(...) {};
   //scfsolver.run();
   double atom_energy = scfsolver.get_energy();
   save_density(scfsolver.get_solution(), "density_atom.dat");
@@ -679,7 +686,9 @@ int main(int argc, char **argv) {
   scfsolver.maximum_iterations(maxiter);
   scfsolver.convergence_threshold(convthr);
   scfsolver.initialize_with_fock(coreH_frozen);
-  scfsolver.run_optimal_damping();
+  try {
+    scfsolver.run_optimal_damping();
+  } catch(...) {};
   //scfsolver.run();
   double static_aij_energy = scfsolver.get_energy();
   save_density(scfsolver.get_solution(), "density_atom_in_frozen_jellium.dat");
@@ -689,7 +698,9 @@ int main(int argc, char **argv) {
   scfsolver.maximum_iterations(maxiter);
   scfsolver.convergence_threshold(convthr);
   scfsolver.initialize_with_fock(coreH_with_nuc);
-  scfsolver.run_optimal_damping();
+  try {
+    scfsolver.run_optimal_damping();
+  } catch(...) {};
   //scfsolver.run();
   double aij_energy = scfsolver.get_energy();
   save_density(scfsolver.get_solution(), "density_atom_in_jellium.dat");
