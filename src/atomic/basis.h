@@ -27,6 +27,8 @@ namespace helfem {
     namespace basis {
       /// Get the element grid for a normal calculation
       arma::vec normal_grid(int num_el, double rmax, int igrid, double zexp);
+      /// Get grid for confinement calculation with additional elements
+      arma::vec conf_grid(int num_el, double rmax, int igrid, double zexp, double shiftconf, double conf_R);
       /// Get the element grid for a finite nucleus
       arma::vec finite_nuclear_grid(int num_el, double rmax, int igrid, double zexp, int num_el_nuc, double rnuc, int igrid_nuc, double zexp_nuc);
       /// Get the element grid in the case of off-center nuclei
@@ -35,7 +37,7 @@ namespace helfem {
       arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf);
 
       /// Form the grid in case of added boundary due to confinement
-      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf, bool add_el, double r);
+      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf, bool add_el, double shift_conf, double conf_R);
 
       /// Constructs an angular basis
       void angular_basis(int lmax, int mmax, arma::ivec & lval, arma::ivec & mval);
