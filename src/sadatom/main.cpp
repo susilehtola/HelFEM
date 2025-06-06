@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
   // full option name, no short option, description, argument required
   parser.add<std::string>("Z", 0, "nuclear charge", true);
   parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
-  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential, 5 for combination of linear and exponential", false, 4);
+  parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential, 5 for geometric, 6 for combination of linear and exponential", false, 4);
   parser.add<int>("grid0", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
   parser.add<double>("zexp0", 0, "parameter in radial grid", false, 2.0);
@@ -135,8 +135,8 @@ int main(int argc, char **argv) {
   parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.001);
   parser.add<double>("eps_el", 0, "Density threshold for atomic size with electron density inclusion", false, 0.073416683704840394115); // H atom analytical solution gives same radius as vdW routine with 1e-3 threshold as used by Rahm 2016
   parser.add<bool>("completeness", 0, "Compute completeness and importance profiles?", false, false);
-  parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential, 3 for barrier, 4 for Junquera et al.", false, 0);
-  parser.add<int>("conf_N", 0, "Exponent in confinement potential", false, 0);
+  parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential, 3 for barrier, 4 for Junquera et al., 5 for piecewise potential", false, 0);
+  parser.add<int>("conf_N", 0, "Exponent in polynomial confinement potential", false, 0);
   parser.add<double>("conf_R", 0, "Confinement radius", false, 0.0);
   parser.add<double>("conf_barrier", 0, "Confinement barrier height", false, 0.0);
   parser.add<double>("shift_conf", 0, "Where does confinement start?", false, 0.0);
