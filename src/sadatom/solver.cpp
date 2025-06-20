@@ -207,6 +207,8 @@ namespace helfem {
 
         // Evaluate the orbitals
         std::vector<arma::mat> orbval(lmax+1);
+	std::vector<arma::mat> orbdval(lmax+1);
+	std::vector<arma::mat> orblval(lmax+1);
         for(int l=0;l<=lmax;l++) {
           arma::uvec oidx(arma::conv_to<arma::uvec>::from(iocc[l]));
           if(!oidx.n_elem)
@@ -215,14 +217,19 @@ namespace helfem {
           // Orbital vector
           arma::mat Cl(C.slice(l).cols(oidx));
           orbval[l]=basis.orbitals(Cl);
+	  orbdval[l]=basis.orbitals_derivative(Cl);
+	  orblval[l]=basis.orbitals_second_derivative(Cl);
 
           // Fix the phases
           for(size_t io=0;io<orbval[l].n_cols;io++) {
             arma::vec odens(arma::square(orbval[l].col(io)));
             arma::uword idx;
             odens.max(idx);
-            if(orbval[l](idx,io)<0.0)
+            if(orbval[l](idx,io)<0.0) {
               orbval[l].col(io)*=-1;
+	      orbdval[l].col(io)*=-1;
+	      orblval[l].col(io)*=-1;
+	    }
           }
         }
 
@@ -230,42 +237,54 @@ namespace helfem {
         arma::vec r(basis.radii());
 	arma::vec wt(basis.quadrature_weights());
 
-        std::ostringstream oss;
+	std::function<void(const std::string &, const std::vector<arma::mat> & )> save_data = [&](const std::string & fname, const std::vector<arma::mat> & data) {
+	  FILE *out = fopen(fname.c_str(),"w");
+
+	  // Header: number of radial points and orbitals
+	  fprintf(out,"%i %i\n",(int) orbval[0].n_rows,(int) norb);
+
+	  // Orbital angular momenta
+	  for(int l=0;l<=lmax;l++) {
+	    for(size_t io=0;io<Eorb[l].size();io++)
+	      fprintf(out," %i",l);
+	  }
+	  fprintf(out,"\n");
+	  // Orbital occupations
+	  for(int l=0;l<=lmax;l++) {
+	    for(size_t io=0;io<occnum[l].size();io++)
+	      fprintf(out," %i",occnum[l][io]);
+	  }
+	  fprintf(out,"\n");
+	  // Orbital energies
+	  for(int l=0;l<=lmax;l++) {
+	    for(size_t io=0;io<Eorb[l].size();io++)
+	      fprintf(out," %e",Eorb[l][io]);
+	  }
+	  fprintf(out,"\n");
+	  // Orbital values
+	  for(size_t ir=0;ir<data[0].n_rows;ir++) {
+	    fprintf(out,"%e",r(ir));
+	    fprintf(out," % e",wt(ir));
+	    for(int l=0;l<=lmax;l++)
+	      for(size_t ic=0;ic<data[l].n_cols;ic++) {
+		fprintf(out," % e",data[l](ir,ic));
+	      }
+	    fprintf(out,"\n");
+	  }
+	  fclose(out);
+	};
+
+	std::ostringstream oss;
         oss << symbol << "_orbs.dat";
-        FILE *out = fopen(oss.str().c_str(),"w");
+	save_data(oss.str(), orbval);
 
-        // Header: number of radial points and orbitals
-        fprintf(out,"%i %i\n",(int) orbval[0].n_rows,(int) norb);
+	oss.str("");
+        oss << symbol << "_orbs_der.dat";
+	save_data(oss.str(), orbdval);
 
-        // Orbital angular momenta
-        for(int l=0;l<=lmax;l++) {
-          for(size_t io=0;io<Eorb[l].size();io++)
-            fprintf(out," %i",l);
-        }
-        fprintf(out,"\n");
-        // Orbital occupations
-        for(int l=0;l<=lmax;l++) {
-          for(size_t io=0;io<occnum[l].size();io++)
-            fprintf(out," %i",occnum[l][io]);
-        }
-        fprintf(out,"\n");
-        // Orbital energies
-        for(int l=0;l<=lmax;l++) {
-          for(size_t io=0;io<Eorb[l].size();io++)
-            fprintf(out," %e",Eorb[l][io]);
-        }
-        fprintf(out,"\n");
-        // Orbital values
-        for(size_t ir=0;ir<orbval[0].n_rows;ir++) {
-          fprintf(out,"%e",r(ir));
-	  fprintf(out," % e",wt(ir));
-          for(int l=0;l<=lmax;l++)
-            for(size_t ic=0;ic<orbval[l].n_cols;ic++) {
-              fprintf(out," % e",orbval[l](ir,ic));
-            }
-          fprintf(out,"\n");
-        }
-        fclose(out);
+	oss.str("");
+        oss << symbol << "_orbs_2der.dat";
+	save_data(oss.str(), orblval);
       }
 
       bool OrbitalChannel::operator==(const OrbitalChannel & rh) const {

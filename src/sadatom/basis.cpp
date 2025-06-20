@@ -882,6 +882,62 @@ namespace helfem {
         return Cv;
       }
 
+      arma::mat TwoDBasis::orbitals_derivative(const arma::mat & C) const {
+        std::vector<arma::mat> c(radial.Nel());
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          // Radial functions in element
+          size_t ifirst, ilast;
+          radial.get_idx(iel,ifirst,ilast);
+          // Density matrix
+          arma::mat Csub(C.rows(ifirst,ilast));
+          arma::mat bf(radial.get_df(iel));
+
+          c[iel]=bf*Csub;
+        }
+        size_t Npts=c[0].n_rows;
+
+        arma::mat Cv(radial.Nel()*Npts+1,C.n_cols);
+        Cv.zeros();
+        // Values at the nucleus
+        {
+	  // tbd
+        }
+        // Other points
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          Cv.rows(1+iel*Npts,(iel+1)*Npts)=c[iel];
+        }
+
+        return Cv;
+      }
+
+      arma::mat TwoDBasis::orbitals_second_derivative(const arma::mat & C) const {
+        std::vector<arma::mat> c(radial.Nel());
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          // Radial functions in element
+          size_t ifirst, ilast;
+          radial.get_idx(iel,ifirst,ilast);
+          // Density matrix
+          arma::mat Csub(C.rows(ifirst,ilast));
+          arma::mat bf(radial.get_lf(iel));
+
+          c[iel]=bf*Csub;
+        }
+        size_t Npts=c[0].n_rows;
+
+        arma::mat Cv(radial.Nel()*Npts+1,C.n_cols);
+        Cv.zeros();
+        // Values at the nucleus
+        {
+	  // tbd
+        }
+        // Other points
+        for(size_t iel=0;iel<radial.Nel();iel++) {
+          Cv.rows(1+iel*Npts,(iel+1)*Npts)=c[iel];
+        }
+
+        return Cv;
+      }
+
       arma::vec TwoDBasis::electron_density(const arma::vec & x, size_t iel, const arma::mat & Prad, bool rsqweight) const {
         // Radial functions in element
         size_t ifirst, ilast;

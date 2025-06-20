@@ -137,6 +137,10 @@ namespace helfem {
         arma::vec radii() const;
         /// Compute radial orbitals
         arma::mat orbitals(const arma::mat & C) const;
+        /// Compute radial orbitals' first derivative
+        arma::mat orbitals_derivative(const arma::mat & C) const;
+        /// Compute radial orbitals' second derivative
+        arma::mat orbitals_second_derivative(const arma::mat & C) const;
 
         /// Compute the electron density in given element at wanted points
         arma::vec electron_density(const arma::vec & x, size_t iel, const arma::mat & Prad, bool rsqweight = false) const;
