@@ -408,7 +408,7 @@ namespace helfem {
 	};
         return fem.matrix_element(iel, false, false, xq, wq, r_exp);
       }
-      
+
       arma::mat RadialBasis::confinement_potential(size_t iel, int N, double r_0, int iconf, double V, double shift_pot) const {
 	// Attractive potential does not make sense for shift_pot != 0
 
@@ -417,6 +417,7 @@ namespace helfem {
 	r_0 = std::abs(r_0);
 
 	if(iconf==1) {
+          printf("Polynomial confinement, r_0 = %e N = %i shift = %e \n",r_0,N,shift_pot);
 	  if(N<0) {
 	    if(shift_pot != 0.0)
 	      throw std::logic_error("Cannot have a divergent potential with a shift!\n");
@@ -426,18 +427,24 @@ namespace helfem {
 	  }
 
 	} else if(iconf==2) {
+          printf("Exponential confinement, r_0 = %e N = %i shift = %e \n",r_0,N,shift_pot);
+
 	  if(N<0)
 	    throw std::logic_error("Exponential confinement potential does not make sense with negative N!\n");
 	  if(N==0)
 	    throw std::logic_error("Exponential confinement potential requires N >= 1!");
 
 	  return exponential_confinement(iel, N, r_0, shift_pot);
-	
+
 	} else if(iconf==3) {
 	  if(V<0)
 	    throw std::logic_error("Cannot have attractive barrier!\n");
+
+          printf("Barrier confinement, V = %e shift = %e \n",V,shift_pot);
 	  return barrier_confinement(iel, V, shift_pot);
+
 	} else if(iconf==4) {
+          printf("Junquera-type confinement, r_0 = %e N = %i V = %e shift = %e \n",r_0,N,V,shift_pot);
 	  if(N<=0)
 	    throw std::logic_error("Junquera confinement potential requires N >= 1!");
 	  if(V<=0)
