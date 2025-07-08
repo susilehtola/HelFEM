@@ -53,7 +53,7 @@ namespace helfem {
         return utils::get_grid(rmax,num_el,igrid,zexp);
       }
       
-      arma::vec conf_grid(int num_el, double rmax, int igrid, double zexp, double shift_conf, double conf_R) {
+      arma::vec normal_grid(int num_el, double rmax, int igrid, double zexp, double shift_conf, double conf_R) {
         return utils::get_grid(rmax,num_el,igrid,zexp, shift_conf, conf_R);
       }
 
@@ -148,13 +148,10 @@ namespace helfem {
         } else if(Zl != 0 || Zr != 0) {
           printf("Off-center grid\n");
           bval=atomic::basis::offcenter_nuclear_grid(Nelem0,Z,std::max(Zl,Zr),Rhalf,Nelem,Rmax,igrid,zexp);
-	} else if(igrid == 5) {
-	  printf("Confinement grid\n");
-	  bval=atomic::basis::conf_grid(Nelem,Rmax,igrid,zexp,shift_conf,conf_R);
-        } else {
-          printf("Normal grid\n");
-          bval=atomic::basis::normal_grid(Nelem,Rmax,igrid,zexp);
-        }
+	  }  else {
+	  printf("Normal grid\n");
+          bval=atomic::basis::normal_grid(Nelem,Rmax,igrid,zexp,shift_conf,conf_R);
+	  }
 
 	if(add_el) {
 	  // Check that r is not in bval

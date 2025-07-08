@@ -267,7 +267,7 @@ int main(int argc, char **argv) {
   arma::ivec lval, mval;
   atomic::basis::angular_basis(lmax,mmax,lval,mval);
   // and the radial one
-  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf, add_conf, shift_conf);
+  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf, add_conf, shift_conf, conf_R);
 
   atomic::basis::TwoDBasis basis;
   basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, zeroder, Nquad, bval, taylor_order, lval, mval, Zl, Zr, Rhalf);

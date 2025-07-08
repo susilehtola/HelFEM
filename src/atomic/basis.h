@@ -28,7 +28,7 @@ namespace helfem {
       /// Get the element grid for a normal calculation
       arma::vec normal_grid(int num_el, double rmax, int igrid, double zexp);
       /// Get grid for confinement calculation with additional elements
-      arma::vec conf_grid(int num_el, double rmax, int igrid, double zexp, double shiftconf, double conf_R);
+      arma::vec normal_grid(int num_el, double rmax, int igrid, double zexp, double shiftconf, double conf_R);
       /// Get the element grid for a finite nucleus
       arma::vec finite_nuclear_grid(int num_el, double rmax, int igrid, double zexp, int num_el_nuc, double rnuc, int igrid_nuc, double zexp_nuc);
       /// Get the element grid in the case of off-center nuclei
