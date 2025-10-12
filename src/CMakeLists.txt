@@ -150,6 +150,9 @@ target_link_libraries(harmonic helfem-common legendre)
 add_executable(softcoulomb harmonic/softcoulomb.cpp)
 target_link_libraries(softcoulomb helfem-common legendre)
 
+add_executable(morse harmonic/morse.cpp)
+target_link_libraries(morse helfem-common legendre)
+
 # Atomic driver -- OpenOrbitalOptimizer-based (bespoke SCF retired).
 add_executable(atomic atomic/main.cpp)
 target_link_libraries(atomic helfem-common legendre)
