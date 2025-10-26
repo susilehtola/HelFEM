@@ -59,6 +59,28 @@ namespace helfem {
           break;
         }
 
+      case(100):
+        {
+          arma::vec ang(Nnodes);
+          for(int i=0;i<Nnodes;i++)
+            ang(i) = M_PI*(Nnodes-1-i)/(Nnodes-1);
+          arma::vec x=arma::cos(ang);
+          poly=new polynomial_basis::LIPBasis(x,4);
+          printf("Basis set composed of %i-node LIPs with Chebyshev nodes.\n",Nnodes);
+          break;
+        }
+
+      case(101):
+        {
+          arma::vec ang(Nnodes);
+          for(int i=0;i<Nnodes;i++)
+            ang(i) = M_PI*(Nnodes-1-i)/(Nnodes-1);
+          arma::vec x=arma::cos(ang);
+          poly=new polynomial_basis::HIPBasis(x,5);
+          printf("Basis set composed of %i-node HIPs with Chebyshev nodes.\n",Nnodes);
+          break;
+        }
+
       case(6):
       case(7):
       case(8):
