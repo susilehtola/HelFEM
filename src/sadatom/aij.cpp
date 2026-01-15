@@ -471,7 +471,7 @@ int main(int argc, char **argv) {
 
   // Number of particles for atom, jellium, and atom in jellium
   arma::vec number_of_particles_atom({(double) Z-Q});
-  arma::vec number_of_particles_jellium({(double) Z-Q+njellium});
+  arma::vec number_of_particles_jellium({(double) njellium});
   arma::vec number_of_particles_aij({(double) Z-Q+njellium});
 
   // Core guesses with and without nucleus
