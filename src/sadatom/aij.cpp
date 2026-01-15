@@ -453,7 +453,7 @@ int main(int argc, char **argv) {
   };
 
   // OOO data
-  arma::uvec number_of_blocks_per_particle_type({(arma::sword) (lmax+1)});
+  arma::uvec number_of_blocks_per_particle_type({(arma::uword) (lmax+1)});
   arma::vec maximum_occupation(lmax+1);
   std::vector<std::string> block_descriptions_atom(lmax+1), block_descriptions_aij_frozen(lmax+1), block_descriptions_aij(lmax+1), block_descriptions_jellium(lmax+1);
   for(int l=0;l<=lmax;l++) {
