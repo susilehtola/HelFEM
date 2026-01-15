@@ -66,6 +66,7 @@ int main(int argc, char **argv) {
   parser.add<bool>("vacancy", 0, "Jellium vacancy model?", false, false);
   parser.add<int>("maxiter", 0, "maximum number of iterations", false, 1024);
   parser.add<bool>("zeroright", 0, "Zero the right-hand function value", false, false);
+  parser.add<double>("Rmax", 0, "Size of vacuum region", false, 40.0);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -89,6 +90,7 @@ int main(int argc, char **argv) {
 
   int njellium(parser.get<int>("njellium"));
   double rs(parser.get<double>("rs"));
+  double Rmax(parser.get<double>("Rmax"));
   bool vacancy(parser.get<bool>("vacancy"));
 
   int maxiter(parser.get<int>("maxiter"));
@@ -169,15 +171,16 @@ int main(int argc, char **argv) {
     arma::vec bval_atom = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nelem, bval_unif(1), igrid, zexp, 0, 0, 0.0, Z, 0, 0, 0.0, false, 0.0);
 
     // Glue grids together
-    bval=arma::vec(bval_atom.n_elem+bval_unif.n_elem-2);
+    bval.zeros(bval_atom.n_elem+bval_unif.n_elem-2);
     bval.subvec(0,bval_atom.n_elem-1) = bval_atom;
     if(bval_atom(bval_atom.n_elem-1) != bval_unif(1)) {
       std::ostringstream oss;
       oss << "Grids don't coincide: difference " << bval_atom(bval_atom.n_elem-1) - bval_unif(1) << "!\n";
       throw std::logic_error(oss.str());
     }
-    bval.subvec(bval_atom.n_elem,bval.n_elem-1) = bval_unif.subvec(2,bval_unif.n_elem-1);
-
+    if(bval_unif.n_elem>2) {
+      bval.subvec(bval_atom.n_elem,bval.n_elem-1) = bval_unif.subvec(2,bval_unif.n_elem-1);
+    }
   } else {
     bval=bval_unif;
   }
@@ -188,6 +191,26 @@ int main(int argc, char **argv) {
     vbval.subvec(0,bval.n_elem-1)=bval;
     vbval(bval.n_elem) = r_inner;
     bval = arma::sort(vbval, "ascend");
+  }
+
+  // Add vacuum region
+  if(Rmax>0.0) {
+    int Nvelem = std::ceil(Rmax/friedel_period*Nufreq);
+
+    // Points in vacuum region
+    arma::vec bval_vac = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nvelem, Rmax, 1, 0.0, 0, 0, 0, Z, 0, 0, 0.0, false, 0.0);
+    // offset
+    bval_vac += bval(bval.n_elem-1);
+
+    arma::vec bval_new(bval.n_elem+bval_vac.n_elem-1);
+    bval_new.subvec(0,bval.n_elem-1) = bval;
+    bval_new.subvec(bval.n_elem,bval_new.n_elem-1) = bval_vac.subvec(1,bval_vac.n_elem-1);
+    if(bval_new(bval.n_elem-1) != bval_vac(0)) {
+      std::ostringstream oss;
+      oss << "Grids don't coincide: difference " << bval_new(bval.n_elem-1) - bval_vac(0) << "!\n";
+      throw std::logic_error(oss.str());
+    }
+    bval=bval_new;
   }
   bval.print("bval");
 
