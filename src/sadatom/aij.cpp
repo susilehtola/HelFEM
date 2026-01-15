@@ -714,7 +714,8 @@ int main(int argc, char **argv) {
   } catch(...) {};
   //scfsolver.run();
   double static_aij_energy = scfsolver.get_energy();
-  save_density(scfsolver.get_solution(), "density_atom_in_frozen_jellium.dat");
+  // TODO: this doesn't work since the filled jellium orbitals are not included
+  //save_density(scfsolver.get_solution(), "density_atom_in_frozen_jellium.dat");
 
   // Update variables for aij solution
   scfsolver=OpenOrbitalOptimizer::SCFSolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles_aij, aij_builder, block_descriptions_aij);
