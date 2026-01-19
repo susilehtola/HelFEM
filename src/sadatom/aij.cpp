@@ -536,7 +536,7 @@ int main(int argc, char **argv) {
     save_density(scfsolver.get_solution(), density_name);
 
   } else {
-    int nela, nelb;
+    int nela=0, nelb=0;
     scf::parse_nela_nelb(nela,nelb,Q,M,Z+njellium);
 
     // OOO data
