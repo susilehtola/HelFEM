@@ -148,6 +148,7 @@ int main(int argc, char **argv) {
     r_inner = cbrt(Z-Q)*rs;
     r_outer = R - r_inner;
   } else {
+    // cavity size is determined by number of jellium electrons and the background density
     R = cbrt(njellium)*rs;
     r_inner = 0.0;
     r_outer = R;
