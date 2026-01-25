@@ -145,7 +145,7 @@ int main(int argc, char **argv) {
     // Inner cavity has zero charge for a radius that matches the density of the background charge.
     // Outer cavity has constant background charge. Altogether, this leads to
     R = cbrt(Z-Q+njellium)*rs;
-    r_inner = cbrt(Z)*rs;
+    r_inner = cbrt(Z-Q)*rs;
     r_outer = R - r_inner;
   } else {
     R = cbrt(njellium)*rs;
