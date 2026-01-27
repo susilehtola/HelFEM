@@ -70,6 +70,8 @@ int main(int argc, char **argv) {
   parser.add<int>("M", 0, "spin multiplicity", true);
   parser.add<int>("lmax", 0, "maximum angular momentum", false, 4);
   parser.add<bool>("oda", 0, "Run optimal damping?", false, true);
+  parser.add<std::string>("loadfock", 0, "file to load guess fock matrix from", false, "");
+  parser.add<std::string>("savefock", 0, "file to save fock matrix to", false, "");
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -103,6 +105,9 @@ int main(int argc, char **argv) {
   bool zeroright(parser.get<bool>("zeroright"));
   int lmax(parser.get<int>("lmax"));
   bool oda(parser.get<bool>("oda"));
+
+  std::string loadfock(parser.get<std::string>("loadfock"));
+  std::string savefock(parser.get<std::string>("savefock"));
 
   // Parse xc parameters
   arma::vec x_pars, c_pars;
@@ -489,6 +494,19 @@ int main(int argc, char **argv) {
     rho_arr.save(fname, arma::raw_ascii);
   };
 
+  std::function<void(const OpenOrbitalOptimizer::FockMatrix<double> &, const std::string &)> save_fock = [&](const OpenOrbitalOptimizer::FockMatrix<double> & fock, const std::string & fname) {
+    arma::cube fockmat(Sinvh.n_cols, Sinvh.n_cols, fock.size());
+    for(size_t i=0;i<fock.size();i++)
+      fockmat.slice(i)=fock[i];
+    fockmat.save(fname,arma::arma_binary);
+  };
+
+  std::function<arma::cube(std::string &)> load_fock = [&](const std::string & fname) {
+    arma::cube fockmat;
+    fockmat.load(fname,arma::arma_binary);
+    return fockmat;
+  };
+
   std::string density_name;
   if(Z-Q==0 and njellium>0)
     density_name = "density_jellium.dat";
@@ -522,6 +540,15 @@ int main(int argc, char **argv) {
     OpenOrbitalOptimizer::FockMatrix<double> coreH(lmax+1);
     for(int l=0;l<=lmax;l++)
       coreH[l] = Sinvh.t() * (T + l*(l+1)*Tl + Vnuc + Vunif) * Sinvh;
+    if(loadfock != "") {
+      arma::cube fock = load_fock(loadfock);
+      if(fock.n_slices == lmax+1 or fock.n_slices == 2*lmax+2) {
+        for(int l=0;l<=lmax;l++)
+          coreH[l]=fock.slice(l);
+      } else {
+        throw std::logic_error("Guess Fock matrix has unexpected angular dimensions!\n");
+      }
+    }
 
     OpenOrbitalOptimizer::SCFSolver scfsolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles, restricted_builder, block_descriptions);
     scfsolver.maximum_iterations(maxiter);
@@ -535,6 +562,9 @@ int main(int argc, char **argv) {
       scfsolver.run();
     }
     save_density(scfsolver.get_solution(), density_name);
+    if(savefock != "") {
+      save_fock(scfsolver.get_fock_matrix(), savefock);
+    }
 
   } else {
     int nela=0, nelb=0;
@@ -564,6 +594,20 @@ int main(int argc, char **argv) {
       coreH[l] = Sinvh.t() * (T + l*(l+1)*Tl + Vnuc + Vunif) * Sinvh;
       coreH[l+lmax+1] = coreH[l];
     }
+    if(loadfock != "") {
+      arma::cube fock = load_fock(loadfock);
+      for(int l=0;l<=lmax;l++) {
+        coreH[l]=fock.slice(l);
+
+        if(fock.n_slices == lmax+1) {
+          coreH[l+lmax+1] = coreH[l];
+        } else if(fock.n_slices == 2*lmax+2) {
+          coreH[l+lmax+1] = fock.slice(l+lmax+1);
+        } else {
+          throw std::logic_error("Guess Fock matrix has unexpected angular dimensions!\n");
+        }
+      }
+    }
 
     OpenOrbitalOptimizer::SCFSolver scfsolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles, unrestricted_builder, block_descriptions);
     scfsolver.maximum_iterations(maxiter);
@@ -577,6 +621,9 @@ int main(int argc, char **argv) {
       scfsolver.run();
     }
     save_density(scfsolver.get_solution(), density_name);
+    if(savefock != "") {
+      save_fock(scfsolver.get_fock_matrix(), savefock);
+    }
   }
 
   return 0;
