@@ -19,6 +19,7 @@
 #include "utils.h"
 #include "../general/scf_helpers.h"
 #include "../general/dftfuncs.h"
+#include <cfloat>
 #include <sstream>
 
 #ifdef _OPENMP
@@ -757,7 +758,7 @@ namespace helfem {
           }
           helfem::Vector cen=((a+b)/2);
           double dmax = electron_density(cen, iel, Prad, rsqweight)(0);
-          if(dmax < del(imax)) {
+          if(del(imax) - dmax >= 100*DBL_EPSILON) {
             std::ostringstream oss;
             oss << "Density maximization failed! Quadrature max " << del(imax) << " optimized max " << dmax << " difference " << dmax-del(imax) << "!\n";
             throw std::logic_error(oss.str());
