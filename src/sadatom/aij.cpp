@@ -63,6 +63,7 @@ int main(int argc, char **argv) {
   parser.add<int>("njellium", 0,"number of jellium electrons", true);
   parser.add<double>("rs", 0, "Wigner-Seitz radius for jellium", true);
   parser.add<double>("convthr", 0, "Convergence threshold", false, 1e-7);
+  parser.add<double>("savethr", 0, "Threshold for nonzero occupation", false, 1e-6);
   parser.add<bool>("vacancy", 0, "Jellium vacancy model?", false, false);
   parser.add<int>("maxiter", 0, "maximum number of iterations", false, 1024);
   parser.add<bool>("zeroright", 0, "Zero the right-hand function value", false, false);
@@ -72,6 +73,7 @@ int main(int argc, char **argv) {
   parser.add<bool>("oda", 0, "Run optimal damping?", false, true);
   parser.add<std::string>("loadfock", 0, "file to load guess fock matrix from", false, "");
   parser.add<std::string>("savefock", 0, "file to save fock matrix to", false, "");
+  parser.add<bool>("saveorb", 0, "save radial orbitals to disk?", false, false);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -101,6 +103,7 @@ int main(int argc, char **argv) {
 
   int maxiter(parser.get<int>("maxiter"));
   double convthr(parser.get<double>("convthr"));
+  double savethr(parser.get<double>("savethr"));
 
   bool zeroright(parser.get<bool>("zeroright"));
   int lmax(parser.get<int>("lmax"));
@@ -108,6 +111,7 @@ int main(int argc, char **argv) {
 
   std::string loadfock(parser.get<std::string>("loadfock"));
   std::string savefock(parser.get<std::string>("savefock"));
+  bool saveorb(parser.get<bool>("saveorb"));
 
   // Parse xc parameters
   arma::vec x_pars, c_pars;
@@ -507,14 +511,172 @@ int main(int argc, char **argv) {
     return fockmat;
   };
 
-  std::string density_name;
-  if(Z-Q==0 and njellium>0)
+  // Diagonalize a Fock matrix block to obtain orbital energies and orbital
+  // coefficients in the non-orthonormal basis.
+  auto diagonalize_blocks = [&](const OpenOrbitalOptimizer::FockMatrix<double> & fock,
+                                std::vector<arma::vec> & Eblock,
+                                std::vector<arma::mat> & Cblock) {
+    Eblock.resize(fock.size());
+    Cblock.resize(fock.size());
+    for(size_t b=0; b<fock.size(); b++) {
+      arma::mat fsym = 0.5*(fock[b] + fock[b].t());
+      arma::mat V;
+      arma::eig_sym(Eblock[b], V, fsym);
+      Cblock[b] = Sinvh * V;
+    }
+  };
+
+  // Print orbital information (occupation, energy, <r>, r(max)) for the
+  // requested range of blocks. The block index modulo lmax+1 gives l.
+  auto print_orbitals = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm,
+                            const std::vector<arma::vec> & Eblock,
+                            const std::vector<arma::mat> & Cblock,
+                            const std::vector<std::string> & block_descriptions,
+                            size_t bstart, size_t bend) {
+    static const char shtype[] = "spdfgh";
+    const auto & occupations = dm.second;
+
+    std::vector< std::pair<int, arma::mat> > rmat(basis.Rmatrices());
+
+    for(size_t b=bstart; b<bend; b++) {
+      int l = (int)(b % (lmax+1));
+
+      printf("\n%s orbitals\n", block_descriptions[b].c_str());
+      printf("%3s %8s %16s","nl","occ","E");
+      for(size_t ir=0;ir<rmat.size();ir++) {
+        std::ostringstream oss;
+        oss << "<r>(" << rmat[ir].first << ")";
+        printf(" %12s",oss.str().c_str());
+      }
+      printf(" %12s\n","r(max)");
+
+      for(size_t io=0;io<Eblock[b].n_elem;io++) {
+        double occ = occupations[b](io);
+        if(std::abs(occ) < savethr)
+          continue;
+
+        arma::vec orb = Cblock[b].col(io);
+        arma::mat P = orb*orb.t();
+
+        int n = (int)io + l + 1;
+        char ltag = (l < 6) ? shtype[l] : '?';
+        printf("%2i%c % 8.4f % 16.9f", n, ltag, occ, Eblock[b](io));
+        for(size_t ir=0;ir<rmat.size();ir++) {
+          double rpos = std::pow(arma::trace(P*rmat[ir].second), 1.0/rmat[ir].first);
+          printf(" %12e", rpos);
+        }
+        printf(" %12e\n", basis.electron_density_maximum_radius(P));
+      }
+    }
+  };
+
+  // Save the radial values of all occupied orbitals from the requested block
+  // range to {prefix}_orbs.dat together with their energies, occupations and
+  // angular momenta. Companion files store the first and second derivatives.
+  auto save_orbitals = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm,
+                           const std::vector<arma::vec> & Eblock,
+                           const std::vector<arma::mat> & Cblock,
+                           size_t bstart, size_t bend,
+                           const std::string & prefix) {
+    const auto & occupations = dm.second;
+
+    arma::vec r(basis.radii());
+    arma::vec wt(basis.quadrature_weights());
+
+    // Collect occupied orbital indices
+    std::vector< std::vector<size_t> > occ_idx(bend-bstart);
+    size_t norb = 0;
+    for(size_t b=bstart; b<bend; b++) {
+      for(size_t io=0; io<occupations[b].n_elem; io++) {
+        if(std::abs(occupations[b](io)) > savethr) {
+          occ_idx[b-bstart].push_back(io);
+          norb++;
+        }
+      }
+    }
+
+    // Evaluate orbitals, derivatives and second derivatives
+    std::vector<arma::mat> orbval(bend-bstart), orbdval(bend-bstart), orblval(bend-bstart);
+    for(size_t b=bstart; b<bend; b++) {
+      const auto & idx = occ_idx[b-bstart];
+      if(idx.empty())
+        continue;
+      arma::uvec oidx(idx.size());
+      for(size_t i=0;i<idx.size();i++)
+        oidx(i) = idx[i];
+      arma::mat Cl = Cblock[b].cols(oidx);
+      orbval[b-bstart]  = basis.orbitals(Cl);
+      orbdval[b-bstart] = basis.orbitals_derivative(Cl);
+      orblval[b-bstart] = basis.orbitals_second_derivative(Cl);
+
+      // Fix the phases: the largest density value should be at a positive amplitude
+      for(size_t io=0; io<orbval[b-bstart].n_cols; io++) {
+        arma::vec odens = arma::square(orbval[b-bstart].col(io));
+        arma::uword imax;
+        odens.max(imax);
+        if(orbval[b-bstart](imax,io) < 0.0) {
+          orbval[b-bstart].col(io)  *= -1;
+          orbdval[b-bstart].col(io) *= -1;
+          orblval[b-bstart].col(io) *= -1;
+        }
+      }
+    }
+
+    auto save_data = [&](const std::string & fname, const std::vector<arma::mat> & data) {
+      FILE *out = fopen(fname.c_str(),"w");
+      if(!out) {
+        fprintf(stderr,"Failed to open %s for writing\n", fname.c_str());
+        return;
+      }
+      // Header: number of radial points and orbitals
+      fprintf(out,"%i %i\n",(int) r.n_elem,(int) norb);
+      // Orbital angular momenta
+      for(size_t b=bstart; b<bend; b++) {
+        int l = (int)(b % (lmax+1));
+        for(size_t i=0; i<occ_idx[b-bstart].size(); i++)
+          fprintf(out," %i", l);
+      }
+      fprintf(out,"\n");
+      // Orbital occupations
+      for(size_t b=bstart; b<bend; b++)
+        for(size_t i : occ_idx[b-bstart])
+          fprintf(out," %e", occupations[b](i));
+      fprintf(out,"\n");
+      // Orbital energies
+      for(size_t b=bstart; b<bend; b++)
+        for(size_t i : occ_idx[b-bstart])
+          fprintf(out," %e", Eblock[b](i));
+      fprintf(out,"\n");
+      // Radial data
+      for(size_t ir=0; ir<r.n_elem; ir++) {
+        fprintf(out,"%e", r(ir));
+        fprintf(out," % e", wt(ir));
+        for(size_t b=bstart; b<bend; b++) {
+          const auto & block = data[b-bstart];
+          for(size_t ic=0; ic<block.n_cols; ic++)
+            fprintf(out," % e", block(ir,ic));
+        }
+        fprintf(out,"\n");
+      }
+      fclose(out);
+    };
+
+    save_data(prefix + "_orbs.dat",      orbval);
+    save_data(prefix + "_orbs_der.dat",  orbdval);
+    save_data(prefix + "_orbs_2der.dat", orblval);
+  };
+
+  std::string density_name, orb_prefix;
+  if(Z-Q==0 and njellium>0) {
     density_name = "density_jellium.dat";
-  else if(Z-Q>0 and njellium==0)
+    orb_prefix = "jellium";
+  } else if(Z-Q>0 and njellium==0) {
     density_name = "density_atom.dat";
-  else if(Z-Q>0 and njellium>0)
+    orb_prefix = "atom";
+  } else if(Z-Q>0 and njellium>0) {
     density_name = "density_aij.dat";
-  else
+    orb_prefix = "aij";
+  } else
     throw std::logic_error("Nothing to calculate: Z-Q <=0 and njellium == 0!\n");
 
   // Parse number of spin-up and spin-down electrons
@@ -564,6 +726,17 @@ int main(int argc, char **argv) {
     save_density(scfsolver.get_solution(), density_name);
     if(savefock != "") {
       save_fock(scfsolver.get_fock_matrix(), savefock);
+    }
+
+    {
+      auto dm = scfsolver.get_solution();
+      auto fock = scfsolver.get_fock_matrix();
+      std::vector<arma::vec> Eblock;
+      std::vector<arma::mat> Cblock;
+      diagonalize_blocks(fock, Eblock, Cblock);
+      print_orbitals(dm, Eblock, Cblock, block_descriptions, 0, fock.size());
+      if(saveorb)
+        save_orbitals(dm, Eblock, Cblock, 0, fock.size(), orb_prefix);
     }
 
   } else {
@@ -623,6 +796,22 @@ int main(int argc, char **argv) {
     save_density(scfsolver.get_solution(), density_name);
     if(savefock != "") {
       save_fock(scfsolver.get_fock_matrix(), savefock);
+    }
+
+    {
+      auto dm = scfsolver.get_solution();
+      auto fock = scfsolver.get_fock_matrix();
+      std::vector<arma::vec> Eblock;
+      std::vector<arma::mat> Cblock;
+      diagonalize_blocks(fock, Eblock, Cblock);
+      printf("\nAlpha orbitals\n");
+      print_orbitals(dm, Eblock, Cblock, block_descriptions, 0, lmax+1);
+      printf("\nBeta orbitals\n");
+      print_orbitals(dm, Eblock, Cblock, block_descriptions, lmax+1, 2*lmax+2);
+      if(saveorb) {
+        save_orbitals(dm, Eblock, Cblock, 0,        lmax+1,   orb_prefix + "_alpha");
+        save_orbitals(dm, Eblock, Cblock, lmax+1,   2*lmax+2, orb_prefix + "_beta");
+      }
     }
   }
 
