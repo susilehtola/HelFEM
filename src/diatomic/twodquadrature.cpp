@@ -19,10 +19,7 @@
 #include "../general/lcao.h"
 #include "../general/model_potential.h"
 #include "utils.h"
-extern "C" {
-// Legendre polynomials
-#include <gsl/gsl_sf_legendre.h>
-}
+#include <cmath>
 
 // PBE ground states determined with 10 radial elements
 int pbe_ground_states[118][4] = {
@@ -244,7 +241,7 @@ namespace helfem {
             for(size_t ir=0;ir<wrad.n_elem;ir++) {
               size_t idx=ia*wrad.n_elem+ir;
               double cthval = (1.0 + chmu(ir)*cth(ia))/(chmu(ir) + cth(ia));
-              double Plm = gsl_sf_legendre_sphPlm(l,std::abs(m),cthval);
+              double Plm = std::sph_legendre(static_cast<unsigned>(l), static_cast<unsigned>(std::abs(m)), std::acos(cthval));
               for(size_t ix=0;ix<itg.n_rows;ix++)
                 itg(ix,idx)*=Plm;
             }
@@ -254,7 +251,7 @@ namespace helfem {
             for(size_t ir=0;ir<wrad.n_elem;ir++) {
               size_t idx=ia*wrad.n_elem+ir;
               double cthval = (1.0 - chmu(ir)*cth(ia))/(chmu(ir) - cth(ia));
-              double Plm = gsl_sf_legendre_sphPlm(l,std::abs(m),cthval);
+              double Plm = std::sph_legendre(static_cast<unsigned>(l), static_cast<unsigned>(std::abs(m)), std::acos(cthval));
               for(size_t ix=0;ix<itg.n_rows;ix++)
                 itg(ix,idx)*=Plm;
             }
@@ -264,7 +261,7 @@ namespace helfem {
             for(size_t ir=0;ir<wrad.n_elem;ir++) {
               size_t idx=ia*wrad.n_elem+ir;
               double cthval = cth(ia);
-              double Plm = gsl_sf_legendre_sphPlm(l,std::abs(m),cthval);
+              double Plm = std::sph_legendre(static_cast<unsigned>(l), static_cast<unsigned>(std::abs(m)), std::acos(cthval));
               for(size_t ix=0;ix<itg.n_rows;ix++)
                 itg(ix,idx)*=Plm;
             }

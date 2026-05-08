@@ -12,8 +12,9 @@ general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
 diatomic/dftgrid.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp
 )
-target_link_libraries(helfem-common PUBLIC helfem)
+target_link_libraries(helfem-common PUBLIC helfem wignernj::wignernj)
 target_include_directories(helfem-common PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../libhelfem/src/")
+target_compile_features(helfem-common PUBLIC cxx_std_17)
 
 add_executable(gensap sadatom/main.cpp)
 target_link_libraries(gensap helfem-common legendre)
