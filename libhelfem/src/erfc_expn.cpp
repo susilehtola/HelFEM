@@ -21,26 +21,21 @@
 #include <stdexcept>
 #include <cstdio>
 
-// For factorials
-extern "C" {
-#include <gsl/gsl_sf_gamma.h>
-}
-
 namespace helfem {
   namespace atomic {
     namespace erfc_expn {
       inline static double double_factorial(unsigned int n) {
-        if(n==0)
-          return 1.0;
-
-        return gsl_sf_doublefact(n);
+        double v = 1.0;
+        for(unsigned int k=n; k>=2; k-=2)
+          v *= static_cast<double>(k);
+        return v;
       }
 
       inline static double factorial(unsigned int n) {
-        if(n==0)
-          return 1.0;
-
-        return gsl_sf_fact(n);
+        double v = 1.0;
+        for(unsigned int k=2; k<=n; ++k)
+          v *= static_cast<double>(k);
+        return v;
       }
 
       inline static double choose(int n, int m) {
@@ -65,7 +60,13 @@ namespace helfem {
         if(n<0) {
           return choose(n+m-1,m)*std::pow(-1,m);
         } else {
-          return gsl_sf_choose(n,m);
+          // Multiplicative formula keeps the running value as a double
+          // and avoids any factorial overflow for large n.
+          double v = 1.0;
+          const int k = std::min(m, n - m);
+          for(int i=0; i<k; ++i)
+            v *= static_cast<double>(n - i) / static_cast<double>(i + 1);
+          return v;
         }
       }
 

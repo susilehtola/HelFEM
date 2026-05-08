@@ -1,11 +1,6 @@
 #include "LegendreBasis.h"
 #include "orthpoly.h"
 
-// Legendre polynomials
-extern "C" {
-#include <gsl/gsl_sf_legendre.h>
-}
-
 namespace helfem {
   namespace polynomial_basis {
     LegendreBasis::LegendreBasis(int n_nodes, int id_) {

@@ -1,7 +1,8 @@
 # CMake project file for HelFEM
-cmake_minimum_required (VERSION 3.5)
+cmake_minimum_required (VERSION 3.14)
 project (helfem CXX Fortran)
-set(CMAKE_CXX_STANDARD 11)
+# C++ standard is set per-target via target_compile_features(... cxx_std_17)
+# rather than globally.
 
 # Ensure we are building out-of-source so that the tests work (issue 120)
 get_filename_component(srcdir "${CMAKE_SOURCE_DIR}" REALPATH)
@@ -69,14 +70,9 @@ if(HELFEM_FIND_DEPS)
     if(${ARMADILLO_VERSION_MAJOR} LESS "9")
         message(FATAL_ERROR "Armadillo too old, version 9 or above required.")
     endif()
-    # Try to find the GSL library
-    find_package(GSL REQUIRED)
-    message("Found GSL ${GSL_VERSION}")
-    message("GSL_INCLUDE_DIRS: ${GSL_INCLUDE_DIRS}")
-    message("GSL_LIBRARIES:    ${GSL_LIBRARIES}")
-    # Globally link the GSL and Armadillo libraries to everything
-    include_directories("${ARMADILLO_INCLUDE_DIRS}" "${GSL_INCLUDE_DIRS}")
-    link_libraries("${GSL_LIBRARIES}" "${ARMADILLO_LIBRARIES}")
+    # Globally link the Armadillo library to everything
+    include_directories("${ARMADILLO_INCLUDE_DIRS}")
+    link_libraries("${ARMADILLO_LIBRARIES}")
     # If we should also compile all the HelFEM binaries (under src/), we need also need to
     # set up the HDF5 and libxc dependencies:
     if(HELFEM_BINARIES)
@@ -94,6 +90,28 @@ if(HELFEM_FIND_DEPS)
         include_directories("${HDF5_INCLUDE_DIRS}" "${LIBXC_INCLUDE_DIRS}")
         link_libraries("${HDF5_LIBRARIES}" "${LIBXC_LIBRARIES}")
     endif()
+endif()
+
+# Wigner-nj symbols: prefer a system-installed wignernj >= 0.5.0, otherwise
+# fetch and build that version.
+find_package(wignernj 0.5.0 QUIET)
+if(NOT wignernj_FOUND)
+    message(STATUS "wignernj >= 0.5.0 not found via find_package; fetching v0.5.0")
+    include(FetchContent)
+    FetchContent_Declare(
+        wignernj
+        GIT_REPOSITORY https://github.com/susilehtola/wignernj.git
+        GIT_TAG        v0.5.0
+    )
+    FetchContent_MakeAvailable(wignernj)
+    # find_package would expose the library as the namespaced wignernj::wignernj
+    # imported target. Provide the same alias from FetchContent so consumers
+    # can always link against the same name.
+    if(NOT TARGET wignernj::wignernj)
+        add_library(wignernj::wignernj ALIAS wignernj)
+    endif()
+else()
+    message(STATUS "Using system wignernj (${wignernj_VERSION})")
 endif()
 
 # Find OpenMP support

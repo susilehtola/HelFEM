@@ -16,18 +16,19 @@
 #include "lcao.h"
 #include <cmath>
 
-// For factorials
-extern "C" {
-#include <gsl/gsl_sf_gamma.h>
-}
-
 namespace helfem {
   namespace lcao {
     static double double_factorial(unsigned int n) {
-      return gsl_sf_doublefact(n);
+      double v = 1.0;
+      for(unsigned int k=n; k>=2; k-=2)
+        v *= static_cast<double>(k);
+      return v;
     }
     static double factorial(unsigned int n) {
-      return gsl_sf_fact(n);
+      double v = 1.0;
+      for(unsigned int k=2; k<=n; ++k)
+        v *= static_cast<double>(k);
+      return v;
     }
 
     /// Evaluate radial GTO

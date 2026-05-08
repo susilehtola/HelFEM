@@ -16,10 +16,6 @@
 #include "utils.h"
 #include <cmath>
 
-extern "C" {
-#include <gsl/gsl_sf_bessel.h>
-}
-
 namespace helfem {
   namespace utils {
     double arcosh(double x) {
@@ -45,8 +41,33 @@ namespace helfem {
     }
 
     double bessel_il(double r, int L) {
-      // GSL calculates exp(-|x|)i_l(x)
-      return exp(std::abs(r))*gsl_sf_bessel_il_scaled(L, r);
+      // i_L(x) = sqrt(pi/(2|x|)) I_{L+1/2}(|x|), with i_L(-x) = (-1)^L i_L(x).
+      //
+      // For small |x| we evaluate the Taylor series
+      //     i_L(x) = x^L/(2L+1)!! * sum_{k>=0} (x^2/2)^k / (k! prod_{j=1..k}(2L+2j+1))
+      // which sidesteps the sqrt(pi/(2x))*I_{L+1/2}(x) ~ 0/0 limit at x=0
+      // and stays accurate without relying on the standard library's
+      // small-argument behaviour.
+      const double absr = std::abs(r);
+      double val;
+      if(absr < 0.5) {
+        // (2L+1)!!
+        double dfac = 1.0;
+        for(int j=3; j<=2*L+1; j+=2)
+          dfac *= j;
+        double term = std::pow(absr, L) / dfac;
+        val = term;
+        const double r2half = 0.5*absr*absr;
+        for(int k=1; k<64; ++k) {
+          term *= r2half / (k * (2*L + 2*k + 1));
+          val += term;
+          if(std::abs(term) <= 1e-18 * std::abs(val))
+            break;
+        }
+      } else {
+        val = std::cyl_bessel_i(L + 0.5, absr) * std::sqrt(M_PI/(2.0*absr));
+      }
+      return (r < 0.0 && (L & 1)) ? -val : val;
     }
 
     arma::vec bessel_il(const arma::vec & r, int L) {
@@ -57,9 +78,10 @@ namespace helfem {
     }
 
     double bessel_kl(double r, int L) {
-      // GSL calculates exp(x)k_l(x). Also, the definition in GSL
-      // is \sqrt(\pi/(2x)), not \sqrt(2/(\pi x))
-      return exp(-r)*gsl_sf_bessel_kl_scaled(L, r) / M_PI_2;
+      // (2/pi) k_L(r) with k_L(r) = sqrt(pi/(2r)) K_{L+1/2}(r);
+      // helfem's normalisation pulls out the (2/pi) factor, leaving
+      // sqrt(2/(pi r)) * K_{L+1/2}(r). k_L(r) is singular at r=0.
+      return std::cyl_bessel_k(L + 0.5, r) * std::sqrt(2.0/(M_PI*r));
     }
 
     arma::vec bessel_kl(const arma::vec & r, int L) {
