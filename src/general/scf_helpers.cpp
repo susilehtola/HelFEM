@@ -216,6 +216,16 @@ namespace helfem {
     }
 
     void eig_sub_wrk(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, size_t Nact) {
+      // Active space must be at least as large as the occupied space, otherwise
+      // the subvec/cols indices below underflow (everything here is unsigned).
+      if(Nact <= Cocc.n_cols) {
+        std::ostringstream oss;
+        oss << "eig_sub_wrk: active space (" << Nact
+            << ") must be larger than the occupied space ("
+            << Cocc.n_cols << ").\n";
+        throw std::logic_error(oss.str());
+      }
+
       // Form orbital gradient
       arma::mat Forth(Cocc.t()*F*Cvirt);
 

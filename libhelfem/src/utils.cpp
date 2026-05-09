@@ -19,7 +19,10 @@
 namespace helfem {
   namespace utils {
     double arcosh(double x) {
-      return log(x+sqrt(x*x-1.0));
+      // x is mathematically >= 1, but may be 1 - eps under round-off (e.g.
+      // when the caller computed it as cosh(mu) for very small mu). The
+      // explicit log form would NaN; std::acosh handles this safely.
+      return std::acosh(std::max(x, 1.0));
     }
 
     arma::vec arcosh(const arma::vec & x) {

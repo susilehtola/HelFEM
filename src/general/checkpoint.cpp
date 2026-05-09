@@ -23,6 +23,21 @@
 #define CHECK_WRITE() {if(!writemode) {throw std::runtime_error("Cannot write to checkpoint file that was opened for reading only!\n");}}
 #define CHECK_EXIST() {if(!exist(name)) { std::ostringstream oss; oss << "The entry " << name << " does not exist in the checkpoint file!\n"; throw std::runtime_error(oss.str()); } }
 
+namespace {
+  // HDF5 entry-point return values are negative on failure; downstream calls
+  // would otherwise crash silently. Throw with a useful context instead.
+  inline hid_t hdf5_check(hid_t id, const char * op, const std::string & ctx) {
+    if(id < 0) {
+      std::ostringstream oss;
+      oss << "HDF5 " << op << " failed";
+      if(!ctx.empty()) oss << " for \"" << ctx << "\"";
+      oss << "\n";
+      throw std::runtime_error(oss.str());
+    }
+    return id;
+  }
+}
+
 Checkpoint::Checkpoint(const std::string & fname, bool writem, bool trunc) {
   writemode=writem;
   filename=fname;
@@ -30,7 +45,7 @@ Checkpoint::Checkpoint(const std::string & fname, bool writem, bool trunc) {
 
   if(writemode && (trunc || !file_exists(fname))) {
     // Truncate existing file, using default creation and access properties.
-    file=H5Fcreate(fname.c_str(),H5F_ACC_TRUNC,H5P_DEFAULT,H5P_DEFAULT);
+    file=hdf5_check(H5Fcreate(fname.c_str(),H5F_ACC_TRUNC,H5P_DEFAULT,H5P_DEFAULT), "H5Fcreate", fname);
     opend=true;
 
     // Close the file
@@ -55,10 +70,10 @@ void Checkpoint::open() {
   if(!opend) {
     if(writemode)
       // Open in read-write mode
-      file=H5Fopen(filename.c_str(),H5F_ACC_RDWR  ,H5P_DEFAULT);
+      file=hdf5_check(H5Fopen(filename.c_str(),H5F_ACC_RDWR  ,H5P_DEFAULT), "H5Fopen (RW)", filename);
     else
       // Open in read-only mode
-      file=H5Fopen(filename.c_str(),H5F_ACC_RDONLY,H5P_DEFAULT);
+      file=hdf5_check(H5Fopen(filename.c_str(),H5F_ACC_RDONLY,H5P_DEFAULT), "H5Fopen (RO)", filename);
 
     // File has been opened
     opend=true;
@@ -139,7 +154,7 @@ void Checkpoint::write(const std::string & name, const arma::mat & m) {
 
   // Create the dataset using the defined dataspace and datatype, and
   // default dataset creation properties.
-  hid_t dataset=H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  hid_t dataset=hdf5_check(H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT), "H5Dcreate", name);
 
   // Write the data to the file.
   H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m.memptr());
@@ -160,7 +175,7 @@ void Checkpoint::read(const std::string & name, arma::mat & m) {
   CHECK_EXIST();
 
   // Open the dataset.
-  hid_t dataset = H5Dopen (file, name.c_str(), H5P_DEFAULT);
+  hid_t dataset = hdf5_check(H5Dopen (file, name.c_str(), H5P_DEFAULT), "H5Dopen", name);
 
   // Get the data type
   hid_t datatype = H5Dget_type(dataset);
@@ -245,7 +260,7 @@ void Checkpoint::write(const std::string & name, const arma::imat & m0) {
 
   // Create the dataset using the defined dataspace and datatype, and
   // default dataset creation properties.
-  hid_t dataset=H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  hid_t dataset=hdf5_check(H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT), "H5Dcreate", name);
 
   // Write the data to the file.
   H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m.memptr());
@@ -266,7 +281,7 @@ void Checkpoint::read(const std::string & name, arma::imat & m0) {
   CHECK_EXIST();
 
   // Open the dataset.
-  hid_t dataset = H5Dopen (file, name.c_str(), H5P_DEFAULT);
+  hid_t dataset = hdf5_check(H5Dopen (file, name.c_str(), H5P_DEFAULT), "H5Dopen", name);
 
   // Get the data type
   hid_t datatype = H5Dget_type(dataset);
@@ -327,7 +342,7 @@ void Checkpoint::write(const std::string & name, const std::vector<double> & v) 
 
   // Create the dataset using the defined dataspace and datatype, and
   // default dataset creation properties.
-  hid_t dataset=H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  hid_t dataset=hdf5_check(H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT), "H5Dcreate", name);
 
   // Write the data to the file.
   H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &(v[0]));
@@ -348,7 +363,7 @@ void Checkpoint::read(const std::string & name, std::vector<double> & v) {
   CHECK_EXIST();
 
   // Open the dataset.
-  hid_t dataset = H5Dopen (file, name.c_str(), H5P_DEFAULT);
+  hid_t dataset = hdf5_check(H5Dopen (file, name.c_str(), H5P_DEFAULT), "H5Dopen", name);
 
   // Get the data type
   hid_t datatype  = H5Dget_type(dataset);
@@ -412,7 +427,7 @@ void Checkpoint::write(const std::string & name, const std::vector<hsize_t> & v)
 
   // Create the dataset using the defined dataspace and datatype, and
   // default dataset creation properties.
-  hid_t dataset=H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  hid_t dataset=hdf5_check(H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT), "H5Dcreate", name);
 
   // Write the data to the file.
   H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &(v[0]));
@@ -433,7 +448,7 @@ void Checkpoint::read(const std::string & name, std::vector<hsize_t> & v) {
   CHECK_EXIST();
 
   // Open the dataset.
-  hid_t dataset = H5Dopen (file, name.c_str(), H5P_DEFAULT);
+  hid_t dataset = hdf5_check(H5Dopen (file, name.c_str(), H5P_DEFAULT), "H5Dopen", name);
 
   // Get the data type
   hid_t datatype  = H5Dget_type(dataset);
@@ -643,7 +658,7 @@ void Checkpoint::write(const std::string & name, double val) {
 
   // Create the dataset using the defined dataspace and datatype, and
   // default dataset creation properties.
-  hid_t dataset=H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  hid_t dataset=hdf5_check(H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT), "H5Dcreate", name);
 
   // Write the data to the file.
   H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &val);
@@ -664,7 +679,7 @@ void Checkpoint::read(const std::string & name, double & v) {
   CHECK_EXIST();
 
   // Open the dataset.
-  hid_t dataset = H5Dopen (file, name.c_str(), H5P_DEFAULT);
+  hid_t dataset = hdf5_check(H5Dopen (file, name.c_str(), H5P_DEFAULT), "H5Dopen", name);
 
   // Get the data type
   hid_t datatype  = H5Dget_type(dataset);
@@ -717,7 +732,7 @@ void Checkpoint::write(const std::string & name, int val) {
 
   // Create the dataset using the defined dataspace and datatype, and
   // default dataset creation properties.
-  hid_t dataset=H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  hid_t dataset=hdf5_check(H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT), "H5Dcreate", name);
 
   // Write the data to the file.
   H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &val);
@@ -738,7 +753,7 @@ void Checkpoint::read(const std::string & name, int & v) {
   CHECK_EXIST();
 
   // Open the dataset.
-  hid_t dataset = H5Dopen (file, name.c_str(), H5P_DEFAULT);
+  hid_t dataset = hdf5_check(H5Dopen (file, name.c_str(), H5P_DEFAULT), "H5Dopen", name);
 
   // Get the data type
   hid_t datatype  = H5Dget_type(dataset);
@@ -787,7 +802,7 @@ void Checkpoint::write(const std::string & name, hsize_t val) {
 
   // Create the dataset using the defined dataspace and datatype, and
   // default dataset creation properties.
-  hid_t dataset=H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  hid_t dataset=hdf5_check(H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT), "H5Dcreate", name);
 
   // Write the data to the file.
   H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &val);
@@ -808,7 +823,7 @@ void Checkpoint::read(const std::string & name, hsize_t & v) {
   CHECK_EXIST();
 
   // Open the dataset.
-  hid_t dataset = H5Dopen (file, name.c_str(), H5P_DEFAULT);
+  hid_t dataset = hdf5_check(H5Dopen (file, name.c_str(), H5P_DEFAULT), "H5Dopen", name);
 
   // Get the data type
   hid_t datatype  = H5Dget_type(dataset);
@@ -869,7 +884,7 @@ void Checkpoint::write_hbool(const std::string & name, hbool_t val) {
 
   // Create the dataset using the defined dataspace and datatype, and
   // default dataset creation properties.
-  hid_t dataset=H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  hid_t dataset=hdf5_check(H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT), "H5Dcreate", name);
 
   // Write the data to the file.
   H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &val);
@@ -890,7 +905,7 @@ void Checkpoint::read_hbool(const std::string & name, hbool_t & v) {
   CHECK_EXIST();
 
   // Open the dataset.
-  hid_t dataset = H5Dopen (file, name.c_str(), H5P_DEFAULT);
+  hid_t dataset = hdf5_check(H5Dopen (file, name.c_str(), H5P_DEFAULT), "H5Dopen", name);
 
   // Get the data type
   hid_t datatype  = H5Dget_type(dataset);
@@ -939,7 +954,7 @@ void Checkpoint::write(const std::string & name, const std::string & val) {
 
   // Create the dataset using the defined dataspace and datatype, and
   // default dataset creation properties.
-  hid_t dataset=H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  hid_t dataset=hdf5_check(H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT), "H5Dcreate", name);
 
   // Write the data to the file.
   H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, val.c_str());
@@ -960,7 +975,7 @@ void Checkpoint::read(const std::string & name, std::string & val) {
   CHECK_EXIST();
 
   // Open the dataset.
-  hid_t dataset = H5Dopen (file, name.c_str(), H5P_DEFAULT);
+  hid_t dataset = hdf5_check(H5Dopen (file, name.c_str(), H5P_DEFAULT), "H5Dopen", name);
 
   // Get the data type
   hid_t datatype  = H5Dget_type(dataset);
