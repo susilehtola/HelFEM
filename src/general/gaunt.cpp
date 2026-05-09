@@ -58,40 +58,78 @@ namespace helfem {
     Gaunt::Gaunt() {
     }
 
+    // Triple-level parity / triangle pre-check. (L l lp; 0 0 0) is zero
+    // unless L+l+lp is even and the triangle inequality holds, so the whole
+    // (M, m, mp) sweep can be skipped for failing triples.
+    static inline bool gaunt_triple_nonzero(int L, int l, int lp) {
+      if((L + l + lp) % 2 != 0) return false;
+      if(lp < std::abs(L - l) || lp > L + l) return false;
+      return true;
+    }
+
     Gaunt::Gaunt(int Lmax, int lmax, int lpmax) {
       // Allocate storage
       mlimit=false;
-      table=arma::cube(genind(Lmax,Lmax)+1,genind(lmax,lmax)+1,genind(lpmax,lpmax)+1);
+      table=arma::zeros<arma::cube>(genind(Lmax,Lmax)+1,genind(lmax,lmax)+1,genind(lpmax,lpmax)+1);
 
-      // Compute coefficients
+      // The selection rule M = m + mp removes one inner loop, and the
+      // (L l lp; 0 0 0) factor is computed once per (L, l, lp) triple.
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for collapse(2) schedule(dynamic)
 #endif
-      for(int L=0;L<=Lmax;L++)
-	  for(int l=0;l<=lmax;l++)
-            for(int lp=0;lp<=lpmax;lp++)
-              for(int M=-L;M<=L;M++)
-                for(int m=-l;m<=l;m++)
-                  for(int mp=-lp;mp<=lp;mp++)
-                    table(genind(L,M),genind(l,m),genind(lp,mp))=gaunt_coefficient(L,M,l,m,lp,mp);
+      for(int L=0; L<=Lmax; L++) {
+        for(int l=0; l<=lmax; l++) {
+          const int lp_lo = std::abs(L - l);
+          const int lp_hi = std::min(lpmax, L + l);
+          for(int lp = lp_lo; lp <= lp_hi; ++lp) {
+            if(!gaunt_triple_nonzero(L, l, lp)) continue;
+            for(int M = -L; M <= L; ++M) {
+              const double signM = (M & 1) ? -1.0 : 1.0;
+              for(int m = -l; m <= l; ++m) {
+                const int mp = M - m;  // selection rule: -M + m + mp = 0
+                if(mp < -lp || mp > lp) continue;
+                const double g = wignernj::gaunt<double>(2*L, -2*M, 2*l, 2*m,
+                                                         2*lp, 2*mp);
+                table(genind(L, M), genind(l, m), genind(lp, mp)) = signM * g;
+              }
+            }
+          }
+        }
+      }
     }
 
     Gaunt::Gaunt(int Lmax, int Mmax_, int lmax, int mmax_, int lpmax, int mpmax_) : Mmax(Mmax_), mmax(mmax_), mpmax(mpmax_) {
       // Allocate storage
       mlimit=true;
-      table=arma::cube(LMind(Lmax,Mmax)+1,lmind(lmax,mmax)+1,lpmpind(lpmax,mpmax)+1);
+      table=arma::zeros<arma::cube>(LMind(Lmax,Mmax)+1,lmind(lmax,mmax)+1,lpmpind(lpmax,mpmax)+1);
 
-      // Compute coefficients
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for collapse(2) schedule(dynamic)
 #endif
-      for(int L=0;L<=Lmax;L++)
-	  for(int l=0;l<=lmax;l++)
-            for(int lp=0;lp<=lpmax;lp++)
-              for(int M=-Mmax;M<=Mmax;M++)
-                for(int m=-mmax;m<=mmax;m++)
-                  for(int mp=-mpmax;mp<=mpmax;mp++)
-                    table(LMind(L,M),lmind(l,m),lpmpind(lp,mp))=gaunt_coefficient(L,M,l,m,lp,mp);
+      for(int L=0; L<=Lmax; L++) {
+        for(int l=0; l<=lmax; l++) {
+          const int lp_lo = std::abs(L - l);
+          const int lp_hi = std::min(lpmax, L + l);
+          for(int lp = lp_lo; lp <= lp_hi; ++lp) {
+            if(!gaunt_triple_nonzero(L, l, lp)) continue;
+            const int M_lo = -std::min(L, Mmax);
+            const int M_hi =  std::min(L, Mmax);
+            const int m_lo = -std::min(l, mmax);
+            const int m_hi =  std::min(l, mmax);
+            const int mp_cap = std::min(lp, mpmax);
+            for(int M = M_lo; M <= M_hi; ++M) {
+              const double signM = (M & 1) ? -1.0 : 1.0;
+              for(int m = m_lo; m <= m_hi; ++m) {
+                const int mp = M - m;
+                if(mp < -mp_cap || mp > mp_cap) continue;
+                const double g = wignernj::gaunt<double>(2*L, -2*M, 2*l, 2*m,
+                                                         2*lp, 2*mp);
+                table(LMind(L, M), lmind(l, m), lpmpind(lp, mp)) = signM * g;
+              }
+            }
+          }
+        }
+      }
     }
 
     Gaunt::~Gaunt() {

@@ -36,6 +36,10 @@ namespace helfem {
 
         /// Scale factors
         arma::rowvec scale_r, scale_theta, scale_phi;
+        /// Pre-computed 1 / scale^2 used by the kinetic / mGGA terms.
+        /// Filled together with scale_*; cuts arma::square + division out
+        /// of every Fxc evaluation.
+        arma::rowvec inv_scale_r2, inv_scale_theta2, inv_scale_phi2;
 
         /// List of basis functions in element
         arma::uvec bf_ind;

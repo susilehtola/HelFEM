@@ -1301,6 +1301,19 @@ namespace helfem {
         }
       }
 
+      std::vector<double> TwoDBasis::build_LMfac_abs() const {
+        const double Rhalf5_4pi = 4.0 * M_PI * std::pow(Rhalf, 5);
+        std::vector<double> tbl(lm_map.size());
+        for(size_t i = 0; i < lm_map.size(); ++i) {
+          const int L  = lm_map[i].first;
+          const int Ma = lm_map[i].second;  // |M|
+          double fr = 1.0;
+          for(int p = L + Ma; p > L - Ma; --p) fr *= p;
+          tbl[i] = Rhalf5_4pi / fr;
+        }
+        return tbl;
+      }
+
       size_t TwoDBasis::lmind(int L, int M, bool check) const {
         // Switch to |M|
         M=std::abs(M);
@@ -1411,6 +1424,11 @@ namespace helfem {
           Jaux0[i].zeros(Nrad,Nrad);
           Jaux2[i].zeros(Nrad,Nrad);
         }
+        // Cache the angular prefactor 4*pi*Rhalf^5 / ((L+|M|)!/(L-|M|)!) for
+        // every (L, |M|) in the lm_map. The (-1)^M sign is applied at the
+        // lookup site since lm_map is indexed by |M| only. pow(Rhalf,5) and
+        // the factorial loop both dominated the inner-loop cost otherwise.
+        const std::vector<double> LMfac_abs = build_LMfac_abs();
         for(size_t iLM=0;iLM<LM_map.size();iLM++) {
           // Values of L and M
           int L(LM_map[iLM].first);
@@ -1418,7 +1436,8 @@ namespace helfem {
 
           // Helpers
           const size_t ilm(lmind(L,M));
-          const double LMfac(4.0*M_PI*std::pow(Rhalf,5)*std::pow(-1.0,M)/factorial_ratio(L+std::abs(M),L-std::abs(M)));
+          const double signM = (M & 1) ? -1.0 : 1.0;
+          const double LMfac(signM * LMfac_abs[ilm]);
 
           // Loop over input elements
           for(size_t jel=0;jel<Nel;jel++) {
@@ -1541,6 +1560,10 @@ namespace helfem {
         // Number of radial basis functions
         size_t Nrad(radial.Nbf());
 
+        // Pre-compute the (L, |M|) angular prefactor table once per call so
+        // the inner loop reduces to a vector lookup + sign branch.
+        const std::vector<double> LMfac_abs = build_LMfac_abs();
+
         // Full exchange matrix
         arma::mat K(Ndummy(),Ndummy());
         K.zeros();
@@ -1637,7 +1660,7 @@ namespace helfem {
                     // Index in the L,|M| table
                     const size_t ilm(lmind(L,M));
                     const double signM = (M & 1) ? -1.0 : 1.0;
-                    const double LMfac(4.0*M_PI*std::pow(Rhalf,5)*signM/factorial_ratio(L+std::abs(M),L-std::abs(M)));
+                    const double LMfac(signM * LMfac_abs[ilm]);
 
                     arma::mat Psub(mem_Psub[ith].memptr(),Nrad,Nrad,false,true);
                     Psub=P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1);
