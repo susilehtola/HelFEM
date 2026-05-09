@@ -306,7 +306,10 @@ namespace helfem {
             for(size_t ir=0;ir<wrad.n_elem;ir++) {
               size_t idx=ia*wrad.n_elem+ir;
 
-              double rc(Rhalf*sqrt(std::pow(chmu(ir),2) + std::pow(cth(ia),2) -1.0));
+              // chmu^2 + cth^2 - 1 = sinh^2(mu) + cth^2 is mathematically
+              // non-negative but can underflow to a tiny negative under
+              // round-off (small mu, small cth); clamp before sqrt.
+              double rc(Rhalf*std::sqrt(std::max(chmu(ir)*chmu(ir) + cth(ia)*cth(ia) - 1.0, 0.0)));
               itg.col(idx) = compute_ao(rc);
             }
         }

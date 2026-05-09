@@ -16,6 +16,7 @@
 
 
 
+#include <algorithm>
 #include <cfloat>
 #include "diis.h"
 #include "lbfgs.h"
@@ -237,8 +238,15 @@ arma::vec DIIS::get_w() {
       w.t().print();
     }
   } else if(useadiis && usediis) {
-    // Sliding scale: DIIS weight
-    double diisw=std::max(std::min(1.0 - (err-diisthr)/(diiseps-diisthr), 1.0), 0.0);
+    // Sliding scale: DIIS weight goes from 0 at err=diiseps to 1 at err=diisthr.
+    // The two thresholds should be distinct; if they collapse to the same value
+    // we fall back to a hard switch instead of dividing by zero.
+    double diisw;
+    if(diiseps == diisthr) {
+      diisw = (err <= diisthr) ? 1.0 : 0.0;
+    } else {
+      diisw = std::clamp(1.0 - (err-diisthr)/(diiseps-diisthr), 0.0, 1.0);
+    }
     // ADIIS weght
     double adiisw=1.0-diisw;
 

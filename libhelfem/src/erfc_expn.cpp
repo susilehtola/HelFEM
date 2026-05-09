@@ -19,7 +19,7 @@
 #include <cmath>
 #include <cfloat>
 #include <stdexcept>
-#include <cstdio>
+#include <sstream>
 
 namespace helfem {
   namespace atomic {
@@ -160,20 +160,30 @@ namespace helfem {
           return 1.0;
 
         double Phi = 0.0;
-        double dPhi;
+        double dPhi = 0.0;
         unsigned int k;
-        double tol=DBL_EPSILON;
+        const double tol = DBL_EPSILON;
+        // Convergence is tested against max(|Phi|, 1.0): the relative test
+        // alone fails when alternating-sign cancellation drives |Phi| toward
+        // zero, even though the increment is genuinely below numerical noise.
+        bool converged = false;
         for(k=0; k<=30; k+=2) {
-          // Unroll odd values so that we don't truncate too soon by
-          // accident
+          // Unroll odd values so that we don't truncate too soon by accident
           dPhi = Dnk(n,k  ,Xi)*std::pow(xi,n+2*k)
             +    Dnk(n,k+1,Xi)*std::pow(xi,n+2*(k+1));
           Phi += dPhi;
-          if(std::abs(dPhi) < tol*std::abs(Phi)) break;
+          if(std::abs(dPhi) < tol*std::max(std::abs(Phi), 1.0)) {
+            converged = true;
+            break;
+          }
         }
-        if(std::abs(dPhi) >= tol*std::abs(Phi))
-          fprintf(stderr,"Warning - short-range Phi not converged at xi= %e: dPhi= %e, Phi= %e ratio %e\n",xi,dPhi,Phi,dPhi/Phi);
-        //fprintf(stderr,"Phi%i(%e,%e) converged in %u iterations\n",n,Xi,xi,k);
+        if(!converged) {
+          std::ostringstream oss;
+          oss << "Phi_short Taylor series failed to converge: n=" << n
+              << " Xi=" << Xi << " xi=" << xi
+              << " dPhi=" << dPhi << " Phi=" << Phi << "\n";
+          throw std::runtime_error(oss.str());
+        }
 
         return Phi/std::pow(Xi,n+1);
       }

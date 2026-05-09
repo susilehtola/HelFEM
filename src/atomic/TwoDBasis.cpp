@@ -445,7 +445,8 @@ namespace helfem {
                   if(cpl==0.0)
                     continue;
 
-                  add_sub(V,iang,jang,cpl*(std::pow(-1.0,L)*Zl + Zr)*Vaux[L]);
+                  const double signL = (L & 1) ? -1.0 : 1.0;
+                  add_sub(V,iang,jang,cpl*(signL*Zl + Zr)*Vaux[L]);
                 }
               }
             }
@@ -1403,11 +1404,18 @@ namespace helfem {
         // and so is phi
         for(size_t i=0;i<lval.n_elem;i++)
           dphi.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=std::complex<double>(0.0,mval(i))*sph(i)*frad;
+        // sin^2(theta) = (1 - cth)(1 + cth) is algebraically identical to
+        // 1 - cth*cth but avoids the catastrophic cancellation when cth is
+        // close to +/- 1. The std::max(..., 0.0) is a paranoia floor for
+        // the case where round-off pushes the product slightly negative.
+        const double sinth = std::sqrt(std::max((1.0-cth)*(1.0+cth), 0.0));
+        // cot(theta) is singular at the poles; for cth = +/- 1 the m*cot*Y
+        // term is the m=0 case (contribution 0) or |m|>=1 with sph(i)=0 in
+        // the limit, so a defensive 0 is the right value here.
+        const double cotth = (sinth > 0.0) ? cth/sinth : 0.0;
+
         // but theta is nastier
         for(size_t i=0;i<lval.n_elem;i++) {
-          // cot th = 1/tan th = cos th / sin th
-          double cotth=cth/sqrt(1.0-cth*cth);
-
           int l(lval(i));
           int m(mval(i));
 
