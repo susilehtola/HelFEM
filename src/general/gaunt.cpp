@@ -34,7 +34,10 @@ namespace helfem {
       // Using Y_L^M* = (-1)^M Y_L^{-M}, this equals
       //   (-1)^M * integral Y_L^{-M} Y_l^m Y_lp^mp dOmega
       // which is exactly wignernj::gaunt with first m flipped (and doubled args).
-      return pow(-1.0, M) * wignernj::gaunt<double>(2*L, -2*M, 2*l, 2*m, 2*lp, 2*mp);
+      // (-1)^M with integer M is a parity branch, not a transcendental call;
+      // matters because Gaunt table construction is O(lmax^6) calls.
+      const double sign = (M & 1) ? -1.0 : 1.0;
+      return sign * wignernj::gaunt<double>(2*L, -2*M, 2*l, 2*m, 2*lp, 2*mp);
     }
 
     double modified_gaunt_coefficient(int lj, int mj, int L, int M, int li, int mi) {

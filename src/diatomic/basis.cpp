@@ -1636,7 +1636,8 @@ namespace helfem {
 
                     // Index in the L,|M| table
                     const size_t ilm(lmind(L,M));
-                    const double LMfac(4.0*M_PI*std::pow(Rhalf,5)*std::pow(-1.0,M)/factorial_ratio(L+std::abs(M),L-std::abs(M)));
+                    const double signM = (M & 1) ? -1.0 : 1.0;
+                    const double LMfac(4.0*M_PI*std::pow(Rhalf,5)*signM/factorial_ratio(L+std::abs(M),L-std::abs(M)));
 
                     arma::mat Psub(mem_Psub[ith].memptr(),Nrad,Nrad,false,true);
                     Psub=P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1);
@@ -1910,11 +1911,13 @@ namespace helfem {
         // and so is phi
         for(size_t i=0;i<lval.n_elem;i++)
           dphi.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=std::complex<double>(0.0,mval(i))*sph(i)*frad;
+        // sin^2(theta) = (1 - cth)(1 + cth) avoids the catastrophic
+        // cancellation in 1 - cth*cth when cth is close to +/- 1.
+        const double sinth = std::sqrt(std::max((1.0-cth)*(1.0+cth), 0.0));
+        const double cotth = (sinth > 0.0) ? cth/sinth : 0.0;
+
         // but theta is nastier
         for(size_t i=0;i<lval.n_elem;i++) {
-          // cot th = 1/tan th = cos th / sin th
-          double cotth=cth/sqrt(1.0-cth*cth);
-
           int l(lval(i));
           int m(mval(i));
 
