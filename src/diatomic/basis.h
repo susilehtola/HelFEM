@@ -154,6 +154,14 @@ namespace helfem {
         /// Find index in (L,M) table
         size_t LMind(int L, int M, bool check=true) const;
 
+        /// Build the unsigned-M angular prefactor table
+        ///   4 * pi * Rhalf^5 / ((L + |M|)! / (L - |M|)!)
+        /// indexed in lockstep with lm_map. The (-1)^M sign is applied at
+        /// each lookup site so the same table serves both Coulomb (which
+        /// iterates LM_map with signed M) and exchange (which derives M
+        /// from mj - mi at use-time).
+        std::vector<double> build_LMfac_abs() const;
+
       public:
         // Dummy constructor
         TwoDBasis();

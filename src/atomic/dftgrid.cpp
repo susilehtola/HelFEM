@@ -513,9 +513,9 @@ namespace helfem {
         // Calculate in subspace
         arma::mat T(bf_ind.n_elem,bf_ind.n_elem);
         T.zeros();
-        increment_lda< std::complex<double> >(T,wtot/arma::square(scale_r),bf_rho);
-        increment_lda< std::complex<double> >(T,wtot/arma::square(scale_theta),bf_theta);
-        increment_lda< std::complex<double> >(T,wtot/arma::square(scale_phi),bf_phi);
+        increment_lda< std::complex<double> >(T,wtot % inv_scale_r2,bf_rho);
+        increment_lda< std::complex<double> >(T,wtot % inv_scale_theta2,bf_theta);
+        increment_lda< std::complex<double> >(T,wtot % inv_scale_phi2,bf_phi);
         // Increment
         To.submat(bf_ind,bf_ind)+=0.5*T;
       }
@@ -562,9 +562,9 @@ namespace helfem {
             vtl += 2.0*vlapl.row(0);
           vtl %= wtot;
 
-          increment_lda< std::complex<double> >(H,vtl/arma::square(scale_r),bf_rho);
-          increment_lda< std::complex<double> >(H,vtl/arma::square(scale_theta),bf_theta);
-          increment_lda< std::complex<double> >(H,vtl/arma::square(scale_phi),bf_phi);
+          increment_lda< std::complex<double> >(H,vtl % inv_scale_r2,bf_rho);
+          increment_lda< std::complex<double> >(H,vtl % inv_scale_theta2,bf_theta);
+          increment_lda< std::complex<double> >(H,vtl % inv_scale_phi2,bf_phi);
         }
         if(do_mgga_l) {
           arma::rowvec vl(vlapl.row(0)%wtot);
@@ -644,9 +644,9 @@ namespace helfem {
             vtl_a += 2.0*vlapl.row(0);
           vtl_a %= wtot;
 
-          increment_lda< std::complex<double> >(Ha,vtl_a/arma::square(scale_r),bf_rho);
-          increment_lda< std::complex<double> >(Ha,vtl_a/arma::square(scale_theta),bf_theta);
-          increment_lda< std::complex<double> >(Ha,vtl_a/arma::square(scale_phi),bf_phi);
+          increment_lda< std::complex<double> >(Ha,vtl_a % inv_scale_r2,bf_rho);
+          increment_lda< std::complex<double> >(Ha,vtl_a % inv_scale_theta2,bf_theta);
+          increment_lda< std::complex<double> >(Ha,vtl_a % inv_scale_phi2,bf_phi);
           if(beta) {
             arma::rowvec vtl_b(wtot.n_elem, arma::fill::zeros);
             if(do_mgga_t)
@@ -655,9 +655,9 @@ namespace helfem {
               vtl_b += 2.0*vlapl.row(1);
             vtl_b %= wtot;
 
-            increment_lda< std::complex<double> >(Hb,vtl_b/arma::square(scale_r),bf_rho);
-            increment_lda< std::complex<double> >(Hb,vtl_b/arma::square(scale_theta),bf_theta);
-            increment_lda< std::complex<double> >(Hb,vtl_b/arma::square(scale_phi),bf_phi);
+            increment_lda< std::complex<double> >(Hb,vtl_b % inv_scale_r2,bf_rho);
+            increment_lda< std::complex<double> >(Hb,vtl_b % inv_scale_theta2,bf_theta);
+            increment_lda< std::complex<double> >(Hb,vtl_b % inv_scale_phi2,bf_phi);
           }
         }
         if(do_mgga_l) {
@@ -732,6 +732,12 @@ namespace helfem {
         for(size_t ia=0;ia<wang.n_elem;ia++)
           for(size_t ir=0;ir<wrad.n_elem;ir++)
             scale_phi(ia*wrad.n_elem+ir)=r(ir)*sth(ia);
+
+        // Pre-compute 1/scale^2 once. Scale_r is identically 1 (radial), so
+        // its inverse-square is also a vector of ones.
+        inv_scale_r2 = arma::ones<arma::rowvec>(scale_r.n_elem);
+        inv_scale_theta2 = 1.0 / arma::square(scale_theta);
+        inv_scale_phi2 = 1.0 / arma::square(scale_phi);
 
         // Update total weights
         wtot.zeros(wrad.n_elem*wang.n_elem);

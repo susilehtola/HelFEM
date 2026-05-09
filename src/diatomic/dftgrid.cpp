@@ -534,9 +534,9 @@ namespace helfem {
           arma::rowvec vt(vtau.row(0));
           vt%=0.5*wtot;
 
-          increment_lda< std::complex<double> >(H,vt/arma::square(scale_r),bf_rho);
-          increment_lda< std::complex<double> >(H,vt/arma::square(scale_theta),bf_theta);
-          increment_lda< std::complex<double> >(H,vt/arma::square(scale_phi),bf_phi);
+          increment_lda< std::complex<double> >(H,vt % inv_scale_r2,bf_rho);
+          increment_lda< std::complex<double> >(H,vt % inv_scale_theta2,bf_theta);
+          increment_lda< std::complex<double> >(H,vt % inv_scale_phi2,bf_phi);
         }
         if(do_mgga_l)
           throw std::logic_error("Laplacian not implemented!\n");
@@ -610,16 +610,16 @@ namespace helfem {
           arma::rowvec vt_a(vtau.row(0));
           vt_a%=0.5*wtot;
 
-          increment_lda< std::complex<double> >(Ha,vt_a/arma::square(scale_r),bf_rho);
-          increment_lda< std::complex<double> >(Ha,vt_a/arma::square(scale_theta),bf_theta);
-          increment_lda< std::complex<double> >(Ha,vt_a/arma::square(scale_phi),bf_phi);
+          increment_lda< std::complex<double> >(Ha,vt_a % inv_scale_r2,bf_rho);
+          increment_lda< std::complex<double> >(Ha,vt_a % inv_scale_theta2,bf_theta);
+          increment_lda< std::complex<double> >(Ha,vt_a % inv_scale_phi2,bf_phi);
           if(beta) {
             arma::rowvec vt_b(vtau.row(1));
             vt_b%=0.5*wtot;
 
-            increment_lda< std::complex<double> >(Hb,vt_b/arma::square(scale_r),bf_rho);
-            increment_lda< std::complex<double> >(Hb,vt_b/arma::square(scale_theta),bf_theta);
-            increment_lda< std::complex<double> >(Hb,vt_b/arma::square(scale_phi),bf_phi);
+            increment_lda< std::complex<double> >(Hb,vt_b % inv_scale_r2,bf_rho);
+            increment_lda< std::complex<double> >(Hb,vt_b % inv_scale_theta2,bf_theta);
+            increment_lda< std::complex<double> >(Hb,vt_b % inv_scale_phi2,bf_phi);
           }
         }
         if(do_mgga_l) {
@@ -698,6 +698,10 @@ namespace helfem {
         for(size_t ia=0;ia<wang.n_elem;ia++)
           for(size_t ir=0;ir<wrad.n_elem;ir++)
             scale_phi(ia*wrad.n_elem+ir)=Rhalf*shmu(ir)*sth(ia);
+        // Pre-compute 1/scale^2 for the kinetic / mGGA terms.
+        inv_scale_r2 = 1.0 / arma::square(scale_r);
+        inv_scale_theta2 = 1.0 / arma::square(scale_theta);
+        inv_scale_phi2 = 1.0 / arma::square(scale_phi);
         // Update total weights
         wtot.zeros(wrad.n_elem*wang.n_elem);
         for(size_t ia=0;ia<wang.n_elem;ia++)
