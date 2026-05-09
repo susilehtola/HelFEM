@@ -1,4 +1,4 @@
-#include "Legendre_Wrapper.h"
+#include "Legendre.h"
 #include "../general/spherical_harmonics.h"
 #include <armadillo>
 
@@ -12,13 +12,13 @@ void get_coord(double Rh, double mu, double eta, double phi, double & x, double 
 
 arma::mat get_Plm(int lmax, int mmax, double xi) {
   arma::mat Plm(lmax+1,mmax+1);
-  calc_Plm_arr(Plm.memptr(),lmax,mmax,xi);
+  helfem::legendre::plm(Plm.memptr(),lmax,mmax,xi);
   return Plm;
 }
 
 arma::mat get_Qlm(int lmax, int mmax, double xi) {
   arma::mat Qlm(lmax+1,mmax+1);
-  calc_Qlm_arr(Qlm.memptr(),lmax,mmax,xi);
+  helfem::legendre::qlm(Qlm.memptr(),lmax,mmax,xi);
   return Qlm;
 }
 

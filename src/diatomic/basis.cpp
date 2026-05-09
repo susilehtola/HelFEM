@@ -304,7 +304,7 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rhalf_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int lpad, bool legendre) {
+      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rhalf_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, bool legendre) {
         // Nuclear charge
         Z1=Z1_;
         Z2=Z2_;
@@ -394,7 +394,7 @@ namespace helfem {
           fflush(stdout);
 
           // Fill table with necessary values
-          legtab=legendretable::LegendreTable(Lmax+lpad,Lmax,Mmax);
+          legtab=legendretable::LegendreTable(Lmax,Mmax);
           arma::vec chmu(radial.get_chmu_quad());
           for(size_t i=0;i<chmu.n_elem;i++)
             legtab.compute(chmu(i));

@@ -15,7 +15,7 @@
  */
 #include "legendretable.h"
 #include <algorithm>
-#include "../legendre/Legendre_Wrapper.h"
+#include "../legendre/Legendre.h"
 
 namespace helfem {
   namespace legendretable {
@@ -24,12 +24,11 @@ namespace helfem {
     }
 
     LegendreTable::LegendreTable() {
-      Lpad=-1;
       Lmax=-1;
       Mmax=-1;
     }
 
-    LegendreTable::LegendreTable(int Lpad_, int Lmax_, int Mmax_) : Lpad(Lpad_), Lmax(Lmax_), Mmax(Mmax_) {
+    LegendreTable::LegendreTable(int Lmax_, int Mmax_) : Lmax(Lmax_), Mmax(Mmax_) {
     }
 
     LegendreTable::~LegendreTable() {
@@ -64,27 +63,24 @@ namespace helfem {
       {
         legendre_table_t entry;
 
-        // Allocate memory
         entry.xi=xi;
-        entry.Plm.zeros(Lpad+1,Lpad+1);
-        entry.Qlm.zeros(Lpad+1,Lpad+1);
+        entry.Plm.zeros(Lmax+1,Mmax+1);
+        entry.Qlm.zeros(Lmax+1,Mmax+1);
 
-        // Compute
+        // Q is singular at xi == 1; the table treats that case as zero
+        // everywhere via the entry.zeros() above.
         if(xi!=1.0) {
-          ::calc_Plm_arr(entry.Plm.memptr(),Lpad,Lpad,xi);
-          ::calc_Qlm_arr(entry.Qlm.memptr(),Lpad,Lpad,xi);
+          ::helfem::legendre::plm(entry.Plm.memptr(),Lmax,Mmax,xi);
+          ::helfem::legendre::qlm(entry.Qlm.memptr(),Lmax,Mmax,xi);
         }
 
-        // Store only 0 to lmax
-        entry.Plm=entry.Plm.submat(0,0,Lmax,Mmax);
-        entry.Qlm=entry.Qlm.submat(0,0,Lmax,Mmax);
-
-        // Get rid of any non-normal entries
+        // Drop any non-normal entries (zero is fine, denormals/NaN/Inf get
+        // forced to zero so that downstream code doesn't propagate them).
         for(int L=0;L<=Lmax;L++)
           for(int M=0;M<=Mmax;M++) {
-            if(!std::isnormal(entry.Plm(L,M)))
+            if(entry.Plm(L,M) != 0.0 && !std::isnormal(entry.Plm(L,M)))
               entry.Plm(L,M)=0.0;
-            if(!std::isnormal(entry.Qlm(L,M)))
+            if(entry.Qlm(L,M) != 0.0 && !std::isnormal(entry.Qlm(L,M)))
               entry.Qlm(L,M)=0.0;
           }
 
