@@ -111,21 +111,21 @@ namespace helfem {
       }
 
 #ifndef ARMA_NO_DEBUG
-      if(irow>table.n_rows) {
+      if(irow>=table.n_rows) {
         std::ostringstream oss;
         oss << "Row index overflow for coeff(" << L << "," << M << "," << l << "," << m << "," << lp << "," << mp << ")!\n";
         oss << "Wanted element at (" << irow << "," << icol << "," << islice << ") but table is " << table.n_rows << " x " << table.n_cols << " x " << table.n_slices << "\n";
         throw std::logic_error(oss.str());
       }
 
-      if(icol>table.n_cols) {
+      if(icol>=table.n_cols) {
         std::ostringstream oss;
         oss << "Column index overflow for coeff(" << L << "," << M << "," << l << "," << m << "," << lp << "," << mp << ")!\n";
         oss << "Wanted element at (" << irow << "," << icol << "," << islice << ") but table is " << table.n_rows << " x " << table.n_cols << " x " << table.n_slices << "\n";
         throw std::logic_error(oss.str());
       }
 
-      if(islice>table.n_slices) {
+      if(islice>=table.n_slices) {
         std::ostringstream oss;
         oss << "Slice index overflow for coeff(" << L << "," << M << "," << l << "," << m << "," << lp << "," << mp << ")!\n";
         oss << "Wanted element at (" << irow << "," << icol << "," << islice << ") but table is " << table.n_rows << " x " << table.n_cols << " x " << table.n_slices << "\n";

@@ -19,6 +19,7 @@
 #include "../general/lcao.h"
 #include "../general/model_potential.h"
 #include "utils.h"
+#include <algorithm>
 #include <cmath>
 
 // PBE ground states determined with 10 radial elements
@@ -236,12 +237,21 @@ namespace helfem {
         arma::vec chmu(arma::cosh(r));
         arma::vec shmu(arma::sinh(r));
 
+        // The cthval rationals can drift slightly outside [-1, 1] under
+        // round-off near the cusps; clamp before std::acos so we never
+        // feed it a NaN.
+        auto eval_Plm = [l, m](double cthval) {
+          return std::sph_legendre(static_cast<unsigned>(l),
+                                   static_cast<unsigned>(std::abs(m)),
+                                   std::acos(std::clamp(cthval, -1.0, 1.0)));
+        };
+
         if(p==PROBE_LEFT) {
           for(size_t ia=0;ia<wang.n_elem;ia++)
             for(size_t ir=0;ir<wrad.n_elem;ir++) {
               size_t idx=ia*wrad.n_elem+ir;
               double cthval = (1.0 + chmu(ir)*cth(ia))/(chmu(ir) + cth(ia));
-              double Plm = std::sph_legendre(static_cast<unsigned>(l), static_cast<unsigned>(std::abs(m)), std::acos(cthval));
+              double Plm = eval_Plm(cthval);
               for(size_t ix=0;ix<itg.n_rows;ix++)
                 itg(ix,idx)*=Plm;
             }
@@ -251,7 +261,7 @@ namespace helfem {
             for(size_t ir=0;ir<wrad.n_elem;ir++) {
               size_t idx=ia*wrad.n_elem+ir;
               double cthval = (1.0 - chmu(ir)*cth(ia))/(chmu(ir) - cth(ia));
-              double Plm = std::sph_legendre(static_cast<unsigned>(l), static_cast<unsigned>(std::abs(m)), std::acos(cthval));
+              double Plm = eval_Plm(cthval);
               for(size_t ix=0;ix<itg.n_rows;ix++)
                 itg(ix,idx)*=Plm;
             }
@@ -261,7 +271,7 @@ namespace helfem {
             for(size_t ir=0;ir<wrad.n_elem;ir++) {
               size_t idx=ia*wrad.n_elem+ir;
               double cthval = cth(ia);
-              double Plm = std::sph_legendre(static_cast<unsigned>(l), static_cast<unsigned>(std::abs(m)), std::acos(cthval));
+              double Plm = eval_Plm(cthval);
               for(size_t ix=0;ix<itg.n_rows;ix++)
                 itg(ix,idx)*=Plm;
             }
