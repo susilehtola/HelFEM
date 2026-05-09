@@ -23,15 +23,28 @@ add_executable(1e_atom sadatom/1e.cpp)
 target_link_libraries(1e_atom helfem-common legendre)
 
 add_library(legendre
-  legendre/accuracy.f90 legendre/input_output.f90
-  legendre/itoc.f90 legendre/Matrix_Print.f90 legendre/Data_Module.f90
-  legendre/Special_Functions.f90 legendre/Auxilliary_Subroutines.f90
-  legendre/Prolate_Functions.f90 legendre/Lentz_Thompson.f90
-  legendre/Associated_Legendre_Functions.f90 legendre/Ass_Leg_Poly.f90
-  legendre/Legendre_Wrapper.f90 general/legendretable.cpp)
+  legendre/Legendre.cpp general/legendretable.cpp)
+target_compile_features(legendre PUBLIC cxx_std_17)
 
 add_executable(legendre_test legendre/legendre_test.cpp)
 target_link_libraries(legendre_test helfem-common legendre)
+
+add_executable(legendre_unit_test legendre/legendre_unit_test.cpp)
+target_link_libraries(legendre_unit_test legendre)
+# If GCC's __float128 + libquadmath is available, run the unit test at quad
+# precision too. The compiler check looks for both the type and the math
+# library.
+include(CheckCXXSourceCompiles)
+set(CMAKE_REQUIRED_LIBRARIES quadmath)
+check_cxx_source_compiles("
+#include <quadmath.h>
+int main(){__float128 q = 1.0Q; return (int)logq(q + 1);}"
+  HELFEM_HAVE_FLOAT128)
+unset(CMAKE_REQUIRED_LIBRARIES)
+if(HELFEM_HAVE_FLOAT128)
+  target_compile_definitions(legendre_unit_test PRIVATE HELFEM_LEGENDRE_TEST_FLOAT128)
+  target_link_libraries(legendre_unit_test quadmath)
+endif()
 
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem-common legendre)

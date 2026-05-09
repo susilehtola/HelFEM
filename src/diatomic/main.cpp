@@ -96,7 +96,6 @@ int main(int argc, char **argv) {
   parser.add<int>("M", 0, "spin multiplicity", false, 0);
   parser.add<std::string>("lmax", 0, "maximum l quantum number", true, "");
   parser.add<int>("mmax", 0, "maximum m quantum number", false, -1);
-  parser.add<int>("lpad", 0, "padding for max l for more accurate Qlm recursion", false, 10);
   parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
   parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 1.0);
@@ -160,7 +159,6 @@ int main(int argc, char **argv) {
   // Angular grid
   std::string lmax(parser.get<std::string>("lmax"));
   int mmax(parser.get<int>("mmax"));
-  int lpad(parser.get<int>("lpad"));
 
   // DFT angular grid
   int ldft(parser.get<int>("ldft"));
@@ -276,7 +274,7 @@ int main(int argc, char **argv) {
   double mumax(utils::arcosh(Rmax/Rhalf));
   arma::vec bval(atomic::basis::normal_grid(Nelem, mumax, igrid, zexp));
 
-  diatomic::basis::TwoDBasis basis(Z1, Z2, Rhalf, poly, Nquad, bval, lval, mval, lpad);
+  diatomic::basis::TwoDBasis basis(Z1, Z2, Rhalf, poly, Nquad, bval, lval, mval);
   chkpt.write(basis);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
 

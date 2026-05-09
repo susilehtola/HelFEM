@@ -36,8 +36,6 @@ namespace helfem {
     private:
       /// Storage array
       std::vector<legendre_table_t> stor;
-      /// Maximum L value used in the actual computation
-      int Lpad;
       /// Maximum L value
       int Lmax;
       /// Maximum M value
@@ -50,7 +48,7 @@ namespace helfem {
       /// Dummy constructor
       LegendreTable();
       /// Constructor
-      LegendreTable(int Lpad, int Lmax, int Mmax);
+      LegendreTable(int Lmax, int Mmax);
       /// Destructor
       ~LegendreTable();
       /// Add value to table

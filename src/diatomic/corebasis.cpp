@@ -29,7 +29,6 @@ using namespace helfem;
 
 void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int Nquad, int Nelem, double Rmax, const arma::ivec & lmmax, int igrid, double zexp, double Ez, double Qzz, double Bz, int norb, double & E, arma::uword & nang, arma::uword & nrad, arma::vec & Eval, int imodel) {
 
-  int lpad=0;
   int symm=1;
 
   double Rhalf=0.5*Rbond;
@@ -39,7 +38,7 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
   arma::ivec lval, mval;
   diatomic::basis::lm_to_l_m(lmmax,lval,mval);
 
-  diatomic::basis::TwoDBasis basis(Z1, Z2, Rhalf, poly, Nquad, bval, lval, mval, lpad, false);
+  diatomic::basis::TwoDBasis basis(Z1, Z2, Rhalf, poly, Nquad, bval, lval, mval, false);
 
   bool diag=true;
   // Symmetry indices

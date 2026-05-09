@@ -1,6 +1,6 @@
 # CMake project file for HelFEM
 cmake_minimum_required (VERSION 3.14)
-project (helfem CXX Fortran)
+project (helfem CXX)
 # C++ standard is set per-target via target_compile_features(... cxx_std_17)
 # rather than globally.
 
