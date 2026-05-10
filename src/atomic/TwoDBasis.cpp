@@ -441,7 +441,7 @@ namespace helfem {
 
                 // Loop over L
                 for(int L=std::abs(li-lj);L<=li+lj;L++) {
-                  double cpl(gaunt.coeff(li,mi,L,0,lj,mj));
+                  double cpl(gaunt.coeff(li,mi,L,0,lj));
                   if(cpl==0.0)
                     continue;
 
@@ -576,8 +576,11 @@ namespace helfem {
             int lj(lval(jang));
             int mj(mval(jang));
 
+            // Y_2^0 has m=0, so the m-sum forces mj == mi.
+            if(mj != mi) continue;
+
             // Calculate coupling
-            double cpl(gaunt.coeff(lj,mj,2,0,li,mi));
+            double cpl(gaunt.coeff(lj,mj,2,0,li));
             if(cpl!=0.0) {
               const double c0(2.0/5.0*sqrt(5.0*M_PI));
               cpl*=c0;
@@ -857,7 +860,7 @@ namespace helfem {
             int Lmax=lk+ll;
             for(int L=Lmin;L<=Lmax;L++) {
               // Calculate coupling coefficient
-              double cpl(gaunt.coeff(lk,mk,L,M,ll,ml));
+              double cpl(gaunt.coeff(lk,mk,L,M,ll));
               // Increment
               Paux[L][M+Mmax]+=cpl*P.submat(kang*Nrad,lang*Nrad,(kang+1)*Nrad-1,(lang+1)*Nrad-1);
             }
@@ -944,7 +947,7 @@ namespace helfem {
             int Lmax=lj+li;
             for(int L=Lmin;L<=Lmax;L++) {
               // Coupling
-              double cpl(gaunt.coeff(lj,mj,L,M,li,mi));
+              double cpl(gaunt.coeff(lj,mj,L,M,li));
               if(cpl!=0.0) {
                 J.submat(iang*Nrad,jang*Nrad,(iang+1)*Nrad-1,(jang+1)*Nrad-1)+=cpl*Jaux[L][M+Mmax];
               }
@@ -1048,7 +1051,7 @@ namespace helfem {
 
                   for(int L=Lmin;L<=Lmax;L++) {
                     // Calculate total coupling coefficient
-                    double cpl(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
+                    double cpl(gaunt.coeff(lj,mj,L,M,li)*gaunt.coeff(lk,mk,L,M,ll));
                     if(cpl==0.0)
                       continue;
 
@@ -1233,7 +1236,7 @@ namespace helfem {
 
                   for(int L=Lmin;L<=Lmax;L++) {
                     // Calculate total coupling coefficient
-                    double cpl(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
+                    double cpl(gaunt.coeff(lj,mj,L,M,li)*gaunt.coeff(lk,mk,L,M,ll));
                     if(cpl==0.0)
                       continue;
 

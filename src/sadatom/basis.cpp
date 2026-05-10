@@ -435,7 +435,7 @@ namespace helfem {
                   int M(mout-min);
                   for(int L=Lmin;L<=Lmax;L++) {
                     // Calculate total coupling coefficient
-                    double cpl(gaunt.coeff(lout,mout,L,M,lin,min)*gaunt.coeff(lout,mout,L,M,lin,min));
+                    double cpl(gaunt.coeff(lout,mout,L,M,lin)*gaunt.coeff(lout,mout,L,M,lin));
                     totcoup(L)+=cpl;
                   }
                 }
@@ -603,7 +603,7 @@ namespace helfem {
                   int M(mout-min);
                   for(int L=Lmin;L<=Lmax;L++) {
                     // Calculate total coupling coefficient
-                    double cpl(gaunt.coeff(lout,mout,L,M,lin,min)*gaunt.coeff(lout,mout,L,M,lin,min));
+                    double cpl(gaunt.coeff(lout,mout,L,M,lin)*gaunt.coeff(lout,mout,L,M,lin));
                     totcoup(L)+=cpl;
                   }
                 }
