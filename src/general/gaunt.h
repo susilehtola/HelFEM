@@ -16,42 +16,44 @@
 #ifndef GAUNT
 #define GAUNT
 
-#include <armadillo>
+#include <vector>
 
 namespace helfem {
   namespace gaunt {
-/**
- * Computes Gaunt coefficient \f$ G^{M m m'}_{L l l'} \f$ in the expansion
- * \f$ Y_l^m (\Omega) Y_{l'}^{m'} (\Omega) = \sum_{L,M} G^{M m m'}_{L l l'} Y_L^M (\Omega) \f$
- */
+    /**
+     * Computes Gaunt coefficient \f$ G^{M m m'}_{L l l'} \f$ in the expansion
+     * \f$ Y_l^m (\Omega) Y_{l'}^{m'} (\Omega) = \sum_{L,M} G^{M m m'}_{L l l'} Y_L^M (\Omega) \f$
+     */
     double gaunt_coefficient(int L, int M, int l, int m, int lp, int mp);
 
     /// Get "modified" Gaunt coefficient (interim coupling through cos^2)
     double modified_gaunt_coefficient(int L, int M, int l, int m, int lp, int mp);
 
-    /// Table of Gaunt coefficients
+    /// Table of Gaunt coefficients.
+    /// Storage is a flat 5D dense array indexed by (L, M, l, m, lp); the m-sum
+    /// selection rule (mp = M - m) makes an explicit mp axis redundant. The
+    /// 6-arg lookup keeps mp in the public API for compatibility with callers
+    /// that iterate over inconsistent (M, m, mp) tuples and expect 0 back.
     class Gaunt {
-      /// Table of coefficients
-      arma::cube table;
-      /// Limited m set
-      bool mlimit;
-      /// Maximum m values
-      int Mmax, mmax, mpmax;
+      std::vector<double> table;
+      int Lmax = 0, lmax = 0, lpmax = 0;
+      std::size_t lm_stride = 0;
+      std::size_t Lm_stride = 0;
+
+      std::size_t flat_index(int L, int M, int l, int m, int lp) const {
+        const std::size_t LM = static_cast<std::size_t>(L) * (L + 1) + M;
+        const std::size_t lm = static_cast<std::size_t>(l) * (l + 1) + m;
+        return LM * Lm_stride + lm * lm_stride + static_cast<std::size_t>(lp);
+      }
 
     public:
-      /// Dummy constructor
-      Gaunt();
-      /// Constructor
+      Gaunt() = default;
       Gaunt(int Lmax, int lmax, int lpmax);
-      /// Fine grained constructor
-      Gaunt(int Lmax, int Mmax, int lmax, int mmax, int lpmax, int mpmax);
-      /// Destructor
-      ~Gaunt();
 
-      /// Get Gaunt coefficient
+      /// Get Gaunt coefficient. Returns 0 unless mp == M - m (m-sum rule).
       double coeff(int L, int M, int l, int m, int lp, int mp) const;
       /// Get "modified" Gaunt coefficient (interim coupling through cos^2)
-      double mod_coeff(int L, int M, int l, int m, int lp, int mp) const;
+      double mod_coeff(int lj, int mj, int L, int M, int li, int mi) const;
 
       /// Get cosine type coupling
       double cosine_coupling(int lj, int mj, int li, int mi) const;

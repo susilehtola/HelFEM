@@ -13,29 +13,19 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  */
-#include <cstdio>
 #include <cmath>
+#include <cstdlib>
+
 #include "gaunt.h"
-
 #include "wignernj.hpp"
-
-/// Index of (l,m) in tables: l^2 + l + m
-#define genind(l,m) ( ((size_t) (l))*(size_t (l)) + (size_t) (l) + (size_t) (m))
-/// Index of (l,m) in m limited table
-#define LMind(L,M) ( ((size_t) (L))*(size_t (2*Mmax+1)) + (size_t) (Mmax) + (size_t) (M))
-#define lmind(L,M) ( ((size_t) (L))*(size_t (2*mmax+1)) + (size_t) (mmax) + (size_t) (M))
-#define lpmpind(L,M) ( ((size_t) (L))*(size_t (2*mpmax+1)) + (size_t) (mpmax) + (size_t) (M))
 
 namespace helfem {
   namespace gaunt {
 
     double gaunt_coefficient(int L, int M, int l, int m, int lp, int mp) {
       // gaunt_coefficient(L,M,l,m,lp,mp) = integral Y_L^M* Y_l^m Y_lp^mp dOmega.
-      // Using Y_L^M* = (-1)^M Y_L^{-M}, this equals
-      //   (-1)^M * integral Y_L^{-M} Y_l^m Y_lp^mp dOmega
-      // which is exactly wignernj::gaunt with first m flipped (and doubled args).
-      // (-1)^M with integer M is a parity branch, not a transcendental call;
-      // matters because Gaunt table construction is O(lmax^6) calls.
+      // Y_L^M* = (-1)^M Y_L^{-M}, so this equals
+      //   (-1)^M * integral Y_L^{-M} Y_l^m Y_lp^mp dOmega = (-1)^M * wignernj::gaunt(L,-M,l,m,lp,mp).
       const double sign = (M & 1) ? -1.0 : 1.0;
       return sign * wignernj::gaunt<double>(2*L, -2*M, 2*l, 2*m, 2*lp, 2*mp);
     }
@@ -55,126 +45,78 @@ namespace helfem {
       return const0*cpl0+const2*cpl2;
     }
 
-    Gaunt::Gaunt() {
-    }
-
-    // Triple-level parity / triangle pre-check. (L l lp; 0 0 0) is zero
-    // unless L+l+lp is even and the triangle inequality holds, so the whole
-    // (M, m, mp) sweep can be skipped for failing triples.
+    // (L l lp; 0 0 0) is zero unless L+l+lp is even and the triangle inequality
+    // holds, so the whole (M, m) sweep can be skipped for failing triples.
     static inline bool gaunt_triple_nonzero(int L, int l, int lp) {
       if((L + l + lp) % 2 != 0) return false;
       if(lp < std::abs(L - l) || lp > L + l) return false;
       return true;
     }
 
-    Gaunt::Gaunt(int Lmax, int lmax, int lpmax) {
-      // Allocate storage
-      mlimit=false;
-      table=arma::zeros<arma::cube>(genind(Lmax,Lmax)+1,genind(lmax,lmax)+1,genind(lpmax,lpmax)+1);
+    Gaunt::Gaunt(int Lmax_, int lmax_, int lpmax_)
+      : Lmax(Lmax_), lmax(lmax_), lpmax(lpmax_) {
+      // (l, m) packs to l*(l+1) + m; range [0, (lmax+1)^2 - 1]. Same for (L, M).
+      // mp is implicit from the m-sum rule (mp = M - m), so we omit an mp axis.
+      lm_stride = static_cast<std::size_t>(lpmax) + 1;
+      Lm_stride = static_cast<std::size_t>(lmax + 1) * (lmax + 1) * lm_stride;
+      const std::size_t total = static_cast<std::size_t>(Lmax + 1) * (Lmax + 1) * Lm_stride;
+      table.assign(total, 0.0);
 
-      // The selection rule M = m + mp removes one inner loop, and the
-      // (L l lp; 0 0 0) factor is computed once per (L, l, lp) triple.
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2) schedule(dynamic)
 #endif
-      for(int L=0; L<=Lmax; L++) {
-        for(int l=0; l<=lmax; l++) {
+      for(int L = 0; L <= Lmax; ++L) {
+        for(int l = 0; l <= lmax; ++l) {
           const int lp_lo = std::abs(L - l);
           const int lp_hi = std::min(lpmax, L + l);
           for(int lp = lp_lo; lp <= lp_hi; ++lp) {
             if(!gaunt_triple_nonzero(L, l, lp)) continue;
             for(int M = -L; M <= L; ++M) {
               const double signM = (M & 1) ? -1.0 : 1.0;
-              for(int m = -l; m <= l; ++m) {
-                const int mp = M - m;  // selection rule: -M + m + mp = 0
-                if(mp < -lp || mp > lp) continue;
-                const double g = wignernj::gaunt<double>(2*L, -2*M, 2*l, 2*m,
-                                                         2*lp, 2*mp);
-                table(genind(L, M), genind(l, m), genind(lp, mp)) = signM * g;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    Gaunt::Gaunt(int Lmax, int Mmax_, int lmax, int mmax_, int lpmax, int mpmax_) : Mmax(Mmax_), mmax(mmax_), mpmax(mpmax_) {
-      // Allocate storage
-      mlimit=true;
-      table=arma::zeros<arma::cube>(LMind(Lmax,Mmax)+1,lmind(lmax,mmax)+1,lpmpind(lpmax,mpmax)+1);
-
-#ifdef _OPENMP
-#pragma omp parallel for collapse(2) schedule(dynamic)
-#endif
-      for(int L=0; L<=Lmax; L++) {
-        for(int l=0; l<=lmax; l++) {
-          const int lp_lo = std::abs(L - l);
-          const int lp_hi = std::min(lpmax, L + l);
-          for(int lp = lp_lo; lp <= lp_hi; ++lp) {
-            if(!gaunt_triple_nonzero(L, l, lp)) continue;
-            const int M_lo = -std::min(L, Mmax);
-            const int M_hi =  std::min(L, Mmax);
-            const int m_lo = -std::min(l, mmax);
-            const int m_hi =  std::min(l, mmax);
-            const int mp_cap = std::min(lp, mpmax);
-            for(int M = M_lo; M <= M_hi; ++M) {
-              const double signM = (M & 1) ? -1.0 : 1.0;
+              const int m_lo = std::max(-l, M - lp);
+              const int m_hi = std::min( l, M + lp);
               for(int m = m_lo; m <= m_hi; ++m) {
                 const int mp = M - m;
-                if(mp < -mp_cap || mp > mp_cap) continue;
                 const double g = wignernj::gaunt<double>(2*L, -2*M, 2*l, 2*m,
                                                          2*lp, 2*mp);
-                table(LMind(L, M), lmind(l, m), lpmpind(lp, mp)) = signM * g;
+                table[flat_index(L, M, l, m, lp)] = signM * g;
               }
             }
           }
         }
       }
-    }
-
-    Gaunt::~Gaunt() {
     }
 
     double Gaunt::coeff(int L, int M, int l, int m, int lp, int mp) const {
-      if(std::abs(M)>L) return 0.0;
-      if(std::abs(m)>l) return 0.0;
-      if(std::abs(mp)>lp) return 0.0;
+      // Out-of-range probes return 0 (callers iterate over wide ranges).
+      if(L < 0 || L > Lmax) return 0.0;
+      if(l < 0 || l > lmax) return 0.0;
+      if(lp < 0 || lp > lpmax) return 0.0;
+      if(std::abs(M) > L) return 0.0;
+      if(std::abs(m) > l) return 0.0;
+      if(std::abs(mp) > lp) return 0.0;
+      // m-sum selection rule: only mp = M - m is stored; mismatched mp is zero.
+      if(mp != M - m) return 0.0;
+      return table[flat_index(L, M, l, m, lp)];
+    }
 
-      size_t irow, icol, islice;
-      if(mlimit) {
-        irow=LMind(L,M);
-        icol=lmind(l,m);
-        islice=lpmpind(lp,mp);
-      } else {
-        irow=genind(L,M);
-        icol=genind(l,m);
-        islice=genind(lp,mp);
-      }
+    double Gaunt::mod_coeff(int lj, int mj, int L, int M, int li, int mi) const {
+      // mod_coeff couples Y_lj^mj* (cos^2 th) Y_L^M Y_li^mi. The combined m-sum
+      // forces mj = M + mi; otherwise every term has a vanishing factor.
+      if(mj != M + mi) return 0.0;
 
-#ifndef ARMA_NO_DEBUG
-      if(irow>=table.n_rows) {
-        std::ostringstream oss;
-        oss << "Row index overflow for coeff(" << L << "," << M << "," << l << "," << m << "," << lp << "," << mp << ")!\n";
-        oss << "Wanted element at (" << irow << "," << icol << "," << islice << ") but table is " << table.n_rows << " x " << table.n_cols << " x " << table.n_slices << "\n";
-        throw std::logic_error(oss.str());
-      }
+      static const double const0(2.0/3.0*sqrt(M_PI));
+      static const double const2(4.0/15.0*sqrt(5.0*M_PI));
 
-      if(icol>=table.n_cols) {
-        std::ostringstream oss;
-        oss << "Column index overflow for coeff(" << L << "," << M << "," << l << "," << m << "," << lp << "," << mp << ")!\n";
-        oss << "Wanted element at (" << irow << "," << icol << "," << islice << ") but table is " << table.n_rows << " x " << table.n_cols << " x " << table.n_slices << "\n";
-        throw std::logic_error(oss.str());
-      }
+      // Coupling through Y_0^0
+      const double cpl0 = coeff(L,M,0,0,L,M) * coeff(lj,mj,li,mi,L,M);
 
-      if(islice>=table.n_slices) {
-        std::ostringstream oss;
-        oss << "Slice index overflow for coeff(" << L << "," << M << "," << l << "," << m << "," << lp << "," << mp << ")!\n";
-        oss << "Wanted element at (" << irow << "," << icol << "," << islice << ") but table is " << table.n_rows << " x " << table.n_cols << " x " << table.n_slices << "\n";
-        throw std::logic_error(oss.str());
-      }
-#endif
+      // Coupling through Y_2^0
+      double cpl2 = 0.0;
+      for(int Lp = std::max(std::max(L-2, 0), std::abs(M)); Lp <= L+2; ++Lp)
+        cpl2 += coeff(Lp,M,2,0,L,M) * coeff(lj,mj,li,mi,Lp,M);
 
-      return table(irow,icol,islice);
+      return const0*cpl0 + const2*cpl2;
     }
 
     double Gaunt::cosine_coupling(int lj, int mj, int li, int mi) const {
@@ -188,21 +130,6 @@ namespace helfem {
       static const double const0(2.0/3.0*sqrt(M_PI));
       static const double const2(4.0/15.0*sqrt(5.0*M_PI));
       return const0*coeff(lj,mj,0,0,li,mi) + const2*coeff(lj,mj,2,0,li,mi);
-    }
-
-    double Gaunt::mod_coeff(int lj, int mj, int L, int M, int li, int mi) const {
-      static const double const0(2.0/3.0*sqrt(M_PI));
-      static const double const2(4.0/15.0*sqrt(5.0*M_PI));
-
-      // Coupling through Y_0^0
-      double cpl0(coeff(L,M,0,0,L,M)*coeff(lj,mj,li,mi,L,M));
-
-      // Coupling through Y_2^0
-      double cpl2=0.0;
-      for(int Lp=std::max(std::max(L-2,0),std::abs(M));Lp<=L+2;Lp++)
-        cpl2+=coeff(Lp,M,2,0,L,M)*coeff(lj,mj,li,mi,Lp,M);
-
-      return const0*cpl0+const2*cpl2;
     }
 
     double Gaunt::cosine3_coupling(int lj, int mj, int li, int mi) const {
