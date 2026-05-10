@@ -1406,7 +1406,7 @@ namespace helfem {
               const size_t iLM(LMind(L,M));
               // Calculate coupling coefficients
               double cpl0(gaunt.mod_coeff(lk,mk,L,M,ll,ml));
-              double cpl2(gaunt.coeff(lk,mk,L,M,ll,ml));
+              double cpl2(gaunt.coeff(lk,mk,L,M,ll));
               // Increment
               arma::mat Prad(P.submat(kang*Nrad,lang*Nrad,(kang+1)*Nrad-1,(lang+1)*Nrad-1));
               if(cpl0!=0.0)
@@ -1537,7 +1537,7 @@ namespace helfem {
                 J.submat(iang*Nrad,jang*Nrad,(iang+1)*Nrad-1,(jang+1)*Nrad-1)+=cpl0*Jaux0[iLM];
               }
 
-              double cpl2(gaunt.coeff(lj,mj,L,M,li,mi));
+              double cpl2(gaunt.coeff(lj,mj,L,M,li));
               if(cpl2!=0.0) {
                 J.submat(iang*Nrad,jang*Nrad,(iang+1)*Nrad-1,(jang+1)*Nrad-1)+=cpl2*Jaux2[iLM];
               }
@@ -1649,9 +1649,9 @@ namespace helfem {
                   for(int L=Lmin;L<=Lmax;L++) {
                     // Calculate total coupling coefficient
                     double cpl00(gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
-                    double cpl02(-gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
-                    double cpl20(-gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
-                    double cpl22(gaunt.coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll,ml));
+                    double cpl02(-gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll));
+                    double cpl20(-gaunt.coeff(lj,mj,L,M,li)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
+                    double cpl22(gaunt.coeff(lj,mj,L,M,li)*gaunt.coeff(lk,mk,L,M,ll));
 
                     // Is there any coupling?
                     if(cpl00==0.0 && cpl02==0.0 && cpl20==0.0 && cpl22==0.0)

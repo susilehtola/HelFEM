@@ -31,9 +31,9 @@ namespace helfem {
 
     /// Table of Gaunt coefficients.
     /// Storage is a flat 5D dense array indexed by (L, M, l, m, lp); the m-sum
-    /// selection rule (mp = M - m) makes an explicit mp axis redundant. The
-    /// 6-arg lookup keeps mp in the public API for compatibility with callers
-    /// that iterate over inconsistent (M, m, mp) tuples and expect 0 back.
+    /// selection rule fixes mp = M - m, so an explicit mp axis is omitted.
+    /// Callers must pre-enforce the rule (in practice they do this naturally,
+    /// since M is computed from outer m-channel indices).
     class Gaunt {
       std::vector<double> table;
       int Lmax = 0, lmax = 0, lpmax = 0;
@@ -50,8 +50,9 @@ namespace helfem {
       Gaunt() = default;
       Gaunt(int Lmax, int lmax, int lpmax);
 
-      /// Get Gaunt coefficient. Returns 0 unless mp == M - m (m-sum rule).
-      double coeff(int L, int M, int l, int m, int lp, int mp) const;
+      /// Get Gaunt coefficient. mp is implicit: mp = M - m. Cells outside the
+      /// stored range or violating |M|<=L, |m|<=l return 0.
+      double coeff(int L, int M, int l, int m, int lp) const;
       /// Get "modified" Gaunt coefficient (interim coupling through cos^2)
       double mod_coeff(int lj, int mj, int L, int M, int li, int mi) const;
 

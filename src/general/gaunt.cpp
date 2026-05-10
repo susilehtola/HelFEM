@@ -87,87 +87,88 @@ namespace helfem {
       }
     }
 
-    double Gaunt::coeff(int L, int M, int l, int m, int lp, int mp) const {
+    double Gaunt::coeff(int L, int M, int l, int m, int lp) const {
       // Out-of-range probes return 0 (callers iterate over wide ranges).
       if(L < 0 || L > Lmax) return 0.0;
       if(l < 0 || l > lmax) return 0.0;
       if(lp < 0 || lp > lpmax) return 0.0;
       if(std::abs(M) > L) return 0.0;
       if(std::abs(m) > l) return 0.0;
-      if(std::abs(mp) > lp) return 0.0;
-      // m-sum selection rule: only mp = M - m is stored; mismatched mp is zero.
-      if(mp != M - m) return 0.0;
+      // mp is implicit (= M - m); a stored cell with |M - m| > lp is zero.
       return table[flat_index(L, M, l, m, lp)];
     }
 
     double Gaunt::mod_coeff(int lj, int mj, int L, int M, int li, int mi) const {
-      // mod_coeff couples Y_lj^mj* (cos^2 th) Y_L^M Y_li^mi. The combined m-sum
-      // forces mj = M + mi; otherwise every term has a vanishing factor.
+      // mod_coeff = integral Y_lj^mj* (cos^2 th) Y_L^M Y_li^mi: m-sum forces
+      // mj = M + mi for any term to be nonzero.
       if(mj != M + mi) return 0.0;
 
       static const double const0(2.0/3.0*sqrt(M_PI));
       static const double const2(4.0/15.0*sqrt(5.0*M_PI));
 
       // Coupling through Y_0^0
-      const double cpl0 = coeff(L,M,0,0,L,M) * coeff(lj,mj,li,mi,L,M);
+      const double cpl0 = coeff(L,M,0,0,L) * coeff(lj,mj,li,mi,L);
 
       // Coupling through Y_2^0
       double cpl2 = 0.0;
       for(int Lp = std::max(std::max(L-2, 0), std::abs(M)); Lp <= L+2; ++Lp)
-        cpl2 += coeff(Lp,M,2,0,L,M) * coeff(lj,mj,li,mi,Lp,M);
+        cpl2 += coeff(Lp,M,2,0,L) * coeff(lj,mj,li,mi,Lp);
 
       return const0*cpl0 + const2*cpl2;
     }
 
+    // The cos^n / sin^n couplings expand the angular factor in Y_n^0; the m-sum
+    // forces mi = mj — otherwise the integral vanishes. Guard explicitly so we
+    // don't index into an unrelated cell of the implicit-mp table.
     double Gaunt::cosine_coupling(int lj, int mj, int li, int mi) const {
-      // cos th = const1 * Y_1^0
+      if(mi != mj) return 0.0;
       static const double const1(2.0*sqrt(M_PI/3.0));
-      return const1*coeff(lj,mj,1,0,li,mi);
+      return const1*coeff(lj,mj,1,0,li);
     }
 
     double Gaunt::cosine2_coupling(int lj, int mj, int li, int mi) const {
-      // cos^2 th = const0 * Y_0^0 + const2 * Y_2^0
+      if(mi != mj) return 0.0;
       static const double const0(2.0/3.0*sqrt(M_PI));
       static const double const2(4.0/15.0*sqrt(5.0*M_PI));
-      return const0*coeff(lj,mj,0,0,li,mi) + const2*coeff(lj,mj,2,0,li,mi);
+      return const0*coeff(lj,mj,0,0,li) + const2*coeff(lj,mj,2,0,li);
     }
 
     double Gaunt::cosine3_coupling(int lj, int mj, int li, int mi) const {
-      // cos^3 th = const1 * Y_1^0 + const3 * Y_3^0
+      if(mi != mj) return 0.0;
       static const double const1(2.0/5.0*sqrt(3.0*M_PI));
       static const double const3(4.0/35.0*sqrt(7.0*M_PI));
-      return const1*coeff(lj,mj,1,0,li,mi) + const3*coeff(lj,mj,3,0,li,mi);
+      return const1*coeff(lj,mj,1,0,li) + const3*coeff(lj,mj,3,0,li);
     }
 
     double Gaunt::cosine4_coupling(int lj, int mj, int li, int mi) const {
-      // cos^4 th = const0 * Y_0^0 + const2 * Y_2^0 + const4 * Y_4^0
+      if(mi != mj) return 0.0;
       static const double const0(2.0/5.0*sqrt(M_PI));
       static const double const2(8.0/35.0*sqrt(5.0*M_PI));
       static const double const4(16.0/105.0*sqrt(M_PI));
-      return const0*coeff(lj,mj,0,0,li,mi) + const2*coeff(lj,mj,2,0,li,mi) + const4*coeff(lj,mj,4,0,li,mi);
+      return const0*coeff(lj,mj,0,0,li) + const2*coeff(lj,mj,2,0,li) + const4*coeff(lj,mj,4,0,li);
     }
 
     double Gaunt::cosine5_coupling(int lj, int mj, int li, int mi) const {
-      // cos^5 th = const1 * Y_1^0 + const3 * Y_3^0 + const5 * Y_5^0
+      if(mi != mj) return 0.0;
       static const double const1(2.0/7.0*sqrt(3.0*M_PI));
       static const double const3(8.0/63.0*sqrt(7.0*M_PI));
       static const double const5(16.0/693.0*sqrt(11.0*M_PI));
-      return const1*coeff(lj,mj,1,0,li,mi) + const3*coeff(lj,mj,3,0,li,mi) + const5*coeff(lj,mj,5,0,li,mi);
+      return const1*coeff(lj,mj,1,0,li) + const3*coeff(lj,mj,3,0,li) + const5*coeff(lj,mj,5,0,li);
     }
 
     double Gaunt::sine2_coupling(int lj, int mj, int li, int mi) const {
-      // sin^2 th = const0 * Y_0^0 + const2 * Y_2^0
+      if(mi != mj) return 0.0;
       static const double const0(4.0/3.0*sqrt(M_PI));
       static const double const2(-4.0/15.0*sqrt(5.0*M_PI));
-      return const0*coeff(lj,mj,0,0,li,mi) + const2*coeff(lj,mj,2,0,li,mi);
+      return const0*coeff(lj,mj,0,0,li) + const2*coeff(lj,mj,2,0,li);
     }
 
     double Gaunt::cosine2_sine2_coupling(int lj, int mj, int li, int mi) const {
-      // cos^2 th sin^2 th = const0 * Y_0^0 + const2 * Y_2^0 + const4 * Y_4^0
+      if(mi != mj) return 0.0;
       static const double const0(4.0/15.0*sqrt(M_PI));
       static const double const2(4.0/105.0*sqrt(5.0*M_PI));
       static const double const4(-16.0/105.0*sqrt(M_PI));
-      return const0*coeff(lj,mj,0,0,li,mi) + const2*coeff(lj,mj,2,0,li,mi) + const4*coeff(lj,mj,4,0,li,mi);
+      return const0*coeff(lj,mj,0,0,li) + const2*coeff(lj,mj,2,0,li) + const4*coeff(lj,mj,4,0,li);
     }
   }
 }
