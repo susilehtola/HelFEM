@@ -385,7 +385,7 @@ namespace helfem {
           Timer t;
           printf("Computing Gaunt coefficients ... ");
           fflush(stdout);
-          gaunt=gaunt::Gaunt(lrval,Mmax,midval,Mmax,lrval,Mmax);
+          gaunt=gaunt::Gaunt(lrval,midval,lrval);
           printf("done (% .3f s)\n",t.get());
           fflush(stdout);
 
@@ -407,7 +407,7 @@ namespace helfem {
           int midval(5);
           int Mmax=arma::max(mval)-arma::min(mval);
 
-          gaunt=gaunt::Gaunt(lrval,Mmax,midval,Mmax,lrval,Mmax);
+          gaunt=gaunt::Gaunt(lrval,midval,lrval);
         }
       }
 

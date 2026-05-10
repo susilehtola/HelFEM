@@ -1,4 +1,6 @@
 #include <cfloat>
+#include <cmath>
+#include <cstdio>
 #include "gaunt.h"
 
 int main(void) {
