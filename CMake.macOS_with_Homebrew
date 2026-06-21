@@ -1,0 +1,12 @@
+# macOS with dependencies installed via Homebrew
+add_definitions(-DHELFEM_FIND_DEPS=ON)
+#
+# link_libraries() is not a perfect option:
+# 	https://stackoverflow.com/questions/17070101/why-i-cannot-link-the-mac-framework-file-with-cmake
+# Unfortunately, 
+#		target_link_libraries(helfem PRIVATE "-framework Accelerate")
+# cannot be used here, as it must occur after add_executable() or add_library().
+# Pragmatically, the following does successfully link against the wrappers from Apple's Accelerate framework
+#		https://developer.apple.com/documentation/accelerate/blas
+# if no other BLAS and LAPACK are installed:
+link_libraries(blas lapack)
