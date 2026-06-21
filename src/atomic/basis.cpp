@@ -52,6 +52,10 @@ namespace helfem {
       arma::vec normal_grid(int num_el, double rmax, int igrid, double zexp) {
         return utils::get_grid(rmax,num_el,igrid,zexp);
       }
+      
+      arma::vec normal_grid(int num_el, double rmax, int igrid, double zexp, double shift_conf, double conf_R) {
+        return utils::get_grid(rmax,num_el,igrid,zexp, shift_conf, conf_R);
+      }
 
       arma::vec finite_nuclear_grid(int num_el, double rmax, int igrid, double zexp, int num_el_nuc, double rnuc, int igrid_nuc, double zexp_nuc) {
         if(num_el_nuc) {
@@ -117,10 +121,10 @@ namespace helfem {
       }
 
       arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf) {
-	return form_grid(model, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf, false, 0.0);
+	return form_grid(model, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf, false, 0.0, 0.0);
       }
 
-      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf, bool add_el, double shift_conf) {
+      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf, bool add_el, double shift_conf, double conf_R) {
         // Construct the radial basis
         arma::vec bval;
         if(model != modelpotential::POINT_NUCLEUS && model != modelpotential::REGULARIZED_NUCLEUS) {
@@ -144,10 +148,10 @@ namespace helfem {
         } else if(Zl != 0 || Zr != 0) {
           printf("Off-center grid\n");
           bval=atomic::basis::offcenter_nuclear_grid(Nelem0,Z,std::max(Zl,Zr),Rhalf,Nelem,Rmax,igrid,zexp);
-        } else {
-          printf("Normal grid\n");
-          bval=atomic::basis::normal_grid(Nelem,Rmax,igrid,zexp);
-        }
+	  }  else {
+	  printf("Normal grid\n");
+          bval=atomic::basis::normal_grid(Nelem,Rmax,igrid,zexp,shift_conf,conf_R);
+	  }
 
 	if(add_el) {
 	  // Check that r is not in bval
