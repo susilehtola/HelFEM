@@ -21,7 +21,6 @@ endforeach()
 add_library(helfem
     src/helfem.cpp
     src/grid.cpp
-    src/chebyshev.cpp
     src/lobatto.cpp
     src/utils.cpp
     src/erfc_expn.cpp
@@ -44,6 +43,7 @@ add_library(helfem
     src/RadialBasis.cpp
 )
 target_include_directories(helfem PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+target_link_libraries(helfem PUBLIC helfem::lib1dfem)
 target_compile_features(helfem PUBLIC cxx_std_17)
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/include/" DESTINATION include)
 install(TARGETS helfem DESTINATION lib)

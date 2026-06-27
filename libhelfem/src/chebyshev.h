@@ -15,22 +15,27 @@
 #ifndef CHEBYSHEV_H
 #define CHEBYSHEV_H
 
-#include <armadillo>
+// v2 refactor (Phase 1): the actual Gauss-Chebyshev quadrature now lives in
+// lib1dfem and is templated on the scalar type. libhelfem is still compiled
+// against T = double, so this header is a thin double-only compatibility
+// shim that forwards to the templated lib1dfem implementation. The shim
+// keeps libhelfem's internal callers (and any external consumer using the
+// libhelfem headers) source-compatible during the migration.
+
+#include <lib1dfem/chebyshev.h>
 
 namespace helfem {
-  namespace chebyshev {
-    /**
-       Modified Gauss-Chebyshev quadrature of the second kind for calculating
-       \f$ \int_{-1}^{1} f(x) dx \f$
-    */
-    void chebyshev(int n, arma::vec & x, arma::vec & w);
+namespace chebyshev {
 
-    /// Modified Gauss-Chebyshev quadrature of the second kind for
-    /// calculating \f$\int_{0}^{\infty} f(r) dr\f$. NB! For
-    /// integration in spherical coordinates, you need to plug in the
-    /// r^2 factor as well.
-    void radial_chebyshev(int n, arma::vec & r, arma::vec & wr);
-  }
+inline void chebyshev(int n, arma::vec & x, arma::vec & w) {
+  lib1dfem::chebyshev::chebyshev<double>(n, x, w);
 }
+
+inline void radial_chebyshev(int n, arma::vec & r, arma::vec & wr) {
+  lib1dfem::chebyshev::radial_chebyshev<double>(n, r, wr);
+}
+
+} // namespace chebyshev
+} // namespace helfem
 
 #endif
