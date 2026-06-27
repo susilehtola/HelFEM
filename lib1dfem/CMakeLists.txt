@@ -14,6 +14,11 @@
 #   - grid:      Radial element-boundary grid generator (linear / quadratic /
 #                generalised polynomial / generalised exponential / geometric;
 #                templated on T, header-only).
+#   - math:      Pure-math helpers (arcosh, arsinh, modified Bessel i_L / k_L)
+#                used inside the FEM machinery. Templated on T; Bessel paths
+#                use std::cyl_bessel_i/k for the standard float/double/long
+#                double overloads, plus an explicit Taylor series at small |x|
+#                that works at any precision.
 
 add_library(lib1dfem INTERFACE)
 add_library(helfem::lib1dfem ALIAS lib1dfem)

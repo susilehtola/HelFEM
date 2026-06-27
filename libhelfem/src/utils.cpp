@@ -13,84 +13,46 @@
  * for the full license text.
  */
 #include "utils.h"
+#include <lib1dfem/math.h>
 #include <cmath>
 
 namespace helfem {
   namespace utils {
+    // v2 refactor (Phase 1): the pure-math helpers (arcosh, arsinh,
+    // bessel_il, bessel_kl) now live in lib1dfem and are templated on the
+    // scalar type. The functions below are thin double-only compatibility
+    // shims that forward to the templated implementations.
+
     double arcosh(double x) {
-      // x is mathematically >= 1, but may be 1 - eps under round-off (e.g.
-      // when the caller computed it as cosh(mu) for very small mu). The
-      // explicit log form would NaN; std::acosh handles this safely.
-      return std::acosh(std::max(x, 1.0));
+      return helfem::lib1dfem::math::arcosh<double>(x);
     }
 
     arma::vec arcosh(const arma::vec & x) {
-      arma::vec y(x);
-      for(size_t i=0;i<x.n_elem;i++)
-	y(i)=arcosh(x(i));
-      return y;
+      return helfem::lib1dfem::math::arcosh<double>(x);
     }
 
     double arsinh(double x) {
-      return log(x+sqrt(x*x+1.0));
+      return helfem::lib1dfem::math::arsinh<double>(x);
     }
 
     arma::vec arsinh(const arma::vec & x) {
-      arma::vec y(x);
-      for(size_t i=0;i<x.n_elem;i++)
-	y(i)=arsinh(x(i));
-      return y;
+      return helfem::lib1dfem::math::arsinh<double>(x);
     }
 
     double bessel_il(double r, int L) {
-      // i_L(x) = sqrt(pi/(2|x|)) I_{L+1/2}(|x|), with i_L(-x) = (-1)^L i_L(x).
-      //
-      // For small |x| we evaluate the Taylor series
-      //     i_L(x) = x^L/(2L+1)!! * sum_{k>=0} (x^2/2)^k / (k! prod_{j=1..k}(2L+2j+1))
-      // which sidesteps the sqrt(pi/(2x))*I_{L+1/2}(x) ~ 0/0 limit at x=0
-      // and stays accurate without relying on the standard library's
-      // small-argument behaviour.
-      const double absr = std::abs(r);
-      double val;
-      if(absr < 0.5) {
-        // (2L+1)!!
-        double dfac = 1.0;
-        for(int j=3; j<=2*L+1; j+=2)
-          dfac *= j;
-        double term = std::pow(absr, L) / dfac;
-        val = term;
-        const double r2half = 0.5*absr*absr;
-        for(int k=1; k<64; ++k) {
-          term *= r2half / (k * (2*L + 2*k + 1));
-          val += term;
-          if(std::abs(term) <= 1e-18 * std::abs(val))
-            break;
-        }
-      } else {
-        val = std::cyl_bessel_i(L + 0.5, absr) * std::sqrt(M_PI/(2.0*absr));
-      }
-      return (r < 0.0 && (L & 1)) ? -val : val;
+      return helfem::lib1dfem::math::bessel_il<double>(r, L);
     }
 
     arma::vec bessel_il(const arma::vec & r, int L) {
-      arma::vec ret(r.n_elem);
-      for(size_t i=0; i<ret.n_elem; i++)
-        ret(i) = bessel_il(r(i), L);
-      return ret;
+      return helfem::lib1dfem::math::bessel_il<double>(r, L);
     }
 
     double bessel_kl(double r, int L) {
-      // (2/pi) k_L(r) with k_L(r) = sqrt(pi/(2r)) K_{L+1/2}(r);
-      // helfem's normalisation pulls out the (2/pi) factor, leaving
-      // sqrt(2/(pi r)) * K_{L+1/2}(r). k_L(r) is singular at r=0.
-      return std::cyl_bessel_k(L + 0.5, r) * std::sqrt(2.0/(M_PI*r));
+      return helfem::lib1dfem::math::bessel_kl<double>(r, L);
     }
 
     arma::vec bessel_kl(const arma::vec & r, int L) {
-      arma::vec ret(r.n_elem);
-      for(size_t i=0; i<ret.n_elem; i++)
-        ret(i) = bessel_kl(r(i), L);
-      return ret;
+      return helfem::lib1dfem::math::bessel_kl<double>(r, L);
     }
 
     arma::mat product_tei(const arma::mat & ijint, const arma::mat & klint) {
