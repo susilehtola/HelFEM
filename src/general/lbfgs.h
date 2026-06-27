@@ -1,14 +1,14 @@
 /*
  *                This source code is part of
  *
- *                     E  R  K  A  L  E
+ *                          HelFEM
  *                             -
- *                       HF/DFT from Hel
+ * Finite element methods for electronic structure calculations on small systems
  *
- * Copyright © 2015 The Regents of the University of California
- * All Rights Reserved
+ * Written by Susi Lehtola, 2015-
+ * Copyright (c) 2015- Susi Lehtola
  *
- * Written by Susi Lehtola, Lawrence Berkeley National Laboratory
+ * Originally part of the ERKALE package.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  * See the LICENSE file at the root of this source distribution
