@@ -39,35 +39,46 @@ endif()
 #   different settings, some using CMake.system and some not. Primarily useful when
 #   developing the build scripts.
 #
-# - HELFEM_BLAS_PROVIDED_EXTERNALLY: if set to ON, HelFEM will NOT link BLAS/LAPACK itself
-#   when running under HELFEM_FIND_DEPS. Use this when embedding libhelfem in a parent
-#   project that already provides BLAS/LAPACK (e.g. its own MKL/OpenBLAS/flexiblas setup).
-#   When ON, only Armadillo headers are added (ARMADILLO_LIBRARIES is not linked, since on
-#   most distributions it brings in a BLAS dep), and -DARMA_DONT_USE_WRAPPER is set so
-#   Armadillo expects BLAS symbols to be resolved by the parent's final link. The parent
-#   project is responsible for matching the integer width libhelfem was compiled with
-#   (LP64 vs ILP64 -- see ARMA_64BIT_WORD / ARMA_BLAS_LONG). A mismatch silently corrupts
-#   the heap inside LAPACK routines like dsyevd, surfacing as "free(): invalid next size".
+# - HELFEM_BLAS_PROVIDED_EXTERNALLY: if set to ON, HelFEM will NOT link BLAS/LAPACK itself,
+#   regardless of which discovery mechanism (HELFEM_FIND_DEPS or CMake.system) is active.
+#   Use this when embedding libhelfem in a parent project that already provides BLAS/LAPACK
+#   (e.g. its own MKL/OpenBLAS/flexiblas setup -- libatomscf is the canonical downstream
+#   consumer). Effects when ON:
+#     - CMake.system is skipped (it typically does link_libraries(<some-blas>), which
+#       would defeat the option). A STATUS message is printed if a CMake.system file
+#       was found but suppressed.
+#     - Under HELFEM_FIND_DEPS, ARMADILLO_LIBRARIES (which on most distributions
+#       transitively pulls in BLAS) is NOT linked; only Armadillo headers are added.
+#     - -DARMA_DONT_USE_WRAPPER is set, so Armadillo expects BLAS symbols to be resolved
+#       by the parent's final link step rather than wrapped through libarmadillo.
+#   The parent project is responsible for matching the integer width libhelfem was compiled
+#   with (LP64 vs ILP64 -- see ARMA_64BIT_WORD / ARMA_BLAS_LONG). A mismatch silently
+#   corrupts the heap inside LAPACK routines like dsyevd, surfacing as
+#   "free(): invalid next size".
 #
 option(USE_OPENMP "Compile OpenMP enabled version (for parallel calculations)?" ON)
 option(HELFEM_FIND_DEPS "Try to find dependencies automatically?" OFF)
 option(HELFEM_BINARIES "Compile HelFEM binaries?" ON)
 option(HELFEM_CMAKE_SYSTEM "Load the CMake.system file (if present)?" ON)
-# When HelFEM is embedded in a parent project that already links its own
-# BLAS/LAPACK (e.g. an MKL/OpenBLAS/flexiblas build with a specific integer
-# width), enable this option to keep libhelfem from pulling in BLAS itself.
-# Effects: under HELFEM_FIND_DEPS, only Armadillo HEADERS are added
-# (ARMADILLO_LIBRARIES is NOT linked, since on most distributions it brings
-# in a BLAS dep). -DARMA_DONT_USE_WRAPPER is set automatically so Armadillo
-# expects the BLAS symbols to be resolved by the parent project's link line.
-# The parent project is then responsible for matching integer width
-# (LP64 vs ILP64 -- see ARMA_64BIT_WORD / ARMA_BLAS_LONG).
 option(HELFEM_BLAS_PROVIDED_EXTERNALLY "Skip BLAS/LAPACK linkage; parent project provides them" OFF)
 
-# System specific definitions
+# When the parent project provides BLAS, Armadillo must NOT wrap BLAS
+# through libarmadillo.so -- the symbols come from the parent's link line.
+if(HELFEM_BLAS_PROVIDED_EXTERNALLY)
+    add_definitions(-DARMA_DONT_USE_WRAPPER)
+endif()
+
+# System specific definitions -- gated by HELFEM_BLAS_PROVIDED_EXTERNALLY
+# because CMake.system typically does link_libraries(<some-blas>), which
+# would defeat the external-BLAS option.
 if(HELFEM_CMAKE_SYSTEM AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/CMake.system")
-    message("Including user-provided CMake.system.")
-    include("${CMAKE_CURRENT_SOURCE_DIR}/CMake.system")
+    if(HELFEM_BLAS_PROVIDED_EXTERNALLY)
+        message(STATUS "HELFEM_BLAS_PROVIDED_EXTERNALLY=ON: skipping CMake.system "
+                       "(would normally add a BLAS link line that defeats this option).")
+    else()
+        message("Including user-provided CMake.system.")
+        include("${CMAKE_CURRENT_SOURCE_DIR}/CMake.system")
+    endif()
 endif()
 
 # Try to automatically find and configure all the dependent libraries, if the user specified
@@ -90,14 +101,12 @@ if(HELFEM_FIND_DEPS)
     if(${ARMADILLO_VERSION_MAJOR} LESS "9")
         message(FATAL_ERROR "Armadillo too old, version 9 or above required.")
     endif()
-    # Globally link the Armadillo library to everything (or only include
-    # its headers, if the parent project provides BLAS/LAPACK).
     include_directories("${ARMADILLO_INCLUDE_DIRS}")
-    if(HELFEM_BLAS_PROVIDED_EXTERNALLY)
-        message(STATUS "HELFEM_BLAS_PROVIDED_EXTERNALLY=ON: NOT linking ARMADILLO_LIBRARIES")
-        message(STATUS "  Parent project must provide BLAS/LAPACK symbols.")
-        add_definitions(-DARMA_DONT_USE_WRAPPER)
-    else()
+    if(NOT HELFEM_BLAS_PROVIDED_EXTERNALLY)
+        # Default: link Armadillo (which pulls in BLAS on most distros).
+        # When HELFEM_BLAS_PROVIDED_EXTERNALLY=ON the suppression message
+        # and -DARMA_DONT_USE_WRAPPER were already set near the top of
+        # this file.
         link_libraries("${ARMADILLO_LIBRARIES}")
     endif()
     # If we should also compile all the HelFEM binaries (under src/), we need also need to
