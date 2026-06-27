@@ -26,6 +26,7 @@ make -j9 install
 - `HELFEM_FIND_DEPS=ON` — auto-discover Armadillo/HDF5/libxc via `find_package`
 - `HELFEM_BINARIES=OFF` — build only `libhelfem` (skips HDF5 and libxc requirements)
 - `HELFEM_CMAKE_SYSTEM=OFF` — ignore `CMake.system` (useful for multiple build dirs)
+- `HELFEM_BLAS_PROVIDED_EXTERNALLY=ON` — don't link BLAS/LAPACK into libhelfem; parent project (e.g. an embedding application with its own MKL/OpenBLAS) must provide them. Sets `-DARMA_DONT_USE_WRAPPER`. The parent must match integer width — see ARMA_64BIT_WORD / ARMA_BLAS_LONG.
 
 **System configuration:** `CMake.system` (symlink to e.g. `CMake.fedora`) sets compiler flags, library paths, and Armadillo/BLAS configuration for the local machine. This is where 64-bit BLAS indices, flexiblas, and non-standard install paths are configured.
 
