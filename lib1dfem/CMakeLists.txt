@@ -19,6 +19,11 @@
 #                use std::cyl_bessel_i/k for the standard float/double/long
 #                double overloads, plus an explicit Taylor series at small |x|
 #                that works at any precision.
+#   - PolynomialBasis: abstract templated base for primitive polynomial bases
+#                on the reference element [-1, 1]. Concrete subclasses
+#                (LIPBasis, HIPBasis, GeneralHIPBasis, LegendreBasis) still
+#                live in libhelfem during the migration; they derive from
+#                lib1dfem::polynomial_basis::PolynomialBasis<double>.
 
 add_library(lib1dfem INTERFACE)
 add_library(helfem::lib1dfem ALIAS lib1dfem)
