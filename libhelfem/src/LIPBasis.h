@@ -15,37 +15,19 @@
 #ifndef POLYNOMIAL_BASIS_LIPBASIS_H
 #define POLYNOMIAL_BASIS_LIPBASIS_H
 
+// v2 refactor (Phase 1): the Lagrange-interpolating-polynomial basis class
+// now lives in lib1dfem as a templated header (and the auto-generated
+// eval body is an instantiable header template too). libhelfem exposes the
+// double-only instantiation under the original
+// helfem::polynomial_basis::LIPBasis name so existing callers (HIPBasis,
+// GeneralHIPBasis, get_basis() factory, ...) compile unchanged.
+
 #include "PolynomialBasis.h"
-#include <armadillo>
+#include <lib1dfem/LIPBasis.h>
 
 namespace helfem {
   namespace polynomial_basis {
-    /// Lagrange interpolating polynomials
-    class LIPBasis: public PolynomialBasis {
-    protected:
-      /// Control nodes
-      arma::vec x0;
-    public:
-      /// Dummy constructor
-      LIPBasis();
-      /// Constructor
-      LIPBasis(const arma::vec & x0, int id=4);
-      /// Destructor
-      ~LIPBasis();
-      /// Get a copy
-      LIPBasis * copy() const override;
-
-      /// Drop first function
-      void drop_first(bool func, bool deriv) override;
-      /// Drop last function
-      void drop_last(bool func, bool deriv) override;
-
-      /// Evaluate polynomials at given points
-      void eval_prim_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const override;
-
-      /// Return nodes
-      arma::vec get_nodes() const override;
-    };
+    using LIPBasis = helfem::lib1dfem::polynomial_basis::LIPBasis<double>;
   }
 }
 #endif

@@ -24,8 +24,6 @@ add_library(helfem
     src/utils.cpp
     src/erfc_expn.cpp
     src/PolynomialBasis.cpp
-    src/LIPBasis.cpp
-    src/LIPBasis_eval.cpp
     src/HIPBasis.cpp
     src/HIPBasis_eval.cpp
     src/GeneralHIPBasis.cpp
