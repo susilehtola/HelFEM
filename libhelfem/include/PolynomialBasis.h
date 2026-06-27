@@ -15,67 +15,23 @@
 #ifndef POLYNOMIAL_BASIS_POLYNOMIALBASIS_H
 #define POLYNOMIAL_BASIS_POLYNOMIALBASIS_H
 
-#include <armadillo>
+// v2 refactor (Phase 1): the abstract PolynomialBasis class is now a
+// template living in lib1dfem. libhelfem is compiled at T = double, so
+// this header exposes the double-only instantiation under the original
+// helfem::polynomial_basis::PolynomialBasis name -- existing concrete
+// subclasses (LIPBasis, HIPBasis, GeneralHIPBasis, LegendreBasis) and
+// downstream callers continue to compile without source changes.
+
+#include <lib1dfem/PolynomialBasis.h>
 
 namespace helfem {
   namespace polynomial_basis {
-    /// Template for a primitive basis
-    class PolynomialBasis {
-    protected:
-      /// Number of primitive functions
-      int nprim;
-      /// List of enabled functions
-      arma::uvec enabled;
-      /// Number of overlapping functions
-      int noverlap;
-      /// Identifier
-      int id;
-      /// Number of nodes
-      int nnodes;
+    /// Alias for the lib1dfem template at T = double.
+    using PolynomialBasis = helfem::lib1dfem::polynomial_basis::PolynomialBasis<double>;
 
-      /// Evaluate nth derivatives of primitive polynomials at given points
-      virtual void eval_prim_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const;
-
-    public:
-      /// Constructor
-      PolynomialBasis();
-      /// Destructor
-      virtual ~PolynomialBasis();
-      /// Get a copy
-      virtual PolynomialBasis * copy() const=0;
-
-      /// Get number of primitive functions
-      int get_nprim() const;
-      /// Get number of basis functions
-      int get_nbf() const;
-      /// Get number of overlapping functions
-      int get_noverlap() const;
-
-      /// Get identifier
-      int get_id() const;
-      /// Get number of nodes
-      int get_nnodes() const;
-      /// Get nodes
-      virtual arma::vec get_nodes() const;
-
-      /// Get list of enabled primitives
-      arma::uvec get_enabled() const;
-      /// Drop first function(s); zero_deriv: also set derivatives to zero
-      virtual void drop_first(bool zero_func, bool zero_deriv)=0;
-      /// Drop last function(s); zero_deriv: also set derivatives to zero
-      virtual void drop_last(bool zero_func, bool zero_deriv)=0;
-
-      /// Evaluate nth derivatives of polynomials at given points
-      void eval_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const;
-      /// Evaluate nth derivatives of polynomials at given points
-      arma::mat eval_dnf(const arma::vec & x, int n, double element_length) const;
-
-      /// Print out the basis functions
-      void print(const std::string & str="") const;
-    };
-
-    /// Get the wanted polynomial basis
+    /// Factory: construct a primitive polynomial basis by ID.
     PolynomialBasis * get_basis(int primbas, int Nnodes);
   }
 }
+
 #endif

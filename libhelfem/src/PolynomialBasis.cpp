@@ -13,6 +13,11 @@
  * for the full license text.
  */
 
+// v2 refactor (Phase 1): the abstract PolynomialBasis base class definitions
+// have moved into lib1dfem/include/lib1dfem/PolynomialBasis.h (templated,
+// header-only). This translation unit now only holds the factory that
+// constructs the concrete libhelfem-side polynomial bases by primitive ID.
+
 #include "PolynomialBasis.h"
 #include "lobatto.h"
 #include "LIPBasis.h"
@@ -99,82 +104,7 @@ namespace helfem {
         throw std::logic_error("Unsupported primitive basis.\n");
       }
 
-      // Print out
-      //poly->print();
-
       return poly;
-    }
-
-    PolynomialBasis::PolynomialBasis() {
-    }
-
-    PolynomialBasis::~PolynomialBasis() {
-    }
-
-    int PolynomialBasis::get_nprim() const {
-      return nprim;
-    }
-
-    int PolynomialBasis::get_nbf() const {
-      return enabled.n_elem;
-    }
-
-    int PolynomialBasis::get_noverlap() const {
-      return noverlap;
-    }
-
-    int PolynomialBasis::get_id() const {
-      return id;
-    }
-
-    int PolynomialBasis::get_nnodes() const {
-      return nnodes;
-    }
-
-    arma::vec PolynomialBasis::get_nodes() const {
-      arma::vec n(2);
-      n(0)=-1.0;
-      n(1)=1.0;
-      return n;
-    }
-
-    arma::uvec PolynomialBasis::get_enabled() const {
-      return enabled;
-    }
-
-    void PolynomialBasis::print(const std::string & str) const {
-      arma::vec x(arma::linspace<arma::vec>(-1.0,1.0,1001));
-      arma::mat bf, df;
-      eval_dnf(x,bf,0,1.0);
-      eval_dnf(x,df,1,1.0);
-
-      bf.insert_cols(0,x);
-      df.insert_cols(0,x);
-
-      std::string fname("bf" + str + ".dat");
-      std::string dname("df" + str + ".dat");
-      bf.save(fname,arma::raw_ascii);
-      df.save(dname,arma::raw_ascii);
-    }
-
-    arma::mat PolynomialBasis::eval_dnf(const arma::vec & x, int n, double element_length) const {
-      arma::mat dnf;
-      eval_dnf(x, dnf, n, element_length);
-      return dnf;
-    }
-
-    void PolynomialBasis::eval_prim_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const {
-      (void) x;
-      (void) dnf;
-      (void) n;
-      (void) element_length;
-      throw std::logic_error("Values haven't been implemented for the used family of basis polynomials.\n");
-    }
-
-    void PolynomialBasis::eval_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const {
-      eval_prim_dnf(x, dnf, n, element_length);
-      // Apply scaling
-      dnf = dnf.cols(enabled) / std::pow(element_length, n);
     }
   }
 }
