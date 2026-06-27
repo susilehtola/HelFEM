@@ -26,9 +26,9 @@
 namespace helfem {
   namespace atomic {
     namespace basis {
-      RadialBasis::RadialBasis() {}
+      FEMRadialBasis::FEMRadialBasis() {}
 
-      RadialBasis::RadialBasis(const polynomial_basis::FiniteElementBasis & fem_, int n_quad, int taylor_order_) : fem(fem_), taylor_order(taylor_order_) {
+      FEMRadialBasis::FEMRadialBasis(const polynomial_basis::FiniteElementBasis & fem_, int n_quad, int taylor_order_) : fem(fem_), taylor_order(taylor_order_) {
         // Get quadrature rule
         chebyshev::chebyshev(n_quad, xq, wq);
         for (size_t i = 0; i < xq.n_elem; i++) {
@@ -55,7 +55,7 @@ namespace helfem {
         set_small_r_taylor_cutoff();
       }
 
-      void RadialBasis::set_small_r_taylor_cutoff() {
+      void FEMRadialBasis::set_small_r_taylor_cutoff() {
         // Determine small r Taylor cutoff by minimizing the
         // difference of the analytic and Taylor values of the
         // function and its first two derivatives.
@@ -131,62 +131,62 @@ namespace helfem {
         //diffs.save("taylor_diff.dat", arma::raw_ascii);
       }
 
-      RadialBasis::~RadialBasis() {}
+      FEMRadialBasis::~FEMRadialBasis() {}
 
-      int RadialBasis::get_nquad() const {
+      int FEMRadialBasis::get_nquad() const {
         return (int)xq.n_elem;
       }
 
-      arma::vec RadialBasis::get_xq() const {
+      arma::vec FEMRadialBasis::get_xq() const {
         return xq;
       }
 
-      size_t RadialBasis::Nbf() const {
+      size_t FEMRadialBasis::Nbf() const {
         return fem.get_nbf();
       }
 
-      size_t RadialBasis::Nel() const {
+      size_t FEMRadialBasis::Nel() const {
         return fem.get_nelem();
       }
 
-      size_t RadialBasis::Nprim(size_t iel) const {
+      size_t FEMRadialBasis::Nprim(size_t iel) const {
         return fem.get_nprim(iel);
       }
 
-      size_t RadialBasis::max_Nprim() const {
+      size_t FEMRadialBasis::max_Nprim() const {
         return fem.get_max_nprim();
       }
 
-      void RadialBasis::get_idx(size_t iel, size_t &ifirst, size_t &ilast) const {
+      void FEMRadialBasis::get_idx(size_t iel, size_t &ifirst, size_t &ilast) const {
         fem.get_idx(iel, ifirst, ilast);
       }
 
-      arma::vec RadialBasis::get_bval() const {
+      arma::vec FEMRadialBasis::get_bval() const {
         return fem.get_bval();
       }
 
-      int RadialBasis::get_poly_id() const {
+      int FEMRadialBasis::get_poly_id() const {
         return fem.get_poly_id();
       }
 
-      int RadialBasis::get_poly_nnodes() const {
+      int FEMRadialBasis::get_poly_nnodes() const {
         return fem.get_poly_nnodes();
       }
 
-      double RadialBasis::get_small_r_taylor_cutoff() const {
+      double FEMRadialBasis::get_small_r_taylor_cutoff() const {
         return small_r_taylor_cutoff;
       }
 
-      int RadialBasis::get_taylor_order() const {
+      int FEMRadialBasis::get_taylor_order() const {
         return taylor_order;
       }
 
-      double RadialBasis::get_taylor_diff() const {
+      double FEMRadialBasis::get_taylor_diff() const {
         return taylor_diff;
       }
 
 
-      arma::mat RadialBasis::radial_integral(int Rexp, size_t iel, double x_left, double x_right) const {
+      arma::mat FEMRadialBasis::radial_integral(int Rexp, size_t iel, double x_left, double x_right) const {
         std::function<double(double)> rpowL = [Rexp](double r){return std::pow(r,Rexp+2);};
         std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
         radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
@@ -197,23 +197,23 @@ namespace helfem {
         return ret;
       }
 
-      arma::mat RadialBasis::bessel_il_integral(int L, double lambda, size_t iel) const {
+      arma::mat FEMRadialBasis::bessel_il_integral(int L, double lambda, size_t iel) const {
         std::function<double(double)> besselil = [L, lambda](double r) { return utils::bessel_il(r*lambda, L); };
         return fem.matrix_element(iel, false, false, xq, wq, besselil);
       }
 
-      arma::mat RadialBasis::bessel_kl_integral(int L, double lambda, size_t iel) const {
+      arma::mat FEMRadialBasis::bessel_kl_integral(int L, double lambda, size_t iel) const {
         std::function<double(double)> besselkl = [L, lambda](double r) { return utils::bessel_kl(r*lambda, L); };
         return fem.matrix_element(iel, false, false, xq, wq, besselkl);
       }
 
-      arma::mat RadialBasis::radial_integral(const RadialBasis &rh, int n, bool lhder,
+      arma::mat FEMRadialBasis::radial_integral(const FEMRadialBasis &rh, int n, bool lhder,
                                              bool rhder) const {
         modelpotential::RadialPotential rad(n);
         return model_potential(rh, &rad, lhder, rhder);
       }
 
-      arma::mat RadialBasis::model_potential(const RadialBasis &rh,
+      arma::mat FEMRadialBasis::model_potential(const FEMRadialBasis &rh,
                                              const modelpotential::ModelPotential *model,
                                              bool lhder, bool rhder) const {
         // Use the larger number of quadrature points to assure
@@ -303,31 +303,31 @@ namespace helfem {
         return S;
       }
 
-      arma::mat RadialBasis::overlap(const RadialBasis &rh) const {
+      arma::mat FEMRadialBasis::overlap(const FEMRadialBasis &rh) const {
         return radial_integral(rh, 0);
       }
 
-      arma::mat RadialBasis::overlap(size_t iel) const {
+      arma::mat FEMRadialBasis::overlap(size_t iel) const {
         std::function<double(double)> dummy;
         return fem.matrix_element(iel, false, false, xq, wq, dummy);
       }
 
-      arma::mat RadialBasis::overlap() const {
+      arma::mat FEMRadialBasis::overlap() const {
         std::function<double(double)> dummy;
         return fem.matrix_element(false, false, xq, wq, dummy);
       }
 
-      arma::mat RadialBasis::kinetic() const {
+      arma::mat FEMRadialBasis::kinetic() const {
         std::function<double(double)> dummy;
         return 0.5*fem.matrix_element(true, true, xq, wq, dummy);
       }
 
-      arma::mat RadialBasis::kinetic(size_t iel) const {
+      arma::mat FEMRadialBasis::kinetic(size_t iel) const {
         std::function<double(double)> dummy;
         return 0.5*fem.matrix_element(iel, true, true, xq, wq, dummy);
       }
 
-      arma::mat RadialBasis::kinetic_l() const {
+      arma::mat FEMRadialBasis::kinetic_l() const {
         std::function<double(double)> dummy;
         std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
         radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
@@ -335,7 +335,7 @@ namespace helfem {
         return 0.5 * fem.matrix_element(radial_bf, radial_bf, xq, wq, dummy);
       }
 
-      arma::mat RadialBasis::kinetic_l(size_t iel) const {
+      arma::mat FEMRadialBasis::kinetic_l(size_t iel) const {
         std::function<double(double)> dummy;
         std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
         radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
@@ -343,21 +343,21 @@ namespace helfem {
         return 0.5 * fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, dummy);
       }
 
-      arma::mat RadialBasis::nuclear() const {
+      arma::mat FEMRadialBasis::nuclear() const {
         std::function<double(double)> r = [](double r){return r;};
         std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
         radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
         return -fem.matrix_element(radial_bf, radial_bf, xq, wq, r);
       }
 
-      arma::mat RadialBasis::nuclear(size_t iel) const {
+      arma::mat FEMRadialBasis::nuclear(size_t iel) const {
         std::function<double(double)> r = [](double r){return r;};
         std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
         radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
         return -fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r);
       }
 
-      arma::mat RadialBasis::polynomial_confinement(size_t iel, int N, double shift_pot) const {
+      arma::mat FEMRadialBasis::polynomial_confinement(size_t iel, int N, double shift_pot) const {
 	std::function<double(double)> rpow = [N, shift_pot](double r){
 	  if(r<shift_pot)
 	    return 0.0;
@@ -367,7 +367,7 @@ namespace helfem {
         return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rpow);
       }
 
-      arma::mat RadialBasis::exponential_confinement(size_t iel, int N, double r_0, double shift_pot) const {
+      arma::mat FEMRadialBasis::exponential_confinement(size_t iel, int N, double r_0, double shift_pot) const {
 	std::function<double(double)> r_exp = [r_0, N, shift_pot](double r) {
 	  if(r<shift_pot)
 	    return 0.0;
@@ -390,14 +390,14 @@ namespace helfem {
         return fem.matrix_element(iel, false, false, xq, wq, r_exp);
       }
 
-      arma::mat RadialBasis::barrier_confinement(size_t iel, double V, double shift_pot) const {
+      arma::mat FEMRadialBasis::barrier_confinement(size_t iel, double V, double shift_pot) const {
 	std::function<double(double)> barrier = [V, shift_pot](double r) {
           return (r<shift_pot) ? 0.0 : V;
 	};
         return fem.matrix_element(iel, false, false, xq, wq, barrier);
       }
 
-      arma::mat RadialBasis::junq_confinement(size_t iel, int N, double V0, double r_c, double shift_pot) const {
+      arma::mat FEMRadialBasis::junq_confinement(size_t iel, int N, double V0, double r_c, double shift_pot) const {
 	std::function<double(double)> r_exp = [N, r_c, V0, shift_pot](double r) {
 	  if(r<shift_pot)
 	    return 0.0;
@@ -408,7 +408,7 @@ namespace helfem {
         return fem.matrix_element(iel, false, false, xq, wq, r_exp);
       }
 
-      arma::mat RadialBasis::confinement_potential(size_t iel, int N, double r_0, int iconf, double V, double shift_pot) const {
+      arma::mat FEMRadialBasis::confinement_potential(size_t iel, int N, double r_0, int iconf, double V, double shift_pot) const {
 	// Attractive potential does not make sense for shift_pot != 0
 
 	// sign of r0 controls if the potential is attractive or repulsive
@@ -454,13 +454,13 @@ namespace helfem {
       }
 
 
-      arma::mat RadialBasis::model_potential(const modelpotential::ModelPotential *model,
+      arma::mat FEMRadialBasis::model_potential(const modelpotential::ModelPotential *model,
                                              size_t iel) const {
         std::function<double(double)> modelpot = [model](double r) { return model->V(r); };
         return fem.matrix_element(iel, false, false, xq, wq, modelpot);
       }
 
-      arma::mat RadialBasis::nuclear_offcenter(size_t iel, double Rhalf, int L) const {
+      arma::mat FEMRadialBasis::nuclear_offcenter(size_t iel, double Rhalf, int L) const {
         if (fem.element_begin(iel) <= Rhalf)
           return -sqrt(4.0 * M_PI / (2 * L + 1)) * radial_integral(-L - 1, iel) *
             std::pow(Rhalf, L);
@@ -474,7 +474,7 @@ namespace helfem {
         }
       }
 
-      arma::mat RadialBasis::twoe_integral(int L, size_t iel) const {
+      arma::mat FEMRadialBasis::twoe_integral(int L, size_t iel) const {
         double Rmin(fem.element_begin(iel));
         double Rmax(fem.element_end(iel));
 
@@ -487,7 +487,7 @@ namespace helfem {
         return tei;
       }
 
-      arma::mat RadialBasis::yukawa_integral(int L, double lambda, size_t iel) const {
+      arma::mat FEMRadialBasis::yukawa_integral(int L, double lambda, size_t iel) const {
         double Rmin(fem.element_begin(iel));
         double Rmax(fem.element_end(iel));
 
@@ -498,7 +498,7 @@ namespace helfem {
         return tei;
       }
 
-      arma::mat RadialBasis::erfc_integral(int L, double mu, size_t iel, size_t kel) const {
+      arma::mat FEMRadialBasis::erfc_integral(int L, double mu, size_t iel, size_t kel) const {
         // Number of quadrature points
         size_t Nq = xq.n_elem;
         // Number of subintervals
@@ -556,7 +556,7 @@ namespace helfem {
         return tei;
       }
 
-      arma::mat RadialBasis::spherical_potential(size_t iel) const {
+      arma::mat FEMRadialBasis::spherical_potential(size_t iel) const {
         double Rmin(fem.element_begin(iel));
         double Rmax(fem.element_end(iel));
 
@@ -567,11 +567,11 @@ namespace helfem {
         return pot;
       }
 
-      arma::mat RadialBasis::get_bf(size_t iel) const {
+      arma::mat FEMRadialBasis::get_bf(size_t iel) const {
         return get_bf(xq, iel);
       }
 
-      void RadialBasis::get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider) const {
+      void FEMRadialBasis::get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider) const {
         if(taylorind[0]!=0 || taylorind[taylorind.n_elem-1] != taylorind.n_elem-1)
           throw std::logic_error("Taylor points not consecutive!\n");
 
@@ -624,7 +624,7 @@ namespace helfem {
           }
       }
 
-      arma::vec RadialBasis::eval_orbs(const arma::mat & C, double r) const {
+      arma::vec FEMRadialBasis::eval_orbs(const arma::mat & C, double r) const {
         if(r > fem.element_end(fem.get_nelem()-1)) {
           // The wave function is zero here
           arma::vec val(C.n_cols, arma::fill::zeros);
@@ -645,7 +645,7 @@ namespace helfem {
         }
       }
 
-      arma::mat RadialBasis::get_bf(const arma::vec & x, size_t iel) const {
+      arma::mat FEMRadialBasis::get_bf(const arma::vec & x, size_t iel) const {
         // Element function values at quadrature points are
         arma::mat val(fem.eval_f(x, iel));
         // but we also need to put in the 1/r factor
@@ -668,11 +668,11 @@ namespace helfem {
         return val;
       }
 
-      arma::mat RadialBasis::get_df(size_t iel) const {
+      arma::mat FEMRadialBasis::get_df(size_t iel) const {
         return get_df(xq ,iel);
       }
 
-      arma::mat RadialBasis::get_df(const arma::vec & x, size_t iel) const {
+      arma::mat FEMRadialBasis::get_df(const arma::vec & x, size_t iel) const {
         // Element function values at quadrature points are
         arma::mat fval(fem.eval_f(x, iel));
         arma::mat dval(fem.eval_df(x, iel));
@@ -697,11 +697,11 @@ namespace helfem {
         return der;
       }
 
-      arma::mat RadialBasis::get_lf(size_t iel) const {
+      arma::mat FEMRadialBasis::get_lf(size_t iel) const {
         return get_lf(xq, iel);
       }
 
-      arma::mat RadialBasis::get_lf(const arma::vec & x, size_t iel) const {
+      arma::mat FEMRadialBasis::get_lf(const arma::vec & x, size_t iel) const {
         // Element function values at quadrature points are
         arma::mat fval(fem.eval_f(x, iel));
         arma::mat dval(fem.eval_df(x, iel));
@@ -728,28 +728,28 @@ namespace helfem {
         return lapl;
       }
 
-      arma::vec RadialBasis::get_wrad(size_t iel) const {
+      arma::vec FEMRadialBasis::get_wrad(size_t iel) const {
         return get_wrad(wq, iel);
       }
 
-      arma::vec RadialBasis::get_wrad(const arma::vec & w, size_t iel) const {
+      arma::vec FEMRadialBasis::get_wrad(const arma::vec & w, size_t iel) const {
         // This is just the radial rule, no r^2 factor included here
         return fem.scaling_factor(iel) * w;
       }
 
-      arma::vec RadialBasis::get_r(size_t iel) const {
+      arma::vec FEMRadialBasis::get_r(size_t iel) const {
         return get_r(xq, iel);
       }
 
-      arma::vec RadialBasis::get_r(const arma::vec & x, size_t iel) const {
+      arma::vec FEMRadialBasis::get_r(const arma::vec & x, size_t iel) const {
         return fem.eval_coord(x, iel);
       }
 
-      double RadialBasis::get_r(double x, size_t iel) const {
+      double FEMRadialBasis::get_r(double x, size_t iel) const {
         return fem.eval_coord(x, iel);
       }
 
-      double RadialBasis::nuclear_density(const arma::mat &Prad) const {
+      double FEMRadialBasis::nuclear_density(const arma::mat &Prad) const {
         if (Prad.n_rows != Nbf() || Prad.n_cols != Nbf())
           throw std::logic_error("nuclear_density expects a radial density matrix\n");
 
@@ -772,7 +772,7 @@ namespace helfem {
         return den;
       }
 
-      double RadialBasis::nuclear_density_gradient(const arma::mat &Prad) const {
+      double FEMRadialBasis::nuclear_density_gradient(const arma::mat &Prad) const {
         if (Prad.n_rows != Nbf() || Prad.n_cols != Nbf())
           throw std::logic_error("nuclear_density_gradient expects a radial density matrix\n");
 
@@ -796,7 +796,7 @@ namespace helfem {
         return den;
       }
 
-      arma::rowvec RadialBasis::nuclear_orbital(const arma::mat &C) const {
+      arma::rowvec FEMRadialBasis::nuclear_orbital(const arma::mat &C) const {
         // Nuclear coordinate
         arma::vec x(1);
         // Remember that the primitive basis polynomials belong to [-1,1]

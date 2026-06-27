@@ -46,7 +46,7 @@ namespace helfem {
         bool zero_deriv_left=false;
         bool zero_func_right=true;
         polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zeroder);
-        radial=atomic::basis::RadialBasis(fem, n_quad, taylor_order);
+        radial=atomic::basis::FEMRadialBasis(fem, n_quad, taylor_order);
         // Angular basis
         lval=arma::linspace<arma::ivec>(0,lmax,lmax+1);
       }

@@ -36,7 +36,7 @@ namespace helfem {
         double lambda;
 
         /// Radial basis set
-        atomic::basis::RadialBasis radial;
+        atomic::basis::FEMRadialBasis radial;
         /// Angular basis set: function l values
         arma::ivec lval;
 

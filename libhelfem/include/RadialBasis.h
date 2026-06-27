@@ -22,8 +22,42 @@
 namespace helfem {
   namespace atomic {
     namespace basis {
-      /// Radial basis set
+      /// Abstract radial basis interface. Implementations provide the
+      /// global one-electron matrices in the u = r * R(r) representation
+      /// (integration measure dr; the r^2 volume element is absorbed in u^2).
+      /// Concrete subclasses: FEMRadialBasis (this file); future
+      /// NAORadialBasis, STORadialBasis, GTORadialBasis.
       class RadialBasis {
+       public:
+        virtual ~RadialBasis() = default;
+
+        /// Number of basis functions
+        virtual size_t Nbf() const = 0;
+
+        /// Overlap matrix S_{ij} = integral u_i(r) u_j(r) dr
+        virtual arma::mat overlap() const = 0;
+        /// Radial kinetic matrix (1/2) integral u'_i(r) u'_j(r) dr.
+        /// EXCLUDES the centrifugal term -- caller adds l*(l+1) * kinetic_l().
+        virtual arma::mat kinetic() const = 0;
+        /// Half the centrifugal-per-l(l+1) matrix:
+        /// (1/2) integral u_i(r) u_j(r) / r^2 dr.
+        /// Full centrifugal contribution is l*(l+1) * kinetic_l().
+        virtual arma::mat kinetic_l() const = 0;
+        /// Nuclear attraction at Z=1 (sign included):
+        /// - integral u_i(r) u_j(r) / r dr.
+        /// For arbitrary Z, the caller multiplies by +Z.
+        virtual arma::mat nuclear() const = 0;
+
+        /// Evaluate orbitals (columns of C) at a given r.
+        virtual arma::vec eval_orbs(const arma::mat & C, double r) const = 0;
+      };
+
+      /// Finite-element radial basis set.
+      ///
+      /// Implements RadialBasis using a Lagrange/Hermite finite-element basis
+      /// on a user-supplied radial grid; this is HelFEM's original concrete
+      /// implementation (formerly named RadialBasis prior to the v2 refactor).
+      class FEMRadialBasis : public RadialBasis {
         /// Quadrature points
         arma::vec xq;
         /// Quadrature weights
@@ -46,11 +80,11 @@ namespace helfem {
 
       public:
         /// Dummy constructor
-        RadialBasis();
+        FEMRadialBasis();
         /// Construct radial basis
-        RadialBasis(const polynomial_basis::FiniteElementBasis & fem, int n_quad, int taylor_order);
+        FEMRadialBasis(const polynomial_basis::FiniteElementBasis & fem, int n_quad, int taylor_order);
         /// Explicit destructor
-        ~RadialBasis();
+        ~FEMRadialBasis() override;
 
         /// Add an element boundary
         void add_boundary(double r);
@@ -78,7 +112,7 @@ namespace helfem {
         /// Get number of overlapping functions
         size_t get_noverlap() const;
         /// Number of basis functions
-        size_t Nbf() const;
+        size_t Nbf() const override;
         /// Number of primitive functions in element
         size_t Nprim(size_t iel) const;
         /// Number of primitive functions in element
@@ -88,10 +122,6 @@ namespace helfem {
         size_t Nel() const;
         /// Get function indices
         void get_idx(size_t iel, size_t &ifirst, size_t &ilast) const;
-
-        /// Form density matrix
-        arma::mat form_density(const arma::mat &Cl, const arma::mat &Cr,
-                               size_t nocc) const;
 
         /// Compute radial matrix elements <r^n> in element (overlap is n=0,
         /// nuclear is n=-1)
@@ -107,21 +137,21 @@ namespace helfem {
         arma::mat bessel_kl_integral(int L, double lambda, size_t iel) const;
 
         /// Compute overlap matrix
-        arma::mat overlap() const;
+        arma::mat overlap() const override;
         /// Compute overlap matrix in element
         arma::mat overlap(size_t iel) const;
 
         /// Compute primitive kinetic energy matrix (excluding l part)
-        arma::mat kinetic() const;
+        arma::mat kinetic() const override;
         /// Compute primitive kinetic energy matrix in element (excluding l
         /// part)
         arma::mat kinetic(size_t iel) const;
         /// Compute l part of kinetic energy matrix
-        arma::mat kinetic_l() const;
+        arma::mat kinetic_l() const override;
         /// Compute l part of kinetic energy matrix in element
         arma::mat kinetic_l(size_t iel) const;
         /// Compute nuclear attraction matrix
-        arma::mat nuclear() const;
+        arma::mat nuclear() const override;
         /// Compute nuclear attraction matrix in element
         arma::mat nuclear(size_t iel) const;
 	/// Compute polynomial confinement potential matrix in element
@@ -152,14 +182,14 @@ namespace helfem {
         arma::mat spherical_potential(size_t iel) const;
 
         /// Compute cross-basis integral
-        arma::mat radial_integral(const RadialBasis &rh, int n,
+        arma::mat radial_integral(const FEMRadialBasis &rh, int n,
                                   bool lhder = false, bool rhder = false) const;
         /// Compute cross-basis model potential integral
-        arma::mat model_potential(const RadialBasis &rh,
+        arma::mat model_potential(const FEMRadialBasis &rh,
                                   const modelpotential::ModelPotential *model,
                                   bool lhder = false, bool rhder = false) const;
         /// Compute projection
-        arma::mat overlap(const RadialBasis &rh) const;
+        arma::mat overlap(const FEMRadialBasis &rh) const;
 
         /// Evaluate basis functions at quadrature points
         arma::mat get_bf(size_t iel) const;
@@ -177,7 +207,7 @@ namespace helfem {
         void get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider) const;
 
         /// Evaluate orbitals at a given point
-        arma::vec eval_orbs(const arma::mat & C, double r) const;
+        arma::vec eval_orbs(const arma::mat & C, double r) const override;
 
         /// Get quadrature weights
         arma::vec get_wrad(size_t iel) const;
