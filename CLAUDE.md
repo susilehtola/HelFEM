@@ -23,14 +23,14 @@ make -j9 install
 ```
 
 **Key CMake options:**
-- `HELFEM_FIND_DEPS=ON` — auto-discover Armadillo/GSL/HDF5/libxc via `find_package`
+- `HELFEM_FIND_DEPS=ON` — auto-discover Armadillo/HDF5/libxc via `find_package`
 - `HELFEM_BINARIES=OFF` — build only `libhelfem` (skips HDF5 and libxc requirements)
 - `HELFEM_CMAKE_SYSTEM=OFF` — ignore `CMake.system` (useful for multiple build dirs)
 
 **System configuration:** `CMake.system` (symlink to e.g. `CMake.fedora`) sets compiler flags, library paths, and Armadillo/BLAS configuration for the local machine. This is where 64-bit BLAS indices, flexiblas, and non-standard install paths are configured.
 
 **Dependencies:**
-- Core (`libhelfem`): Armadillo ≥ v9, GSL
+- Core (`libhelfem`): Armadillo ≥ v9
 - Binaries (`src/`): HDF5 (C++ interface), libxc
 - Fortran compiler: for Legendre special functions (`src/legendre/`)
 
