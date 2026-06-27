@@ -7,6 +7,10 @@
 # Currently populated with:
 #   - chebyshev: Gauss-Chebyshev quadrature of the second kind
 #                (templated on T, header-only).
+#   - lobatto:   Gauss-Lobatto quadrature (templated on T, header-only;
+#                Newton iteration on Legendre polynomial derivatives,
+#                replaces the hardcoded double-precision tables that
+#                lived in libhelfem prior to v2).
 
 add_library(lib1dfem INTERFACE)
 add_library(helfem::lib1dfem ALIAS lib1dfem)

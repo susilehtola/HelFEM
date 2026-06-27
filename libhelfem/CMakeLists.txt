@@ -21,7 +21,6 @@ endforeach()
 add_library(helfem
     src/helfem.cpp
     src/grid.cpp
-    src/lobatto.cpp
     src/utils.cpp
     src/erfc_expn.cpp
     src/PolynomialBasis.cpp
