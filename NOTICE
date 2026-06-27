@@ -2,21 +2,15 @@ HelFEM third-party file inventory
 =================================
 
 HelFEM is licensed under the BSD 3-Clause License (see LICENSE).
-One bundled third-party file retains its original license:
 
-----------------------------------------------------------------------------
-libhelfem/src/orthpoly.h
-    Copyright (C) 2006-2016 Matthias Heil and Andrew Hazel
-    Licensed under the GNU Lesser General Public License v2.1.
-    Source: oomph-lib (http://www.oomph-lib.org).
-    The file COPYING in this distribution contains the GNU GPLv2 text;
-    the LGPLv2.1 is a related license and the source distribution does
-    not bundle the LGPL text separately. See
-    https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html for the
-    full LGPL-2.1 text.
-----------------------------------------------------------------------------
-
-All other files in this distribution are
+All files in this distribution are
     Copyright (c) 2018- Susi Lehtola
 (or earlier dates as noted in the individual file headers) and are licensed
-under the BSD 3-Clause License.
+under the BSD 3-Clause License. No third-party files with incompatible
+licenses are bundled.
+
+(Earlier versions of HelFEM bundled libhelfem/src/orthpoly.h, an LGPL-2.1
+Legendre-polynomial evaluator from oomph-lib by Heil and Hazel. It was
+the only LGPL file in HelFEM and was removed in the v2 refactor in favour
+of a clean templated BSD implementation in
+lib1dfem/include/lib1dfem/legendre_poly.h.)

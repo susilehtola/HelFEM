@@ -21,9 +21,15 @@
 #                that works at any precision.
 #   - PolynomialBasis: abstract templated base for primitive polynomial bases
 #                on the reference element [-1, 1]. Concrete subclasses
-#                (LIPBasis, HIPBasis, GeneralHIPBasis, LegendreBasis) still
-#                live in libhelfem during the migration; they derive from
+#                (LIPBasis, HIPBasis, GeneralHIPBasis) still live in libhelfem
+#                during the migration; they derive from
 #                lib1dfem::polynomial_basis::PolynomialBasis<double>.
+#   - legendre_poly: Templated Legendre polynomial evaluators (value, first,
+#                second derivatives) via the standard recurrence. Replaces the
+#                LGPL oomph-lib Orthpoly that was bundled in libhelfem.
+#   - LegendreBasis: Templated spectral-element shape-function basis using the
+#                Flores/Clementi/Sonnad 1989 orthogonal combinations of
+#                Legendre polynomials.
 
 add_library(lib1dfem INTERFACE)
 add_library(helfem::lib1dfem ALIAS lib1dfem)
