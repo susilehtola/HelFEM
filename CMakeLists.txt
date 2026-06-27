@@ -154,6 +154,7 @@ endif()
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/libhelfem/include")
 
 # Compile code
+add_subdirectory(lib1dfem)   # v2 Phase 1 destination (currently empty INTERFACE target)
 add_subdirectory(libhelfem)
 if(HELFEM_BINARIES)
     add_subdirectory(src)
