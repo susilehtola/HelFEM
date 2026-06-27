@@ -1,23 +1,19 @@
 HelFEM third-party file inventory
 =================================
 
-The bulk of HelFEM is licensed under the BSD 3-Clause License (see LICENSE).
-A small number of files in this distribution are bundled under different
-licenses, listed below. The file COPYING contains the GNU General Public
-License v2 text referenced by the GPL-licensed files.
+HelFEM is licensed under the BSD 3-Clause License (see LICENSE).
+One bundled third-party file retains its original license:
 
 ----------------------------------------------------------------------------
 libhelfem/src/orthpoly.h
     Copyright (C) 2006-2016 Matthias Heil and Andrew Hazel
     Licensed under the GNU Lesser General Public License v2.1.
     Source: oomph-lib (http://www.oomph-lib.org).
-
-src/general/lbfgs.cpp
-src/general/lbfgs.h
-    Copyright (C) 2015 The Regents of the University of California
-    Written by Susi Lehtola at Lawrence Berkeley National Laboratory.
-    Licensed under the GNU General Public License v2 or later.
-    Originally part of the ERKALE package.
+    The file COPYING in this distribution contains the GNU GPLv2 text;
+    the LGPLv2.1 is a related license and the source distribution does
+    not bundle the LGPL text separately. See
+    https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html for the
+    full LGPL-2.1 text.
 ----------------------------------------------------------------------------
 
 All other files in this distribution are
