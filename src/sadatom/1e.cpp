@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
   bool zero_deriv_left=false;
   bool zero_func_right=true;
   polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zeroder);
-  atomic::basis::RadialBasis radial(fem, Nquad, taylor_order);
+  atomic::basis::FEMRadialBasis radial(fem, Nquad, taylor_order);
 
   // Compute matrices
   arma::mat S(radial.overlap());

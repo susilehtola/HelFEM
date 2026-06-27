@@ -49,7 +49,7 @@ namespace helfem {
         bool zero_func_right=true;
         zeroder=zeroder_;
         polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zeroder);
-        radial=RadialBasis(fem, n_quad, taylor_order);
+        radial=FEMRadialBasis(fem, n_quad, taylor_order);
 
         // Construct angular basis
         lval=lval_;

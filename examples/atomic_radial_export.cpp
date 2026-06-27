@@ -71,7 +71,7 @@ namespace {
 struct Defaults { int primbas, Nnodes, Nelem, igrid; double Rmax, zexp; };
 constexpr Defaults DEF{4, 15, 20, 4, 40.0, 2.0};
 
-atomic::basis::RadialBasis make_radial(const Defaults & d = DEF) {
+atomic::basis::FEMRadialBasis make_radial(const Defaults & d = DEF) {
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
       polynomial_basis::get_basis(d.primbas, d.Nnodes));
   arma::vec bval = utils::get_grid(d.Rmax, d.Nelem, d.igrid, d.zexp);
@@ -80,7 +80,7 @@ atomic::basis::RadialBasis make_radial(const Defaults & d = DEF) {
       /*zero_func_right*/true, /*zero_deriv_right*/false);
   int n_quad       = 5 * poly->get_nbf();
   int taylor_order = poly->get_nprim() - 1;
-  return atomic::basis::RadialBasis(fem, n_quad, taylor_order);
+  return atomic::basis::FEMRadialBasis(fem, n_quad, taylor_order);
 }
 
 double diag_lowest(const arma::mat & H, const arma::mat & S) {
@@ -93,7 +93,7 @@ double diag_lowest(const arma::mat & H, const arma::mat & S) {
 }
 
 // Returns false on failure (any test off by more than `tol`).
-bool one_electron_tests(const atomic::basis::RadialBasis & radial) {
+bool one_electron_tests(const atomic::basis::FEMRadialBasis & radial) {
   arma::mat S = radial.overlap();
   arma::mat T = radial.kinetic();
   arma::mat Tl = radial.kinetic_l();
