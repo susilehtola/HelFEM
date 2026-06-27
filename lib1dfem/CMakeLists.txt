@@ -11,6 +11,9 @@
 #                Newton iteration on Legendre polynomial derivatives,
 #                replaces the hardcoded double-precision tables that
 #                lived in libhelfem prior to v2).
+#   - grid:      Radial element-boundary grid generator (linear / quadratic /
+#                generalised polynomial / generalised exponential / geometric;
+#                templated on T, header-only).
 
 add_library(lib1dfem INTERFACE)
 add_library(helfem::lib1dfem ALIAS lib1dfem)
