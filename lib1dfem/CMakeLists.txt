@@ -1,13 +1,12 @@
 # lib1dfem -- generic 1D finite-element method library
 #
-# Placeholder for the v2 refactor (Phase 1). Populated incrementally:
-# files that are strictly 1D-FEM-generic (no quantum-chemistry assumptions)
-# are migrated here from libhelfem/, templated on the scalar type T.
+# v2 refactor destination for strictly-generic 1D-FEM code migrated from
+# libhelfem/, templated on the scalar type T. Header-only INTERFACE
+# library; downstream consumers depend on it via `helfem::lib1dfem`.
 #
-# The target is exposed as `helfem::lib1dfem` and is currently an empty
-# INTERFACE library -- it adds no sources or include directories until the
-# first migration lands. Linking against it is a no-op today; once Phase 1
-# starts, downstream targets (libhelfem, helfem-common) will rebase onto it.
+# Currently populated with:
+#   - chebyshev: Gauss-Chebyshev quadrature of the second kind
+#                (templated on T, header-only).
 
 add_library(lib1dfem INTERFACE)
 add_library(helfem::lib1dfem ALIAS lib1dfem)
@@ -16,8 +15,7 @@ target_include_directories(lib1dfem INTERFACE
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:include>"
 )
+target_compile_features(lib1dfem INTERFACE cxx_std_17)
 
-# When Phase 1 starts, this is the point where the migrated source files
-# (PolynomialBasis, LIPBasis, HIPBasis, FiniteElementBasis, lobatto,
-# chebyshev, quadrature, grid, math half of utils) will be added as a
-# templated header-only or compiled implementation.
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/lib1dfem"
+        DESTINATION include)
