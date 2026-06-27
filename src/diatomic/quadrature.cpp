@@ -8,10 +8,9 @@
  * Written by Susi Lehtola, 2018-
  * Copyright (c) 2018- Susi Lehtola
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * See the LICENSE file at the root of this source distribution
+ * for the full license text.
  */
 #include "quadrature.h"
 #include "chebyshev.h"
