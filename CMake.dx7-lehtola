@@ -14,5 +14,5 @@ add_definitions(-DMKL_ILP64)
 
 # Link in MKL
 link_libraries(mkl_intel_ilp64 mkl_gnu_thread mkl_core gomp pthread m dl)
-# Link in GSL, HDF5, libxc
-link_libraries(gsl rt hdf5 xc z)
+# Link in HDF5, libxc
+link_libraries(rt hdf5 xc z)
