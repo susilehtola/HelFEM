@@ -526,61 +526,39 @@ namespace helfem {
             for(size_t L=0;L<coupling.size();L++) {
               if(!coupling[L])
                 continue;
-
-              // Radial matrix
-              arma::mat P_L(Prad.slice(L));
-
-              // Loop over elements: output
-              for(size_t iel=0;iel<Nel;iel++) {
-                size_t ifirst, ilast;
-                radial.get_idx(iel,ifirst,ilast);
-
-                // Input
-                for(size_t jel=0;jel<Nel;jel++) {
-                  size_t jfirst, jlast;
-                  radial.get_idx(jel,jfirst,jlast);
-
-                  // Number of functions in the two elements
-                  size_t Ni(ilast-ifirst+1);
-                  size_t Nj(jlast-jfirst+1);
-
-                  if(!yukawa || iel == jel) {
-                    /*
-                      The exchange matrix is given by
-                      K(jk) = (ij|kl) P(il)
-                      i.e. the complex conjugation hits i and l as
-                      in the density matrix.
-
-                      To get this in the proper order, we permute the integrals
-                      K(jk) = (jk;il) P(il)
-                    */
-
-                    // Exchange submatrix
+              const arma::mat & P_L = Prad.slice(L);
+              if (yukawa) {
+                // Same FE structure as bare exchange -- just different
+                // kernels in the cache. Delegate to the shared helper.
+                const size_t Lc = L;
+                auto rs = [&,Lc](size_t iel) -> const arma::mat & {
+                  return disjoint_iL[Lc*Nel+iel];
+                };
+                auto rb = [&,Lc](size_t iel) -> const arma::mat & {
+                  return disjoint_kL[Lc*Nel+iel];
+                };
+                auto kt = [&,Lc](size_t iel) -> const arma::mat & {
+                  return rs_ktei[Nel*Nel*Lc + iel*Nel + iel];
+                };
+                K.slice(lout) -=
+                  atomic::basis::assemble_K_FE_one_multipole_cached(
+                    radial, rs, rb, kt, P_L);
+              } else {
+                // Erfc: rs_ktei has cross-element entries (iel != jel)
+                // because the erfc kernel does not factorise. Keep the
+                // inline assembly.
+                for(size_t iel=0;iel<Nel;iel++) {
+                  size_t ifirst, ilast;
+                  radial.get_idx(iel,ifirst,ilast);
+                  for(size_t jel=0;jel<Nel;jel++) {
+                    size_t jfirst, jlast;
+                    radial.get_idx(jel,jfirst,jlast);
+                    size_t Ni(ilast-ifirst+1);
+                    size_t Nj(jlast-jfirst+1);
                     arma::mat Ksub(mem_Ksub[ith].memptr(),Ni*Nj,1,false,true);
-                    Ksub=rs_ktei[Nel*Nel*L + iel*Nel + jel]*arma::vectorise(P_L.submat(ifirst,jfirst,ilast,jlast));
+                    Ksub=rs_ktei[Nel*Nel*L + iel*Nel + jel]
+                         * arma::vectorise(P_L.submat(ifirst,jfirst,ilast,jlast));
                     Ksub.reshape(Ni,Nj);
-
-                    // Increment global exchange matrix
-                    K.slice(lout).submat(ifirst,jfirst,ilast,jlast)-=Ksub;
-
-                  } else {
-                    // Disjoint integrals. When r(iel)>r(jel), iel gets -1-L, jel gets L.
-                    const arma::mat & iint=(iel>jel) ? disjoint_kL[L*Nel+iel] : disjoint_iL[L*Nel+iel];
-                    const arma::mat & jint=(iel>jel) ? disjoint_iL[L*Nel+jel] : disjoint_kL[L*Nel+jel];
-
-                    // Get density submatrix (Niel x Njel)
-                    arma::mat Psub(mem_Psub[ith].memptr(),Ni,Nj,false,true);
-                    Psub=P_L.submat(ifirst,jfirst,ilast,jlast);
-
-                    // Calculate helper
-                    arma::mat T(mem_T[ith].memptr(),Ni,Nj,false,true);
-                    // (Niel x Njel) = (Niel x Njel) x (Njel x Njel)
-                    T=Psub*arma::trans(jint);
-                    // Exchange submatrix
-                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni,Nj,false,true);
-                    Ksub=iint*T;
-
-                    // Increment global exchange matrix
                     K.slice(lout).submat(ifirst,jfirst,ilast,jlast)-=Ksub;
                   }
                 }
