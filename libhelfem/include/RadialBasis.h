@@ -167,6 +167,21 @@ namespace helfem {
             const std::function<double(double)> & weight,
             double x_left, double x_right) const;
 
+        /// Cross-basis matrix element
+        ///     M_ij = integral  bra_i(r) * weight(r) * ket_j(r) dr,
+        /// where bra is taken from this basis and ket from `rh`. The two
+        /// bases may have different element layouts; this routine finds
+        /// every overlapping (iel, jel) element pair and runs a separate
+        /// Chebyshev quadrature on each pair's r-overlap interval, with
+        /// n_quad = max(this->n_quad, rh.n_quad). Only B0, B1, B2 are
+        /// meaningful here -- R-kinds (B(r)/r) are tied to a single basis's
+        /// element-length and aren't well-defined cross-basis.
+        arma::mat matrix_element(
+            const FEMRadialBasis & rh,
+            BasisKind bra, BasisKind ket,
+            const std::function<double(double)> & weight =
+                std::function<double(double)>()) const;
+
         /// Compute overlap matrix
         arma::mat overlap() const override;
         /// Compute overlap matrix in element

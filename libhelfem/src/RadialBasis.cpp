@@ -174,100 +174,100 @@ namespace helfem {
                               [L, lambda](double r){ return utils::bessel_kl(r * lambda, L); });
       }
 
-      arma::mat FEMRadialBasis::radial_integral(const FEMRadialBasis &rh, int n, bool lhder,
-                                             bool rhder) const {
+      // Per-element B-evaluator for cross-basis quadrature. Only B-kinds
+      // are meaningful cross-basis (R-kinds carry a per-element 1/r factor
+      // that's tied to a single basis's element-length scaling).
+      static arma::mat eval_B_at(const polynomial_basis::FiniteElementBasis & fem,
+                                 const arma::vec & x, size_t iel,
+                                 FEMRadialBasis::BasisKind k) {
+        using BK = FEMRadialBasis::BasisKind;
+        switch (k) {
+          case BK::B0: return fem.eval_f(x, iel);
+          case BK::B1: return fem.eval_df(x, iel);
+          case BK::B2: return fem.eval_d2f(x, iel);
+          case BK::R0: case BK::R1: case BK::R2:
+            throw std::logic_error(
+                "FEMRadialBasis::matrix_element(cross-basis): R-kinds are not "
+                "supported (R = B/r is tied to one basis's element-length "
+                "scaling; use B-kinds + an explicit weight function instead).\n");
+        }
+        throw std::logic_error("eval_B_at: unknown BasisKind\n");
+      }
+
+      arma::mat FEMRadialBasis::matrix_element(
+          const FEMRadialBasis & rh,
+          BasisKind bra, BasisKind ket,
+          const std::function<double(double)> & weight) const {
+        // Pick a quadrature rule sized for the finer of the two bases so the
+        // projection is well resolved on every overlap interval.
+        const size_t n_quad = std::max(xq.n_elem, rh.xq.n_elem);
+        arma::vec xproj, wproj;
+        chebyshev::chebyshev(n_quad, xproj, wproj);
+
+        // For each element on the bra side, list every ket-side element it
+        // overlaps in r-space; the product of two FE shape functions is
+        // nonzero only there.
+        std::vector<std::vector<size_t>> overlap(fem.get_nelem());
+        for (size_t iel = 0; iel < fem.get_nelem(); ++iel) {
+          const double istart = fem.element_begin(iel);
+          const double iend   = fem.element_end(iel);
+          for (size_t jel = 0; jel < rh.fem.get_nelem(); ++jel) {
+            const double jstart = rh.fem.element_begin(jel);
+            const double jend   = rh.fem.element_end(jel);
+            if ((jstart >= istart && jstart < iend) ||
+                (istart >= jstart && istart < jend))
+              overlap[iel].push_back(jel);
+          }
+        }
+
+        arma::mat S(Nbf(), rh.Nbf(), arma::fill::zeros);
+        for (size_t iel = 0; iel < fem.get_nelem(); ++iel) {
+          for (size_t jel : overlap[iel]) {
+            // Restrict the quadrature to the actual overlap interval.
+            const double intstart = std::max(fem.element_begin(iel),
+                                             rh.fem.element_begin(jel));
+            const double intend   = std::min(fem.element_end(iel),
+                                             rh.fem.element_end(jel));
+            const double intmid   = 0.5 * (intend + intstart);
+            const double intlen   = 0.5 * (intend - intstart);
+
+            const arma::vec r =
+                intmid * arma::ones<arma::vec>(xproj.n_elem) + intlen * xproj;
+
+            // Back-transform r into each basis's reference coords.
+            const arma::vec xi = fem.eval_prim(r, iel);
+            const arma::vec xj = rh.fem.eval_prim(r, jel);
+
+            arma::vec wtot = wproj * intlen;
+            if (weight)
+              for (arma::uword i = 0; i < r.n_elem; ++i)
+                wtot(i) *= weight(r(i));
+
+            const arma::mat ifunc = eval_B_at(fem,    xi, iel, bra);
+            const arma::mat jfunc = eval_B_at(rh.fem, xj, jel, ket);
+
+            size_t ifirst, ilast; get_idx(iel, ifirst, ilast);
+            size_t jfirst, jlast; rh.get_idx(jel, jfirst, jlast);
+            S.submat(ifirst, jfirst, ilast, jlast) +=
+                arma::trans(ifunc) * arma::diagmat(wtot) * jfunc;
+          }
+        }
+        return S;
+      }
+
+      arma::mat FEMRadialBasis::radial_integral(const FEMRadialBasis &rh, int n,
+                                                bool lhder, bool rhder) const {
         modelpotential::RadialPotential rad(n);
         return model_potential(rh, &rad, lhder, rhder);
       }
 
       arma::mat FEMRadialBasis::model_potential(const FEMRadialBasis &rh,
-                                             const modelpotential::ModelPotential *model,
-                                             bool lhder, bool rhder) const {
-        // Use the larger number of quadrature points to assure
-        // projection is computed ok
-        size_t n_quad(std::max(xq.n_elem, rh.xq.n_elem));
-
-        arma::vec xproj, wproj;
-        chebyshev::chebyshev(n_quad, xproj, wproj);
-
-        // Form list of overlapping elements
-        std::vector< std::vector<size_t> > overlap(fem.get_nelem());
-        for (size_t iel = 0; iel < fem.get_nelem(); iel++) {
-          // Range of element i
-          double istart(fem.element_begin(iel));
-          double iend(fem.element_end(iel));
-
-          for (size_t jel = 0; jel < rh.fem.get_nelem(); jel++) {
-            // Range of element j
-            double jstart(rh.fem.element_begin(jel));
-            double jend(rh.fem.element_end(jel));
-
-            // Is there overlap?
-            if ((jstart >= istart && jstart < iend) || (istart >= jstart && istart < jend)) {
-              overlap[iel].push_back(jel);
-              // printf("New element %i overlaps with old element %i\n",iel,jel);
-            }
-          }
-        }
-
-        // Form overlap matrix
-        arma::mat S(Nbf(), rh.Nbf());
-        S.zeros();
-        for (size_t iel = 0; iel < fem.get_nelem(); iel++) {
-          // Loop over overlapping elements
-          for (size_t jj = 0; jj < overlap[iel].size(); jj++) {
-            // Index of element is
-            size_t jel = overlap[iel][jj];
-
-            // Because the functions are only defined within a single
-            // element, the product can be very raggedy. However,
-            // since we *know* where the overlap is non-zero, we can
-            // restrict the quadrature to just that zone.
-
-            // Limits
-            double imin(fem.element_begin(iel));
-            double imax(fem.element_end(iel));
-            // Range of element
-            double jmin(rh.fem.element_begin(jel));
-            double jmax(rh.fem.element_end(jel));
-
-            // Range of integral is thus
-            double intstart(std::max(imin, jmin));
-            double intend(std::min(imax, jmax));
-            // Inteval mid-point is at
-            double intmid(0.5 * (intend + intstart));
-            double intlen(0.5 * (intend - intstart));
-
-            // the r values we're going to use are then
-            arma::vec r(intmid * arma::ones<arma::vec>(xproj.n_elem) + intlen * xproj);
-
-            // Where are we in the matrix?
-            size_t ifirst, ilast;
-            get_idx(iel, ifirst, ilast);
-            size_t jfirst, jlast;
-            rh.get_idx(jel, jfirst, jlast);
-
-            // Back-transform r values into i:th and j:th elements
-            arma::vec xi(fem.eval_prim(r, iel));
-            arma::vec xj(rh.fem.eval_prim(r, jel));
-
-            // Calculate total weight per point
-            arma::vec wtot(wproj * intlen);
-            // Put in the potential
-            wtot %= model->V(r);
-
-            arma::mat ifunc = lhder ? fem.eval_df(xi, iel) : fem.eval_f(xi, iel);
-            arma::mat jfunc = rhder ? rh.fem.eval_df(xj, jel) : rh.fem.eval_f(xj, jel);
-
-            // Perform quadrature
-            arma::mat s(arma::trans(ifunc) * arma::diagmat(wtot) * jfunc);
-
-            // Increment overlap matrix
-            S.submat(ifirst, jfirst, ilast, jlast) += s;
-          }
-        }
-
-        return S;
+                                                const modelpotential::ModelPotential *model,
+                                                bool lhder, bool rhder) const {
+        return matrix_element(rh,
+                              lhder ? BasisKind::B1 : BasisKind::B0,
+                              rhder ? BasisKind::B1 : BasisKind::B0,
+                              [model](double r){ return model->V(r); });
       }
 
       arma::mat FEMRadialBasis::overlap(const FEMRadialBasis &rh) const {
