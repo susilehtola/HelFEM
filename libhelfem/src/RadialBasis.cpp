@@ -97,13 +97,15 @@ namespace helfem {
 
 
       arma::mat FEMRadialBasis::radial_integral(int Rexp, size_t iel, double x_left, double x_right) const {
-        std::function<double(double)> rpowL = [Rexp](double r){return std::pow(r,Rexp+2);};
-        std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
-        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-        arma::mat ret(fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rpowL, x_left, x_right));
-        if(ret.has_nan()) {
-          printf("radial_integral(%i,%i) has NaN!\n",Rexp,(int) iel);
-        }
+        // <R | r^Rexp | R> with the FE-natural dr measure means weight r^(Rexp+2):
+        //   integral B(r)^2 r^(Rexp+2) / r^2  dr  =  integral R(r)^2 r^(Rexp+2)  dr
+        // = QM <r^Rexp> = integral R^2 r^Rexp r^2 dr.
+        const std::function<double(double)> rpowL =
+            [Rexp](double r){ return std::pow(r, Rexp + 2); };
+        arma::mat ret = matrix_element(iel, BasisKind::R0, BasisKind::R0,
+                                       rpowL, x_left, x_right);
+        if (ret.has_nan())
+          printf("radial_integral(%i,%i) has NaN!\n", Rexp, (int)iel);
         return ret;
       }
 
@@ -153,14 +155,23 @@ namespace helfem {
         return fem.matrix_element(lhs, rhs, xq, wq, weight);
       }
 
+      arma::mat FEMRadialBasis::matrix_element(
+          size_t iel, BasisKind bra, BasisKind ket,
+          const std::function<double(double)> & weight,
+          double x_left, double x_right) const {
+        auto lhs = make_evaluator(this, bra);
+        auto rhs = make_evaluator(this, ket);
+        return fem.matrix_element(iel, lhs, rhs, xq, wq, weight, x_left, x_right);
+      }
+
       arma::mat FEMRadialBasis::bessel_il_integral(int L, double lambda, size_t iel) const {
-        std::function<double(double)> besselil = [L, lambda](double r) { return utils::bessel_il(r*lambda, L); };
-        return fem.matrix_element(iel, false, false, xq, wq, besselil);
+        return matrix_element(iel, BasisKind::B0, BasisKind::B0,
+                              [L, lambda](double r){ return utils::bessel_il(r * lambda, L); });
       }
 
       arma::mat FEMRadialBasis::bessel_kl_integral(int L, double lambda, size_t iel) const {
-        std::function<double(double)> besselkl = [L, lambda](double r) { return utils::bessel_kl(r*lambda, L); };
-        return fem.matrix_element(iel, false, false, xq, wq, besselkl);
+        return matrix_element(iel, BasisKind::B0, BasisKind::B0,
+                              [L, lambda](double r){ return utils::bessel_kl(r * lambda, L); });
       }
 
       arma::mat FEMRadialBasis::radial_integral(const FEMRadialBasis &rh, int n, bool lhder,
@@ -291,54 +302,48 @@ namespace helfem {
       arma::mat FEMRadialBasis::nuclear(size_t iel) const { return -matrix_element(iel, BasisKind::R0, BasisKind::R0, kRWeight); }
 
       arma::mat FEMRadialBasis::polynomial_confinement(size_t iel, int N, double shift_pot) const {
-	std::function<double(double)> rpow = [N, shift_pot](double r){
-	  if(r<shift_pot)
-	    return 0.0;
-	  return std::pow(r-shift_pot,N+2);
-	};
-	std::function<arma::mat(const arma::vec &,size_t)> radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-        return fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, rpow);
+        return matrix_element(iel, BasisKind::R0, BasisKind::R0,
+                              [N, shift_pot](double r) {
+                                return (r < shift_pot)
+                                    ? 0.0
+                                    : std::pow(r - shift_pot, N + 2);
+                              });
       }
 
       arma::mat FEMRadialBasis::exponential_confinement(size_t iel, int N, double r_0, double shift_pot) const {
-	std::function<double(double)> r_exp = [r_0, N, shift_pot](double r) {
-	  if(r<shift_pot)
-	    return 0.0;
-	  const double r_ratio = (r-shift_pot)/r_0;
-	  double fact = 1.0;
-
-	  double V=0.0;
-	  double r_ratio_pow_k = 1.0;
-	  for (int k=0; k<N; k++) {
-	    // r^k / k!
-	    V -= r_ratio_pow_k / fact;
-	    // Prepare values for next iteration
-	    fact *= k+1;
-	    r_ratio_pow_k *= r_ratio;
-	  }
-	  V += std::exp(r_ratio);
-	  V *= fact;
-	  return V;
-	};
-        return fem.matrix_element(iel, false, false, xq, wq, r_exp);
+        return matrix_element(iel, BasisKind::B0, BasisKind::B0,
+                              [r_0, N, shift_pot](double r) {
+                                if (r < shift_pot) return 0.0;
+                                const double r_ratio = (r - shift_pot) / r_0;
+                                double fact = 1.0;
+                                double V = 0.0;
+                                double r_ratio_pow_k = 1.0;
+                                for (int k = 0; k < N; ++k) {
+                                  V -= r_ratio_pow_k / fact;
+                                  fact *= k + 1;
+                                  r_ratio_pow_k *= r_ratio;
+                                }
+                                V += std::exp(r_ratio);
+                                V *= fact;
+                                return V;
+                              });
       }
 
       arma::mat FEMRadialBasis::barrier_confinement(size_t iel, double V, double shift_pot) const {
-	std::function<double(double)> barrier = [V, shift_pot](double r) {
-          return (r<shift_pot) ? 0.0 : V;
-	};
-        return fem.matrix_element(iel, false, false, xq, wq, barrier);
+        return matrix_element(iel, BasisKind::B0, BasisKind::B0,
+                              [V, shift_pot](double r) {
+                                return (r < shift_pot) ? 0.0 : V;
+                              });
       }
 
       arma::mat FEMRadialBasis::junq_confinement(size_t iel, int N, double V0, double r_c, double shift_pot) const {
-	std::function<double(double)> r_exp = [N, r_c, V0, shift_pot](double r) {
-	  if(r<shift_pot)
-	    return 0.0;
-	  const double denominator = std::pow(r_c-r,N);
-	  const double exponential = std::exp(-(r_c - shift_pot) / (r - shift_pot));
-	  return V0 * exponential / denominator;
-	};
-        return fem.matrix_element(iel, false, false, xq, wq, r_exp);
+        return matrix_element(iel, BasisKind::B0, BasisKind::B0,
+                              [N, r_c, V0, shift_pot](double r) {
+                                if (r < shift_pot) return 0.0;
+                                const double denominator  = std::pow(r_c - r, N);
+                                const double exponential  = std::exp(-(r_c - shift_pot) / (r - shift_pot));
+                                return V0 * exponential / denominator;
+                              });
       }
 
       arma::mat FEMRadialBasis::confinement_potential(size_t iel, int N, double r_0, int iconf, double V, double shift_pot) const {
@@ -388,9 +393,9 @@ namespace helfem {
 
 
       arma::mat FEMRadialBasis::model_potential(const modelpotential::ModelPotential *model,
-                                             size_t iel) const {
-        std::function<double(double)> modelpot = [model](double r) { return model->V(r); };
-        return fem.matrix_element(iel, false, false, xq, wq, modelpot);
+                                                size_t iel) const {
+        return matrix_element(iel, BasisKind::B0, BasisKind::B0,
+                              [model](double r){ return model->V(r); });
       }
 
       arma::mat FEMRadialBasis::nuclear_offcenter(size_t iel, double Rhalf, int L) const {
