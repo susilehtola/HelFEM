@@ -54,6 +54,14 @@ namespace helfem {
       double hund_rule_correction(const class OrbitalChannel & orbs,
                                   const basis::TwoDBasis & basis);
 
+      /// UHF overload: combines alpha + beta occupations for the
+      /// total atomic configuration, uses alpha orbital coefficients
+      /// for the F^k integral (Hund-rule puts the open-shell electrons
+      /// in the high-spin / alpha channel).
+      double hund_rule_correction(const class OrbitalChannel & orbsa,
+                                  const class OrbitalChannel & orbsb,
+                                  const basis::TwoDBasis & basis);
+
       /// Helper for defining orbital channels
       class OrbitalChannel {
       protected:

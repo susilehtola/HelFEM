@@ -722,6 +722,21 @@ int main(int argc, char **argv) {
     printf("Eenuc = % 18.9f\n",uconf.Epot);
     printf("Econf = % 18.9f\n",uconf.Econfinement);
     printf("Exc   = % 18.9f\n",uconf.Exc);
+
+    // Hund-rule correction (UHF). Combines orbsa + orbsb occupations
+    // for the total atomic configuration; uses alpha orbital
+    // coefficients for F^k (Hund-rule puts the open-shell electrons
+    // in the high-spin / alpha channel).
+    {
+      double dE_hund = sadatom::solver::hund_rule_correction(
+          uconf.orbsa, uconf.orbsb, solver.Basis());
+      if (dE_hund != 0.0) {
+        printf("Hund corr  = % 18.9f  (E(barycentre) -> E(ground term))\n",
+               dE_hund);
+        printf("Etot(Hund) = % 18.9f\n", uconf.Econf + dE_hund);
+      }
+    }
+
     printf("Alpha orbitals\n");
     uconf.orbsa.Print(solver.Basis());
     (HARTREEINEV*uconf.orbsa.GetGap()).t().print("Alpha HOMO-LUMO gap (eV)");
