@@ -231,6 +231,16 @@ namespace helfem {
         /// Same as above for the Yukawa-screened tensor yukawa_integral.
         arma::mat yukawa_integral_cholesky(int L, double lambda, size_t iel,
                                            double tol = 1e-12) const;
+
+        // NOTE: the K-permuted in-element tensor (exchange_tei) is
+        // essentially full rank as a PSD matrix (~Ni^2) -- its Cholesky
+        // does not compress. Both J and K therefore use the J-ordered
+        // factor twoe_integral_cholesky above: J via the inner-product
+        // contraction (one matvec * 2 per p), K via the matrix-matrix
+        // form M_p . P . M_p^T (two matmuls per p, slower than dense K
+        // for typical FE rank-vs-Ni ratios but the canonical
+        // RI/density-fitting form expected by external drivers like
+        // PySCF's DF backend).
         /// Compute primitive complementary error function two-electron integral
         arma::mat erfc_integral(int L, double lambda, size_t iel,
                                 size_t jel) const;

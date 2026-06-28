@@ -134,6 +134,52 @@ namespace helfem {
           const PerElementPairAccessor & ktei_pairwise,
           const arma::mat & P_FE);
 
+      /// Cholesky-factored variants of the cached J / K helpers. Both
+      /// take the SAME per-element J-ordered Cholesky factor of shape
+      /// (Ni^2 x r) such that
+      ///     T(ab, cd) = twoe_integral(L, iel)(ab, cd)
+      ///              = Sum_p factor(ab, p) * factor(cd, p)
+      /// where (ab) is the row pair (vec(.) column-major; a-fast b-slow).
+      /// Build via FEMRadialBasis::twoe_integral_cholesky.
+      ///
+      /// Asymmetric cost picture (per element):
+      ///   J: O(r * Ni^2) -- inner product per Cholesky vector then
+      ///                     scalar * outer; ~4x FASTER than dense
+      ///                     matvec at typical FE rank ~ 2*Ni.
+      ///   K: O(r * Ni^3) -- two matmuls per Cholesky vector via
+      ///                     K = Sum_p M_p . P . M_p^T (M_p = reshape
+      ///                     of the p-th Cholesky column to Ni x Ni).
+      ///                     SLOWER than dense K (O(Ni^4)) for typical
+      ///                     FE rank-vs-Ni ratios; the K-PERMUTED tensor
+      ///                     happens to be ~full-rank (the bivariate
+      ///                     space u_a(r1) u_c(r2) is Ni^2-dimensional),
+      ///                     so K-side Cholesky compression buys nothing.
+      ///
+      /// Why expose the K factored form anyway: it is the canonical
+      /// RI / density-fitting representation expected by external
+      /// drivers (PySCF's DF backend forms K from the same (mu nu | P)
+      /// 3-index factor that backs J). Memory-wise, callers who store
+      /// only the J-ordered Cholesky factor save ~Ni^2/r ~ 7x relative
+      /// to caching the full in-element tensor; the slower K contraction
+      /// is the price paid for that compression.
+      ///
+      /// Cross-element pieces are unchanged -- still use the disjoint
+      /// r_small / r_big factorisation. Only the in-element 4-index
+      /// path is factored.
+      arma::mat assemble_J_FE_one_multipole_cached_chol(
+          const FEMRadialBasis & radial,
+          const PerElementAccessor & r_small,
+          const PerElementAccessor & r_big,
+          const PerElementAccessor & twoe_chol_J,
+          const arma::mat & P_FE);
+
+      arma::mat assemble_K_FE_one_multipole_cached_chol(
+          const FEMRadialBasis & radial,
+          const PerElementAccessor & r_small,
+          const PerElementAccessor & r_big,
+          const PerElementAccessor & twoe_chol_J,
+          const arma::mat & P_FE);
+
       // Inline implementations -- header-only to match the rest of the
       // libhelfem/include/ NAO surface. ~150 LOC total.
 
@@ -255,6 +301,96 @@ namespace helfem {
             arma::vec Ksub_v = ktei_pairwise(iel, jel) * Psub_v;
             K_FE.submat(ifirst, jfirst, ilast, jlast) +=
                 arma::reshape(Ksub_v, Ni, Nj);
+          }
+        }
+        return K_FE;
+      }
+
+      // --- Cholesky-factored cached helpers -----------------------------
+      // Same FE structure as the dense cached J / K helpers above, but
+      // the in-element 4-index contraction is rewritten as a sum of
+      // outer products over the Cholesky rank.
+
+      inline arma::mat assemble_J_FE_one_multipole_cached_chol(
+          const FEMRadialBasis & radial,
+          const PerElementAccessor & r_small,
+          const PerElementAccessor & r_big,
+          const PerElementAccessor & twoe_chol_J,
+          const arma::mat & P_FE) {
+        const size_t Nel  = radial.Nel();
+        const size_t Nrad = radial.Nbf();
+        arma::mat J_FE(Nrad, Nrad, arma::fill::zeros);
+        for (size_t jel = 0; jel < Nel; ++jel) {
+          size_t jfirst, jlast;
+          radial.get_idx(jel, jfirst, jlast);
+          const size_t Nj = jlast - jfirst + 1;
+          arma::mat Psub = P_FE.submat(jfirst, jfirst, jlast, jlast);
+          const double jsmall = arma::trace(r_small(jel) * Psub);
+          const double jbig   = arma::trace(r_big  (jel) * Psub);
+          for (size_t iel = 0; iel < jel; ++iel) {
+            size_t ifirst, ilast;
+            radial.get_idx(iel, ifirst, ilast);
+            J_FE.submat(ifirst, ifirst, ilast, ilast) +=
+                jbig * r_small(iel);
+          }
+          for (size_t iel = jel + 1; iel < Nel; ++iel) {
+            size_t ifirst, ilast;
+            radial.get_idx(iel, ifirst, ilast);
+            J_FE.submat(ifirst, ifirst, ilast, ilast) +=
+                jsmall * r_big(iel);
+          }
+          // Factored in-element contribution.
+          //   J_{ab} = Sum_p L(ab, p) . <L_p, P>
+          // with the (ab) pair packed column-major (a-fast, b-slow) -- so
+          // vec(P) (Armadillo column-major) matches L's row layout.
+          const arma::mat & L = twoe_chol_J(jel);
+          arma::vec Psub_v = arma::vectorise(Psub);
+          arma::vec scalars = L.t() * Psub_v;           // length r
+          arma::vec Jsub_v  = L * scalars;              // length Nj^2
+          J_FE.submat(jfirst, jfirst, jlast, jlast) +=
+              arma::reshape(Jsub_v, Nj, Nj);
+        }
+        return J_FE;
+      }
+
+      inline arma::mat assemble_K_FE_one_multipole_cached_chol(
+          const FEMRadialBasis & radial,
+          const PerElementAccessor & r_small,
+          const PerElementAccessor & r_big,
+          const PerElementAccessor & twoe_chol_J,
+          const arma::mat & P_FE) {
+        const size_t Nel  = radial.Nel();
+        const size_t Nrad = radial.Nbf();
+        arma::mat K_FE(Nrad, Nrad, arma::fill::zeros);
+        for (size_t iel = 0; iel < Nel; ++iel) {
+          size_t ifirst, ilast;
+          radial.get_idx(iel, ifirst, ilast);
+          const size_t Ni = ilast - ifirst + 1;
+          for (size_t jel = 0; jel < Nel; ++jel) {
+            size_t jfirst, jlast;
+            radial.get_idx(jel, jfirst, jlast);
+            const size_t Nj = jlast - jfirst + 1;
+            if (iel == jel) {
+              // Factored in-element K via the J-ordered Cholesky factor:
+              //   K_{a,c} = Sum_p (M_p . P . M_p^T)_{a,c}
+              // with M_p = reshape(L.col(p), Ni, Ni) (Armadillo
+              // column-major so M_p(a, b) = L(a + b*Ni, p), matching the
+              // (ab) row pair in twoe_integral).
+              const arma::mat & L = twoe_chol_J(iel);
+              const arma::mat Psub = P_FE.submat(ifirst, jfirst, ilast, jlast);
+              arma::mat Ksub(Ni, Nj, arma::fill::zeros);
+              for (arma::uword p = 0; p < L.n_cols; ++p) {
+                arma::mat Mp = arma::reshape(L.col(p), Ni, Ni);
+                Ksub += Mp * (Psub * Mp.t());
+              }
+              K_FE.submat(ifirst, jfirst, ilast, jlast) += Ksub;
+            } else {
+              const arma::mat & iint = (iel > jel) ? r_big(iel) : r_small(iel);
+              const arma::mat & jint = (iel > jel) ? r_small(jel) : r_big(jel);
+              const arma::mat Psub = P_FE.submat(ifirst, jfirst, ilast, jlast);
+              K_FE.submat(ifirst, jfirst, ilast, jlast) +=
+                  iint * (Psub * jint.t());
+            }
           }
         }
         return K_FE;
