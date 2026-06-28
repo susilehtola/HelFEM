@@ -158,6 +158,15 @@ namespace helfem {
             const std::function<double(double)> & weight =
                 std::function<double(double)>()) const;
 
+        /// Per-element matrix element restricted to a sub-range of the
+        /// reference element [x_left, x_right] (defaults to the full range
+        /// [-1, +1]). Useful for two-electron inner integrals and other
+        /// piecewise integrations.
+        arma::mat matrix_element(
+            size_t iel, BasisKind bra, BasisKind ket,
+            const std::function<double(double)> & weight,
+            double x_left, double x_right) const;
+
         /// Compute overlap matrix
         arma::mat overlap() const override;
         /// Compute overlap matrix in element
