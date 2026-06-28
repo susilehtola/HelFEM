@@ -446,31 +446,12 @@ namespace helfem {
         arma::cube K(Nrad,Nrad,gmax+1);
         K.zeros();
 
-        // Helper memory
-#ifdef _OPENMP
-        const int nth(omp_get_max_threads());
-#else
-        const int nth(1);
-#endif
-        std::vector<arma::vec> mem_Ksub(nth);
-        std::vector<arma::vec> mem_Psub(nth);
-        std::vector<arma::vec> mem_T(nth);
-
+        // Per-element K assembly is delegated to the cached helpers in
+        // CoulombExchangeFE.h -- no per-thread scratch needed here.
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
         {
-#ifdef _OPENMP
-          const int ith(omp_get_thread_num());
-#else
-          const int ith(0);
-#endif
-          // These are only small submatrices!
-          mem_Psub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-          mem_Ksub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-          mem_T[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-
-          // Increment
 #ifdef _OPENMP
 #pragma omp for
 #endif
@@ -545,23 +526,16 @@ namespace helfem {
                     radial, rs, rb, kt, P_L);
               } else {
                 // Erfc: rs_ktei has cross-element entries (iel != jel)
-                // because the erfc kernel does not factorise. Keep the
-                // inline assembly.
-                for(size_t iel=0;iel<Nel;iel++) {
-                  size_t ifirst, ilast;
-                  radial.get_idx(iel,ifirst,ilast);
-                  for(size_t jel=0;jel<Nel;jel++) {
-                    size_t jfirst, jlast;
-                    radial.get_idx(jel,jfirst,jlast);
-                    size_t Ni(ilast-ifirst+1);
-                    size_t Nj(jlast-jfirst+1);
-                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni*Nj,1,false,true);
-                    Ksub=rs_ktei[Nel*Nel*L + iel*Nel + jel]
-                         * arma::vectorise(P_L.submat(ifirst,jfirst,ilast,jlast));
-                    Ksub.reshape(Ni,Nj);
-                    K.slice(lout).submat(ifirst,jfirst,ilast,jlast)-=Ksub;
-                  }
-                }
+                // because the erfc kernel does not factorise. Delegate
+                // to the pairwise cached helper -- same contraction
+                // pattern, just no disjoint optimisation.
+                const size_t Lc = L;
+                auto kt = [&,Lc](size_t iel, size_t jel) -> const arma::mat & {
+                  return rs_ktei[Nel*Nel*Lc + iel*Nel + jel];
+                };
+                K.slice(lout) -=
+                  atomic::basis::assemble_K_FE_one_multipole_cached_pairwise(
+                    radial, kt, P_L);
               }
             }
           }
