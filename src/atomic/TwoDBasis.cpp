@@ -13,6 +13,7 @@
  * for the full license text.
  */
 #include "TwoDBasis.h"
+#include <CoulombExchangeFE.h>
 #include "basis.h"
 #include "quadrature.h"
 #include "chebyshev.h"
@@ -862,58 +863,23 @@ namespace helfem {
             Jaux[L][M+Mmax].zeros(Nrad,Nrad);
           }
         }
-        // Contract integrals
+        // Contract integrals. Per (L, M), delegate the FE assembly to
+        // the shared helper with our SCF-cached per-(L, iel) integrals.
         for(int L=0;L<(int) Paux.size();L++) {
           const double Lfac=4.0*M_PI/(2*L+1);
-
+          auto rs = [&,L](size_t iel) -> const arma::mat & {
+            return disjoint_L[L*Nel+iel];
+          };
+          auto rb = [&,L](size_t iel) -> const arma::mat & {
+            return disjoint_m1L[L*Nel+iel];
+          };
+          auto tw = [&,L](size_t iel) -> const arma::mat & {
+            return prim_tei[Nel*Nel*L + iel*Nel + iel];
+          };
           for(int M=-std::min(L,Mmax);M<=std::min(L,Mmax);M++) {
-            for(size_t jel=0;jel<Nel;jel++) {
-              size_t jfirst, jlast;
-              radial.get_idx(jel,jfirst,jlast);
-              size_t Nj(jlast-jfirst+1);
-
-              // Get density submatrices
-              arma::mat Psub(Paux[L][M+Mmax].submat(jfirst,jfirst,jlast,jlast));
-
-              // Contract integrals
-              double jsmall = Lfac*arma::trace(disjoint_L[L*Nel+jel]*Psub);
-              double jbig = Lfac*arma::trace(disjoint_m1L[L*Nel+jel]*Psub);
-
-              // Increment J: jel>iel
-              for(size_t iel=0;iel<jel;iel++) {
-                size_t ifirst, ilast;
-                radial.get_idx(iel,ifirst,ilast);
-
-                const arma::mat & iint=disjoint_L[L*Nel+iel];
-                Jaux[L][M+Mmax].submat(ifirst,ifirst,ilast,ilast)+=jbig*iint;
-              }
-
-              // Increment J: jel<iel
-              for(size_t iel=jel+1;iel<Nel;iel++) {
-                size_t ifirst, ilast;
-                radial.get_idx(iel,ifirst,ilast);
-
-                const arma::mat & iint=disjoint_m1L[L*Nel+iel];
-                Jaux[L][M+Mmax].submat(ifirst,ifirst,ilast,ilast)+=jsmall*iint;
-              }
-
-              // In-element contribution
-              {
-                size_t iel=jel;
-                size_t ifirst=jfirst;
-                size_t ilast=jlast;
-                size_t Ni=Nj;
-
-                // Contract integrals
-                Psub.reshape(Nj*Nj,1);
-
-                const size_t idx(Nel*Nel*L + iel*Nel + jel);
-                arma::mat Jsub(Lfac*(prim_tei[idx]*Psub));
-                Jsub.reshape(Ni,Ni);
-
-                Jaux[L][M+Mmax].submat(ifirst,ifirst,ilast,ilast)+=Jsub;
-              }
-            }
+            Jaux[L][M+Mmax] += Lfac *
+              helfem::atomic::basis::assemble_J_FE_one_multipole_cached(
+                radial, rs, rb, tw, Paux[L][M+Mmax]);
           }
         }
 
@@ -965,31 +931,13 @@ namespace helfem {
         arma::mat K(Ndummy(),Ndummy());
         K.zeros();
 
-        // Helper memory
-#ifdef _OPENMP
-        const int nth(omp_get_max_threads());
-#else
-        const int nth(1);
-#endif
-        std::vector<arma::vec> mem_Ksub(nth);
-        std::vector<arma::vec> mem_Psub(nth);
-        std::vector<arma::vec> mem_T(nth);
-
+        // Per-element K assembly is delegated to
+        // assemble_K_FE_one_multipole_cached -- no per-thread scratch
+        // needed here, the helper allocates its own.
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
         {
-#ifdef _OPENMP
-          const int ith(omp_get_thread_num());
-#else
-          const int ith(0);
-#endif
-          // These are only small submatrices!
-          mem_Psub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-          mem_Ksub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-          mem_T[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-
-          // Increment
 #ifdef _OPENMP
 #pragma omp for collapse(2)
 #endif
@@ -1050,79 +998,27 @@ namespace helfem {
                 }
               }
 
-              // Loop over elements: output
-              for(size_t iel=0;iel<Nel;iel++) {
-                size_t ifirst, ilast;
-                radial.get_idx(iel,ifirst,ilast);
-
-                // Input
-                for(size_t jel=0;jel<Nel;jel++) {
-                  size_t jfirst, jlast;
-                  radial.get_idx(jel,jfirst,jlast);
-
-                  // Number of functions in the two elements
-                  size_t Ni(ilast-ifirst+1);
-                  size_t Nj(jlast-jfirst+1);
-
-                  if(iel == jel) {
-                    /*
-                      The exchange matrix is given by
-                      K(jk) = (ij|kl) P(il)
-                      i.e. the complex conjugation hits i and l as
-                      in the density matrix.
-
-                      To get this in the proper order, we permute the integrals
-                      K(jk) = (jk;il) P(il)
-                    */
-
-                    // Exchange submatrix
-                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni*Nj,1,false,true);
-                    Ksub.zeros();
-
-                    for(size_t L=0;L<N_L;L++) {
-                      if(!couple[L])
-                        continue;
-                      Ksub+=prim_ktei[Nel*Nel*L + iel*Nel + jel]*arma::vectorise(Rmat[L].submat(ifirst,jfirst,ilast,jlast));
-                    }
-                    Ksub.reshape(Ni,Nj);
-
-                    // Increment global exchange matrix
-                    K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
-
-                    //arma::vec Ptgt(arma::vectorise(P.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)));
-                    //printf("(%i %i) (%i %i) (%i %i) (%i %i) [%i %i]\n",li,mi,lj,mj,lk,mk,ll,ml,L,M);
-                    //printf("Element %i - %i contribution to exchange energy % .10e\n",(int) iel,(int) jel,-0.5*arma::dot(Ksub,Ptgt));
-
-                  } else {
-                    // Exchange submatrix
-                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni,Nj,false,true);
-                    Ksub.zeros();
-
-                    for(size_t L=0;L<N_L;L++) {
-                      if(!couple[L])
-                        continue;
-
-                      // Disjoint integrals. When r(iel)>r(jel), iel gets -1-L, jel gets L.
-                      const arma::mat & iint=(iel>jel) ? disjoint_m1L[L*Nel+iel] : disjoint_L[L*Nel+iel];
-                      const arma::mat & jint=(iel>jel) ? disjoint_L[L*Nel+jel] : disjoint_m1L[L*Nel+jel];
-
-                      // Get density submatrix (Niel x Njel)
-                      arma::mat Psub(mem_Psub[ith].memptr(),Ni,Nj,false,true);
-                      Psub=Rmat[L].submat(ifirst,jfirst,ilast,jlast);
-
-                      // Calculate helper
-                      arma::mat T(mem_T[ith].memptr(),Ni,Nj,false,true);
-                      // (Niel x Njel) = (Niel x Njel) x (Njel x Njel)
-                      T=Psub*arma::trans(jint);
-
-                      // Increment
-                      Ksub+=iint*T;
-                    }
-
-                    K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
-                  }
-                }
+              // Per-L K assembly via the shared FE helper, accumulated
+              // into the (jang, kang) angular block of K.
+              arma::mat K_block(Nrad, Nrad, arma::fill::zeros);
+              for(size_t L=0; L<N_L; ++L) {
+                if(!couple[L]) continue;
+                const size_t Lc = L;
+                auto rs = [&,Lc](size_t iel) -> const arma::mat & {
+                  return disjoint_L[Lc*Nel+iel];
+                };
+                auto rb = [&,Lc](size_t iel) -> const arma::mat & {
+                  return disjoint_m1L[Lc*Nel+iel];
+                };
+                auto kt = [&,Lc](size_t iel) -> const arma::mat & {
+                  return prim_ktei[Nel*Nel*Lc + iel*Nel + iel];
+                };
+                K_block +=
+                  helfem::atomic::basis::assemble_K_FE_one_multipole_cached(
+                    radial, rs, rb, kt, Rmat[Lc]);
               }
+              K.submat(jang*Nrad, kang*Nrad,
+                       (jang+1)*Nrad-1, (kang+1)*Nrad-1) -= K_block;
             }
           }
         }
