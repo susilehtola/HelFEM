@@ -410,6 +410,61 @@ namespace helfem {
         return tei;
       }
 
+      // Pivoted Cholesky with truncation. Returns Lout of shape
+      // (n x r) such that Lout * Lout^T == A up to abs tolerance on the
+      // residual diagonal. Standard textbook algorithm (Higham, Sec 10.3);
+      // pivots greedily on the largest remaining diagonal each step.
+      static arma::mat pivoted_cholesky_(const arma::mat & A, double tol) {
+        const arma::uword n = A.n_rows;
+        if (A.n_cols != n)
+          throw std::logic_error("pivoted_cholesky: input must be square.\n");
+        arma::vec  D    = A.diag();
+        arma::uvec done(n, arma::fill::zeros);
+        arma::mat  L(n, 0);
+        for (arma::uword k = 0; k < n; ++k) {
+          // Pivot on the largest remaining diagonal residual.
+          arma::uword pivot = n;
+          double pivot_val = tol;
+          for (arma::uword i = 0; i < n; ++i)
+            if (!done(i) && D(i) > pivot_val) {
+              pivot = i;
+              pivot_val = D(i);
+            }
+          if (pivot == n) break;            // truncated -- rank reached
+          done(pivot) = 1;
+          const double sqrt_d = std::sqrt(pivot_val);
+          arma::vec col(n);
+          // col(i) = (A(i, pivot) - sum_{j<k} L(i,j) L(pivot,j)) / sqrt_d.
+          // For already-pivoted rows (i with done(i)==1, i != pivot) the
+          // residual is 0 by construction; skip the computation cleanly
+          // by zeroing.
+          for (arma::uword i = 0; i < n; ++i) {
+            if (done(i) && i != pivot) { col(i) = 0.0; continue; }
+            double s = A(i, pivot);
+            if (L.n_cols > 0)
+              s -= arma::dot(L.row(i), L.row(pivot));
+            col(i) = s / sqrt_d;
+          }
+          col(pivot) = sqrt_d;
+          L.insert_cols(L.n_cols, col);
+          // Update residual diagonal for the not-yet-pivoted rows.
+          for (arma::uword i = 0; i < n; ++i)
+            if (!done(i)) D(i) -= col(i) * col(i);
+        }
+        return L;
+      }
+
+      arma::mat FEMRadialBasis::twoe_integral_cholesky(int L, size_t iel,
+                                                       double tol) const {
+        return pivoted_cholesky_(twoe_integral(L, iel), tol);
+      }
+
+      arma::mat FEMRadialBasis::yukawa_integral_cholesky(int L, double lambda,
+                                                         size_t iel,
+                                                         double tol) const {
+        return pivoted_cholesky_(yukawa_integral(L, lambda, iel), tol);
+      }
+
       arma::mat FEMRadialBasis::yukawa_integral(int L, double lambda, size_t iel) const {
         double Rmin(fem.element_begin(iel));
         double Rmax(fem.element_end(iel));
