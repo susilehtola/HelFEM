@@ -254,6 +254,75 @@ def helfem_casscf(mf, basis, ncas, nelecas):
     return mcscf.CASSCF(mf, ncas, nelecas)
 
 
+def natural_orbitals(mc):
+    """Extract natural orbitals from a converged CASCI / CASSCF result.
+
+    Returns (occupations, no_coeff_ao):
+      occupations  : (Nbf,) ndarray, natural-orbital occupation numbers
+                     sorted descending (so the most-occupied NO is at
+                     column 0).
+      no_coeff_ao  : (Nbf, Nbf) ndarray, AO-basis coefficients of the
+                     natural orbitals (i.e. NO_alpha = sum_mu
+                     no_coeff_ao[mu, alpha] * AO_mu).
+
+    The NOs diagonalise the AO-basis 1RDM in the metric S:
+        S . D_AO . S . no_coeff = S . no_coeff . diag(occ)
+    """
+    dm_ao = mc.make_rdm1()                          # AO-basis 1RDM
+    S = mc._scf.get_ovlp()
+    # Solve generalised eigenvalue D_ao c = n S^-1 c, equivalently
+    # use S^(1/2) basis to make it standard symmetric.
+    sval, svec = scipy.linalg.eigh(S)
+    Sinvh = svec @ np.diag(1.0 / np.sqrt(sval)) @ svec.T
+    Sh    = svec @ np.diag(np.sqrt(sval))       @ svec.T
+    # Transform D_AO -> S^(1/2) D_AO S^(1/2), which is the 1RDM in the
+    # symmetric-orthonormal basis. Diagonalise standard symmetric.
+    D_sym = Sh @ dm_ao @ Sh
+    occ, U = scipy.linalg.eigh(D_sym)
+    # Back-transform NOs to AO basis: AO -> sym-orth via S^(1/2)^-1 = Sinvh.
+    no_coeff_ao = Sinvh @ U
+    # Sort descending by occupation.
+    order = np.argsort(occ)[::-1]
+    return occ[order], no_coeff_ao[:, order]
+
+
+def helfem_no_truncated_basis(mc, fe_basis, n_keep, occ_threshold=1e-6):
+    """Build a NAOAtomicBasis from the top-N natural orbitals of an mc.
+
+    n_keep  : number of NOs to keep (-1 = keep all with occ > threshold).
+    occ_threshold : NOs with occupation below this are dropped even if
+                    n_keep > current_count.
+
+    `fe_basis` must be the underlying AtomicBasis (or NAOAtomicBasis)
+    that `mc._scf` was built on. The returned NAOAtomicBasis wraps
+    `fe_basis` with the NO coefficients composed appropriately.
+    """
+    occ, no_coeff = natural_orbitals(mc)
+    # If mc was built on an NAOAtomicBasis, fe_basis is that wrapper;
+    # the no_coeff is in the NAO basis. Compose with the NAO C matrix
+    # to get coeffs in the underlying FE basis.
+    if isinstance(fe_basis, NAOAtomicBasis):
+        no_coeff_in_fe = fe_basis._C @ no_coeff
+        underlying = fe_basis._fe
+    else:
+        no_coeff_in_fe = no_coeff
+        underlying = fe_basis
+    # Filter by n_keep and threshold.
+    keep_mask = occ > occ_threshold
+    if n_keep > 0:
+        # Keep at most n_keep, ordered by occupation (already sorted).
+        keep_mask = np.zeros_like(occ, dtype=bool)
+        keep_mask[:n_keep] = True
+        # ALSO apply threshold
+        keep_mask &= (occ > occ_threshold)
+    kept = no_coeff_in_fe[:, keep_mask]
+    if kept.shape[1] == 0:
+        raise ValueError(
+            f"helfem_no_truncated_basis: no NOs survive (n_keep={n_keep}, "
+            f"occ_threshold={occ_threshold}, max_occ={occ.max():.3e})")
+    return NAOAtomicBasis(underlying, kept), occ[keep_mask]
+
+
 def install_full_eri(mf, basis):
     """Pre-compute the full Nbf^4 AO ERI tensor for `basis` and store it
     on mf._eri (8-fold packed form). Once installed, PySCF's
