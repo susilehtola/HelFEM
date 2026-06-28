@@ -35,6 +35,25 @@ namespace helfem {
       /// Sort in energy
       bool operator<(const shell_occupation_t & lh, const shell_occupation_t & rh);
 
+      /// Hund-rule energy correction for a converged sadatom SCF.
+      ///
+      /// sadatom uses a spherically-averaged density (uniform occupation
+      /// of degenerate m_l components). The resulting Coulomb energy is
+      /// the "barycentre" energy, weighted average over all multiplets of
+      /// the open-shell configuration. The actual ground-state energy is
+      /// the high-L/high-S Hund-rule single Slater determinant, lower
+      /// than the barycentre.
+      ///
+      /// This function returns E(Hund ground state) - E(barycentre), a
+      /// NEGATIVE correction for open-shell, zero for closed-shell.
+      /// Currently handles p-shell open shells (B-Ne, Al-Ar, Ga-Kr); for
+      /// d-shell or higher returns 0 with a warning.
+      ///
+      /// Reference: Condon-Shortley, "Theory of Atomic Spectra" Chap VI;
+      /// or Cowan, "Theory of Atomic Structure and Spectra" Table 4.2.
+      double hund_rule_correction(const class OrbitalChannel & orbs,
+                                  const basis::TwoDBasis & basis);
+
       /// Helper for defining orbital channels
       class OrbitalChannel {
       protected:

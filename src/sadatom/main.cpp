@@ -636,6 +636,21 @@ int main(int argc, char **argv) {
     printf("Eenuc = % 18.9f\n",rconf.Epot);
     printf("Econf = % 18.9f\n",rconf.Econfinement);
     printf("Exc   = % 18.9f\n",rconf.Exc);
+
+    // Hund-rule correction: sadatom computes the spherically-averaged
+    // (barycentre) energy. The actual ground-state term -- the
+    // high-L/high-S Hund-rule single Slater determinant -- is lower by
+    // a specific combination of Slater F^k integrals.
+    {
+      double dE_hund = sadatom::solver::hund_rule_correction(
+          rconf.orbs, solver.Basis());
+      if (dE_hund != 0.0) {
+        printf("Hund corr  = % 18.9f  (E(barycentre) -> E(ground term))\n",
+               dE_hund);
+        printf("Etot(Hund) = % 18.9f\n", rconf.Econf + dE_hund);
+      }
+    }
+
     rconf.orbs.Print(solver.Basis());
     (HARTREEINEV*rconf.orbs.GetGap()).t().print("HOMO-LUMO gap (eV)");
 
