@@ -209,6 +209,28 @@ namespace helfem {
         arma::mat twoe_integral(int L, size_t iel) const;
         /// Compute primitive Yukawa-screened two-electron integral
         arma::mat yukawa_integral(int L, double lambda, size_t iel) const;
+
+        /// Pivoted-Cholesky decomposition of the in-element 4-index
+        /// two-electron tensor twoe_integral(L, iel). Returns L of shape
+        /// (Ni^2 x r) such that L * L^T == twoe_integral(L, iel) to the
+        /// requested absolute tolerance on the residual diagonal (default
+        /// 1e-12). The rank r is determined by truncation; for smooth FE
+        /// kernels in a single element r is typically much smaller than
+        /// Ni^2 -- often O(Ni).
+        ///
+        /// Same factored representation as the cross-element disjoint
+        /// pieces (radial_integral(L)/(-L-1)), so a single contraction
+        /// routine over Sum_p L_p(ab) * L_p(cd) handles every (iel, jel)
+        /// case uniformly (in-element: r columns; disjoint: rank-1).
+        ///
+        /// Assumes the in-element tensor is positive semi-definite; this
+        /// holds for the bare Coulomb and Yukawa kernels (both PSD as
+        /// integral kernels).
+        arma::mat twoe_integral_cholesky(int L, size_t iel,
+                                         double tol = 1e-12) const;
+        /// Same as above for the Yukawa-screened tensor yukawa_integral.
+        arma::mat yukawa_integral_cholesky(int L, double lambda, size_t iel,
+                                           double tol = 1e-12) const;
         /// Compute primitive complementary error function two-electron integral
         arma::mat erfc_integral(int L, double lambda, size_t iel,
                                 size_t jel) const;
