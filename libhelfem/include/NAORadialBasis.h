@@ -16,21 +16,13 @@
 #define ATOMIC_BASIS_NAORADIALBASIS_H
 
 #include "RadialBasis.h"
+#include "CoulombExchangeFE.h"
 #include <armadillo>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
 
 namespace helfem {
-  // Forward declaration of the existing in-tree helper from
-  // libhelfem/src/utils.cpp (its header is in libhelfem/src/ and is not
-  // part of the public include path, so we just resolve the symbol at
-  // link time -- callers of the NAO 2e methods link against libhelfem
-  // anyway because the FE matrix elements live there).
-  namespace utils {
-    arma::mat exchange_tei(const arma::mat & tei, size_t Ni, size_t Nj,
-                            size_t Nk, size_t Nl);
-  }
   namespace atomic {
     namespace basis {
 
@@ -197,9 +189,9 @@ namespace helfem {
                                  const arma::mat & D) const {
           require_shared_fe_(other, "coulomb_radial");
           require_density_shape_(other, D, "coulomb_radial");
+          const FEMRadialBasis & fem = underlying_fem_();
           const arma::mat P_FE = other.C_ * D * other.C_.t();
-          const arma::mat J_FE = assemble_J_fe_(k, P_FE, /*yukawa*/false, 0.0);
-          return C_.t() * J_FE * C_;
+          return C_.t() * assemble_J_FE_one_multipole(fem, k, P_FE) * C_;
         }
 
         /// K^k_NAO(D) := sum_{mn} D_{mn} R^k(a_i b_m, a_j b_n) (bare radial).
@@ -209,9 +201,9 @@ namespace helfem {
                                   const arma::mat & D) const {
           require_shared_fe_(other, "exchange_radial");
           require_density_shape_(other, D, "exchange_radial");
+          const FEMRadialBasis & fem = underlying_fem_();
           const arma::mat P_FE = other.C_ * D * other.C_.t();
-          const arma::mat K_FE = assemble_K_fe_(k, P_FE, /*yukawa*/false, 0.0);
-          return C_.t() * K_FE * C_;
+          return C_.t() * assemble_K_FE_one_multipole(fem, k, P_FE) * C_;
         }
 
         /// Yukawa-screened Coulomb at multipole k, screening lambda > 0:
@@ -225,9 +217,10 @@ namespace helfem {
           require_density_shape_(other, D, "coulomb_radial_yukawa");
           if (lambda <= 0.0)
             throw std::logic_error("coulomb_radial_yukawa: lambda must be positive.\n");
+          const FEMRadialBasis & fem = underlying_fem_();
           const arma::mat P_FE = other.C_ * D * other.C_.t();
-          const arma::mat J_FE = assemble_J_fe_(k, P_FE, /*yukawa*/true, lambda);
-          return C_.t() * J_FE * C_;
+          return C_.t() *
+                 assemble_J_FE_one_multipole_yukawa(fem, k, lambda, P_FE) * C_;
         }
 
         /// Yukawa-screened exchange at multipole k.
@@ -238,9 +231,10 @@ namespace helfem {
           require_density_shape_(other, D, "exchange_radial_yukawa");
           if (lambda <= 0.0)
             throw std::logic_error("exchange_radial_yukawa: lambda must be positive.\n");
+          const FEMRadialBasis & fem = underlying_fem_();
           const arma::mat P_FE = other.C_ * D * other.C_.t();
-          const arma::mat K_FE = assemble_K_fe_(k, P_FE, /*yukawa*/true, lambda);
-          return C_.t() * K_FE * C_;
+          return C_.t() *
+                 assemble_K_FE_one_multipole_yukawa(fem, k, lambda, P_FE) * C_;
         }
 
        protected:
@@ -282,107 +276,6 @@ namespace helfem {
                 "basis is not a FEMRadialBasis; per-multipole two-electron "
                 "operators are only implemented for FE-backed NAOs.\n");
           return *fem;
-        }
-
-        /// Return r_small(L, iel) -- either radial_integral(L, iel) (bare)
-        /// or bessel_il_integral(L, lambda, iel) (Yukawa).
-        static arma::mat r_small_(const FEMRadialBasis & fem, int L, size_t iel,
-                                  bool yukawa, double lambda) {
-          return yukawa ? fem.bessel_il_integral(L, lambda, iel)
-                        : fem.radial_integral(L, iel);
-        }
-        /// Return r_big(L, iel) -- radial_integral(-L-1, iel) (bare) or
-        /// bessel_kl_integral (Yukawa).
-        static arma::mat r_big_(const FEMRadialBasis & fem, int L, size_t iel,
-                                bool yukawa, double lambda) {
-          return yukawa ? fem.bessel_kl_integral(L, lambda, iel)
-                        : fem.radial_integral(-L - 1, iel);
-        }
-        /// In-element 4-index integral.
-        static arma::mat in_element_tei_(const FEMRadialBasis & fem, int L,
-                                         size_t iel,
-                                         bool yukawa, double lambda) {
-          return yukawa ? fem.yukawa_integral(L, lambda, iel)
-                        : fem.twoe_integral(L, iel);
-        }
-
-        /// Build the FE-basis Coulomb J^L_FE for a single multipole L,
-        /// without the 4 pi / (2L+1) prefactor.
-        arma::mat assemble_J_fe_(int L, const arma::mat & P_FE,
-                                 bool yukawa, double lambda) const {
-          const FEMRadialBasis & radial = underlying_fem_();
-          const size_t Nel  = radial.Nel();
-          const size_t Nrad = radial.Nbf();
-          arma::mat J_FE(Nrad, Nrad, arma::fill::zeros);
-          for (size_t jel = 0; jel < Nel; ++jel) {
-            size_t jfirst, jlast;
-            radial.get_idx(jel, jfirst, jlast);
-            const size_t Nj = jlast - jfirst + 1;
-            arma::mat Psub = P_FE.submat(jfirst, jfirst, jlast, jlast);
-            const arma::mat rs = r_small_(radial, L, jel, yukawa, lambda);
-            const arma::mat rb = r_big_  (radial, L, jel, yukawa, lambda);
-            const double jsmall = arma::trace(rs * Psub);
-            const double jbig   = arma::trace(rb * Psub);
-            for (size_t iel = 0; iel < jel; ++iel) {
-              size_t ifirst, ilast;
-              radial.get_idx(iel, ifirst, ilast);
-              J_FE.submat(ifirst, ifirst, ilast, ilast) +=
-                  jbig * r_small_(radial, L, iel, yukawa, lambda);
-            }
-            for (size_t iel = jel + 1; iel < Nel; ++iel) {
-              size_t ifirst, ilast;
-              radial.get_idx(iel, ifirst, ilast);
-              J_FE.submat(ifirst, ifirst, ilast, ilast) +=
-                  jsmall * r_big_(radial, L, iel, yukawa, lambda);
-            }
-            // In-element 4-index contribution.
-            arma::vec Psub_v = arma::vectorise(Psub);
-            arma::vec Jsub_v = in_element_tei_(radial, L, jel, yukawa, lambda) * Psub_v;
-            J_FE.submat(jfirst, jfirst, jlast, jlast) +=
-                arma::reshape(Jsub_v, Nj, Nj);
-          }
-          return J_FE;
-        }
-
-        /// Build the FE-basis exchange K^L_FE for a single multipole L,
-        /// without the 4 pi / (2L+1) prefactor. Sign: POSITIVE bare integral
-        /// (no HF minus).
-        arma::mat assemble_K_fe_(int L, const arma::mat & P_FE,
-                                 bool yukawa, double lambda) const {
-          const FEMRadialBasis & radial = underlying_fem_();
-          const size_t Nel  = radial.Nel();
-          const size_t Nrad = radial.Nbf();
-          arma::mat K_FE(Nrad, Nrad, arma::fill::zeros);
-          for (size_t iel = 0; iel < Nel; ++iel) {
-            size_t ifirst, ilast;
-            radial.get_idx(iel, ifirst, ilast);
-            const size_t Ni = ilast - ifirst + 1;
-            for (size_t jel = 0; jel < Nel; ++jel) {
-              size_t jfirst, jlast;
-              radial.get_idx(jel, jfirst, jlast);
-              const size_t Nj = jlast - jfirst + 1;
-              if (iel == jel) {
-                const arma::mat tei  = in_element_tei_(radial, L, iel, yukawa, lambda);
-                const arma::mat ktei = utils::exchange_tei(tei, Ni, Ni, Ni, Ni);
-                arma::vec Psub_v = arma::vectorise(
-                    P_FE.submat(ifirst, jfirst, ilast, jlast));
-                arma::vec Ksub_v = ktei * Psub_v;
-                K_FE.submat(ifirst, jfirst, ilast, jlast) +=
-                    arma::reshape(Ksub_v, Ni, Nj);
-              } else {
-                const arma::mat iint = (iel > jel)
-                    ? r_big_  (radial, L, iel, yukawa, lambda)
-                    : r_small_(radial, L, iel, yukawa, lambda);
-                const arma::mat jint = (iel > jel)
-                    ? r_small_(radial, L, jel, yukawa, lambda)
-                    : r_big_  (radial, L, jel, yukawa, lambda);
-                const arma::mat Psub = P_FE.submat(ifirst, jfirst, ilast, jlast);
-                K_FE.submat(ifirst, jfirst, ilast, jlast) +=
-                    iint * (Psub * jint.t());
-              }
-            }
-          }
-          return K_FE;
         }
       };
 
