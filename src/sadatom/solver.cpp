@@ -286,6 +286,71 @@ namespace helfem {
 	save_data(oss.str(), orblval);
       }
 
+      double hund_rule_correction(const OrbitalChannel & orbs,
+                                  const basis::TwoDBasis & basis) {
+        // Walk shells in order of l. For each, count the open-shell
+        // occupation = occs(l) mod (4l + 2). The lowest partially-filled
+        // orbital in that l-shell is the "open shell"; its orbital index
+        // is occs(l) / (4l + 2).
+        const arma::ivec occs = orbs.Occs();
+        const int lmax = orbs.Lmax();
+        const arma::cube C = orbs.Coeffs();
+        double total_correction = 0.0;
+        for (int l = 0; l <= lmax; ++l) {
+          if (l >= (int) occs.n_elem) break;
+          const int n_total  = (int) occs(l);
+          const int capacity = 4 * l + 2;
+          const int n_open   = n_total % capacity;
+          const int n_orb    = n_total / capacity;
+          if (n_open == 0)
+            continue;
+          // Open-shell orbital coefficients: the (n_orb)-th orbital of
+          // shell l. C.slice(l) is (Nrad, Nrad); columns are orbitals
+          // sorted by energy (ascending).
+          if ((arma::uword) n_orb >= C.slice(l).n_cols) {
+            printf("[hund_rule_correction] warning: requested orbital %d "
+                   "of l=%d but only %llu orbitals available; skipping.\n",
+                   n_orb, l, (unsigned long long) C.slice(l).n_cols);
+            continue;
+          }
+          const arma::vec c_orb = C.slice(l).col(n_orb);
+          if (l == 0) {
+            // s-shell with partial fill = 1 electron in nl. Single
+            // determinant, no multiplet to average over. Zero correction.
+            continue;
+          } else if (l == 1) {
+            // p-shell Hund-rule corrections (in units of F^2(pp)):
+            //   p^1: 0       (2P unique)
+            //   p^2: -3/25   (3P -- ground term)
+            //   p^3: -6/25   (4S)
+            //   p^4: -3/25   (3P)
+            //   p^5: 0       (2P unique)
+            double coef;
+            switch (n_open) {
+              case 1: coef =  0.0;      break;
+              case 2: coef = -3.0/25.0; break;
+              case 3: coef = -6.0/25.0; break;
+              case 4: coef = -3.0/25.0; break;
+              case 5: coef =  0.0;      break;
+              default: coef = 0.0;
+            }
+            if (coef != 0.0) {
+              const double F2 = basis.slater_F(2, c_orb);
+              total_correction += coef * F2;
+            }
+          } else {
+            // d-shell, f-shell ... need additional Slater integrals
+            // (F^2, F^4 for d; F^2, F^4, F^6 for f). Not implemented;
+            // warn and skip.
+            printf("[hund_rule_correction] warning: open shell l=%d "
+                   "with %d electrons -- d/f shell corrections are not "
+                   "implemented; returning the p-shell contribution "
+                   "only.\n", l, n_open);
+          }
+        }
+        return total_correction;
+      }
+
       bool OrbitalChannel::operator==(const OrbitalChannel & rh) const {
         if(occs.n_elem != rh.occs.n_elem)
           return false;

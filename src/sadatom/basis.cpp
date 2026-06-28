@@ -697,6 +697,26 @@ namespace helfem {
         return rad;
       }
 
+      double TwoDBasis::slater_F(int k, const arma::vec & c) const {
+        // Bare radial Slater-Condon F^k integral for orbital `c` in the
+        // u = r * R basis. Defined as
+        //     F^k(c, c) = sum_{ab,cd} P_ab P_cd R^k_FE(ab, cd)
+        // with P = c * c.t() and R^k_FE the bare per-multipole 2e integral
+        // from CoulombExchangeFE.h (no 4*pi/(2k+1) factor).
+        //
+        // F^k = trace(P * J^k(P)) where J^k = assemble_J_FE_one_multipole.
+        if (c.n_elem != radial.Nbf()) {
+          std::ostringstream oss;
+          oss << "TwoDBasis::slater_F: orbital length " << c.n_elem
+              << " != Nrad " << radial.Nbf() << ".\n";
+          throw std::logic_error(oss.str());
+        }
+        const arma::mat P = c * c.t();
+        const arma::mat Jk =
+            atomic::basis::assemble_J_FE_one_multipole(radial, k, P);
+        return arma::trace(P * Jk);
+      }
+
       arma::mat TwoDBasis::orbitals(const arma::mat & C) const {
         std::vector<arma::mat> c(radial.Nel());
         for(size_t iel=0;iel<radial.Nel();iel++) {

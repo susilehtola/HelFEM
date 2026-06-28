@@ -136,6 +136,19 @@ namespace helfem {
 
         /// Radii
         arma::vec radii() const;
+        /// Compute the radial Slater-Condon integral F^k for an orbital
+        /// specified by its coefficient vector c (length Nrad) in the
+        /// u = r * R basis. Defined as
+        ///   F^k(c, c) = integral integral u(r1)^2 (r_<^k / r_>^{k+1}) u(r2)^2 dr1 dr2,
+        /// with no 4 pi / (2k+1) prefactor (this is the BARE Slater
+        /// integral as in Condon-Shortley Chapter VI).
+        ///
+        /// Used by the Hund-rule energy correction (see solver.h) to
+        /// convert sadatom's spherically-averaged-density energy into
+        /// the actual energy of the high-L/high-S Hund-rule single
+        /// Slater determinant -- the ground-state term for open-shell
+        /// atoms.
+        double slater_F(int k, const arma::vec & c) const;
         /// Compute radial orbitals
         arma::mat orbitals(const arma::mat & C) const;
         /// Compute radial orbitals' first derivative
