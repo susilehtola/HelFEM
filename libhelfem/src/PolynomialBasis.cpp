@@ -22,10 +22,11 @@
 #include "lobatto.h"
 #include "LIPBasis.h"
 #include "HIPBasis.h"
-#include "GeneralHIPBasis.h"
 #include "LegendreBasis.h"
 #include <lib1dfem/HIP2Basis.h>  // analytic HIP order 2 (primbas=8 since v2)
 #include <lib1dfem/HIP3Basis.h>  // analytic HIP order 3 (primbas=9 since v2)
+// (GeneralHIPBasis was removed when its callers were either rerouted to
+// analytic HIP2/HIP3 (primbas=8, 9) or deprecated (primbas=6, 7, 10, 11).)
 
 namespace helfem {
   namespace polynomial_basis {
@@ -110,17 +111,23 @@ namespace helfem {
         }
 
       case(6):
+        throw std::runtime_error(
+            "primbas=6 (generic HIP with nder=0) is deprecated and no longer "
+            "supported; use primbas=4 (LIP) which provides the same "
+            "function-interpolating basis.\n");
+
       case(7):
+        throw std::runtime_error(
+            "primbas=7 (generic HIP with nder=1) is deprecated and no longer "
+            "supported; use primbas=5 (HIP) which provides the same first-"
+            "order Hermite basis.\n");
+
       case(10):
       case(11):
-        {
-          arma::vec x, w;
-          ::lobatto_compute(Nnodes,x,w);
-          int nder=primbas-6;
-          poly=new polynomial_basis::GeneralHIPBasis(x,primbas,nder);
-          printf("Basis set composed of %i-node %i:th order HIPs with Gauss-Lobatto nodes.\n",Nnodes,nder);
-          break;
-        }
+        throw std::runtime_error(
+            "primbas=10 / 11 (generic HIP with nder=4 / 5) is deprecated and "
+            "no longer supported; only analytic HIP2 (primbas=8) and HIP3 "
+            "(primbas=9) are exposed in v2.\n");
 
       default:
         throw std::logic_error("Unsupported primitive basis.\n");

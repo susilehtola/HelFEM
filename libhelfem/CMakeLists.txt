@@ -24,7 +24,6 @@ add_library(helfem
     src/utils.cpp
     src/erfc_expn.cpp
     src/PolynomialBasis.cpp
-    src/GeneralHIPBasis.cpp
     src/quadrature.cpp
     src/ModelPotential.cpp
     src/RadialPotential.cpp
