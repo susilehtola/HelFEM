@@ -99,6 +99,35 @@ class PolynomialBasis {
     return dnf;
   }
 
+  /// Evaluate n-th derivative (w.r.t. r) of B_u(r)/r for every enabled
+  /// shape function on the FIRST element [0, element_length], where x is in
+  /// reference coords [-1, +1] and r = (element_length/2) * (x+1).
+  ///
+  /// Precondition: drop_first(zero_func=true, ...) must have been called so
+  /// that every surviving shape function B_u satisfies B_u(x=-1) = 0; without
+  /// that, B_u(r)/r has a 1/r singularity at the origin and this routine is
+  /// ill-defined.
+  ///
+  /// This routine replaces the Taylor-cutoff machinery in RadialBasis for
+  /// the small-r region: it computes B(r)/r analytically by deflating the
+  /// (x+1) factor that the Dirichlet BC guarantees.
+  ///
+  /// Default implementation throws; concrete subclasses provide the analytic
+  /// deflation when they support it (LIP and HIP today).
+  virtual void eval_over_r(const arma::Col<T> & x, arma::Mat<T> & dnf_over_r,
+                           int n, T element_length) const {
+    (void)x; (void)dnf_over_r; (void)n; (void)element_length;
+    throw std::logic_error(
+        "eval_over_r is not implemented for this PolynomialBasis subclass.\n");
+  }
+
+  arma::Mat<T> eval_over_r(const arma::Col<T> & x, int n,
+                           T element_length) const {
+    arma::Mat<T> dnf_over_r;
+    eval_over_r(x, dnf_over_r, n, element_length);
+    return dnf_over_r;
+  }
+
   /// Diagnostic dump of basis functions (and first derivatives) sampled
   /// on a fine grid; writes "bf<str>.dat" / "df<str>.dat".
   void print(const std::string & str = "") const {
