@@ -61,7 +61,6 @@ namespace {
 //   igrid         = 4         (exponential)
 //   zexp          = 2.0
 //   n_quad        = 5 * poly->get_nbf()
-//   taylor_order  = poly->get_nprim() - 1
 //
 // FEM boundary flags match TwoDBasis exactly:
 //   zero_func_left=true (Dirichlet at r=0)
@@ -78,9 +77,8 @@ atomic::basis::FEMRadialBasis make_radial(const Defaults & d = DEF) {
   polynomial_basis::FiniteElementBasis fem(poly, bval,
       /*zero_func_left*/true,  /*zero_deriv_left*/false,
       /*zero_func_right*/true, /*zero_deriv_right*/false);
-  int n_quad       = 5 * poly->get_nbf();
-  int taylor_order = poly->get_nprim() - 1;
-  return atomic::basis::FEMRadialBasis(fem, n_quad, taylor_order);
+  int n_quad = 5 * poly->get_nbf();
+  return atomic::basis::FEMRadialBasis(fem, n_quad);
 }
 
 double diag_lowest(const arma::mat & H, const arma::mat & S) {
@@ -127,7 +125,7 @@ bool he_hf_test() {
   arma::ivec lval = {0}, mval = {0};
   atomic::basis::TwoDBasis basis(Z, modelpotential::POINT_NUCLEUS, /*Rrms*/0.0,
       poly, /*zeroder*/false,
-      5*poly->get_nbf(), bval, poly->get_nprim()-1,
+      5*poly->get_nbf(), bval,
       lval, mval, /*Zl*/0, /*Zr*/0, /*Rhalf*/0.0);
   basis.compute_tei(/*exchange*/true);
 
