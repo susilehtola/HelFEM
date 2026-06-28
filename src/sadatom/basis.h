@@ -17,6 +17,7 @@
 
 #include <armadillo>
 #include "../atomic/basis.h"
+#include <NAORadialBasis.h>
 
 namespace helfem {
   namespace sadatom {
@@ -112,6 +113,11 @@ namespace helfem {
         /// Get r values
         arma::vec get_r(size_t iel) const;
 
+        /// Read-only access to the underlying radial basis. Useful for
+        /// callers that want to build an NAORadialBasis on top of a
+        /// converged sadatom SCF (see extract_naos_per_l below).
+        const atomic::basis::FEMRadialBasis & get_radial() const { return radial; }
+
         /// Get primitive integrals
         std::vector<arma::mat> get_prim_tei() const;
 
@@ -162,6 +168,24 @@ namespace helfem {
         /// Compute the exchange-correlation screening
         arma::mat xc_screening(const arma::mat & Parad, const arma::mat & Pbrad, int x_func, int c_func) const;
       };
+
+      /// Extract per-l NAOs from a converged sadatom SCF result.
+      ///
+      /// `Ccube` is the OrbitalChannel coefficient cube returned by
+      /// `sadatom::solver::OrbitalChannel::Coeffs()`; `Ccube.slice(l)`
+      /// has shape (Nrad x N_orb_l) and holds the l-channel MOs in
+      /// ascending eigenvalue order. `keep_per_l[l]` is how many of the
+      /// lowest-energy columns to retain (use -1 to keep all of slice l;
+      /// use 0 to skip that l-channel).
+      ///
+      /// Returns one (l, NAORadialBasis) pair per kept l-channel, in
+      /// order of l. Each NAORadialBasis owns its own copy of the
+      /// underlying FEMRadialBasis (shared internally via shared_ptr);
+      /// the returned basis objects can outlive `sad_basis`.
+      std::vector<std::pair<int, atomic::basis::NAORadialBasis>>
+      extract_naos_per_l(const TwoDBasis & sad_basis,
+                         const arma::cube & Ccube,
+                         const std::vector<int> & keep_per_l);
     }
   }
 }

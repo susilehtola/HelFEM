@@ -22,6 +22,7 @@
 #include "../general/dftfuncs.h"
 #include <cassert>
 #include <cfloat>
+#include <sstream>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -1440,6 +1441,39 @@ namespace helfem {
           vxc.col(ic)%=r;
 
         return vxc;
+      }
+
+      std::vector<std::pair<int, atomic::basis::NAORadialBasis>>
+      extract_naos_per_l(const TwoDBasis & sad_basis,
+                         const arma::cube & Ccube,
+                         const std::vector<int> & keep_per_l) {
+        const int lmax = static_cast<int>(Ccube.n_slices) - 1;
+        if (static_cast<int>(keep_per_l.size()) != lmax + 1) {
+          std::ostringstream oss;
+          oss << "extract_naos_per_l: keep_per_l has size " << keep_per_l.size()
+              << " but Ccube has " << Ccube.n_slices
+              << " slices (expected " << lmax + 1 << ").\n";
+          throw std::logic_error(oss.str());
+        }
+        std::vector<std::pair<int, atomic::basis::NAORadialBasis>> out;
+        out.reserve(lmax + 1);
+        for (int l = 0; l <= lmax; ++l) {
+          const int keep = keep_per_l[l];
+          if (keep == 0) continue;
+          const arma::mat & Cl = Ccube.slice(l);
+          if (keep > static_cast<int>(Cl.n_cols)) {
+            std::ostringstream oss;
+            oss << "extract_naos_per_l: requested " << keep
+                << " NAOs for l=" << l << " but only "
+                << Cl.n_cols << " orbitals available.\n";
+            throw std::logic_error(oss.str());
+          }
+          const arma::mat Ckeep = (keep < 0) ? Cl
+                                             : arma::mat(Cl.cols(0, keep - 1));
+          out.emplace_back(l, atomic::basis::NAORadialBasis::from_owned_radial(
+              sad_basis.get_radial(), Ckeep));
+        }
+        return out;
       }
     }
   }
