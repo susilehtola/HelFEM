@@ -1131,73 +1131,50 @@ namespace helfem {
                 }
               }
 
-              // Loop over elements: output
-              for(size_t iel=0;iel<Nel;iel++) {
-                size_t ifirst, ilast;
-                radial.get_idx(iel,ifirst,ilast);
-
-                // Input
-                for(size_t jel=0;jel<Nel;jel++) {
-                  size_t jfirst, jlast;
-                  radial.get_idx(jel,jfirst,jlast);
-
-                  // Number of functions in the two elements
-                  size_t Ni(ilast-ifirst+1);
-                  size_t Nj(jlast-jfirst+1);
-
-                  // error function does not factorize
-                  if(!yukawa || iel == jel) {
-                    /*
-                      The exchange matrix is given by
-                      K(jk) = (ij|kl) P(il)
-                      i.e. the complex conjugation hits i and l as
-                      in the density matrix.
-
-                      To get this in the proper order, we permute the integrals
-                      K(jk) = (jk;il) P(il)
-                    */
-
-                    // Exchange submatrix
+              if (yukawa) {
+                // Same FE structure as bare exchange: per-L cached
+                // helper, summed into the (jang, kang) angular block.
+                arma::mat K_block(Nrad, Nrad, arma::fill::zeros);
+                for(size_t L=0; L<N_L; ++L) {
+                  if(!couple[L]) continue;
+                  const size_t Lc = L;
+                  auto rs = [&,Lc](size_t iel) -> const arma::mat & {
+                    return disjoint_iL[Lc*Nel+iel];
+                  };
+                  auto rb = [&,Lc](size_t iel) -> const arma::mat & {
+                    return disjoint_kL[Lc*Nel+iel];
+                  };
+                  auto kt = [&,Lc](size_t iel) -> const arma::mat & {
+                    return rs_ktei[Nel*Nel*Lc + iel*Nel + iel];
+                  };
+                  K_block +=
+                    helfem::atomic::basis::assemble_K_FE_one_multipole_cached(
+                      radial, rs, rb, kt, Rmat[Lc]);
+                }
+                K.submat(jang*Nrad, kang*Nrad,
+                         (jang+1)*Nrad-1, (kang+1)*Nrad-1) -= K_block;
+              } else {
+                // Erfc: rs_ktei has cross-element entries for every
+                // (iel, jel) pair -- the kernel does not factorise.
+                // Keep the inline assembly.
+                for(size_t iel=0;iel<Nel;iel++) {
+                  size_t ifirst, ilast;
+                  radial.get_idx(iel,ifirst,ilast);
+                  for(size_t jel=0;jel<Nel;jel++) {
+                    size_t jfirst, jlast;
+                    radial.get_idx(jel,jfirst,jlast);
+                    size_t Ni(ilast-ifirst+1);
+                    size_t Nj(jlast-jfirst+1);
                     arma::mat Ksub(mem_Ksub[ith].memptr(),Ni*Nj,1,false,true);
                     Ksub.zeros();
-
                     for(size_t L=0;L<N_L;L++) {
-                      if(!couple[L])
-                        continue;
-                      Ksub+=rs_ktei[Nel*Nel*L + iel*Nel + jel]*arma::vectorise(Rmat[L].submat(ifirst,jfirst,ilast,jlast));
+                      if(!couple[L]) continue;
+                      Ksub += rs_ktei[Nel*Nel*L + iel*Nel + jel]
+                              * arma::vectorise(Rmat[L].submat(ifirst,jfirst,ilast,jlast));
                     }
                     Ksub.reshape(Ni,Nj);
-
-                    // Increment global exchange matrix
-                    K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
-
-                  } else {
-                    // Exchange submatrix
-                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni,Nj,false,true);
-                    Ksub.zeros();
-
-                    for(size_t L=0;L<N_L;L++) {
-                      if(!couple[L])
-                        continue;
-
-                      // Disjoint integrals. When r(iel)>r(jel), iel gets -1-L, jel gets L.
-                      const arma::mat & iint=(iel>jel) ? disjoint_kL[L*Nel+iel] : disjoint_iL[L*Nel+iel];
-                      const arma::mat & jint=(iel>jel) ? disjoint_iL[L*Nel+jel] : disjoint_kL[L*Nel+jel];
-
-                      // Get density submatrix (Niel x Njel)
-                      arma::mat Psub(mem_Psub[ith].memptr(),Ni,Nj,false,true);
-                      Psub=Rmat[L].submat(ifirst,jfirst,ilast,jlast);
-
-                      // Calculate helper
-                      arma::mat T(mem_T[ith].memptr(),Ni,Nj,false,true);
-                      // (Niel x Njel) = (Niel x Njel) x (Njel x Njel)
-                      T=Psub*arma::trans(jint);
-
-                      // Increment
-                      Ksub+=iint*T;
-                    }
-
-                    K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,jang*Nrad+ilast,kang*Nrad+jlast)-=Ksub;
+                    K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,
+                             jang*Nrad+ilast,kang*Nrad+jlast) -= Ksub;
                   }
                 }
               }
