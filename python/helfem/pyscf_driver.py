@@ -254,6 +254,127 @@ def helfem_casscf(mf, basis, ncas, nelecas):
     return mcscf.CASSCF(mf, ncas, nelecas)
 
 
+# -- State symmetry classification ------------------------------------
+#
+# HelFEM atomic AOs have definite (l, m), so the one-electron L_z and
+# the orbital part of L^2 are diagonal in the AO basis. For a CI
+# state's 1RDM in the AO basis:
+#   <L_z>           = sum_i D_ii * m_i              (EXACT)
+#   <L^2_orbital>   = sum_i D_ii * l_i * (l_i + 1)  (ONE-BODY part)
+#
+# <M_L> is exact because L_z commutes with H for atoms (spherical
+# Coulomb), so all determinants in a CI ground state share its M_L.
+# Different CI roots may have different M_L; this gives a one-line
+# symmetry classification of states without setting up PySCF's full
+# mol.symm_orb plumbing.
+#
+# <L^2_orbital> is the orbital ONE-BODY part of the total L^2. It's a
+# coarse "L-character" diagnostic, NOT the full <L^2> of an atomic
+# eigenstate (the full L^2 includes orbital cross-coupling from L_+/L_-
+# that this expression misses).
+#
+# To target a specific (M_L, 2S+1) sector in CASCI: set mc.spin = 2S,
+# run with nroots = K large enough to capture the target state, and
+# pick by M_L using state_ML / classify_states. This is the "post-hoc
+# symmetry filter" workflow; for a "pre-emptive irrep targeting" via
+# wfnsym, full mol.symm_orb support is the natural follow-on.
+
+def _Lz_diagonal_AO(atomic_basis):
+    """Internal: diagonal of L_z in the raw AtomicBasis (not NAO).
+    Each AO is on one angular shell with definite m_l."""
+    Nrad = atomic_basis.Nrad()
+    Lz = np.zeros(atomic_basis.Nbf())
+    for iang, m in enumerate(atomic_basis.mvals()):
+        Lz[iang * Nrad : (iang + 1) * Nrad] = m
+    return Lz
+
+
+def _Lorb2_diagonal_AO(atomic_basis):
+    """Internal: diagonal of orbital L^2 in the raw AtomicBasis."""
+    Nrad = atomic_basis.Nrad()
+    L2 = np.zeros(atomic_basis.Nbf())
+    for iang, l in enumerate(atomic_basis.lvals()):
+        L2[iang * Nrad : (iang + 1) * Nrad] = l * (l + 1)
+    return L2
+
+
+def Lz_matrix(basis):
+    """L_z one-electron operator matrix in `basis`. For an AtomicBasis,
+    diagonal with value m_l for each AO. For an NAOAtomicBasis, the
+    matrix is C^T diag(Lz_AO) C in the NAO basis."""
+    if isinstance(basis, NAOAtomicBasis):
+        Lz_ao = _Lz_diagonal_AO(basis._fe)
+        return (basis._C.T * Lz_ao) @ basis._C
+    return np.diag(_Lz_diagonal_AO(basis))
+
+
+def Lorb2_matrix(basis):
+    """Orbital L^2 one-electron operator in `basis`. See top-of-section
+    note: this is the ONE-BODY l*(l+1) trace, not the full many-body
+    <L^2>."""
+    if isinstance(basis, NAOAtomicBasis):
+        L2_ao = _Lorb2_diagonal_AO(basis._fe)
+        return (basis._C.T * L2_ao) @ basis._C
+    return np.diag(_Lorb2_diagonal_AO(basis))
+
+
+def _get_state_dm_ao(mc, state_idx):
+    """Internal: get the AO-basis 1RDM for the requested CI state.
+    Passes the CI vector explicitly (PySCF's make_rdm1 takes ci as a
+    kwarg, so swapping mc.ci isn't enough -- the saved-then-restore
+    pattern returns mc.ci[0] for multi-root)."""
+    if isinstance(mc.ci, (list, tuple)):
+        ci = mc.ci[state_idx]
+    else:
+        if state_idx != 0:
+            raise IndexError(
+                f"requested state {state_idx} but mc has a single CI vector")
+        ci = mc.ci
+    # PySCF CASBase.make_rdm1 accepts ci as a kwarg.
+    return mc.make_rdm1(ci=ci)
+
+
+def state_ML(mc, basis, state_idx=0):
+    """Compute <M_L> for CI state `state_idx` of a helfem-driven
+    CASCI/CASSCF. EXACT (L_z conserved for atoms)."""
+    dm_ao = _get_state_dm_ao(mc, state_idx)
+    return float(np.trace(dm_ao @ Lz_matrix(basis)))
+
+
+def state_Lorb2(mc, basis, state_idx=0):
+    """Compute <L^2_orbital> (one-body L^2 trace) for CI state
+    `state_idx`. Coarse L-character diagnostic; see top-of-section
+    note for the relation to the full many-body <L^2>."""
+    dm_ao = _get_state_dm_ao(mc, state_idx)
+    return float(np.trace(dm_ao @ Lorb2_matrix(basis)))
+
+
+def classify_states(mc, basis):
+    """Return per-state (energy, M_L, L^2_orbital) for all CI roots of
+    a multi-root CASCI/CASSCF. Returns a list of dicts sorted by state
+    index (= ascending energy in PySCF convention). For single-root
+    mc, returns a single-entry list."""
+    if isinstance(mc.ci, (list, tuple)):
+        n_states = len(mc.ci)
+        energies = mc.e_tot if hasattr(mc, "e_tot") and \
+            isinstance(mc.e_tot, (list, tuple, np.ndarray)) else None
+    else:
+        n_states = 1
+        energies = [mc.e_tot] if hasattr(mc, "e_tot") else None
+    out = []
+    for k in range(n_states):
+        e = energies[k] if energies is not None else None
+        ml = state_ML(mc, basis, state_idx=k)
+        l2 = state_Lorb2(mc, basis, state_idx=k)
+        out.append({
+            "state": k,
+            "energy": e,
+            "M_L": ml,
+            "L^2_orbital": l2,
+        })
+    return out
+
+
 def natural_orbitals(mc):
     """Extract natural orbitals from a converged CASCI / CASSCF result.
 
