@@ -18,7 +18,7 @@ import numpy as np
 import scipy.linalg
 
 import pyscf
-from pyscf import gto, scf
+from pyscf import gto, scf, ao2mo
 
 import helfem
 
@@ -153,3 +153,91 @@ def helfem_scf(
     mf.get_init_guess = _init_core
 
     return mf, basis
+
+
+def build_active_eri(basis, mo_active):
+    """Build the active-space 4-index ERI tensor (chemists' notation) via
+    repeated J calls into a HelFEM basis. Returns the UNPACKED tensor of
+    shape (N, N, N, N) where N = mo_active.shape[1].
+
+    Cost: N*(N+1)/2 J builds (one per unique active orbital pair) plus
+    N**4 traces. For a typical active space N ~ 5-20 on top of an
+    Nbf ~ 300-3000 atomic FE basis, the J builds dominate at
+    ~ms each. Negligible compared to the CI / orbital-opt loop.
+
+    Math: with the symmetrised pair density
+        P_ij_sym = (c_i c_j^T + c_j c_i^T) / 2   for i != j
+                 = c_i c_i^T                       for i == j
+    we have J(P_ij_sym)_{ab} = (ab | ij)   (since the AO Coulomb kernel
+    is symmetric under (alpha, beta) swap, the asymmetric c_i c_j^T
+    and c_j c_i^T pieces average to the symmetric product), and so
+        (mn | ij) = c_m^T . J(P_ij_sym) . c_n.
+    """
+    N = mo_active.shape[1]
+    eri = np.zeros((N, N, N, N))
+    for i in range(N):
+        for j in range(i, N):
+            ci = mo_active[:, i]
+            cj = mo_active[:, j]
+            if i == j:
+                P = np.outer(ci, ci)
+            else:
+                P = 0.5 * (np.outer(ci, cj) + np.outer(cj, ci))
+            Jij = basis.coulomb(P)
+            # (mn | ij) = c_m^T . J . c_n.
+            # JC = J . mo_active  -> (Nbf, N)   then mo_active.T @ JC -> (N, N).
+            mtJn = mo_active.T @ (Jij @ mo_active)        # shape (N, N)
+            eri[:, :, i, j] = mtJn
+            if i != j:
+                eri[:, :, j, i] = mtJn
+    # Enforce the (mn) <-> (ij) pair-swap symmetry that's required by
+    # PySCF's 8-fold-packed (s8) format. The block we computed
+    # satisfies (mn | ij) symmetry in m<->n and i<->j, but symmetrising
+    # over pair-swap protects against small numerical asymmetries.
+    eri = 0.5 * (eri + eri.transpose(2, 3, 0, 1))
+    return eri
+
+
+def install_eri_builder(mc, basis):
+    """Patch a pyscf.mcscf.CAS* object (CASCI or CASSCF) so it builds the
+    active-space ERI by repeated J calls into `basis` instead of from
+    `mol.intor("int2e")`.
+
+    PySCF's `CASCI.get_h2eff(mo_coeff)` is what the SCF kernel calls;
+    it returns the active-space ERI in 4-fold-packed form. We compute
+    the unpacked tensor via build_active_eri then pack with
+    pyscf.ao2mo.restore. Also patch `ao2mo` for callers that go
+    through that route (e.g. CASSCF orbital optimisation).
+
+    Returns `mc` (the same object) for chaining.
+    """
+    def _build(mo_coeff=None):
+        if mo_coeff is None:
+            mo_coeff = mc.mo_coeff
+        if mo_coeff.shape[1] > mc.ncas:
+            mo_active = mo_coeff[:, mc.ncore:mc.ncore + mc.ncas]
+        else:
+            mo_active = mo_coeff
+        eri_full = build_active_eri(basis, mo_active)
+        return ao2mo.restore('s4', eri_full, mc.ncas)
+
+    mc.get_h2eff = _build
+    mc.ao2mo     = _build
+    return mc
+
+
+def helfem_casci(mf, basis, ncas, nelecas):
+    """Build a pyscf.mcscf.CASCI driven by HelFEM integrals on top of an
+    `mf` from helfem_scf. Wraps `install_eri_builder` so the user gets a
+    ready-to-call CASCI object.
+    """
+    from pyscf import mcscf
+    mc = mcscf.CASCI(mf, ncas, nelecas)
+    return install_eri_builder(mc, basis)
+
+
+def helfem_casscf(mf, basis, ncas, nelecas):
+    """Same as helfem_casci but with orbital optimisation (CASSCF)."""
+    from pyscf import mcscf
+    mc = mcscf.CASSCF(mf, ncas, nelecas)
+    return install_eri_builder(mc, basis)
