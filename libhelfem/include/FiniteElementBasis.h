@@ -153,6 +153,13 @@ namespace helfem {
       /// Evaluate the nth derivative at all quadrature points
       arma::mat eval_dnf(const arma::vec & xq, int n) const;
 
+      /// Evaluate the n-th r-derivative of B_u(r)/r for the surviving shape
+      /// functions on element iel. Only valid when element iel starts at
+      /// r=0 (the Dirichlet-induced (x+1) factor in each B_u is what makes
+      /// the deflation work). Delegates to PolynomialBasis::eval_over_r
+      /// with the element's scaling_factor as the size argument.
+      arma::mat eval_over_r(const arma::vec & x, int n, size_t iel) const;
+
       /**
        * Compute matrix elements in the finite element basis <lh|f|rh>
        *

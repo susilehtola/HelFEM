@@ -313,6 +313,19 @@ namespace helfem {
       return p->eval_dnf(x,n,scaling_factor(iel));
     }
 
+    arma::mat FiniteElementBasis::eval_over_r(const arma::vec & x, int n, size_t iel) const {
+      if (std::abs(element_begin(iel)) > 1e-14) {
+        std::ostringstream oss;
+        oss << "FiniteElementBasis::eval_over_r is only valid when the element starts at r=0;"
+            " element " << iel << " starts at " << element_begin(iel) << ".\n";
+        throw std::logic_error(oss.str());
+      }
+      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
+      arma::mat dnf_over_r;
+      p->eval_over_r(x, dnf_over_r, n, scaling_factor(iel));
+      return dnf_over_r;
+    }
+
     arma::mat FiniteElementBasis::eval_dnf(const arma::vec & x, int n) const {
       arma::mat f(get_nelem()*x.n_elem,get_nbf());
       for(size_t iel=0;iel<get_nelem();iel++) {

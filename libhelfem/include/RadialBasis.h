@@ -65,18 +65,11 @@ namespace helfem {
         /// Finite element basis
         polynomial_basis::FiniteElementBasis fem;
 
-        /// Value of r for which to switch over to evaluating basis
-        /// functions by Taylor series
-        double small_r_taylor_cutoff;
-        /// Order of Taylor series
-        int taylor_order;
-        /// Difference at cutoff
-        double taylor_diff;
-
-        /// Derivatives of basis functions at origin
-        std::vector<arma::rowvec> taylor_df;
-        /// Set the cutoff
-        void set_small_r_taylor_cutoff();
+        // The Taylor pipeline used in earlier HelFEM versions to handle
+        // B(r)/r near r=0 has been replaced by an analytic deflation in
+        // PolynomialBasis::eval_over_r (called via FiniteElementBasis).
+        // The small_r_taylor_cutoff / taylor_order / taylor_diff state and
+        // the set_small_r_taylor_cutoff() helper are no longer needed.
 
       public:
         /// Dummy constructor
@@ -203,9 +196,6 @@ namespace helfem {
         arma::mat get_lf(size_t iel) const;
         /// Evaluate basis functions at given points
         arma::mat get_lf(const arma::vec & x, size_t iel) const;
-        /// Evaluate small-r Taylor series
-        void get_taylor(const arma::vec & r, const arma::uvec & taylorind, arma::mat & val, int ider) const;
-
         /// Evaluate orbitals at a given point
         arma::vec eval_orbs(const arma::mat & C, double r) const override;
 

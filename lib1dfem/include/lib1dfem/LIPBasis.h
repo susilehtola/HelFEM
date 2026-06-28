@@ -86,9 +86,11 @@ class LIPBasis : public PolynomialBasis<T> {
   /// factorisation
   ///     L_i(x) = ((x+1)/(x_i+1)) * L_i^{(0)}(x)
   /// where L_i^{(0)} is the Lagrange polynomial over the reduced node set
-  /// {x_1, ..., x_{n-1}}, so for r = (Delta/2)(x+1):
-  ///     B_i(r)/r       = (2/Delta) * L_i^{(0)}(x) / (x_i + 1)
-  ///     d^n[B_i/r]/dr^n = (2/Delta)^(n+1) * L_i^{(0)(n)}(x) / (x_i + 1)
+  /// {x_1, ..., x_{n-1}}, so for r = element_length * (x+1) on the first
+  /// element (element_length is the scaling_factor = half the full element
+  /// width, matching the eval_dnf convention):
+  ///     B_i(r)/r        = (1/element_length) * L_i^{(0)}(x) / (x_i + 1)
+  ///     d^n[B_i/r]/dr^n = (1/element_length)^(n+1) * L_i^{(0)(n)}(x) / (x_i + 1)
   ///
   /// L_i^{(0)} is computed by reusing the templated LIP evaluator on the
   /// reduced node set. Output columns are indexed by `enabled` (just like
@@ -107,7 +109,7 @@ class LIPBasis : public PolynomialBasis<T> {
     detail::eval_lip_prim_dnf<T>(x, x0_reduced, dnf_reduced, n);
     // dnf_reduced column j_red ∈ [0, n-2] corresponds to full index j_full = j_red + 1.
 
-    const T scale = std::pow(T(2) / element_length, n + 1);
+    const T scale = T(1) / std::pow(element_length, n + 1);
     dnf_over_r.set_size(x.n_elem, this->enabled.n_elem);
     for (arma::uword k = 0; k < this->enabled.n_elem; ++k) {
       const arma::uword i_full = this->enabled(k);

@@ -93,20 +93,26 @@ class HIPBasis : public LIPBasis<T> {
   /// Analytic B_u(r)/r for the surviving (post-drop_first(true,false)) HIP
   /// shape functions on the first element.
   ///
+  /// The element_length parameter is the scaling_factor = half the full
+  /// element width, matching the eval_dnf convention; r = element_length *
+  /// (x+1) on the first element.
+  ///
   /// Surviving shapes after dropping only the function at node 0:
-  ///   - df_0 = (x+1) L_0(x)^2 * Delta      (the derivative shape at node 0)
-  ///   - f_i, df_i for i >= 1               (both shapes at all interior+right nodes)
+  ///   - df_0 = (x+1) L_0(x)^2 * element_length   (derivative shape at node 0)
+  ///   - f_i, df_i for i >= 1                     (both shapes at remaining nodes)
   ///
   /// For i >= 1, factor L_i(x) = ((x+1)/(x_i+1)) * L_i^{(0)}(x), where
   /// L_i^{(0)} is the LIP over the reduced node set {x_1, ..., x_{n-1}}.
-  /// Plug into the HIP shape formulas and divide by r = (Delta/2)(x+1):
+  /// Plug into the HIP shape formulas and divide by r = element_length*(x+1):
   ///
-  ///   df_0(r)/r  = 2 * L_0(x)^2
-  ///   f_i(r)/r   = (2/Delta) * (x+1) * [1 - 2(x-x_i) L_i'(x_i)] * L_i^{(0)}(x)^2 / (x_i+1)^2
-  ///   df_i(r)/r  = 2 * (x+1) * (x-x_i) * L_i^{(0)}(x)^2 / (x_i+1)^2
+  ///   df_0(r)/r  = L_0(x)^2                                                          (n=0)
+  ///   f_i(r)/r   = (1/element_length) * (x+1) * [1 - 2(x-x_i) L_i'(x_i)]
+  ///                * L_i^{(0)}(x)^2 / (x_i+1)^2                                       (n=0, i>=1)
+  ///   df_i(r)/r  = (x+1) * (x-x_i) * L_i^{(0)}(x)^2 / (x_i+1)^2                       (n=0, i>=1)
   ///
-  /// (the element_length on the derivative shape cancels with the 1/r division).
-  /// r-derivatives pull in (2/Delta)^n chain-rule factors.
+  /// (the element_length factor on the derivative shape cancels with the
+  /// 1/r division for df_0 and df_i, but f_i picks up a 1/element_length.)
+  /// r-derivatives pull in (1/element_length)^n chain-rule factors.
   ///
   /// Implemented for n in {0, 1, 2}; throws for higher orders (this matches
   /// the planned 'no Taylor pipeline' design where RadialBasis only needs
@@ -141,8 +147,8 @@ class HIPBasis : public LIPBasis<T> {
     if (n >= 1) detail::eval_lip_prim_dnf<T>(x, x0_red, Lr1, 1);
     if (n >= 2) detail::eval_lip_prim_dnf<T>(x, x0_red, Lr2, 2);
 
-    const T inv_h = T(2) / element_length;       // 2/Delta
-    const T chain = std::pow(inv_h, n);          // (2/Delta)^n
+    const T inv_h = T(1) / element_length;       // 1 / scaling_factor
+    const T chain = std::pow(inv_h, n);          // (1/element_length)^n
 
     dnf_over_r.set_size(x.n_elem, this->enabled.n_elem);
 
@@ -156,26 +162,26 @@ class HIPBasis : public LIPBasis<T> {
         T q;  // value of Q(x) for this shape (so that R(r) = prefactor * Q(x))
 
         if (node == 0 && deriv_shape) {
-          // df_0(r)/r = 2 * L_0(x)^2.  Q(x) = 2 * L_0^2; prefactor (2/Delta)^n
+          // df_0(r)/r = L_0(x)^2.  Q(x) = L_0^2; prefactor (1/element_length)^n.
           const T L  = Lf0(ix, 0);
           if (n == 0) {
-            q = T(2) * L * L;
+            q = L * L;
           } else if (n == 1) {
             const T Lp = Lf1(ix, 0);
-            // d/dx [2 L^2] = 4 L L'
-            q = T(4) * L * Lp;
+            // d/dx [L^2] = 2 L L'
+            q = T(2) * L * Lp;
           } else { // n == 2
             const T Lp  = Lf1(ix, 0);
             const T Lpp = Lf2(ix, 0);
-            // d^2/dx^2 [2 L^2] = 4 (L')^2 + 4 L L''
-            q = T(4) * Lp * Lp + T(4) * L * Lpp;
+            // d^2/dx^2 [L^2] = 2 (L')^2 + 2 L L''
+            q = T(2) * Lp * Lp + T(2) * L * Lpp;
           }
           dnf_over_r(ix, k) = chain * q;
         } else if (node >= 1 && !deriv_shape) {
-          // f_i(r)/r = (2/Delta) * (x+1) * B(x) * C(x) / (x_i+1)^2
+          // f_i(r)/r = (1/element_length) * (x+1) * B(x) * C(x) / (x_i+1)^2
           //   B(x) = 1 - 2 (x - x_i) lipxi_i,  B' = -2 lipxi_i,  B'' = 0
           //   C(x) = L_i^{(0)}(x)^2,  C' = 2 L L',  C'' = 2 (L')^2 + 2 L L''
-          // Prefactor: (2/Delta)^(n+1)
+          // Prefactor: (1/element_length)^(n+1)
           const arma::uword i_red = node - 1;
           const T xi_p1 = x0_full(node) + T(1);
           const T inv_xi_p1_sq = T(1) / (xi_p1 * xi_p1);
@@ -207,10 +213,10 @@ class HIPBasis : public LIPBasis<T> {
           }
           dnf_over_r(ix, k) = inv_h * chain * q * inv_xi_p1_sq;
         } else if (node >= 1 && deriv_shape) {
-          // df_i(r)/r = 2 * (x+1)(x-x_i) * C(x) / (x_i+1)^2
+          // df_i(r)/r = (x+1)(x-x_i) * C(x) / (x_i+1)^2
           //   D(x) = (x+1)(x-x_i),  D' = 2x + 1 - x_i,  D'' = 2
           //   C(x) = L_i^{(0)}(x)^2 as above
-          // Prefactor: 2 * (2/Delta)^n
+          // Prefactor: (1/element_length)^n
           const arma::uword i_red = node - 1;
           const T xi    = x0_full(node);
           const T xi_p1 = xi + T(1);
@@ -222,19 +228,19 @@ class HIPBasis : public LIPBasis<T> {
           const T Dpp = T(2);
           const T L  = Lr0(ix, i_red);
           if (n == 0) {
-            q = T(2) * D * L * L;
+            q = D * L * L;
           } else if (n == 1) {
             const T Lp = Lr1(ix, i_red);
             const T C  = L * L;
             const T Cp = T(2) * L * Lp;
-            q = T(2) * (Dp * C + D * Cp);
+            q = Dp * C + D * Cp;
           } else { // n == 2
             const T Lp  = Lr1(ix, i_red);
             const T Lpp = Lr2(ix, i_red);
             const T C   = L * L;
             const T Cp  = T(2) * L * Lp;
             const T Cpp = T(2) * Lp * Lp + T(2) * L * Lpp;
-            q = T(2) * (Dpp * C + T(2) * Dp * Cp + D * Cpp);
+            q = Dpp * C + T(2) * Dp * Cp + D * Cpp;
           }
           dnf_over_r(ix, k) = chain * q * inv_xi_p1_sq;
         } else {
