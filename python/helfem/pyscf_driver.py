@@ -228,19 +228,52 @@ def install_eri_builder(mc, basis):
 
 def helfem_casci(mf, basis, ncas, nelecas):
     """Build a pyscf.mcscf.CASCI driven by HelFEM integrals on top of an
-    `mf` from helfem_scf. Wraps `install_eri_builder` so the user gets a
-    ready-to-call CASCI object.
+    `mf` from helfem_scf. Auto-installs the full AO ERI on mf if not
+    already present, then constructs a standard pyscf CASCI -- no
+    custom mc.ao2mo override needed, all of pyscf's downstream
+    machinery (FCI solver, etc.) flows on top.
     """
     from pyscf import mcscf
-    mc = mcscf.CASCI(mf, ncas, nelecas)
-    return install_eri_builder(mc, basis)
+    if getattr(mf, "_eri", None) is None:
+        install_full_eri(mf, basis)
+    return mcscf.CASCI(mf, ncas, nelecas)
 
 
 def helfem_casscf(mf, basis, ncas, nelecas):
-    """Same as helfem_casci but with orbital optimisation (CASSCF)."""
+    """Same as helfem_casci but with orbital optimisation (CASSCF).
+
+    Requires mf._eri to have been pre-populated with the AO ERI tensor
+    (use install_full_eri below). CASSCF uses PySCF's _ERIS internals
+    which need the AO ERI; the install_eri_builder shim works for
+    CASCI but not CASSCF (CASSCF needs vhf_c, ppaa, papa, ... beyond
+    what install_eri_builder provides).
+    """
     from pyscf import mcscf
-    mc = mcscf.CASSCF(mf, ncas, nelecas)
-    return install_eri_builder(mc, basis)
+    if getattr(mf, "_eri", None) is None:
+        install_full_eri(mf, basis)
+    return mcscf.CASSCF(mf, ncas, nelecas)
+
+
+def install_full_eri(mf, basis):
+    """Pre-compute the full Nbf^4 AO ERI tensor for `basis` and store it
+    on mf._eri (8-fold packed form). Once installed, PySCF's
+    standard ao2mo / CASCI / CASSCF / MP2 / CCSD etc. machinery works
+    against the HelFEM basis through normal code paths -- no per-method
+    overrides needed.
+
+    Cost: Nbf*(Nbf+1)/2 J builds + O(Nbf^4) storage. For a compact NAO
+    basis (Nbf ~ 10-30) this is trivial (Nbf^4 ~ 10k-800k entries).
+    For larger Nbf the storage blows up -- use DF/Cholesky or stick to
+    the per-multipole install_eri_builder path instead. Typical NAO
+    workflows are small enough that this is the path of least
+    resistance for CASSCF.
+    """
+    Nbf = basis.Nbf()
+    # build_active_eri with identity coefficients returns the AO ERI.
+    eri_unpacked = build_active_eri(basis, np.eye(Nbf))
+    # Store in 8-fold-packed form (the format PySCF uses internally).
+    mf._eri = ao2mo.restore('s8', eri_unpacked, Nbf)
+    return mf
 
 
 # -- NAO basis (projection of an FE AtomicBasis onto its physical
