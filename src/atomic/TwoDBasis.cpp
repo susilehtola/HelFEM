@@ -1046,31 +1046,12 @@ namespace helfem {
         arma::mat K(Ndummy(),Ndummy());
         K.zeros();
 
-        // Helper memory
-#ifdef _OPENMP
-        const int nth(omp_get_max_threads());
-#else
-        const int nth(1);
-#endif
-        std::vector<arma::vec> mem_Ksub(nth);
-        std::vector<arma::vec> mem_Psub(nth);
-        std::vector<arma::vec> mem_T(nth);
-
+        // Per-element K assembly is delegated to the cached helpers
+        // in CoulombExchangeFE.h -- no per-thread scratch needed.
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
         {
-#ifdef _OPENMP
-          const int ith(omp_get_thread_num());
-#else
-          const int ith(0);
-#endif
-          // These are only small submatrices!
-          mem_Psub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-          mem_Ksub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-          mem_T[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-
-          // Increment
 #ifdef _OPENMP
 #pragma omp for collapse(2)
 #endif
@@ -1155,28 +1136,21 @@ namespace helfem {
                          (jang+1)*Nrad-1, (kang+1)*Nrad-1) -= K_block;
               } else {
                 // Erfc: rs_ktei has cross-element entries for every
-                // (iel, jel) pair -- the kernel does not factorise.
-                // Keep the inline assembly.
-                for(size_t iel=0;iel<Nel;iel++) {
-                  size_t ifirst, ilast;
-                  radial.get_idx(iel,ifirst,ilast);
-                  for(size_t jel=0;jel<Nel;jel++) {
-                    size_t jfirst, jlast;
-                    radial.get_idx(jel,jfirst,jlast);
-                    size_t Ni(ilast-ifirst+1);
-                    size_t Nj(jlast-jfirst+1);
-                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni*Nj,1,false,true);
-                    Ksub.zeros();
-                    for(size_t L=0;L<N_L;L++) {
-                      if(!couple[L]) continue;
-                      Ksub += rs_ktei[Nel*Nel*L + iel*Nel + jel]
-                              * arma::vectorise(Rmat[L].submat(ifirst,jfirst,ilast,jlast));
-                    }
-                    Ksub.reshape(Ni,Nj);
-                    K.submat(jang*Nrad+ifirst,kang*Nrad+jfirst,
-                             jang*Nrad+ilast,kang*Nrad+jlast) -= Ksub;
-                  }
+                // (iel, jel) pair -- delegate to the pairwise cached
+                // helper, summed over L into the (jang, kang) block.
+                arma::mat K_block(Nrad, Nrad, arma::fill::zeros);
+                for(size_t L=0; L<N_L; ++L) {
+                  if(!couple[L]) continue;
+                  const size_t Lc = L;
+                  auto kt = [&,Lc](size_t iel, size_t jel) -> const arma::mat & {
+                    return rs_ktei[Nel*Nel*Lc + iel*Nel + jel];
+                  };
+                  K_block +=
+                    helfem::atomic::basis::assemble_K_FE_one_multipole_cached_pairwise(
+                      radial, kt, Rmat[Lc]);
                 }
+                K.submat(jang*Nrad, kang*Nrad,
+                         (jang+1)*Nrad-1, (kang+1)*Nrad-1) -= K_block;
               }
             }
           }

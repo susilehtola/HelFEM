@@ -120,6 +120,20 @@ namespace helfem {
           const PerElementAccessor & ktei_in_element,
           const arma::mat & P_FE);
 
+      /// Per-(iel, jel) accessor variant of the above K helper, for
+      /// kernels whose r1/r2 coupling does NOT factorise into a
+      /// small/big disjoint product (in particular: the error-function
+      /// kernel used by HelFEM's compute_erfc / rs_exchange). Every
+      /// element pair gets its own dense ktei from the cache, then the
+      /// standard K contraction is applied. No disjoint optimisation
+      /// available -- O(Nel^2) per call.
+      using PerElementPairAccessor =
+          std::function<const arma::mat & (size_t iel, size_t jel)>;
+      arma::mat assemble_K_FE_one_multipole_cached_pairwise(
+          const FEMRadialBasis & radial,
+          const PerElementPairAccessor & ktei_pairwise,
+          const arma::mat & P_FE);
+
       // Inline implementations -- header-only to match the rest of the
       // libhelfem/include/ NAO surface. ~150 LOC total.
 
@@ -216,6 +230,31 @@ namespace helfem {
               K_FE.submat(ifirst, jfirst, ilast, jlast) +=
                   iint * (Psub * jint.t());
             }
+          }
+        }
+        return K_FE;
+      }
+
+      inline arma::mat assemble_K_FE_one_multipole_cached_pairwise(
+          const FEMRadialBasis & radial,
+          const PerElementPairAccessor & ktei_pairwise,
+          const arma::mat & P_FE) {
+        const size_t Nel  = radial.Nel();
+        const size_t Nrad = radial.Nbf();
+        arma::mat K_FE(Nrad, Nrad, arma::fill::zeros);
+        for (size_t iel = 0; iel < Nel; ++iel) {
+          size_t ifirst, ilast;
+          radial.get_idx(iel, ifirst, ilast);
+          const size_t Ni = ilast - ifirst + 1;
+          for (size_t jel = 0; jel < Nel; ++jel) {
+            size_t jfirst, jlast;
+            radial.get_idx(jel, jfirst, jlast);
+            const size_t Nj = jlast - jfirst + 1;
+            arma::vec Psub_v = arma::vectorise(
+                P_FE.submat(ifirst, jfirst, ilast, jlast));
+            arma::vec Ksub_v = ktei_pairwise(iel, jel) * Psub_v;
+            K_FE.submat(ifirst, jfirst, ilast, jlast) +=
+                arma::reshape(Ksub_v, Ni, Nj);
           }
         }
         return K_FE;
