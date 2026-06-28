@@ -65,17 +65,11 @@ namespace helfem {
         /// Finite element basis
         polynomial_basis::FiniteElementBasis fem;
 
-        // The Taylor pipeline used in earlier HelFEM versions to handle
-        // B(r)/r near r=0 has been replaced by an analytic deflation in
-        // PolynomialBasis::eval_over_r (called via FiniteElementBasis).
-        // The small_r_taylor_cutoff / taylor_order / taylor_diff state and
-        // the set_small_r_taylor_cutoff() helper are no longer needed.
-
       public:
         /// Dummy constructor
         FEMRadialBasis();
         /// Construct radial basis
-        FEMRadialBasis(const polynomial_basis::FiniteElementBasis & fem, int n_quad, int taylor_order);
+        FEMRadialBasis(const polynomial_basis::FiniteElementBasis & fem, int n_quad);
         /// Explicit destructor
         ~FEMRadialBasis() override;
 
@@ -97,12 +91,6 @@ namespace helfem {
         int get_poly_id() const;
         /// Get number of nodes in polynomial basis
         int get_poly_nnodes() const;
-        /// Get small r Taylor cutoff
-        double get_small_r_taylor_cutoff() const;
-        /// Get the order of the Taylor series
-        int get_taylor_order() const;
-        /// Get the error in the Taylor series
-        double get_taylor_diff() const;
 
         /// Get number of overlapping functions
         size_t get_noverlap() const;

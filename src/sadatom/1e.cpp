@@ -89,9 +89,6 @@ int main(int argc, char **argv) {
   // Order of quadrature rule
   printf("Using %i point quadrature rule.\n",Nquad);
 
-  // Set default order of Taylor expansion
-  int taylor_order = poly->get_nprim()-1;
-
   // Radial basis
   arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0);
 
@@ -100,7 +97,7 @@ int main(int argc, char **argv) {
   bool zero_deriv_left=false;
   bool zero_func_right=true;
   polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zeroder);
-  atomic::basis::FEMRadialBasis radial(fem, Nquad, taylor_order);
+  atomic::basis::FEMRadialBasis radial(fem, Nquad);
 
   // Compute matrices
   arma::mat S(radial.overlap());

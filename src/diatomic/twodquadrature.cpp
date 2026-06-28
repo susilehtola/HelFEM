@@ -532,7 +532,6 @@ namespace helfem {
         int Nnodes=15;
         auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::get_basis(primbas,Nnodes)));
         int Nquad=5*poly->get_nbf();
-        int taylor_order = poly->get_nprim()-1;
 
         // PBE xc
         int x_func = 101;
@@ -578,7 +577,7 @@ namespace helfem {
         int iguess=2;
 
         if(Zl>0) {
-          sadatom::solver::SCFSolver lsolver(Zl, finitenuc, Rrms, lmax(Zl), poly, zeroder, Nquad, blval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
+          sadatom::solver::SCFSolver lsolver(Zl, finitenuc, Rrms, lmax(Zl), poly, zeroder, Nquad, blval, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
           helfem::sadatom::solver::rconf_t lconf;
           lconf.orbs=sadatom::solver::OrbitalChannel(true);
           lsolver.Initialize(lconf.orbs,iguess);
@@ -589,7 +588,7 @@ namespace helfem {
           lh_occs = lconf.orbs.Occs();
         }
         if(Zr>0) {
-          sadatom::solver::SCFSolver rsolver(Zr, finitenuc, Rrms, lmax(Zr), poly, zeroder, Nquad, brval, taylor_order, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
+          sadatom::solver::SCFSolver rsolver(Zr, finitenuc, Rrms, lmax(Zr), poly, zeroder, Nquad, brval, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
           helfem::sadatom::solver::rconf_t rconf;
           rconf.orbs=sadatom::solver::OrbitalChannel(true);
           rsolver.Initialize(rconf.orbs,iguess);

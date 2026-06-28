@@ -28,15 +28,7 @@ namespace helfem {
     namespace basis {
       FEMRadialBasis::FEMRadialBasis() {}
 
-      FEMRadialBasis::FEMRadialBasis(const polynomial_basis::FiniteElementBasis & fem_, int n_quad, int taylor_order_) : fem(fem_) {
-        // taylor_order is a vestigial parameter from the pre-eval_over_r days.
-        // The Taylor expansion near r=0 has been retired in favour of the
-        // analytic deflation in PolynomialBasis::eval_over_r; the value is
-        // ignored but accepted for API back-compatibility. Stored as 0 so the
-        // (also vestigial) get_taylor_order() accessor returns something
-        // bounded.
-        (void)taylor_order_;
-
+      FEMRadialBasis::FEMRadialBasis(const polynomial_basis::FiniteElementBasis & fem_, int n_quad) : fem(fem_) {
         // Get quadrature rule
         chebyshev::chebyshev(n_quad, xq, wq);
         for (size_t i = 0; i < xq.n_elem; i++) {
@@ -88,13 +80,6 @@ namespace helfem {
       int FEMRadialBasis::get_poly_nnodes() const {
         return fem.get_poly_nnodes();
       }
-
-      // The Taylor pipeline has been retired in favour of PolynomialBasis::eval_over_r.
-      // These accessors stay for API back-compatibility but return 0.
-      double FEMRadialBasis::get_small_r_taylor_cutoff() const { return 0.0; }
-      int    FEMRadialBasis::get_taylor_order()         const { return 0;   }
-      double FEMRadialBasis::get_taylor_diff()          const { return 0.0; }
-
 
       arma::mat FEMRadialBasis::radial_integral(int Rexp, size_t iel, double x_left, double x_right) const {
         // <R | r^Rexp | R> with the FE-natural dr measure means weight r^(Rexp+2):
