@@ -25,6 +25,7 @@
 #include "GeneralHIPBasis.h"
 #include "LegendreBasis.h"
 #include <lib1dfem/HIP2Basis.h>  // analytic HIP order 2 (primbas=8 since v2)
+#include <lib1dfem/HIP3Basis.h>  // analytic HIP order 3 (primbas=9 since v2)
 
 namespace helfem {
   namespace polynomial_basis {
@@ -89,9 +90,7 @@ namespace helfem {
       case(8):
         {
           // Analytic HIP2 (closed-form Hermite, second-order). Replaces the
-          // runtime-inverted GeneralHIPBasis(nder=2) path. Derivative orders
-          // > 2 are not supported on this class -- per the post-Taylor design,
-          // RadialBasis only needs orders 0, 1, 2 anyway.
+          // runtime-inverted GeneralHIPBasis(nder=2) path.
           arma::vec x, w;
           ::lobatto_compute(Nnodes, x, w);
           poly = new lib1dfem::polynomial_basis::HIP2Basis<double>(x, primbas);
@@ -99,9 +98,19 @@ namespace helfem {
           break;
         }
 
+      case(9):
+        {
+          // Analytic HIP3 (closed-form Hermite, third-order). Replaces the
+          // runtime-inverted GeneralHIPBasis(nder=3) path.
+          arma::vec x, w;
+          ::lobatto_compute(Nnodes, x, w);
+          poly = new lib1dfem::polynomial_basis::HIP3Basis<double>(x, primbas);
+          printf("Basis set composed of %i-node 3rd order analytic HIPs with Gauss-Lobatto nodes.\n", Nnodes);
+          break;
+        }
+
       case(6):
       case(7):
-      case(9):
       case(10):
       case(11):
         {
