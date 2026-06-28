@@ -286,15 +286,35 @@ namespace helfem {
 	save_data(oss.str(), orblval);
       }
 
-      double hund_rule_correction(const OrbitalChannel & orbs,
-                                  const basis::TwoDBasis & basis) {
+      static double hund_rule_correction_impl(const arma::ivec & occs,
+                                              const arma::cube & C,
+                                              int lmax,
+                                              const basis::TwoDBasis & basis) {
         // Walk shells in order of l. For each, count the open-shell
         // occupation = occs(l) mod (4l + 2). The lowest partially-filled
         // orbital in that l-shell is the "open shell"; its orbital index
         // is occs(l) / (4l + 2).
-        const arma::ivec occs = orbs.Occs();
-        const int lmax = orbs.Lmax();
-        const arma::cube C = orbs.Coeffs();
+        //
+        // Only proceed if at most ONE open shell exists (so the
+        // configuration has a clean single-multiplet structure where
+        // our tabulated p^n / d^n coefficients are valid). For
+        // multi-open-shell configs (e.g. 2s^1 2p^3 in sadatom's UHF
+        // Aufbau for C), the term structure involves cross-shell
+        // (s-p, etc.) coupling integrals that the simple table does
+        // NOT cover; skip with a warning.
+        int n_open_shells = 0;
+        for (int l = 0; l <= lmax && l < (int) occs.n_elem; ++l) {
+          const int capacity = 4 * l + 2;
+          if (occs(l) % capacity != 0)
+            n_open_shells++;
+        }
+        if (n_open_shells > 1) {
+          printf("[hund_rule_correction] warning: %d open shells in this "
+                 "configuration; the tabulated p^n / d^n correction only "
+                 "covers single-open-shell configs. Skipping (returning 0).\n",
+                 n_open_shells);
+          return 0.0;
+        }
         double total_correction = 0.0;
         for (int l = 0; l <= lmax; ++l) {
           if (l >= (int) occs.n_elem) break;
@@ -349,6 +369,26 @@ namespace helfem {
           }
         }
         return total_correction;
+      }
+
+      double hund_rule_correction(const OrbitalChannel & orbs,
+                                  const basis::TwoDBasis & basis) {
+        return hund_rule_correction_impl(orbs.Occs(), orbs.Coeffs(),
+                                         orbs.Lmax(), basis);
+      }
+
+      double hund_rule_correction(const OrbitalChannel & orbsa,
+                                  const OrbitalChannel & orbsb,
+                                  const basis::TwoDBasis & basis) {
+        // UHF Hund-rule correction. Combine alpha + beta occupations
+        // to get the total atomic configuration. Use ALPHA coefficients
+        // for F^k -- under Hund's rule, the open-shell electrons live
+        // in the high-spin (alpha) channel, so the alpha orbital is the
+        // physical "open-shell" orbital for the Hund single determinant.
+        const arma::ivec occs_total = orbsa.Occs() + orbsb.Occs();
+        const int lmax = std::max(orbsa.Lmax(), orbsb.Lmax());
+        return hund_rule_correction_impl(occs_total, orbsa.Coeffs(),
+                                         lmax, basis);
       }
 
       bool OrbitalChannel::operator==(const OrbitalChannel & rh) const {
