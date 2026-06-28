@@ -13,6 +13,7 @@
  * for the full license text.
  */
 #include "basis.h"
+#include <CoulombExchangeFE.h>
 #include "chebyshev.h"
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
@@ -297,64 +298,23 @@ namespace helfem {
         if(!prim_tei.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
-        // Number of radial elements
-        size_t Nel(radial.Nel());
-
-        arma::mat J(P);
-        J.zeros();
-        // Contract integrals
-        for(int L=0;L<1;L++) {
-          const double Lfac=4.0*M_PI/(2*L+1);
-
-          for(size_t jel=0;jel<Nel;jel++) {
-            size_t jfirst, jlast;
-            radial.get_idx(jel,jfirst,jlast);
-            size_t Nj(jlast-jfirst+1);
-
-            arma::mat Psub(P.submat(jfirst,jfirst,jlast,jlast));
-
-            // Contract integrals
-            double jsmall = Lfac*arma::trace(disjoint_L[L*Nel+jel]*Psub);
-            double jbig = Lfac*arma::trace(disjoint_m1L[L*Nel+jel]*Psub);
-
-            // Increment J: jel>iel
-            for(size_t iel=0;iel<jel;iel++) {
-              size_t ifirst, ilast;
-              radial.get_idx(iel,ifirst,ilast);
-
-              const arma::mat & iint=disjoint_L[L*Nel+iel];
-              J.submat(ifirst,ifirst,ilast,ilast)+=jbig*iint;
-            }
-
-            // Increment J: jel<iel
-            for(size_t iel=jel+1;iel<Nel;iel++) {
-              size_t ifirst, ilast;
-              radial.get_idx(iel,ifirst,ilast);
-
-              const arma::mat & iint=disjoint_m1L[L*Nel+iel];
-              J.submat(ifirst,ifirst,ilast,ilast)+=jsmall*iint;
-            }
-
-            // In-element contribution
-            {
-              size_t iel=jel;
-              size_t ifirst=jfirst;
-              size_t ilast=jlast;
-              size_t Ni=Nj;
-
-              // Contract integrals
-              Psub.reshape(Nj*Nj,1);
-
-              const size_t idx(Nel*Nel*L + iel*Nel + jel);
-              arma::mat Jsub(Lfac*(prim_tei[idx]*Psub));
-              Jsub.reshape(Ni,Ni);
-
-              J.submat(ifirst,ifirst,ilast,ilast)+=Jsub;
-            }
-          }
-        }
-
-        return J;
+        // sadatom is spherically averaged: only the L=0 multipole
+        // contributes. Delegate to the shared FE assembly with our
+        // SCF-cached per-element integrals.
+        const size_t Nel = radial.Nel();
+        const int    L   = 0;
+        const double Lfac = 4.0 * M_PI / (2 * L + 1);
+        auto rs = [&](size_t iel) -> const arma::mat & {
+          return disjoint_L[L * Nel + iel];
+        };
+        auto rb = [&](size_t iel) -> const arma::mat & {
+          return disjoint_m1L[L * Nel + iel];
+        };
+        auto tw = [&](size_t iel) -> const arma::mat & {
+          return prim_tei[Nel * Nel * L + iel * Nel + iel];
+        };
+        return Lfac * atomic::basis::assemble_J_FE_one_multipole_cached(
+            radial, rs, rb, tw, P);
       }
 
       arma::cube TwoDBasis::exchange(const arma::cube & P) const {
@@ -379,31 +339,14 @@ namespace helfem {
         arma::cube K(Nrad,Nrad,gmax+1);
         K.zeros();
 
-        // Helper memory
-#ifdef _OPENMP
-        const int nth(omp_get_max_threads());
-#else
-        const int nth(1);
-#endif
-        std::vector<arma::vec> mem_Ksub(nth);
-        std::vector<arma::vec> mem_Psub(nth);
-        std::vector<arma::vec> mem_T(nth);
+        // The per-element K assembly is now delegated to
+        // assemble_K_FE_one_multipole_cached -- no per-thread scratch
+        // needed here, the helper allocates its own.
 
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
         {
-#ifdef _OPENMP
-          const int ith(omp_get_thread_num());
-#else
-          const int ith(0);
-#endif
-          // These are only small submatrices!
-          mem_Psub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-          mem_Ksub[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-          mem_T[ith].zeros(radial.max_Nprim()*radial.max_Nprim());
-
-          // Increment
 #ifdef _OPENMP
 #pragma omp for
 #endif
@@ -459,65 +402,21 @@ namespace helfem {
             for(size_t L=0;L<coupling.size();L++) {
               if(!coupling[L])
                 continue;
-
-              // Radial matrix
-              arma::mat P_L(Prad.slice(L));
-
-              // Loop over elements: output
-              for(size_t iel=0;iel<Nel;iel++) {
-                size_t ifirst, ilast;
-                radial.get_idx(iel,ifirst,ilast);
-
-                // Input
-                for(size_t jel=0;jel<Nel;jel++) {
-                  size_t jfirst, jlast;
-                  radial.get_idx(jel,jfirst,jlast);
-
-                  // Number of functions in the two elements
-                  size_t Ni(ilast-ifirst+1);
-                  size_t Nj(jlast-jfirst+1);
-
-                  if(iel == jel) {
-                    /*
-                      The exchange matrix is given by
-                      K(jk) = (ij|kl) P(il)
-                      i.e. the complex conjugation hits i and l as
-                      in the density matrix.
-
-                      To get this in the proper order, we permute the integrals
-                      K(jk) = (jk;il) P(il)
-                    */
-
-                    // Exchange submatrix
-                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni*Nj,1,false,true);
-                    Ksub=prim_ktei[Nel*Nel*L + iel*Nel + jel]*arma::vectorise(P_L.submat(ifirst,jfirst,ilast,jlast));
-                    Ksub.reshape(Ni,Nj);
-
-                    // Increment global exchange matrix
-                    K.slice(lout).submat(ifirst,jfirst,ilast,jlast)-=Ksub;
-
-                  } else {
-                    // Disjoint integrals. When r(iel)>r(jel), iel gets -1-L, jel gets L.
-                    const arma::mat & iint=(iel>jel) ? disjoint_m1L[L*Nel+iel] : disjoint_L[L*Nel+iel];
-                    const arma::mat & jint=(iel>jel) ? disjoint_L[L*Nel+jel] : disjoint_m1L[L*Nel+jel];
-
-                    // Get density submatrix (Niel x Njel)
-                    arma::mat Psub(mem_Psub[ith].memptr(),Ni,Nj,false,true);
-                    Psub=P_L.submat(ifirst,jfirst,ilast,jlast);
-
-                    // Calculate helper
-                    arma::mat T(mem_T[ith].memptr(),Ni,Nj,false,true);
-                    // (Niel x Njel) = (Niel x Njel) x (Njel x Njel)
-                    T=Psub*arma::trans(jint);
-                    // Exchange submatrix
-                    arma::mat Ksub(mem_Ksub[ith].memptr(),Ni,Nj,false,true);
-                    Ksub=iint*T;
-
-                    // Increment global exchange matrix
-                    K.slice(lout).submat(ifirst,jfirst,ilast,jlast)-=Ksub;
-                  }
-                }
-              }
+              // Delegate the per-L K assembly to the shared FE helper.
+              // K is accumulated with the standard HF minus sign baked
+              // in (matches the pre-refactor convention).
+              const int Lint = (int) L;
+              auto rs = [&,Lint](size_t iel) -> const arma::mat & {
+                return disjoint_L[Lint * Nel + iel];
+              };
+              auto rb = [&,Lint](size_t iel) -> const arma::mat & {
+                return disjoint_m1L[Lint * Nel + iel];
+              };
+              auto kt = [&,Lint](size_t iel) -> const arma::mat & {
+                return prim_ktei[Nel * Nel * Lint + iel * Nel + iel];
+              };
+              K.slice(lout) -= atomic::basis::assemble_K_FE_one_multipole_cached(
+                  radial, rs, rb, kt, Prad.slice(L));
             }
           }
         }
