@@ -341,6 +341,19 @@ def state_ML(mc, basis, state_idx=0):
     return float(np.trace(dm_ao @ Lz_matrix(basis)))
 
 
+def state_S2(mc, state_idx=0):
+    """Compute <S^2> for CI state `state_idx`. Uses PySCF's
+    fcisolver.spin_square. Returns (S^2, 2S+1) as PySCF does."""
+    if isinstance(mc.ci, (list, tuple)):
+        ci = mc.ci[state_idx]
+    else:
+        if state_idx != 0:
+            raise IndexError(
+                f"requested state {state_idx} but mc has a single CI vector")
+        ci = mc.ci
+    return mc.fcisolver.spin_square(ci, mc.ncas, mc.nelecas)
+
+
 def state_Lorb2(mc, basis, state_idx=0):
     """Compute <L^2_orbital> (one-body L^2 trace) for CI state
     `state_idx`. Coarse L-character diagnostic; see top-of-section
@@ -366,13 +379,51 @@ def classify_states(mc, basis):
         e = energies[k] if energies is not None else None
         ml = state_ML(mc, basis, state_idx=k)
         l2 = state_Lorb2(mc, basis, state_idx=k)
+        s2, mult = state_S2(mc, state_idx=k)
         out.append({
             "state": k,
             "energy": e,
             "M_L": ml,
             "L^2_orbital": l2,
+            "S^2": s2,
+            "2S+1": mult,
         })
     return out
+
+
+# -- Post-HF convenience wrappers (MP2, CCSD, FCI) -------------------
+#
+# install_full_eri makes any of PySCF's post-HF methods Just Work on
+# top of a helfem-driven mf. These wrappers provide a uniform one-line
+# API alongside helfem_casci / helfem_casscf, and auto-install the AO
+# ERI tensor on mf if not already there.
+
+def helfem_mp2(mf, basis):
+    """MP2 on top of HelFEM SCF. Auto-installs the AO ERI on mf."""
+    from pyscf import mp
+    if getattr(mf, "_eri", None) is None:
+        install_full_eri(mf, basis)
+    return mp.MP2(mf)
+
+
+def helfem_ccsd(mf, basis):
+    """CCSD on top of HelFEM SCF. Auto-installs the AO ERI on mf."""
+    from pyscf import cc
+    if getattr(mf, "_eri", None) is None:
+        install_full_eri(mf, basis)
+    return cc.CCSD(mf)
+
+
+def helfem_fci(mf, basis):
+    """Full CI on top of HelFEM SCF. Returns a pyscf CASCI driver
+    configured for the full basis (ncas = Nbf, nelecas from mf.mol).
+
+    For small NAO bases (Nbf <= ~16) FCI is tractable and gives the
+    exact basis-set energy. For larger bases use CASCI on a chosen
+    active space instead.
+    """
+    nelectron = int(mf.mol.nelectron)
+    return helfem_casci(mf, basis, ncas=basis.Nbf(), nelecas=nelectron)
 
 
 def natural_orbitals(mc):
