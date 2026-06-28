@@ -15,33 +15,19 @@
 #ifndef POLYNOMIAL_BASIS_HIPBASIS_H
 #define POLYNOMIAL_BASIS_HIPBASIS_H
 
+// v2 refactor (Phase 1): the Hermite interpolating polynomial basis class
+// now lives in lib1dfem as a templated header. libhelfem exposes the
+// double-only instantiation under the original
+// helfem::polynomial_basis::HIPBasis name so existing callers compile
+// unchanged.
+
 #include "PolynomialBasis.h"
 #include "LIPBasis.h"
-#include <armadillo>
+#include <lib1dfem/HIPBasis.h>
 
 namespace helfem {
   namespace polynomial_basis {
-    /// Hermite interpolating polynomials
-    class HIPBasis: public LIPBasis {
-    protected:
-      /// LIP derivatives at nodes
-      arma::vec lipxi;
-    public:
-      /// Constructor
-      HIPBasis(const arma::vec & x0, int id=5);
-      /// Destructor
-      ~HIPBasis();
-      /// Get a copy
-      HIPBasis * copy() const override;
-
-      /// Drop first function
-      void drop_first(bool func, bool deriv) override;
-      /// Drop last function
-      void drop_last(bool func, bool deriv) override;
-
-      /// Evaluate the basis functions
-      void eval_prim_dnf(const arma::vec & x, arma::mat & dnf, int n, double element_length) const override;
-    };
+    using HIPBasis = helfem::lib1dfem::polynomial_basis::HIPBasis<double>;
   }
 }
 #endif
