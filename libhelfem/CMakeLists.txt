@@ -27,7 +27,6 @@ add_library(helfem
     src/HIPBasis.cpp
     src/HIPBasis_eval.cpp
     src/GeneralHIPBasis.cpp
-    src/LegendreBasis.cpp
     src/quadrature.cpp
     src/ModelPotential.cpp
     src/RadialPotential.cpp

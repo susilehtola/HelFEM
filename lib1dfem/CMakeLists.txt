@@ -30,6 +30,12 @@
 #                emits a templated free function so any T can be
 #                instantiated). Function table covers derivative orders
 #                0..20.
+#   - legendre_poly: Templated Legendre polynomial evaluators (value, first,
+#                second derivatives) via the standard recurrence. Replaces the
+#                LGPL oomph-lib Orthpoly that was bundled in libhelfem.
+#   - LegendreBasis: Templated spectral-element shape-function basis using the
+#                Flores/Clementi/Sonnad 1989 orthogonal combinations of
+#                Legendre polynomials.
 
 add_library(lib1dfem INTERFACE)
 add_library(helfem::lib1dfem ALIAS lib1dfem)
