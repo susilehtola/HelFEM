@@ -107,6 +107,52 @@ namespace helfem {
         return ret;
       }
 
+      // Pre-bound evaluator for each BasisKind: a callable (x, iel) -> arma::mat
+      // suitable for FiniteElementBasis::matrix_element. The evaluator captures
+      // `this` only; it does not allocate per call beyond what fem.eval_*/get_*
+      // already does.
+      static std::function<arma::mat(const arma::vec &, size_t)>
+      make_evaluator(const FEMRadialBasis * rb, FEMRadialBasis::BasisKind k) {
+        using BK = FEMRadialBasis::BasisKind;
+        switch (k) {
+          case BK::B0: return [rb](const arma::vec & x, size_t iel) {
+            return rb->get_fem().eval_f(x, iel);
+          };
+          case BK::B1: return [rb](const arma::vec & x, size_t iel) {
+            return rb->get_fem().eval_df(x, iel);
+          };
+          case BK::B2: return [rb](const arma::vec & x, size_t iel) {
+            return rb->get_fem().eval_d2f(x, iel);
+          };
+          case BK::R0: return [rb](const arma::vec & x, size_t iel) {
+            return rb->get_bf(x, iel);
+          };
+          case BK::R1: return [rb](const arma::vec & x, size_t iel) {
+            return rb->get_df(x, iel);
+          };
+          case BK::R2: return [rb](const arma::vec & x, size_t iel) {
+            return rb->get_lf(x, iel);
+          };
+        }
+        throw std::logic_error("FEMRadialBasis::matrix_element: unknown BasisKind\n");
+      }
+
+      arma::mat FEMRadialBasis::matrix_element(
+          size_t iel, BasisKind bra, BasisKind ket,
+          const std::function<double(double)> & weight) const {
+        auto lhs = make_evaluator(this, bra);
+        auto rhs = make_evaluator(this, ket);
+        return fem.matrix_element(iel, lhs, rhs, xq, wq, weight);
+      }
+
+      arma::mat FEMRadialBasis::matrix_element(
+          BasisKind bra, BasisKind ket,
+          const std::function<double(double)> & weight) const {
+        auto lhs = make_evaluator(this, bra);
+        auto rhs = make_evaluator(this, ket);
+        return fem.matrix_element(lhs, rhs, xq, wq, weight);
+      }
+
       arma::mat FEMRadialBasis::bessel_il_integral(int L, double lambda, size_t iel) const {
         std::function<double(double)> besselil = [L, lambda](double r) { return utils::bessel_il(r*lambda, L); };
         return fem.matrix_element(iel, false, false, xq, wq, besselil);
@@ -217,55 +263,32 @@ namespace helfem {
         return radial_integral(rh, 0);
       }
 
-      arma::mat FEMRadialBasis::overlap(size_t iel) const {
-        std::function<double(double)> dummy;
-        return fem.matrix_element(iel, false, false, xq, wq, dummy);
-      }
+      // The four named matrix elements below are the proof-of-concept
+      // migration onto the BasisKind dispatcher introduced above. Math is
+      // unchanged; each routine collapses to a single composition of
+      // (bra evaluator, ket evaluator, weight function).
+      //
+      //   overlap     = integral B(r) B(r) dr                    -> B0 * B0 * 1
+      //   kinetic     = (1/2) integral B'(r) B'(r) dr            -> B1 * B1 * 1
+      //   kinetic_l   = (1/2) integral R(r) R(r) dr              -> R0 * R0 * 1
+      //                (= (1/2) <u | 1/r^2 | u> = half-centrifugal per l(l+1))
+      //   nuclear     = - integral R(r) * r * R(r) dr            -> R0 * R0 * r
+      //                (= - <u | 1/r | u>; sign included, Z=1 implicit)
 
-      arma::mat FEMRadialBasis::overlap() const {
-        std::function<double(double)> dummy;
-        return fem.matrix_element(false, false, xq, wq, dummy);
-      }
+      static const std::function<double(double)> kNoWeight;  // default-constructed = identity
+      static const std::function<double(double)> kRWeight = [](double r){ return r; };
 
-      arma::mat FEMRadialBasis::kinetic() const {
-        std::function<double(double)> dummy;
-        return 0.5*fem.matrix_element(true, true, xq, wq, dummy);
-      }
+      arma::mat FEMRadialBasis::overlap()         const { return matrix_element(BasisKind::B0, BasisKind::B0, kNoWeight); }
+      arma::mat FEMRadialBasis::overlap(size_t iel) const { return matrix_element(iel, BasisKind::B0, BasisKind::B0, kNoWeight); }
 
-      arma::mat FEMRadialBasis::kinetic(size_t iel) const {
-        std::function<double(double)> dummy;
-        return 0.5*fem.matrix_element(iel, true, true, xq, wq, dummy);
-      }
+      arma::mat FEMRadialBasis::kinetic()         const { return 0.5 * matrix_element(BasisKind::B1, BasisKind::B1, kNoWeight); }
+      arma::mat FEMRadialBasis::kinetic(size_t iel) const { return 0.5 * matrix_element(iel, BasisKind::B1, BasisKind::B1, kNoWeight); }
 
-      arma::mat FEMRadialBasis::kinetic_l() const {
-        std::function<double(double)> dummy;
-        std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
-        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
+      arma::mat FEMRadialBasis::kinetic_l()       const { return 0.5 * matrix_element(BasisKind::R0, BasisKind::R0, kNoWeight); }
+      arma::mat FEMRadialBasis::kinetic_l(size_t iel) const { return 0.5 * matrix_element(iel, BasisKind::R0, BasisKind::R0, kNoWeight); }
 
-        return 0.5 * fem.matrix_element(radial_bf, radial_bf, xq, wq, dummy);
-      }
-
-      arma::mat FEMRadialBasis::kinetic_l(size_t iel) const {
-        std::function<double(double)> dummy;
-        std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
-        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-
-        return 0.5 * fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, dummy);
-      }
-
-      arma::mat FEMRadialBasis::nuclear() const {
-        std::function<double(double)> r = [](double r){return r;};
-        std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
-        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-        return -fem.matrix_element(radial_bf, radial_bf, xq, wq, r);
-      }
-
-      arma::mat FEMRadialBasis::nuclear(size_t iel) const {
-        std::function<double(double)> r = [](double r){return r;};
-        std::function<arma::mat(const arma::vec &,size_t)> radial_bf;
-        radial_bf = [this](const arma::vec & xq_, size_t iel_) { return this->get_bf(xq_, iel_); };
-        return -fem.matrix_element(iel, radial_bf, radial_bf, xq, wq, r);
-      }
+      arma::mat FEMRadialBasis::nuclear()         const { return -matrix_element(BasisKind::R0, BasisKind::R0, kRWeight); }
+      arma::mat FEMRadialBasis::nuclear(size_t iel) const { return -matrix_element(iel, BasisKind::R0, BasisKind::R0, kRWeight); }
 
       arma::mat FEMRadialBasis::polynomial_confinement(size_t iel, int N, double shift_pot) const {
 	std::function<double(double)> rpow = [N, shift_pot](double r){

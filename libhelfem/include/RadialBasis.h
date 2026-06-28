@@ -84,6 +84,8 @@ namespace helfem {
 
         /// Get polynomial basis
         std::shared_ptr<polynomial_basis::PolynomialBasis> get_poly() const;
+        /// Get the underlying FE basis (read-only).
+        const polynomial_basis::FiniteElementBasis & get_fem() const { return fem; }
 
         /// Get number of quadrature points
         int get_nquad() const;
@@ -128,6 +130,33 @@ namespace helfem {
         arma::mat bessel_il_integral(int L, double lambda, size_t iel) const;
         /// Compute Bessel k_L integral
         arma::mat bessel_kl_integral(int L, double lambda, size_t iel) const;
+
+        /// Identifies which representation of the radial basis to use when
+        /// evaluating bra/ket factors in a matrix element. Bn is the raw FE
+        /// polynomial B(r) = r*R(r) (or its n-th r-derivative); Rn is the
+        /// physical radial wavefunction R(r) = B(r)/r (or its n-th derivative),
+        /// computed via the analytic eval_over_r deflation on the first
+        /// element and direct division elsewhere. Both are first-class:
+        /// pick whichever makes the integrand smooth for the weight function
+        /// in question.
+        enum class BasisKind { B0, B1, B2, R0, R1, R2 };
+
+        /// Generic single-element matrix element
+        ///     M_ij = integral  bra_i(r) * weight(r) * ket_j(r)  dr
+        /// over element `iel`, with bra/ket chosen via BasisKind. Mirrors
+        /// FiniteElementBasis::matrix_element and is the engine that the
+        /// named matrix-element methods below (overlap, kinetic, nuclear, ...)
+        /// can be composed from. Default weight is identity (1).
+        arma::mat matrix_element(
+            size_t iel, BasisKind bra, BasisKind ket,
+            const std::function<double(double)> & weight =
+                std::function<double(double)>()) const;
+
+        /// Same as above, summed over every element of the basis.
+        arma::mat matrix_element(
+            BasisKind bra, BasisKind ket,
+            const std::function<double(double)> & weight =
+                std::function<double(double)>()) const;
 
         /// Compute overlap matrix
         arma::mat overlap() const override;
