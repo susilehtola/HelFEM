@@ -87,6 +87,17 @@ namespace helfem {
 
         ~NAORadialBasis() override = default;
 
+        /// Convenience factory: wrap an existing concrete RadialBasis
+        /// (typically a FEMRadialBasis fresh out of a TwoDBasis) in a
+        /// shared_ptr by copy, then construct. Useful when the caller
+        /// holds the underlying basis by value and does not want to
+        /// manage the shared_ptr themselves.
+        template <typename RB>
+        static NAORadialBasis from_owned_radial(RB underlying, arma::mat C) {
+          return NAORadialBasis(
+              std::make_shared<RB>(std::move(underlying)), std::move(C));
+        }
+
         /// Access the underlying basis.
         const RadialBasis & underlying() const { return *underlying_; }
         /// Access the orbital coefficient matrix.
