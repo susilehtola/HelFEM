@@ -61,6 +61,7 @@ option(HELFEM_FIND_DEPS "Try to find dependencies automatically?" OFF)
 option(HELFEM_BINARIES "Compile HelFEM binaries?" ON)
 option(HELFEM_CMAKE_SYSTEM "Load the CMake.system file (if present)?" ON)
 option(HELFEM_BLAS_PROVIDED_EXTERNALLY "Skip BLAS/LAPACK linkage; parent project provides them" OFF)
+option(HELFEM_PYTHON "Build the HelFEM Python (pybind11) bindings" OFF)
 
 # When the parent project provides BLAS, Armadillo must NOT wrap BLAS
 # through libarmadillo.so -- the symbols come from the parent's link line.
@@ -165,6 +166,9 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}/libhelfem/include")
 # Compile code
 add_subdirectory(lib1dfem)   # v2 Phase 1 destination (currently empty INTERFACE target)
 add_subdirectory(libhelfem)
+if(HELFEM_PYTHON)
+    add_subdirectory(python)
+endif()
 if(HELFEM_BINARIES)
     add_subdirectory(src)
 endif()

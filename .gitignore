@@ -2,4 +2,5 @@ CMake.system
 objdir/
 LibXcConfig.cmake
 .gitignore
-*~
+*~*.pyc
+__pycache__/
