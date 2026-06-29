@@ -67,7 +67,7 @@ namespace helfem {
 
       arma::mat TwoDBasis::Sinvh() const {
         arma::mat S(helfem::to_arma(overlap()));
-        return scf::form_Sinvh(S,false);
+        return helfem::to_arma(scf::form_Sinvh(helfem::to_eigen(S), false));
       }
 
       arma::mat TwoDBasis::radial_integral(int Rexp) const {

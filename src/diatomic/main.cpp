@@ -778,8 +778,8 @@ int main(int argc, char **argv) {
     printf("\n**** Iteration %i ****\n\n",i);
 
     // Form density matrix
-    Pa=scf::form_density(Caocc,nela);
-    Pb=scf::form_density(Cbocc,nelb);
+    Pa=helfem::to_arma(scf::form_density(helfem::to_eigen(Caocc),nela));
+    Pb=helfem::to_arma(scf::form_density(helfem::to_eigen(Cbocc),nelb));
     if(Pb.n_rows == 0)
       Pb.zeros(Pa.n_rows,Pa.n_cols);
     P=Pa+Pb;

@@ -18,13 +18,14 @@
 
 namespace helfem {
   namespace scf {
-    arma::mat form_density(const arma::mat & C, size_t nocc) {
-      if(C.n_cols<nocc)
+    // Phase 5.10: Eigen-typed.
+    helfem::Matrix form_density(const helfem::Matrix & C, size_t nocc) {
+      if (static_cast<size_t>(C.cols()) < nocc)
         throw std::logic_error("Not enough orbitals!\n");
-      else if(nocc>0)
-        return C.cols(0,nocc-1)*arma::trans(C.cols(0,nocc-1));
-      else // nocc=0
-        return arma::zeros<arma::mat>(C.n_rows,C.n_rows);
+      if (nocc == 0)
+        return helfem::Matrix::Zero(C.rows(), C.rows());
+      const auto Cocc = C.leftCols(static_cast<Eigen::Index>(nocc));
+      return Cocc * Cocc.transpose();
     }
 
     void enforce_occupations(arma::mat & C, arma::vec & E, const arma::mat & S, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx) {

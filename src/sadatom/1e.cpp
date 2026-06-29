@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
   // helfem::Matrix (Eigen); rest of sadatom 1e is still arma -- bridge
   // at the boundary via to_arma until the chemistry layer migrates.
   arma::mat S(helfem::to_arma(radial.overlap()));
-  arma::mat Sinvh=scf::form_Sinvh(S,false);
+  arma::mat Sinvh=helfem::to_arma(scf::form_Sinvh(helfem::to_eigen(S),false));
 
   // Phase 2a: radial.kinetic / kinetic_l / nuclear return helfem::Matrix.
   arma::mat T(helfem::to_arma(radial.kinetic()));

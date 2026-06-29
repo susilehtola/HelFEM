@@ -254,7 +254,7 @@ namespace helfem {
 
         // Half-inverse is
         if(sym==0) {
-          return scf::form_Sinvh(S,chol);
+          return helfem::to_arma(scf::form_Sinvh(helfem::to_eigen(S), chol));
         } else {
           // Get basis function indices
           std::vector<arma::uvec> midx(get_sym_idx(sym));
@@ -267,7 +267,7 @@ namespace helfem {
 
             // Column indices
             arma::uvec cidx(arma::linspace<arma::uvec>(ioff,ioff+midx[i].n_elem-1,midx[i].n_elem));
-            Sinvh(midx[i],cidx)=scf::form_Sinvh(S(midx[i],midx[i]),chol);
+            Sinvh(midx[i],cidx)=helfem::to_arma(scf::form_Sinvh(helfem::to_eigen(arma::mat(S(midx[i],midx[i]))),chol));
             // Increment offset
             ioff += midx[i].n_elem;
           }
