@@ -203,7 +203,7 @@ namespace helfem {
         // assembly.
         atomic::basis::compute_disjoint_radial_integrals(
             radial, N_L, disjoint_iL, disjoint_kL, /*yukawa=*/true, lambda);
-        std::vector<arma::mat> rs_tei_yk;
+        std::vector<helfem::Matrix> rs_tei_yk;
         atomic::basis::compute_in_element_tei(
             radial, N_L, rs_tei_yk, /*yukawa=*/true, lambda);
         atomic::basis::compute_in_element_ktei_from_tei(
@@ -231,13 +231,13 @@ namespace helfem {
         const size_t Nel = radial.Nel();
         const int    L   = 0;
         const double Lfac = 4.0 * M_PI / (2 * L + 1);
-        auto rs = [&](size_t iel) -> const arma::mat & {
+        auto rs = [&](size_t iel) -> const helfem::Matrix & {
           return disjoint_L[L * Nel + iel];
         };
-        auto rb = [&](size_t iel) -> const arma::mat & {
+        auto rb = [&](size_t iel) -> const helfem::Matrix & {
           return disjoint_m1L[L * Nel + iel];
         };
-        auto tw = [&](size_t iel) -> const arma::mat & {
+        auto tw = [&](size_t iel) -> const helfem::Matrix & {
           return prim_tei[Nel * Nel * L + iel * Nel + iel];
         };
         return Lfac * atomic::basis::assemble_J_FE_one_multipole_cached(
@@ -333,13 +333,13 @@ namespace helfem {
               // K is accumulated with the standard HF minus sign baked
               // in (matches the pre-refactor convention).
               const int Lint = (int) L;
-              auto rs = [&,Lint](size_t iel) -> const arma::mat & {
+              auto rs = [&,Lint](size_t iel) -> const helfem::Matrix & {
                 return disjoint_L[Lint * Nel + iel];
               };
-              auto rb = [&,Lint](size_t iel) -> const arma::mat & {
+              auto rb = [&,Lint](size_t iel) -> const helfem::Matrix & {
                 return disjoint_m1L[Lint * Nel + iel];
               };
-              auto kt = [&,Lint](size_t iel) -> const arma::mat & {
+              auto kt = [&,Lint](size_t iel) -> const helfem::Matrix & {
                 return prim_ktei[Nel * Nel * Lint + iel * Nel + iel];
               };
               K.slice(lout) -= atomic::basis::assemble_K_FE_one_multipole_cached(
@@ -439,13 +439,13 @@ namespace helfem {
                 // Same FE structure as bare exchange -- just different
                 // kernels in the cache. Delegate to the shared helper.
                 const size_t Lc = L;
-                auto rs = [&,Lc](size_t iel) -> const arma::mat & {
+                auto rs = [&,Lc](size_t iel) -> const helfem::Matrix & {
                   return disjoint_iL[Lc*Nel+iel];
                 };
-                auto rb = [&,Lc](size_t iel) -> const arma::mat & {
+                auto rb = [&,Lc](size_t iel) -> const helfem::Matrix & {
                   return disjoint_kL[Lc*Nel+iel];
                 };
-                auto kt = [&,Lc](size_t iel) -> const arma::mat & {
+                auto kt = [&,Lc](size_t iel) -> const helfem::Matrix & {
                   return rs_ktei[Nel*Nel*Lc + iel*Nel + iel];
                 };
                 K.slice(lout) -=
@@ -457,7 +457,7 @@ namespace helfem {
                 // to the pairwise cached helper -- same contraction
                 // pattern, just no disjoint optimisation.
                 const size_t Lc = L;
-                auto kt = [&,Lc](size_t iel, size_t jel) -> const arma::mat & {
+                auto kt = [&,Lc](size_t iel, size_t jel) -> const helfem::Matrix & {
                   return rs_ktei[Nel*Nel*Lc + iel*Nel + jel];
                 };
                 K.slice(lout) -=
@@ -472,7 +472,12 @@ namespace helfem {
       }
 
       std::vector<arma::mat> TwoDBasis::get_prim_tei() const {
-        return prim_tei;
+        // Phase 2c: prim_tei is std::vector<helfem::Matrix> internally;
+        // bridge to arma for the public accessor.
+        std::vector<arma::mat> out;
+        out.reserve(prim_tei.size());
+        for (const auto & m : prim_tei) out.push_back(helfem::to_arma(m));
+        return out;
       }
 
       arma::mat TwoDBasis::eval_bf(size_t iel) const {

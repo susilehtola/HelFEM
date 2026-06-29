@@ -18,6 +18,7 @@
 #include <armadillo>
 #include "../general/model_potential.h"
 #include "../general/sap.h"
+#include <Matrix.h>
 #include <RadialBasis.h>
 
 namespace helfem {
@@ -54,15 +55,16 @@ namespace helfem {
         bool zeroder;
 
         /// Auxiliary integrals
-        std::vector<arma::mat> disjoint_L, disjoint_m1L;
+        // Phase 2c: per-element 2e caches migrated to Eigen.
+        std::vector<helfem::Matrix> disjoint_L, disjoint_m1L;
         /// Auxiliary integrals for Yukawa separation
-        std::vector<arma::mat> disjoint_iL, disjoint_kL;
+        std::vector<helfem::Matrix> disjoint_iL, disjoint_kL;
         /// Primitive two-electron integrals: <Nel^2 * (2L+1)>
-        std::vector<arma::mat> prim_tei;
+        std::vector<helfem::Matrix> prim_tei;
         /// Primitive two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
-        std::vector<arma::mat> prim_ktei;
+        std::vector<helfem::Matrix> prim_ktei;
         /// Primitive range-separated two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
-        std::vector<arma::mat> rs_ktei;
+        std::vector<helfem::Matrix> rs_ktei;
 
         /// Add to radial submatrix
         void add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;

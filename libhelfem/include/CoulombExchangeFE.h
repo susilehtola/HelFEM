@@ -74,8 +74,10 @@ namespace helfem {
       /// in mind. Used by the cached overloads below so that consumers
       /// with their own per-(L, iel) integral caches (e.g. TwoDBasis,
       /// driven from an SCF loop) avoid recomputing on every call.
+      // Phase 2c: accessor types now return Eigen Matrix references,
+      // matching the new TwoDBasis cache types (std::vector<helfem::Matrix>).
       using PerElementAccessor =
-          std::function<const arma::mat & (size_t iel)>;
+          std::function<const helfem::Matrix & (size_t iel)>;
 
       // -- Uncached entry points --------------------------------------
 
@@ -129,7 +131,7 @@ namespace helfem {
       /// standard K contraction is applied. No disjoint optimisation
       /// available -- O(Nel^2) per call.
       using PerElementPairAccessor =
-          std::function<const arma::mat & (size_t iel, size_t jel)>;
+          std::function<const helfem::Matrix & (size_t iel, size_t jel)>;
       arma::mat assemble_K_FE_one_multipole_cached_pairwise(
           const FEMRadialBasis & radial,
           const PerElementPairAccessor & ktei_pairwise,
@@ -186,29 +188,23 @@ namespace helfem {
 
       namespace detail_fe_2e {
 
-        inline arma::mat r_small(const FEMRadialBasis & fem, int L, size_t iel,
-                                  bool yukawa, double lambda) {
-          // Phase 2a: bessel_*_integral and radial_integral return
-          // helfem::Matrix; bridge here since the FE caches (disjoint_L
-          // etc.) are still std::vector<arma::mat>.
-          return helfem::to_arma(
-              yukawa ? fem.bessel_il_integral(L, lambda, iel)
-                     : fem.radial_integral(L, iel));
+        // Phase 2c: caches are std::vector<helfem::Matrix>; the bridges
+        // these used to do are no longer needed -- direct return.
+        inline helfem::Matrix r_small(const FEMRadialBasis & fem, int L, size_t iel,
+                                       bool yukawa, double lambda) {
+          return yukawa ? fem.bessel_il_integral(L, lambda, iel)
+                        : fem.radial_integral(L, iel);
         }
-        inline arma::mat r_big(const FEMRadialBasis & fem, int L, size_t iel,
-                                bool yukawa, double lambda) {
-          return helfem::to_arma(
-              yukawa ? fem.bessel_kl_integral(L, lambda, iel)
-                     : fem.radial_integral(-L - 1, iel));
+        inline helfem::Matrix r_big(const FEMRadialBasis & fem, int L, size_t iel,
+                                     bool yukawa, double lambda) {
+          return yukawa ? fem.bessel_kl_integral(L, lambda, iel)
+                        : fem.radial_integral(-L - 1, iel);
         }
-        inline arma::mat in_element_tei(const FEMRadialBasis & fem, int L,
-                                         size_t iel,
-                                         bool yukawa, double lambda) {
-          // Phase 2a: twoe_integral / yukawa_integral return helfem::Matrix;
-          // bridge here since prim_tei caches are std::vector<arma::mat>.
-          return helfem::to_arma(
-              yukawa ? fem.yukawa_integral(L, lambda, iel)
-                     : fem.twoe_integral(L, iel));
+        inline helfem::Matrix in_element_tei(const FEMRadialBasis & fem, int L,
+                                              size_t iel,
+                                              bool yukawa, double lambda) {
+          return yukawa ? fem.yukawa_integral(L, lambda, iel)
+                        : fem.twoe_integral(L, iel);
         }
 
       } // namespace detail_fe_2e
@@ -237,8 +233,8 @@ namespace helfem {
       inline void compute_disjoint_radial_integrals(
           const FEMRadialBasis & radial,
           int N_L,
-          std::vector<arma::mat> & disjoint_small,
-          std::vector<arma::mat> & disjoint_big,
+          std::vector<helfem::Matrix> & disjoint_small,
+          std::vector<helfem::Matrix> & disjoint_big,
           bool yukawa = false,
           double lambda = 0.0) {
         const size_t Nel = radial.Nel();
@@ -264,7 +260,7 @@ namespace helfem {
       inline void compute_in_element_tei(
           const FEMRadialBasis & radial,
           int N_L,
-          std::vector<arma::mat> & prim_tei,
+          std::vector<helfem::Matrix> & prim_tei,
           bool yukawa = false,
           double lambda = 0.0) {
         const size_t Nel = radial.Nel();
@@ -286,8 +282,8 @@ namespace helfem {
       inline void compute_in_element_ktei_from_tei(
           const FEMRadialBasis & radial,
           int N_L,
-          const std::vector<arma::mat> & prim_tei,
-          std::vector<arma::mat> & prim_ktei) {
+          const std::vector<helfem::Matrix> & prim_tei,
+          std::vector<helfem::Matrix> & prim_ktei) {
         const size_t Nel = radial.Nel();
         prim_ktei.resize(Nel * Nel * (size_t) N_L);
 #ifdef _OPENMP
@@ -296,10 +292,13 @@ namespace helfem {
         for (int L = 0; L < N_L; ++L) {
           for (size_t iel = 0; iel < Nel; ++iel) {
             const size_t Ni = radial.Nprim(iel);
+            // utils::exchange_tei is arma-based; bridge here.
+            // Phase 2c: prim_tei / prim_ktei caches are Eigen.
             prim_ktei[Nel * Nel * (size_t) L + iel * Nel + iel] =
-                helfem::utils::exchange_tei(
-                    prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel],
-                    Ni, Ni, Ni, Ni);
+                helfem::to_eigen(helfem::utils::exchange_tei(
+                    helfem::to_arma(
+                        prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel]),
+                    Ni, Ni, Ni, Ni));
           }
         }
       }
@@ -316,7 +315,7 @@ namespace helfem {
           const FEMRadialBasis & radial,
           int N_L,
           double mu,
-          std::vector<arma::mat> & rs_ktei) {
+          std::vector<helfem::Matrix> & rs_ktei) {
         const size_t Nel = radial.Nel();
         rs_ktei.resize(Nel * Nel * (size_t) N_L);
 #ifdef _OPENMP
@@ -327,12 +326,12 @@ namespace helfem {
             for (size_t jel = 0; jel < Nel; ++jel) {
               const size_t Ni = radial.Nprim(iel);
               const size_t Nj = radial.Nprim(jel);
-              // Phase 2a: erfc_integral returns helfem::Matrix; bridge
-              // here since rs_ktei is std::vector<arma::mat>.
+              // utils::exchange_tei is arma-based; convert here.
+              // Phase 2c: rs_ktei is std::vector<helfem::Matrix>.
               rs_ktei[Nel * Nel * (size_t) L + iel * Nel + jel] =
-                  helfem::utils::exchange_tei(
+                  helfem::to_eigen(helfem::utils::exchange_tei(
                       helfem::to_arma(radial.erfc_integral(L, mu, iel, jel)),
-                      Ni, Ni, Nj, Nj);
+                      Ni, Ni, Nj, Nj));
             }
           }
         }
@@ -343,6 +342,10 @@ namespace helfem {
       // NAO use) and cached (look-up-from-SCF-cache, TwoDBasis use)
       // entry points.
 
+      // Phase 2c: assemble helpers migrated to Eigen internals so they
+      // match the new Eigen-typed accessors and caches. P_FE input and
+      // J/K output are still arma (the TwoDBasis SCF assembly is still
+      // arma-typed) -- bridged at the entry/exit boundary.
       inline arma::mat assemble_J_FE_one_multipole_cached(
           const FEMRadialBasis & radial,
           const PerElementAccessor & r_small,
@@ -350,34 +353,39 @@ namespace helfem {
           const PerElementAccessor & twoe_in_element,
           const arma::mat & P_FE) {
         const size_t Nel  = radial.Nel();
-        const size_t Nrad = radial.Nbf();
-        arma::mat J_FE(Nrad, Nrad, arma::fill::zeros);
+        const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
+        const helfem::Matrix P_E = helfem::to_eigen(P_FE);
+        helfem::Matrix J_E = helfem::Matrix::Zero(Nrad, Nrad);
         for (size_t jel = 0; jel < Nel; ++jel) {
           size_t jfirst, jlast;
           radial.get_idx(jel, jfirst, jlast);
-          const size_t Nj = jlast - jfirst + 1;
-          arma::mat Psub = P_FE.submat(jfirst, jfirst, jlast, jlast);
-          const double jsmall = arma::trace(r_small(jel) * Psub);
-          const double jbig   = arma::trace(r_big  (jel) * Psub);
+          const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
+          const helfem::Matrix Psub =
+              P_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj);
+          const double jsmall = (r_small(jel) * Psub).trace();
+          const double jbig   = (r_big  (jel) * Psub).trace();
           for (size_t iel = 0; iel < jel; ++iel) {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
-            J_FE.submat(ifirst, ifirst, ilast, ilast) +=
-                jbig * r_small(iel);
+            const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
+            J_E.block((Eigen::Index) ifirst, (Eigen::Index) ifirst, Ni, Ni)
+                += jbig * r_small(iel);
           }
           for (size_t iel = jel + 1; iel < Nel; ++iel) {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
-            J_FE.submat(ifirst, ifirst, ilast, ilast) +=
-                jsmall * r_big(iel);
+            const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
+            J_E.block((Eigen::Index) ifirst, (Eigen::Index) ifirst, Ni, Ni)
+                += jsmall * r_big(iel);
           }
-          // In-element 4-index contribution.
-          arma::vec Psub_v = arma::vectorise(Psub);
-          arma::vec Jsub_v = twoe_in_element(jel) * Psub_v;
-          J_FE.submat(jfirst, jfirst, jlast, jlast) +=
-              arma::reshape(Jsub_v, Nj, Nj);
+          // In-element 4-index contribution: J_sub = twoe * vec(Psub),
+          // then reshape back to Nj x Nj.
+          const Eigen::Map<const Eigen::VectorXd> Psub_v(Psub.data(), Nj * Nj);
+          const Eigen::VectorXd Jsub_v = twoe_in_element(jel) * Psub_v;
+          J_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj)
+              += Eigen::Map<const Eigen::MatrixXd>(Jsub_v.data(), Nj, Nj);
         }
-        return J_FE;
+        return helfem::to_arma(J_E);
       }
 
       inline arma::mat assemble_K_FE_one_multipole_cached(
@@ -387,32 +395,35 @@ namespace helfem {
           const PerElementAccessor & ktei_in_element,
           const arma::mat & P_FE) {
         const size_t Nel  = radial.Nel();
-        const size_t Nrad = radial.Nbf();
-        arma::mat K_FE(Nrad, Nrad, arma::fill::zeros);
+        const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
+        const helfem::Matrix P_E = helfem::to_eigen(P_FE);
+        helfem::Matrix K_E = helfem::Matrix::Zero(Nrad, Nrad);
         for (size_t iel = 0; iel < Nel; ++iel) {
           size_t ifirst, ilast;
           radial.get_idx(iel, ifirst, ilast);
-          const size_t Ni = ilast - ifirst + 1;
+          const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
           for (size_t jel = 0; jel < Nel; ++jel) {
             size_t jfirst, jlast;
             radial.get_idx(jel, jfirst, jlast);
-            const size_t Nj = jlast - jfirst + 1;
+            const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
             if (iel == jel) {
-              arma::vec Psub_v = arma::vectorise(
-                  P_FE.submat(ifirst, jfirst, ilast, jlast));
-              arma::vec Ksub_v = ktei_in_element(iel) * Psub_v;
-              K_FE.submat(ifirst, jfirst, ilast, jlast) +=
-                  arma::reshape(Ksub_v, Ni, Nj);
+              const helfem::Matrix Psub =
+                  P_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj);
+              const Eigen::Map<const Eigen::VectorXd> Psub_v(Psub.data(), Ni * Nj);
+              const Eigen::VectorXd Ksub_v = ktei_in_element(iel) * Psub_v;
+              K_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj)
+                  += Eigen::Map<const Eigen::MatrixXd>(Ksub_v.data(), Ni, Nj);
             } else {
-              const arma::mat & iint = (iel > jel) ? r_big(iel) : r_small(iel);
-              const arma::mat & jint = (iel > jel) ? r_small(jel) : r_big(jel);
-              const arma::mat Psub = P_FE.submat(ifirst, jfirst, ilast, jlast);
-              K_FE.submat(ifirst, jfirst, ilast, jlast) +=
-                  iint * (Psub * jint.t());
+              const helfem::Matrix & iint = (iel > jel) ? r_big(iel) : r_small(iel);
+              const helfem::Matrix & jint = (iel > jel) ? r_small(jel) : r_big(jel);
+              const helfem::Matrix Psub =
+                  P_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj);
+              K_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj)
+                  += iint * (Psub * jint.transpose());
             }
           }
         }
-        return K_FE;
+        return helfem::to_arma(K_E);
       }
 
       inline arma::mat assemble_K_FE_one_multipole_cached_pairwise(
@@ -420,24 +431,26 @@ namespace helfem {
           const PerElementPairAccessor & ktei_pairwise,
           const arma::mat & P_FE) {
         const size_t Nel  = radial.Nel();
-        const size_t Nrad = radial.Nbf();
-        arma::mat K_FE(Nrad, Nrad, arma::fill::zeros);
+        const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
+        const helfem::Matrix P_E = helfem::to_eigen(P_FE);
+        helfem::Matrix K_E = helfem::Matrix::Zero(Nrad, Nrad);
         for (size_t iel = 0; iel < Nel; ++iel) {
           size_t ifirst, ilast;
           radial.get_idx(iel, ifirst, ilast);
-          const size_t Ni = ilast - ifirst + 1;
+          const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
           for (size_t jel = 0; jel < Nel; ++jel) {
             size_t jfirst, jlast;
             radial.get_idx(jel, jfirst, jlast);
-            const size_t Nj = jlast - jfirst + 1;
-            arma::vec Psub_v = arma::vectorise(
-                P_FE.submat(ifirst, jfirst, ilast, jlast));
-            arma::vec Ksub_v = ktei_pairwise(iel, jel) * Psub_v;
-            K_FE.submat(ifirst, jfirst, ilast, jlast) +=
-                arma::reshape(Ksub_v, Ni, Nj);
+            const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
+            const helfem::Matrix Psub =
+                P_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj);
+            const Eigen::Map<const Eigen::VectorXd> Psub_v(Psub.data(), Ni * Nj);
+            const Eigen::VectorXd Ksub_v = ktei_pairwise(iel, jel) * Psub_v;
+            K_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj)
+                += Eigen::Map<const Eigen::MatrixXd>(Ksub_v.data(), Ni, Nj);
           }
         }
-        return K_FE;
+        return helfem::to_arma(K_E);
       }
 
       // --- Cholesky-factored cached helpers -----------------------------
@@ -452,39 +465,43 @@ namespace helfem {
           const PerElementAccessor & twoe_chol_J,
           const arma::mat & P_FE) {
         const size_t Nel  = radial.Nel();
-        const size_t Nrad = radial.Nbf();
-        arma::mat J_FE(Nrad, Nrad, arma::fill::zeros);
+        const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
+        const helfem::Matrix P_E = helfem::to_eigen(P_FE);
+        helfem::Matrix J_E = helfem::Matrix::Zero(Nrad, Nrad);
         for (size_t jel = 0; jel < Nel; ++jel) {
           size_t jfirst, jlast;
           radial.get_idx(jel, jfirst, jlast);
-          const size_t Nj = jlast - jfirst + 1;
-          arma::mat Psub = P_FE.submat(jfirst, jfirst, jlast, jlast);
-          const double jsmall = arma::trace(r_small(jel) * Psub);
-          const double jbig   = arma::trace(r_big  (jel) * Psub);
+          const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
+          const helfem::Matrix Psub =
+              P_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj);
+          const double jsmall = (r_small(jel) * Psub).trace();
+          const double jbig   = (r_big  (jel) * Psub).trace();
           for (size_t iel = 0; iel < jel; ++iel) {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
-            J_FE.submat(ifirst, ifirst, ilast, ilast) +=
-                jbig * r_small(iel);
+            const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
+            J_E.block((Eigen::Index) ifirst, (Eigen::Index) ifirst, Ni, Ni)
+                += jbig * r_small(iel);
           }
           for (size_t iel = jel + 1; iel < Nel; ++iel) {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
-            J_FE.submat(ifirst, ifirst, ilast, ilast) +=
-                jsmall * r_big(iel);
+            const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
+            J_E.block((Eigen::Index) ifirst, (Eigen::Index) ifirst, Ni, Ni)
+                += jsmall * r_big(iel);
           }
           // Factored in-element contribution.
           //   J_{ab} = Sum_p L(ab, p) . <L_p, P>
-          // with the (ab) pair packed column-major (a-fast, b-slow) -- so
-          // vec(P) (Armadillo column-major) matches L's row layout.
-          const arma::mat & L = twoe_chol_J(jel);
-          arma::vec Psub_v = arma::vectorise(Psub);
-          arma::vec scalars = L.t() * Psub_v;           // length r
-          arma::vec Jsub_v  = L * scalars;              // length Nj^2
-          J_FE.submat(jfirst, jfirst, jlast, jlast) +=
-              arma::reshape(Jsub_v, Nj, Nj);
+          // with the (ab) pair packed column-major (a-fast, b-slow) so
+          // vec(P) (Eigen also column-major) matches L's row layout.
+          const helfem::Matrix & L = twoe_chol_J(jel);
+          const Eigen::Map<const Eigen::VectorXd> Psub_v(Psub.data(), Nj * Nj);
+          const Eigen::VectorXd scalars = L.transpose() * Psub_v;  // length r
+          const Eigen::VectorXd Jsub_v  = L * scalars;             // length Nj^2
+          J_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj)
+              += Eigen::Map<const Eigen::MatrixXd>(Jsub_v.data(), Nj, Nj);
         }
-        return J_FE;
+        return helfem::to_arma(J_E);
       }
 
       inline arma::mat assemble_K_FE_one_multipole_cached_chol(
@@ -494,65 +511,71 @@ namespace helfem {
           const PerElementAccessor & twoe_chol_J,
           const arma::mat & P_FE) {
         const size_t Nel  = radial.Nel();
-        const size_t Nrad = radial.Nbf();
-        arma::mat K_FE(Nrad, Nrad, arma::fill::zeros);
+        const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
+        const helfem::Matrix P_E = helfem::to_eigen(P_FE);
+        helfem::Matrix K_E = helfem::Matrix::Zero(Nrad, Nrad);
         for (size_t iel = 0; iel < Nel; ++iel) {
           size_t ifirst, ilast;
           radial.get_idx(iel, ifirst, ilast);
-          const size_t Ni = ilast - ifirst + 1;
+          const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
           for (size_t jel = 0; jel < Nel; ++jel) {
             size_t jfirst, jlast;
             radial.get_idx(jel, jfirst, jlast);
-            const size_t Nj = jlast - jfirst + 1;
+            const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
             if (iel == jel) {
               // Factored in-element K via the J-ordered Cholesky factor:
               //   K_{a,c} = Sum_p (M_p . P . M_p^T)_{a,c}
-              // with M_p = reshape(L.col(p), Ni, Ni) (Armadillo
-              // column-major so M_p(a, b) = L(a + b*Ni, p), matching the
-              // (ab) row pair in twoe_integral).
-              const arma::mat & L = twoe_chol_J(iel);
-              const arma::mat Psub = P_FE.submat(ifirst, jfirst, ilast, jlast);
-              arma::mat Ksub(Ni, Nj, arma::fill::zeros);
-              for (arma::uword p = 0; p < L.n_cols; ++p) {
-                arma::mat Mp = arma::reshape(L.col(p), Ni, Ni);
-                Ksub += Mp * (Psub * Mp.t());
+              // with M_p = reshape(L.col(p), Ni, Ni) (column-major so
+              // M_p(a, b) = L(a + b*Ni, p), matching the (ab) row pair
+              // in twoe_integral).
+              const helfem::Matrix & L = twoe_chol_J(iel);
+              const helfem::Matrix Psub =
+                  P_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj);
+              helfem::Matrix Ksub = helfem::Matrix::Zero(Ni, Nj);
+              for (Eigen::Index p = 0; p < L.cols(); ++p) {
+                Eigen::Map<const Eigen::MatrixXd> Mp(L.col(p).data(), Ni, Ni);
+                Ksub += Mp * (Psub * Mp.transpose());
               }
-              K_FE.submat(ifirst, jfirst, ilast, jlast) += Ksub;
+              K_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj)
+                  += Ksub;
             } else {
-              const arma::mat & iint = (iel > jel) ? r_big(iel) : r_small(iel);
-              const arma::mat & jint = (iel > jel) ? r_small(jel) : r_big(jel);
-              const arma::mat Psub = P_FE.submat(ifirst, jfirst, ilast, jlast);
-              K_FE.submat(ifirst, jfirst, ilast, jlast) +=
-                  iint * (Psub * jint.t());
+              const helfem::Matrix & iint = (iel > jel) ? r_big(iel) : r_small(iel);
+              const helfem::Matrix & jint = (iel > jel) ? r_small(jel) : r_big(jel);
+              const helfem::Matrix Psub =
+                  P_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj);
+              K_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj)
+                  += iint * (Psub * jint.transpose());
             }
           }
         }
-        return K_FE;
+        return helfem::to_arma(K_E);
       }
 
       // The uncached entry points just wire on-the-fly accessors that
       // call the FE primitives directly.
 
+      // Phase 2c: scratchpads are now std::vector<helfem::Matrix>; the
+      // is_empty check becomes .size() == 0 (Eigen's empty-by-default).
       inline arma::mat assemble_J_FE_one_multipole(
           const FEMRadialBasis & radial, int L, const arma::mat & P_FE) {
         // Per-call temporaries to keep the accessor lambdas returning a
         // stable const reference (storing each computed matrix in a
         // capture-list scratchpad).
-        std::vector<arma::mat> scratch_small(radial.Nel());
-        std::vector<arma::mat> scratch_big  (radial.Nel());
-        std::vector<arma::mat> scratch_twoe (radial.Nel());
-        auto rs = [&](size_t iel) -> const arma::mat & {
-          if (scratch_small[iel].is_empty())
+        std::vector<helfem::Matrix> scratch_small(radial.Nel());
+        std::vector<helfem::Matrix> scratch_big  (radial.Nel());
+        std::vector<helfem::Matrix> scratch_twoe (radial.Nel());
+        auto rs = [&](size_t iel) -> const helfem::Matrix & {
+          if (scratch_small[iel].size() == 0)
             scratch_small[iel] = detail_fe_2e::r_small(radial, L, iel, false, 0.0);
           return scratch_small[iel];
         };
-        auto rb = [&](size_t iel) -> const arma::mat & {
-          if (scratch_big[iel].is_empty())
+        auto rb = [&](size_t iel) -> const helfem::Matrix & {
+          if (scratch_big[iel].size() == 0)
             scratch_big[iel] = detail_fe_2e::r_big(radial, L, iel, false, 0.0);
           return scratch_big[iel];
         };
-        auto tw = [&](size_t iel) -> const arma::mat & {
-          if (scratch_twoe[iel].is_empty())
+        auto tw = [&](size_t iel) -> const helfem::Matrix & {
+          if (scratch_twoe[iel].size() == 0)
             scratch_twoe[iel] = detail_fe_2e::in_element_tei(radial, L, iel, false, 0.0);
           return scratch_twoe[iel];
         };
@@ -561,27 +584,28 @@ namespace helfem {
 
       inline arma::mat assemble_K_FE_one_multipole(
           const FEMRadialBasis & radial, int L, const arma::mat & P_FE) {
-        std::vector<arma::mat> scratch_small(radial.Nel());
-        std::vector<arma::mat> scratch_big  (radial.Nel());
-        std::vector<arma::mat> scratch_ktei (radial.Nel());
-        auto rs = [&](size_t iel) -> const arma::mat & {
-          if (scratch_small[iel].is_empty())
+        std::vector<helfem::Matrix> scratch_small(radial.Nel());
+        std::vector<helfem::Matrix> scratch_big  (radial.Nel());
+        std::vector<helfem::Matrix> scratch_ktei (radial.Nel());
+        auto rs = [&](size_t iel) -> const helfem::Matrix & {
+          if (scratch_small[iel].size() == 0)
             scratch_small[iel] = detail_fe_2e::r_small(radial, L, iel, false, 0.0);
           return scratch_small[iel];
         };
-        auto rb = [&](size_t iel) -> const arma::mat & {
-          if (scratch_big[iel].is_empty())
+        auto rb = [&](size_t iel) -> const helfem::Matrix & {
+          if (scratch_big[iel].size() == 0)
             scratch_big[iel] = detail_fe_2e::r_big(radial, L, iel, false, 0.0);
           return scratch_big[iel];
         };
-        auto kt = [&](size_t iel) -> const arma::mat & {
-          if (scratch_ktei[iel].is_empty()) {
+        auto kt = [&](size_t iel) -> const helfem::Matrix & {
+          if (scratch_ktei[iel].size() == 0) {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
             const size_t Ni = ilast - ifirst + 1;
-            scratch_ktei[iel] = utils::exchange_tei(
-                detail_fe_2e::in_element_tei(radial, L, iel, false, 0.0),
-                Ni, Ni, Ni, Ni);
+            // utils::exchange_tei is arma-based; bridge for now.
+            scratch_ktei[iel] = helfem::to_eigen(utils::exchange_tei(
+                helfem::to_arma(detail_fe_2e::in_element_tei(radial, L, iel, false, 0.0)),
+                Ni, Ni, Ni, Ni));
           }
           return scratch_ktei[iel];
         };
@@ -591,21 +615,21 @@ namespace helfem {
       inline arma::mat assemble_J_FE_one_multipole_yukawa(
           const FEMRadialBasis & radial, int L, double lambda,
           const arma::mat & P_FE) {
-        std::vector<arma::mat> scratch_small(radial.Nel());
-        std::vector<arma::mat> scratch_big  (radial.Nel());
-        std::vector<arma::mat> scratch_twoe (radial.Nel());
-        auto rs = [&](size_t iel) -> const arma::mat & {
-          if (scratch_small[iel].is_empty())
+        std::vector<helfem::Matrix> scratch_small(radial.Nel());
+        std::vector<helfem::Matrix> scratch_big  (radial.Nel());
+        std::vector<helfem::Matrix> scratch_twoe (radial.Nel());
+        auto rs = [&](size_t iel) -> const helfem::Matrix & {
+          if (scratch_small[iel].size() == 0)
             scratch_small[iel] = detail_fe_2e::r_small(radial, L, iel, true, lambda);
           return scratch_small[iel];
         };
-        auto rb = [&](size_t iel) -> const arma::mat & {
-          if (scratch_big[iel].is_empty())
+        auto rb = [&](size_t iel) -> const helfem::Matrix & {
+          if (scratch_big[iel].size() == 0)
             scratch_big[iel] = detail_fe_2e::r_big(radial, L, iel, true, lambda);
           return scratch_big[iel];
         };
-        auto tw = [&](size_t iel) -> const arma::mat & {
-          if (scratch_twoe[iel].is_empty())
+        auto tw = [&](size_t iel) -> const helfem::Matrix & {
+          if (scratch_twoe[iel].size() == 0)
             scratch_twoe[iel] = detail_fe_2e::in_element_tei(radial, L, iel, true, lambda);
           return scratch_twoe[iel];
         };
@@ -615,27 +639,27 @@ namespace helfem {
       inline arma::mat assemble_K_FE_one_multipole_yukawa(
           const FEMRadialBasis & radial, int L, double lambda,
           const arma::mat & P_FE) {
-        std::vector<arma::mat> scratch_small(radial.Nel());
-        std::vector<arma::mat> scratch_big  (radial.Nel());
-        std::vector<arma::mat> scratch_ktei (radial.Nel());
-        auto rs = [&](size_t iel) -> const arma::mat & {
-          if (scratch_small[iel].is_empty())
+        std::vector<helfem::Matrix> scratch_small(radial.Nel());
+        std::vector<helfem::Matrix> scratch_big  (radial.Nel());
+        std::vector<helfem::Matrix> scratch_ktei (radial.Nel());
+        auto rs = [&](size_t iel) -> const helfem::Matrix & {
+          if (scratch_small[iel].size() == 0)
             scratch_small[iel] = detail_fe_2e::r_small(radial, L, iel, true, lambda);
           return scratch_small[iel];
         };
-        auto rb = [&](size_t iel) -> const arma::mat & {
-          if (scratch_big[iel].is_empty())
+        auto rb = [&](size_t iel) -> const helfem::Matrix & {
+          if (scratch_big[iel].size() == 0)
             scratch_big[iel] = detail_fe_2e::r_big(radial, L, iel, true, lambda);
           return scratch_big[iel];
         };
-        auto kt = [&](size_t iel) -> const arma::mat & {
-          if (scratch_ktei[iel].is_empty()) {
+        auto kt = [&](size_t iel) -> const helfem::Matrix & {
+          if (scratch_ktei[iel].size() == 0) {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
             const size_t Ni = ilast - ifirst + 1;
-            scratch_ktei[iel] = utils::exchange_tei(
-                detail_fe_2e::in_element_tei(radial, L, iel, true, lambda),
-                Ni, Ni, Ni, Ni);
+            scratch_ktei[iel] = helfem::to_eigen(utils::exchange_tei(
+                helfem::to_arma(detail_fe_2e::in_element_tei(radial, L, iel, true, lambda)),
+                Ni, Ni, Ni, Ni));
           }
           return scratch_ktei[iel];
         };
