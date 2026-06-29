@@ -655,6 +655,115 @@ namespace helfem {
       }
 
 
+      std::vector<arma::cube> TwoDBasis::radial_df_factors(double tol) const {
+        if (!prim_tei.size())
+          throw std::logic_error(
+              "Primitive teis have not been computed -- call "
+              "compute_tei() before radial_df_factors().");
+
+        const int N_L = 2 * arma::max(lval) + 1;
+        const size_t Nrad = radial.Nbf();
+        const size_t Nel  = radial.Nel();
+
+        std::vector<arma::cube> B(N_L);
+
+        for (int L = 0; L < N_L; ++L) {
+          // -- 1. Initial diagonal of R^L over redundant pair index (i, j).
+          //    D(i, j) = R^L(i, j, i, j). FE basis: nonzero only when i, j
+          //    are in the same element. Pull from the cached in-element
+          //    4-index tensor (prim_tei).
+          arma::mat D(Nrad, Nrad, arma::fill::zeros);
+          for (size_t iel = 0; iel < Nel; ++iel) {
+            size_t ifirst, ilast;
+            radial.get_idx(iel, ifirst, ilast);
+            const size_t Ni = ilast - ifirst + 1;
+            const arma::mat & T =
+                prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel];
+            // T is (Ni^2, Ni^2) indexed as pair = i_loc + j_loc * Ni
+            // (Armadillo column-major). The diagonal is T(pair, pair).
+            for (size_t j_loc = 0; j_loc < Ni; ++j_loc) {
+              for (size_t i_loc = 0; i_loc < Ni; ++i_loc) {
+                const size_t pair = i_loc + j_loc * Ni;
+                D(ifirst + i_loc, ifirst + j_loc) = T(pair, pair);
+              }
+            }
+          }
+
+          // -- 2. Cached accessor lambdas for the per-L J helper.
+          auto rs = [&, L](size_t iel) -> const arma::mat & {
+            return disjoint_L[(size_t) L * Nel + iel];
+          };
+          auto rb = [&, L](size_t iel) -> const arma::mat & {
+            return disjoint_m1L[(size_t) L * Nel + iel];
+          };
+          auto tw = [&, L](size_t iel) -> const arma::mat & {
+            return prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel];
+          };
+
+          // -- 3. Pivoted Cholesky on R^L. Each iteration picks the
+          //    redundant-pair index (i*, j*) with maximum residual
+          //    diagonal, computes the corresponding column of R^L via
+          //    the J helper, subtracts projections onto previously found
+          //    Cholesky vectors, normalises, appends, and updates the
+          //    diagonal.
+          std::vector<arma::mat> B_L_vecs;
+          while (true) {
+            const arma::uword pivot_flat = D.index_max();
+            const double D_pivot = D(pivot_flat);
+            if (D_pivot < tol) break;
+
+            // Armadillo column-major flatten: i = flat % Nrad,
+            // j = flat / Nrad.
+            const arma::uword i_star = pivot_flat % Nrad;
+            const arma::uword j_star = pivot_flat / Nrad;
+
+            // Build the symmetric pair-density indicator P. For i == j:
+            //   P = e_i e_i^T (single 1 on the diagonal).
+            // For i != j:
+            //   P = (e_i e_j^T + e_j e_i^T) / 2.
+            // The J helper expects a symmetric P (it integrates against
+            // the symmetric pair density), and J(P)[a, b] then equals
+            // exactly R^L(a, b, i*, j*).
+            arma::mat P(Nrad, Nrad, arma::fill::zeros);
+            if (i_star == j_star) {
+              P(i_star, i_star) = 1.0;
+            } else {
+              P(i_star, j_star) = 0.5;
+              P(j_star, i_star) = 0.5;
+            }
+            arma::mat col =
+                helfem::atomic::basis::assemble_J_FE_one_multipole_cached(
+                    radial, rs, rb, tw, P);
+
+            // Subtract projections onto already-found Cholesky vectors.
+            for (const auto & V : B_L_vecs) {
+              col -= V(i_star, j_star) * V;
+            }
+
+            // Normalise. By construction col(i*, j*) == D_pivot, so
+            // v_new(i*, j*) == sqrt(D_pivot) -- pivot diagonal zeros
+            // out exactly on the diagonal update below.
+            arma::mat v_new = col / std::sqrt(D_pivot);
+
+            // Update diagonal: D <- D - v_new % v_new (elementwise).
+            D -= v_new % v_new;
+            // Numerical: clamp at zero to avoid negative drift.
+            D.transform([](double x) { return x < 0.0 ? 0.0 : x; });
+
+            B_L_vecs.push_back(std::move(v_new));
+          }
+
+          // -- 4. Pack into cube (Nrad, Nrad, naux_L).
+          const size_t naux = B_L_vecs.size();
+          B[L].set_size(Nrad, Nrad, naux);
+          for (size_t q = 0; q < naux; ++q) {
+            B[L].slice(q) = B_L_vecs[q];
+          }
+        }
+
+        return B;
+      }
+
       void TwoDBasis::compute_tei(bool exchange) {
         // Delegate to the shared cache builders in CoulombExchangeFE.h.
         // The bare-Coulomb defaults (yukawa=false, lambda=0) populate

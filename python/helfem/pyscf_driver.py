@@ -583,6 +583,21 @@ class NAOAtomicBasis:
         J_fe = self._fe.coulomb(P_fe)
         return self._C.T @ J_fe @ self._C
 
+    def radial_df_factors(self, tol=1e-10):
+        """Density-fitted (Cholesky) BARE radial Slater integrals.
+
+        Forwards to the underlying AtomicBasis: the NAO projection is an
+        angular-side transformation (per-shell C matrix), so the RADIAL
+        DF factors are inherited unchanged from the underlying FE basis.
+        libatomscf consumes (lvals/mvals from the underlying basis) +
+        (per-NAO angular coefficients) at angular assembly.
+
+        Note: the radial structure (Nrad, the FE element layout) is
+        invariant under the NAO projection; the per-NAO selection only
+        affects which AOs are kept downstream.
+        """
+        return self._fe.radial_df_factors(tol)
+
 
 def extract_per_shell_naos(mf, atomic_basis, keep_per_shell):
     """Slice mf.mo_coeff into per-angular-shell blocks and keep the
