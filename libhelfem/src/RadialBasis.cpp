@@ -13,6 +13,7 @@
  * for the full license text.
  */
 #include "RadialBasis.h"
+#include "ArmaEigen.h"
 #include "RadialPotential.h"
 #include "chebyshev.h"
 #include "quadrature.h"
@@ -274,7 +275,7 @@ namespace helfem {
       static const std::function<double(double)> kNoWeight;  // default-constructed = identity
       static const std::function<double(double)> kRWeight = [](double r){ return r; };
 
-      arma::mat FEMRadialBasis::overlap()         const { return matrix_element(BasisKind::B0, BasisKind::B0, kNoWeight); }
+      helfem::Matrix FEMRadialBasis::overlap()    const { return helfem::to_eigen(matrix_element(BasisKind::B0, BasisKind::B0, kNoWeight)); }
       arma::mat FEMRadialBasis::overlap(size_t iel) const { return matrix_element(iel, BasisKind::B0, BasisKind::B0, kNoWeight); }
 
       arma::mat FEMRadialBasis::kinetic()         const { return 0.5 * matrix_element(BasisKind::B1, BasisKind::B1, kNoWeight); }

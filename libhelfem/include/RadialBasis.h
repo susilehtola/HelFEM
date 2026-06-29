@@ -17,6 +17,7 @@
 
 #include "ModelPotential.h"
 #include "FiniteElementBasis.h"
+#include "Matrix.h"
 #include <armadillo>
 
 namespace helfem {
@@ -34,8 +35,12 @@ namespace helfem {
         /// Number of basis functions
         virtual size_t Nbf() const = 0;
 
-        /// Overlap matrix S_{ij} = integral u_i(r) u_j(r) dr
-        virtual arma::mat overlap() const = 0;
+        /// Overlap matrix S_{ij} = integral u_i(r) u_j(r) dr.
+        /// Eigen-typed -- first method migrated from arma::mat as part
+        /// of Phase 2a of the v2 Eigen migration arc. The other base
+        /// virtuals (kinetic, kinetic_l, nuclear) follow in subsequent
+        /// PRs.
+        virtual helfem::Matrix overlap() const = 0;
         /// Radial kinetic matrix (1/2) integral u'_i(r) u'_j(r) dr.
         /// EXCLUDES the centrifugal term -- caller adds l*(l+1) * kinetic_l().
         virtual arma::mat kinetic() const = 0;
@@ -170,8 +175,8 @@ namespace helfem {
             const std::function<double(double)> & weight =
                 std::function<double(double)>()) const;
 
-        /// Compute overlap matrix
-        arma::mat overlap() const override;
+        /// Compute overlap matrix (Eigen-typed; Phase 2a migration).
+        helfem::Matrix overlap() const override;
         /// Compute overlap matrix in element
         arma::mat overlap(size_t iel) const;
 

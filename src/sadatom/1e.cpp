@@ -99,8 +99,10 @@ int main(int argc, char **argv) {
   polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zeroder);
   atomic::basis::FEMRadialBasis radial(fem, Nquad);
 
-  // Compute matrices
-  arma::mat S(radial.overlap());
+  // Compute matrices. Phase 2a: radial.overlap() returns
+  // helfem::Matrix (Eigen); rest of sadatom 1e is still arma -- bridge
+  // at the boundary via to_arma until the chemistry layer migrates.
+  arma::mat S(helfem::to_arma(radial.overlap()));
   arma::mat Sinvh=scf::form_Sinvh(S,false);
 
   arma::mat T(radial.kinetic());

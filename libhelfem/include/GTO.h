@@ -16,6 +16,7 @@
 #define ATOMIC_BASIS_GTO_H
 
 #include "RadialBasis.h"
+#include "ArmaEigen.h"
 #include "NAORadialBasis.h"
 #include "FiniteElementBasis.h"
 #include "PolynomialBasis.h"
@@ -132,7 +133,8 @@ namespace helfem {
             /*zero_func_left*/true,  /*zero_deriv_left*/false,
             /*zero_func_right*/true, /*zero_deriv_right*/false);
         atomic::basis::FEMRadialBasis radial(fem, 5 * poly->get_nbf());
-        const arma::mat S = radial.overlap();
+        // Phase 2a: radial.overlap() returns helfem::Matrix.
+        const arma::mat S = helfem::to_arma(radial.overlap());
         arma::vec xq, wq;
         helfem::chebyshev::chebyshev(5 * poly->get_nbf(), xq, wq);
         arma::mat C(S.n_rows, basis.size(), arma::fill::zeros);
