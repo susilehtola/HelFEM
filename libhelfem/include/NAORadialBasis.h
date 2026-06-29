@@ -118,19 +118,22 @@ namespace helfem {
           return helfem::to_eigen(S_arma);
         }
 
-        /// T_NAO = C^T T_underlying C.
-        arma::mat kinetic() const override {
-          return C_.t() * underlying_->kinetic() * C_;
+        /// T_NAO = C^T T_underlying C (Phase 2a: underlying returns Eigen).
+        helfem::Matrix kinetic() const override {
+          arma::mat T_arma = C_.t() * helfem::to_arma(underlying_->kinetic()) * C_;
+          return helfem::to_eigen(T_arma);
         }
 
         /// (Centrifugal-per-l(l+1))_NAO = C^T (...)_underlying C.
-        arma::mat kinetic_l() const override {
-          return C_.t() * underlying_->kinetic_l() * C_;
+        helfem::Matrix kinetic_l() const override {
+          arma::mat Tl_arma = C_.t() * helfem::to_arma(underlying_->kinetic_l()) * C_;
+          return helfem::to_eigen(Tl_arma);
         }
 
         /// V_NAO = C^T V_underlying C (Z=1; caller multiplies by +Z).
-        arma::mat nuclear() const override {
-          return C_.t() * underlying_->nuclear() * C_;
+        helfem::Matrix nuclear() const override {
+          arma::mat V_arma = C_.t() * helfem::to_arma(underlying_->nuclear()) * C_;
+          return helfem::to_eigen(V_arma);
         }
 
         /// Evaluate the NAO orbitals (columns of C_orb in the NAO basis)
