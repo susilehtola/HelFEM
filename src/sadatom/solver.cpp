@@ -15,6 +15,7 @@
 
 #include "basis.h"
 #include "solver.h"
+#include <ArmaEigen.h>
 #include "../general/dftfuncs.h"
 #include "../general/scf_helpers.h"
 #include "../general/diis.h"
@@ -735,16 +736,16 @@ namespace helfem {
         basis=sadatom::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) (finitenuc), Rrms, poly, zeroder, Nquad, bval, lmax);
         printf("Basis set has %i radial functions\n",(int) basis.Nbf());
 
-        // Form overlap matrix
-        S=basis.overlap();
+        // Form overlap matrix (Phase 3: basis returns Eigen; bridge).
+        S=helfem::to_arma(basis.overlap());
         // Get half-inverse
         Sinvh=basis.Sinvh();
         // Form kinetic energy matrix
-        T=basis.kinetic();
+        T=helfem::to_arma(basis.kinetic());
         // Form kinetic energy matrix
-        Tl=basis.kinetic_l();
+        Tl=helfem::to_arma(basis.kinetic_l());
         // Form nuclear attraction energy matrix
-        Vnuc=basis.nuclear();
+        Vnuc=helfem::to_arma(basis.nuclear());
 	// Form confinement potential energy matrix
 	Vconf=basis.confinement(conf_N, conf_R, iconf, conf_barrier, shift_pot);
         // Form core Hamiltonian
@@ -884,7 +885,8 @@ namespace helfem {
         }
 
         // Form Coulomb matrix
-        arma::mat J(basis.coulomb(P/angfac));
+        // Phase 3: coulomb takes/returns helfem::Matrix.
+        arma::mat J(helfem::to_arma(basis.coulomb(helfem::to_eigen(arma::mat(P/angfac)))));
         conf.Ecoul=0.5*arma::trace(P*J);
         if(verbose) {
           printf("Coulomb energy %.10e\n",conf.Ecoul);
@@ -972,7 +974,8 @@ namespace helfem {
         conf.Epot=arma::trace(P*Vnuc);
 
         // Form Coulomb matrix
-        arma::mat J(basis.coulomb(P/angfac));
+        // Phase 3: coulomb takes/returns helfem::Matrix.
+        arma::mat J(helfem::to_arma(basis.coulomb(helfem::to_eigen(arma::mat(P/angfac)))));
         conf.Ecoul=0.5*arma::trace(P*J);
         if(verbose) {
           printf("Coulomb energy %.10e\n",conf.Ecoul);

@@ -147,12 +147,13 @@ namespace helfem {
         arma::mat Sinvh(bool chol, int sym) const;
         /// Form radial integral
         arma::mat radial_integral(int n) const;
+        // Phase 3: SCF surface migrated to Eigen.
         /// Form overlap matrix
-        arma::mat overlap() const;
+        helfem::Matrix overlap() const;
         /// Form kinetic energy matrix
-        arma::mat kinetic() const;
+        helfem::Matrix kinetic() const;
         /// Form nuclear attraction matrix
-        arma::mat nuclear() const;
+        helfem::Matrix nuclear() const;
 	/// Form confinement potential matrix
 	arma::mat confinement(const int N, const double r_0, const int iconf, const double V, const double shift_pot) const;
 	/// Form model potential matrix
@@ -172,11 +173,11 @@ namespace helfem {
         arma::mat form_density(const arma::mat & C, size_t nocc) const;
 
         /// Form Coulomb matrix
-        arma::mat coulomb(const arma::mat & P) const;
+        helfem::Matrix coulomb(const helfem::Matrix & P) const;
         /// Form exchange matrix
-        arma::mat exchange(const arma::mat & P) const;
+        helfem::Matrix exchange(const helfem::Matrix & P) const;
         /// Form range-separated exchange matrix
-        arma::mat rs_exchange(const arma::mat & P) const;
+        helfem::Matrix rs_exchange(const helfem::Matrix & P) const;
 
         /// Density-fitted (Cholesky-factored) BARE radial Slater
         /// integrals R^k(i, j, m, n) for k = 0..2*max(lval).

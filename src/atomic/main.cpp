@@ -20,6 +20,7 @@
 #include "../general/elements.h"
 #include "../general/timer.h"
 #include "../general/scf_helpers.h"
+#include <ArmaEigen.h>
 #include "basis.h"
 #include "dftgrid.h"
 #include <cfloat>
@@ -367,11 +368,11 @@ int main(int argc, char **argv) {
 
   Timer timer;
 
-  // Form overlap matrix
-  arma::mat S(basis.overlap());
+  // Form overlap matrix (Phase 3: basis.overlap() returns Eigen; bridge here).
+  arma::mat S(helfem::to_arma(basis.overlap()));
   chkpt.write("S",S);
   // Form kinetic energy matrix
-  arma::mat T(basis.kinetic());
+  arma::mat T(helfem::to_arma(basis.kinetic()));
   chkpt.write("T",T);
 
   // Form DFT grid
@@ -456,7 +457,7 @@ int main(int argc, char **argv) {
   Timer tnuc;
   if(Zl!=0 || Zr !=0)
     printf("Computing nuclear attraction integrals\n");
-  arma::mat Vnuc=basis.nuclear();
+  arma::mat Vnuc=helfem::to_arma(basis.nuclear());
   chkpt.write("Vuc",Vnuc);
   if(Zl!=0 || Zr !=0)
     printf("Done in %.6f\n",tnuc.get());
@@ -741,7 +742,8 @@ int main(int argc, char **argv) {
 
     // Form Coulomb matrix
     timer.set();
-    arma::mat J(basis.coulomb(P));
+    // Phase 3: coulomb/exchange/rs_exchange take/return helfem::Matrix.
+    arma::mat J(helfem::to_arma(basis.coulomb(helfem::to_eigen(P))));
     double tJ(timer.get());
     Ecoul=0.5*arma::trace(P*J);
     printf("Coulomb energy %.10e % .6f\n",Ecoul,tJ);
@@ -756,18 +758,18 @@ int main(int argc, char **argv) {
       Ka.zeros(Caocc.n_rows,Caocc.n_rows);
       Kb.zeros(Caocc.n_rows,Caocc.n_rows);
       if(kfrac!=0.0)
-        Ka+=kfrac*basis.exchange(Pa);
+        Ka+=kfrac*helfem::to_arma(basis.exchange(helfem::to_eigen(Pa)));
       if(omega!=0.0)
-        Ka+=kshort*basis.rs_exchange(Pa);
+        Ka+=kshort*helfem::to_arma(basis.rs_exchange(helfem::to_eigen(Pa)));
 
       if(nelb) {
         if(restr && nela==nelb) {
           Kb=Ka;
         } else {
           if(kfrac!=0.0)
-            Kb+=kfrac*basis.exchange(Pb);
+            Kb+=kfrac*helfem::to_arma(basis.exchange(helfem::to_eigen(Pb)));
           if(omega!=0.0)
-            Kb+=kshort*basis.rs_exchange(Pb);
+            Kb+=kshort*helfem::to_arma(basis.rs_exchange(helfem::to_eigen(Pb)));
         }
       }
 
