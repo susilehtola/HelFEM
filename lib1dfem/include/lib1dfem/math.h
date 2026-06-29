@@ -15,7 +15,7 @@
 #ifndef LIB1DFEM_MATH_H
 #define LIB1DFEM_MATH_H
 
-#include <Eigen/Core>
+#include <lib1dfem/types.h>
 #include <cmath>
 #include <algorithm>
 #include <limits>
@@ -33,8 +33,8 @@ T arcosh(T x) {
 }
 
 template <typename T>
-Eigen::Matrix<T, Eigen::Dynamic, 1> arcosh(const Eigen::Matrix<T, Eigen::Dynamic, 1> & x) {
-  Eigen::Matrix<T, Eigen::Dynamic, 1> y(x.size());
+Vec<T> arcosh(const Vec<T> & x) {
+  Vec<T> y(x.size());
   for (Eigen::Index i = 0; i < x.size(); ++i) y(i) = arcosh<T>(x(i));
   return y;
 }
@@ -46,8 +46,8 @@ T arsinh(T x) {
 }
 
 template <typename T>
-Eigen::Matrix<T, Eigen::Dynamic, 1> arsinh(const Eigen::Matrix<T, Eigen::Dynamic, 1> & x) {
-  Eigen::Matrix<T, Eigen::Dynamic, 1> y(x.size());
+Vec<T> arsinh(const Vec<T> & x) {
+  Vec<T> y(x.size());
   for (Eigen::Index i = 0; i < x.size(); ++i) y(i) = arsinh<T>(x(i));
   return y;
 }
@@ -90,8 +90,8 @@ T bessel_il(T r, int L) {
 }
 
 template <typename T>
-Eigen::Matrix<T, Eigen::Dynamic, 1> bessel_il(const Eigen::Matrix<T, Eigen::Dynamic, 1> & r, int L) {
-  Eigen::Matrix<T, Eigen::Dynamic, 1> ret(r.size());
+Vec<T> bessel_il(const Vec<T> & r, int L) {
+  Vec<T> ret(r.size());
   for (Eigen::Index i = 0; i < ret.size(); ++i) ret(i) = bessel_il<T>(r(i), L);
   return ret;
 }
@@ -110,8 +110,8 @@ T bessel_kl(T r, int L) {
 }
 
 template <typename T>
-Eigen::Matrix<T, Eigen::Dynamic, 1> bessel_kl(const Eigen::Matrix<T, Eigen::Dynamic, 1> & r, int L) {
-  Eigen::Matrix<T, Eigen::Dynamic, 1> ret(r.size());
+Vec<T> bessel_kl(const Vec<T> & r, int L) {
+  Vec<T> ret(r.size());
   for (Eigen::Index i = 0; i < ret.size(); ++i) ret(i) = bessel_kl<T>(r(i), L);
   return ret;
 }

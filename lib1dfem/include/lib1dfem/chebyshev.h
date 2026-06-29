@@ -15,14 +15,15 @@
 #ifndef LIB1DFEM_CHEBYSHEV_H
 #define LIB1DFEM_CHEBYSHEV_H
 
-#include <Eigen/Core>
+#include <lib1dfem/types.h>
 #include <cmath>
 
 namespace helfem {
 namespace lib1dfem {
 namespace chebyshev {
 
-// Phase 5.1: lib1dfem primitives migrated arma -> Eigen. The libhelfem
+// Phase 5.1: lib1dfem primitives migrated arma -> Eigen using the
+// Vec<T> / Mat<T> shorthand from <lib1dfem/types.h>. The libhelfem
 // double-only shim (libhelfem/src/chebyshev.h) bridges arma::vec on
 // the boundary so existing callers compile unchanged.
 
@@ -30,11 +31,9 @@ namespace chebyshev {
 ///     integral_{-1}^{1} f(x) dx
 /// Templated on the scalar type T.
 template <typename T>
-void chebyshev(int n, Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
-                       Eigen::Matrix<T, Eigen::Dynamic, 1> & w) {
-  using Vec = Eigen::Matrix<T, Eigen::Dynamic, 1>;
-  x = Vec::Zero(n);
-  w = Vec::Zero(n);
+void chebyshev(int n, Vec<T> & x, Vec<T> & w) {
+  x = Vec<T>::Zero(n);
+  w = Vec<T>::Zero(n);
 
   const T pi          = std::acos(T(-1));
   const T oonpp       = T(1) / T(n + 1);
@@ -62,14 +61,12 @@ void chebyshev(int n, Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
 /// (For integration in spherical coordinates the caller must still
 /// multiply by r^2.) Templated on the scalar type T.
 template <typename T>
-void radial_chebyshev(int nrad, Eigen::Matrix<T, Eigen::Dynamic, 1> & rad,
-                                  Eigen::Matrix<T, Eigen::Dynamic, 1> & wrad) {
-  using Vec = Eigen::Matrix<T, Eigen::Dynamic, 1>;
-  Vec xc, wc;
+void radial_chebyshev(int nrad, Vec<T> & rad, Vec<T> & wrad) {
+  Vec<T> xc, wc;
   chebyshev<T>(nrad, xc, wc);
 
-  rad  = Vec::Zero(nrad);
-  wrad = Vec::Zero(nrad);
+  rad  = Vec<T>::Zero(nrad);
+  wrad = Vec<T>::Zero(nrad);
   const T inv_ln2 = T(1) / std::log(T(2));
 
   for (int ir = 0; ir < nrad; ++ir) {
