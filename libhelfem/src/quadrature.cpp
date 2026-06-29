@@ -12,283 +12,255 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
+
+// Phase 5.7: quadrature.cpp migrated arma -> Eigen. Public API takes
+// and returns Eigen Vec / Mat; internals are native Eigen ops.
+
 #include "quadrature.h"
 #include "erfc_expn.h"
 #include "chebyshev.h"
 #include "utils.h"
-#include <ArmaEigen.h>
-#include <cstring>
-
-namespace {
-  // Phase 5.2 bridge: lib1dfem PolynomialBasis::eval_dnf takes/returns
-  // Eigen Vec/Mat. The quadrature routines below are still arma-typed;
-  // wrap each eval_dnf call here to convert once at the boundary.
-  inline arma::mat eval_poly_dnf(
-      const std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis> & poly,
-      const arma::vec & x, int n, double element_length) {
-    helfem::lib1dfem::Vec<double> xe(x.n_elem);
-    std::memcpy(xe.data(), x.memptr(), sizeof(double) * x.n_elem);
-    helfem::lib1dfem::Mat<double> me;
-    poly->eval_dnf(xe, me, n, element_length);
-    arma::mat out(me.rows(), me.cols());
-    std::memcpy(out.memptr(), me.data(),
-                sizeof(double) * static_cast<size_t>(me.size()));
-    return out;
-  }
-} // namespace
+#include <cmath>
+#include <sstream>
+#include <stdexcept>
 
 namespace helfem {
   namespace quadrature {
-    arma::vec twoe_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, const std::function<double(double,double)> & fsmallbig, const std::function<double(double)> & fbig) {
-      // Midpoint is at
-      double rmid(0.5*(rmax+rmin));
-      // and half-length of interval is
-      double rlen(0.5*(rmax-rmin));
-      // r values are then
-      arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
 
-      // Midpoint of original interval is at
-      double rmid0(0.5*(rmax0+rmin0));
-      // and half-length of original interval is
-      double rlen0(0.5*(rmax0-rmin0));
+    using Vec = helfem::Vector;
+    using Mat = helfem::Matrix;
 
-      // Compute fsmallbig(r)
-      arma::vec fsmallbigr(r.n_elem);
-      for(size_t i=0;i<r.n_elem;i++)
-        fsmallbigr(i)=fsmallbig(r(i),rmax);
+    Vec twoe_inner_integral_wrk(double rmin, double rmax, double rmin0, double rmax0,
+                                const Vec & x, const Vec & wx,
+                                const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly,
+                                const std::function<double(double,double)> & fsmallbig,
+                                const std::function<double(double)> & fbig) {
+      (void) fbig;
+      const double rmid  = 0.5 * (rmax + rmin);
+      const double rlen  = 0.5 * (rmax - rmin);
+      const Vec r = Vec::Constant(x.size(), rmid) + rlen * x;
 
-      // Calculate total weight per point
-      arma::vec wp(wx%fsmallbigr*rlen);
+      const double rmid0 = 0.5 * (rmax0 + rmin0);
+      const double rlen0 = 0.5 * (rmax0 - rmin0);
 
-      // Calculate x values the polynomials should be evaluated at
-      arma::vec xpoly((r-rmid0*arma::ones<arma::vec>(x.n_elem))/rlen0);
-      // Evaluate the polynomials at these points
-      arma::mat bf(eval_poly_dnf(poly, xpoly, 0, rlen0));
+      Vec fsmallbigr(r.size());
+      for (Eigen::Index i = 0; i < r.size(); ++i)
+        fsmallbigr(i) = fsmallbig(r(i), rmax);
 
-      // Put in weight
-      arma::mat wbf(bf);
-      for(size_t i=0;i<wbf.n_cols;i++)
-        wbf.col(i)%=wp;
+      // wp = wx .* fsmallbigr * rlen (element-wise)
+      const Vec wp = (wx.array() * fsmallbigr.array() * rlen).matrix();
 
-      // The integrals are then
-      arma::vec inner(arma::vectorise(arma::trans(wbf)*bf));
+      // xpoly = (r - rmid0) / rlen0
+      const Vec xpoly = (r - Vec::Constant(r.size(), rmid0)) / rlen0;
+
+      // Evaluate polynomials at xpoly
+      Mat bf;
+      poly->eval_dnf(xpoly, bf, 0, rlen0);
+
+      // Weighted bf: wbf(:, k) = bf(:, k) .* wp
+      Mat wbf = bf;
+      for (Eigen::Index k = 0; k < wbf.cols(); ++k)
+        wbf.col(k).array() *= wp.array();
+
+      // inner = vec(wbf^T * bf), column-major flatten.
+      const Mat M = wbf.transpose() * bf;
+      Vec inner(M.size());
+      std::memcpy(inner.data(), M.data(), sizeof(double) * (size_t) M.size());
+      return inner;
+    }
+
+    Mat twoe_inner_integral(double rmin, double rmax,
+                            const Vec & x, const Vec & wx,
+                            const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly,
+                            const std::function<double(double,double)> & fsmallbig,
+                            const std::function<double(double)> & fbig) {
+      const double rmid = 0.5 * (rmax + rmin);
+      const double rlen = 0.5 * (rmax - rmin);
+      const Vec r = Vec::Constant(x.size(), rmid) + rlen * x;
+
+      const int nbf = poly->get_nbf();
+      Mat inner(x.size(), nbf * nbf);
+      // Row 0: integral from rmin to r(0)
+      inner.row(0) = twoe_inner_integral_wrk(rmin, r(0), rmin, rmax, x, wx, poly, fsmallbig, fbig).transpose();
+      for (Eigen::Index ip = 1; ip < x.size(); ++ip)
+        inner.row(ip) = twoe_inner_integral_wrk(r(ip - 1), r(ip), rmin, rmax, x, wx, poly, fsmallbig, fbig).transpose();
+
+      // Rescale: undo the per-segment R^(-L-1) factor we applied for
+      // numerical stability.
+      for (Eigen::Index ip = 1; ip < x.size(); ++ip)
+        inner.row(ip) += inner.row(ip - 1) * (fbig(r(ip)) / fbig(r(ip - 1)));
 
       return inner;
     }
 
-    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, const std::function<double(double,double)> & fsmallbig, const std::function<double(double)> & fbig) {
-      // Midpoint is at
-      double rmid(0.5*(rmax+rmin));
-      // and half-length of interval is
-      double rlen(0.5*(rmax-rmin));
-      // r values are then
-      arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
-
-      // Compute the "inner" integrals as function of r.
-      // Every subinterval uses a fresh nquad points!
-      arma::mat inner(x.n_elem,std::pow(poly->get_nbf(),2));
-      inner.row(0)=arma::trans(twoe_inner_integral_wrk(rmin, r(0), rmin, rmax, x, wx, poly, fsmallbig, fbig));
-      for(size_t ip=1;ip<x.n_elem;ip++)
-        inner.row(ip)=arma::trans(twoe_inner_integral_wrk(r(ip-1), r(ip), rmin, rmax, x, wx, poly, fsmallbig, fbig));
-
-      // For numerical stability, each integral segment is scaled by
-      // R^(-L-1), since first integrating r^L and then multiplying by
-      // R^(-L-1) is unstable for small R and large L due to loss of
-      // precision. We undo the conversion here
-      for(size_t ip=1;ip<x.n_elem;ip++)
-        inner.row(ip) += inner.row(ip-1)*(fbig(r(ip))/fbig(r(ip-1)));
-
-      return inner;
-    }
-
-    arma::mat twoe_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L) {
-      // Kernel functions
-      std::function<double(double,double)> fsmallbig = [L](double r, double R) {return std::pow(r/R,L)/R;};
-      std::function<double(double)> fbig = [L](double r) {return std::pow(r,-L-1);};
+    Mat twoe_inner_integral(double rmin, double rmax,
+                            const Vec & x, const Vec & wx,
+                            const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly,
+                            int L) {
+      std::function<double(double,double)> fsmallbig = [L](double r, double R) { return std::pow(r/R, L) / R; };
+      std::function<double(double)> fbig = [L](double r) { return std::pow(r, -L - 1); };
       return twoe_inner_integral(rmin, rmax, x, wx, poly, fsmallbig, fbig);
     }
 
-    arma::mat twoe_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L) {
-#ifndef ARMA_NO_DEBUG
-      if(x.n_elem != wx.n_elem) {
+    namespace {
+      // Helper: bf-product columns bfprod(:, fi*Nf+fj) = bf(:, fi) .* bf(:, fj).
+      inline Mat make_bfprod(const Mat & bf) {
+        const Eigen::Index N = bf.cols();
+        Mat bfprod(bf.rows(), N * N);
+        for (Eigen::Index fi = 0; fi < N; ++fi)
+          for (Eigen::Index fj = 0; fj < N; ++fj)
+            bfprod.col(fi * N + fj).array() = bf.col(fi).array() * bf.col(fj).array();
+        return bfprod;
+      }
+    } // namespace
+
+    Mat twoe_integral(double rmin, double rmax,
+                      const Vec & x, const Vec & wx,
+                      const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly,
+                      int L) {
+      if (x.size() != wx.size()) {
         std::ostringstream oss;
-        oss << "x and wx not compatible: " << x.n_elem << " vs " << wx.n_elem << "!\n";
+        oss << "x and wx not compatible: " << x.size() << " vs " << wx.size() << "!\n";
         throw std::logic_error(oss.str());
       }
-#endif
-      // and half-length of interval is
-      double rlen(0.5*(rmax-rmin));
+      const double rlen = 0.5 * (rmax - rmin);
 
-      // Compute the inner integrals
-      arma::mat inner(twoe_inner_integral(rmin, rmax, x, wx, poly, L));
+      const Mat inner = twoe_inner_integral(rmin, rmax, x, wx, poly, L);
 
-      // Evaluate basis functions at quadrature points
-      arma::mat bf(eval_poly_dnf(poly, x, 0, rlen));
+      Mat bf;
+      poly->eval_dnf(x, bf, 0, rlen);
 
-      // Product functions
-      arma::mat bfprod(bf.n_rows,bf.n_cols*bf.n_cols);
-      for(size_t fi=0;fi<bf.n_cols;fi++)
-        for(size_t fj=0;fj<bf.n_cols;fj++)
-          bfprod.col(fi*bf.n_cols+fj)=bf.col(fi)%bf.col(fj);
-      // Put in the weights for the outer integral
-      arma::vec wp(wx*rlen);
-      for(size_t i=0;i<bfprod.n_cols;i++)
-        bfprod.col(i)%=wp;
+      Mat bfprod = make_bfprod(bf);
+      const Vec wp = wx * rlen;
+      for (Eigen::Index i = 0; i < bfprod.cols(); ++i)
+        bfprod.col(i).array() *= wp.array();
 
-      // Integrals are then
-      arma::mat ints(arma::trans(bfprod)*inner);
-      // but we are still missing the second term which can be
-      // obtained as simply as
-      ints+=arma::trans(ints);
-
+      Mat ints = bfprod.transpose() * inner;
+      ints += ints.transpose().eval();
       return ints;
     }
 
-    arma::mat yukawa_inner_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, double lambda) {
-      // Kernel functions
-      std::function<double(double,double)> fsmallbig = [L, lambda](double r, double R) {return utils::bessel_il(r*lambda,L)*utils::bessel_kl(R*lambda,L);};
-      std::function<double(double)> fbig = [L, lambda](double r) {return utils::bessel_kl(r*lambda,L);};
+    Mat yukawa_inner_integral(double rmin, double rmax,
+                              const Vec & x, const Vec & wx,
+                              const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly,
+                              int L, double lambda) {
+      std::function<double(double,double)> fsmallbig = [L, lambda](double r, double R) {
+        return utils::bessel_il(r * lambda, L) * utils::bessel_kl(R * lambda, L);
+      };
+      std::function<double(double)> fbig = [L, lambda](double r) { return utils::bessel_kl(r * lambda, L); };
       return twoe_inner_integral(rmin, rmax, x, wx, poly, fsmallbig, fbig);
     }
 
-    arma::mat yukawa_integral(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, double lambda) {
-#ifndef ARMA_NO_DEBUG
-      if(x.n_elem != wx.n_elem) {
+    Mat yukawa_integral(double rmin, double rmax,
+                        const Vec & x, const Vec & wx,
+                        const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly,
+                        int L, double lambda) {
+      if (x.size() != wx.size()) {
         std::ostringstream oss;
-        oss << "x and wx not compatible: " << x.n_elem << " vs " << wx.n_elem << "!\n";
+        oss << "x and wx not compatible: " << x.size() << " vs " << wx.size() << "!\n";
         throw std::logic_error(oss.str());
       }
-#endif
-      // and half-length of interval is
-      double rlen(0.5*(rmax-rmin));
+      const double rlen = 0.5 * (rmax - rmin);
 
-      // Compute the inner integrals
-      arma::mat inner(yukawa_inner_integral(rmin, rmax, x, wx, poly, L, lambda));
+      const Mat inner = yukawa_inner_integral(rmin, rmax, x, wx, poly, L, lambda);
 
-      // Evaluate basis functions at quadrature points
-      arma::mat bf(eval_poly_dnf(poly, x, 0, rlen));
+      Mat bf;
+      poly->eval_dnf(x, bf, 0, rlen);
 
-      // Product functions
-      arma::mat bfprod(bf.n_rows,bf.n_cols*bf.n_cols);
-      for(size_t fi=0;fi<bf.n_cols;fi++)
-        for(size_t fj=0;fj<bf.n_cols;fj++)
-          bfprod.col(fi*bf.n_cols+fj)=bf.col(fi)%bf.col(fj);
-      // Put in the weights for the outer integral
-      arma::vec wp(wx*rlen);
-      for(size_t i=0;i<bfprod.n_cols;i++)
-        bfprod.col(i)%=wp;
+      Mat bfprod = make_bfprod(bf);
+      const Vec wp = wx * rlen;
+      for (Eigen::Index i = 0; i < bfprod.cols(); ++i)
+        bfprod.col(i).array() *= wp.array();
 
-      // Integrals are then
-      arma::mat ints(arma::trans(bfprod)*inner);
-      // but we are still missing the second term which can be
-      // obtained as simply as
-      ints+=arma::trans(ints);
-
+      Mat ints = bfprod.transpose() * inner;
+      ints += ints.transpose().eval();
       return ints;
     }
 
-    arma::mat erfc_integral(double rmini, double rmaxi, const arma::mat & bfi, const arma::vec & xi, const arma::vec & wi, double rmink, double rmaxk, const arma::mat & bfk, const arma::vec & xk, const arma::vec & wk, int L, double mu) {
-#ifndef ARMA_NO_DEBUG
-      if(xi.n_elem != wi.n_elem) {
+    Mat erfc_integral(double rmini, double rmaxi,
+                      const Mat & bfi, const Vec & xi, const Vec & wi,
+                      double rmink, double rmaxk,
+                      const Mat & bfk, const Vec & xk, const Vec & wk,
+                      int L, double mu) {
+      if (xi.size() != wi.size()) {
         std::ostringstream oss;
-        oss << "xi and wi not compatible: " << xi.n_elem << " vs " << wi.n_elem << "!\n";
+        oss << "xi and wi not compatible: " << xi.size() << " vs " << wi.size() << "!\n";
         throw std::logic_error(oss.str());
       }
-      if(xk.n_elem != wk.n_elem) {
+      if (xk.size() != wk.size()) {
         std::ostringstream oss;
-        oss << "xk and wk not compatible: " << xk.n_elem << " vs " << wk.n_elem << "!\n";
+        oss << "xk and wk not compatible: " << xk.size() << " vs " << wk.size() << "!\n";
         throw std::logic_error(oss.str());
       }
-#endif
-      // and half-lengths of the intervals are
-      double rmidi(0.5*(rmaxi+rmini));
-      double rmidk(0.5*(rmaxk+rmink));
 
-      double rleni(0.5*(rmaxi-rmini));
-      double rlenk(0.5*(rmaxk-rmink));
+      const double rmidi = 0.5 * (rmaxi + rmini);
+      const double rmidk = 0.5 * (rmaxk + rmink);
+      const double rleni = 0.5 * (rmaxi - rmini);
+      const double rlenk = 0.5 * (rmaxk - rmink);
 
-      // Radii
-      arma::vec ri(rmidi*arma::ones<arma::vec>(xi.n_elem)+rleni*xi);
-      arma::vec rk(rmidk*arma::ones<arma::vec>(xk.n_elem)+rlenk*xk);
+      const Vec ri = Vec::Constant(xi.size(), rmidi) + rleni * xi;
+      const Vec rk = Vec::Constant(xk.size(), rmidk) + rlenk * xk;
 
-      // Green's function
-      arma::mat Fn(ri.n_elem,rk.n_elem);
-      for(size_t i=0;i<ri.n_elem;i++)
-        for(size_t k=0;k<rk.n_elem;k++)
-          Fn(i,k) = atomic::erfc_expn::Phi(L,mu*ri(i),mu*rk(k));
+      // Green's function matrix Fn(i, k) = Phi(L, mu*ri(i), mu*rk(k))
+      Mat Fn(ri.size(), rk.size());
+      for (Eigen::Index i = 0; i < ri.size(); ++i)
+        for (Eigen::Index k = 0; k < rk.size(); ++k)
+          Fn(i, k) = atomic::erfc_expn::Phi(L, mu * ri(i), mu * rk(k));
 
-      // Product functions
-      arma::mat bfprodij(bfi.n_rows,bfi.n_cols*bfi.n_cols);
-      for(size_t fi=0;fi<bfi.n_cols;fi++)
-        for(size_t fj=0;fj<bfi.n_cols;fj++)
-          bfprodij.col(fi*bfi.n_cols+fj)=bfi.col(fi)%bfi.col(fj);
-      arma::mat bfprodkl(bfk.n_rows,bfk.n_cols*bfk.n_cols);
-      for(size_t fi=0;fi<bfk.n_cols;fi++)
-        for(size_t fj=0;fj<bfk.n_cols;fj++)
-          bfprodkl.col(fi*bfk.n_cols+fj)=bfk.col(fi)%bfk.col(fj);
-      // Put in the weights
-      arma::vec wpi(wi*rleni);
-      for(size_t i=0;i<bfprodij.n_cols;i++)
-        bfprodij.col(i)%=wpi;
-      arma::vec wpk(wk*rlenk);
-      for(size_t i=0;i<bfprodkl.n_cols;i++)
-        bfprodkl.col(i)%=wpk;
+      Mat bfprodij = make_bfprod(bfi);
+      Mat bfprodkl = make_bfprod(bfk);
 
-      // Integrals are then
-      arma::mat ints(arma::trans(bfprodij)*Fn*bfprodkl);
+      const Vec wpi = wi * rleni;
+      for (Eigen::Index i = 0; i < bfprodij.cols(); ++i)
+        bfprodij.col(i).array() *= wpi.array();
+      const Vec wpk = wk * rlenk;
+      for (Eigen::Index i = 0; i < bfprodkl.cols(); ++i)
+        bfprodkl.col(i).array() *= wpk.array();
 
-      return ints;
+      return bfprodij.transpose() * Fn * bfprodkl;
     }
 
-    arma::mat spherical_potential(double rmin, double rmax, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly) {
-      // Midpoint is at
-      double rmid(0.5*(rmax+rmin));
-      // and half-length of interval is
-      double rlen(0.5*(rmax-rmin));
-      // r values are then
-      arma::vec r(rmid*arma::ones<arma::vec>(x.n_elem)+rlen*x);
+    Mat spherical_potential(double rmin, double rmax,
+                            const Vec & x, const Vec & wx,
+                            const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly) {
+      const double rmid = 0.5 * (rmax + rmin);
+      const double rlen = 0.5 * (rmax - rmin);
+      const Vec r = Vec::Constant(x.size(), rmid) + rlen * x;
 
-      // Compute the "inner" integrals as function of r.
-      arma::mat zero(std::pow(poly->get_nbf(),2),x.n_elem);
-      zero.zeros();
-      arma::mat minusone(std::pow(poly->get_nbf(),2),x.n_elem);
-      minusone.zeros();
+      const int nbf = poly->get_nbf();
+      Mat zero     = Mat::Zero(nbf * nbf, x.size());
+      Mat minusone = Mat::Zero(nbf * nbf, x.size());
 
-      std::function<double(double)> fsmall = [](double r) {return 1.0;};
-      std::function<double(double)> fbig = [](double r) {return 1/r;};
+      std::function<double(double)> fsmall = [](double) { return 1.0; };
+      std::function<double(double)> fbig   = [](double r) { return 1.0 / r; };
+      std::function<double(double,double)> fsmallbig = [](double, double R) { return 1.0 / R; };
+      std::function<double(double,double)> fbigsmall = [](double r, double) { return 1.0 / r; };
 
-      std::function<double(double,double)> fsmallbig = [](double r, double R) {return 1.0/R;};
-      std::function<double(double,double)> fbigsmall = [](double r, double R) {return 1/r;};
-
-      // Every subinterval uses a fresh nquad points!
-      for(size_t ip=0;ip<x.n_elem;ip++) {
-        double low = ip ? r(ip-1) : rmin;
-        double high = r(ip);
-        zero.col(ip)=twoe_inner_integral_wrk(low, high, rmin, rmax, x, wx, poly, fsmallbig, fbig);
+      for (Eigen::Index ip = 0; ip < x.size(); ++ip) {
+        const double low  = ip ? r(ip - 1) : rmin;
+        const double high = r(ip);
+        zero.col(ip) = twoe_inner_integral_wrk(low, high, rmin, rmax, x, wx, poly, fsmallbig, fbig);
       }
-      for(size_t ip=0;ip<x.n_elem;ip++) {
-        double low = r(ip);
-        double high = (ip == x.n_elem-1) ? rmax : r(ip+1);
-        minusone.col(ip)=twoe_inner_integral_wrk(low, high, rmin, rmax, x, wx, poly, fbigsmall, fsmall);
+      for (Eigen::Index ip = 0; ip < x.size(); ++ip) {
+        const double low  = r(ip);
+        const double high = (ip == x.size() - 1) ? rmax : r(ip + 1);
+        minusone.col(ip) = twoe_inner_integral_wrk(low, high, rmin, rmax, x, wx, poly, fbigsmall, fsmall);
       }
 
-      // The potential itself
-      arma::mat V(std::pow(poly->get_nbf(),2),x.n_elem);
-      V.zeros();
-      for(size_t ip=0;ip<x.n_elem;ip++) {
+      Mat V = Mat::Zero(nbf * nbf, x.size());
+      for (Eigen::Index ip = 0; ip < x.size(); ++ip) {
         // \int_0^r Bi(r) Bj(r) dr
-        for(size_t jp=0;jp<=ip;jp++)
-          V.col(ip)+=zero.col(jp)*r(jp);
-        // divided by r
+        for (Eigen::Index jp = 0; jp <= ip; ++jp)
+          V.col(ip) += zero.col(jp) * r(jp);
         V.col(ip) /= r(ip);
 
-        // plus the integral to infinity \int_r^\infty r^{-1} Bi(r) Bj(r) dr
-        for(size_t jp=ip;jp<x.n_elem;jp++)
-          V.col(ip)+=minusone.col(jp);
+        // + \int_r^infty r^{-1} Bi(r) Bj(r) dr
+        for (Eigen::Index jp = ip; jp < x.size(); ++jp)
+          V.col(ip) += minusone.col(jp);
       }
 
-      // Should be returned as transpose
-      return arma::trans(V);
+      return V.transpose();
     }
-  }
-}
+
+  } // namespace quadrature
+} // namespace helfem

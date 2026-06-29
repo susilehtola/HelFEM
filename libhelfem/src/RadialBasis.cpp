@@ -441,11 +441,11 @@ namespace helfem {
 
         // Integral by quadrature
         std::shared_ptr<const polynomial_basis::PolynomialBasis> p(fem.get_basis(iel));
-        arma::mat tei(quadrature::twoe_integral(Rmin, Rmax, eigen_vec_to_arma(xq), eigen_vec_to_arma(wq), p, L));
-        if(tei.has_nan()) {
-          printf("twoe_integral(%i,%i) has NaN!\n",L,(int) iel);
-        }
-        return helfem::to_eigen(tei);
+        // Phase 5.7: quadrature::twoe_integral is now Eigen.
+        helfem::Matrix tei = quadrature::twoe_integral(Rmin, Rmax, xq, wq, p, L);
+        if (tei.array().isNaN().any())
+          printf("twoe_integral(%i,%i) has NaN!\n", L, (int) iel);
+        return tei;
       }
 
       // Pivoted Cholesky with truncation. Returns Lout of shape
@@ -514,9 +514,7 @@ namespace helfem {
 
         // Integral by quadrature
         std::shared_ptr<const polynomial_basis::PolynomialBasis> p(fem.get_basis(iel));
-        arma::mat tei(quadrature::yukawa_integral(Rmin, Rmax, eigen_vec_to_arma(xq), eigen_vec_to_arma(wq), p, L, lambda));
-
-        return helfem::to_eigen(tei);
+        return quadrature::yukawa_integral(Rmin, Rmax, xq, wq, p, L, lambda);
       }
 
       helfem::Matrix FEMRadialBasis::erfc_integral(int L, double mu, size_t iel, size_t kel) const {
@@ -566,11 +564,15 @@ namespace helfem {
         double Rmink(fem.element_begin(kel));
         double Rmaxk(fem.element_end(kel));
 
-        // Evaluate integral
-        arma::mat tei(quadrature::erfc_integral(Rmini, Rmaxi, ibf, xi, wi, Rmink,
-                                                Rmaxk, kbf, xk, wk, L, mu));
-        // Symmetrize just to be sure, since quadrature points were
-        // different
+        // Evaluate integral (Phase 5.7: quadrature::erfc_integral is
+        // Eigen; bridge the local arma::vec / arma::mat scratch).
+        arma::mat tei(eigen_mat_to_arma(quadrature::erfc_integral(
+            Rmini, Rmaxi,
+            helfem::to_eigen(ibf), arma_to_eigen_vec(xi), arma_to_eigen_vec(wi),
+            Rmink, Rmaxk,
+            helfem::to_eigen(kbf), arma_to_eigen_vec(xk), arma_to_eigen_vec(wk),
+            L, mu)));
+        // Symmetrize just to be sure (quadrature points were different).
         if (iel == kel)
           tei = 0.5 * (tei + tei.t());
 
@@ -583,9 +585,7 @@ namespace helfem {
 
         // Integral by quadrature
         std::shared_ptr<polynomial_basis::PolynomialBasis> p(fem.get_basis(iel));
-        arma::mat pot(quadrature::spherical_potential(Rmin, Rmax, eigen_vec_to_arma(xq), eigen_vec_to_arma(wq), p));
-
-        return helfem::to_eigen(pot);
+        return quadrature::spherical_potential(Rmin, Rmax, xq, wq, p);
       }
 
       arma::mat FEMRadialBasis::get_bf(size_t iel) const {
