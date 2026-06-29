@@ -67,9 +67,10 @@ namespace helfem {
       /// implementation (formerly named RadialBasis prior to the v2 refactor).
       class FEMRadialBasis : public RadialBasis {
         /// Quadrature points
-        arma::vec xq;
+        // Phase 5.6: quadrature node/weight members migrated to Eigen.
+        helfem::Vector xq;
         /// Quadrature weights
-        arma::vec wq;
+        helfem::Vector wq;
         /// Finite element basis
         polynomial_basis::FiniteElementBasis fem;
 

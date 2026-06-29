@@ -53,24 +53,26 @@ namespace helfem {
       FEMRadialBasis::FEMRadialBasis() {}
 
       FEMRadialBasis::FEMRadialBasis(const polynomial_basis::FiniteElementBasis & fem_, int n_quad) : fem(fem_) {
-        // Get quadrature rule
-        chebyshev::chebyshev(n_quad, xq, wq);
-        for (size_t i = 0; i < xq.n_elem; i++) {
-          if (!std::isfinite(xq[i]))
-            printf("xq[%i]=%e\n", (int)i, xq[i]);
-          if (!std::isfinite(wq[i]))
-            printf("wq[%i]=%e\n", (int)i, wq[i]);
+        // Phase 5.6: xq/wq are Eigen. Call lib1dfem::chebyshev directly
+        // (the libhelfem chebyshev shim only has an arma::vec overload).
+        helfem::lib1dfem::chebyshev::chebyshev<double>(n_quad, xq, wq);
+        for (Eigen::Index i = 0; i < xq.size(); ++i) {
+          if (!std::isfinite(xq(i)))
+            printf("xq[%lld]=%e\n", (long long) i, xq(i));
+          if (!std::isfinite(wq(i)))
+            printf("wq[%lld]=%e\n", (long long) i, wq(i));
         }
       }
 
       FEMRadialBasis::~FEMRadialBasis() {}
 
       int FEMRadialBasis::get_nquad() const {
-        return (int)xq.n_elem;
+        return (int) xq.size();
       }
 
       arma::vec FEMRadialBasis::get_xq() const {
-        return xq;
+        // Phase 5.6: xq is Eigen; bridge to arma for the public accessor.
+        return eigen_vec_to_arma(xq);
       }
 
       size_t FEMRadialBasis::Nbf() const {
@@ -155,9 +157,7 @@ namespace helfem {
         // are still arma -- bridge.
         auto lhs = make_evaluator(this, bra);
         auto rhs = make_evaluator(this, ket);
-        return fem.matrix_element(iel, lhs, rhs,
-                                  arma_to_eigen_vec(xq),
-                                  arma_to_eigen_vec(wq), weight);
+        return fem.matrix_element(iel, lhs, rhs, xq, wq, weight);
       }
 
       helfem::Matrix FEMRadialBasis::matrix_element(
@@ -165,9 +165,7 @@ namespace helfem {
           const std::function<double(double)> & weight) const {
         auto lhs = make_evaluator(this, bra);
         auto rhs = make_evaluator(this, ket);
-        return fem.matrix_element(lhs, rhs,
-                                  arma_to_eigen_vec(xq),
-                                  arma_to_eigen_vec(wq), weight);
+        return fem.matrix_element(lhs, rhs, xq, wq, weight);
       }
 
       helfem::Matrix FEMRadialBasis::matrix_element(
@@ -176,9 +174,7 @@ namespace helfem {
           double x_left, double x_right) const {
         auto lhs = make_evaluator(this, bra);
         auto rhs = make_evaluator(this, ket);
-        return fem.matrix_element(iel, lhs, rhs,
-                                  arma_to_eigen_vec(xq),
-                                  arma_to_eigen_vec(wq), weight, x_left, x_right);
+        return fem.matrix_element(iel, lhs, rhs, xq, wq, weight, x_left, x_right);
       }
 
       helfem::Matrix FEMRadialBasis::bessel_il_integral(int L, double lambda, size_t iel) const {
@@ -218,7 +214,7 @@ namespace helfem {
           const std::function<double(double)> & weight) const {
         // Pick a quadrature rule sized for the finer of the two bases so the
         // projection is well resolved on every overlap interval.
-        const size_t n_quad = std::max(xq.n_elem, rh.xq.n_elem);
+        const size_t n_quad = std::max((size_t) xq.size(), (size_t) rh.xq.size());
         arma::vec xproj, wproj;
         chebyshev::chebyshev(n_quad, xproj, wproj);
 
@@ -445,7 +441,7 @@ namespace helfem {
 
         // Integral by quadrature
         std::shared_ptr<const polynomial_basis::PolynomialBasis> p(fem.get_basis(iel));
-        arma::mat tei(quadrature::twoe_integral(Rmin, Rmax, xq, wq, p, L));
+        arma::mat tei(quadrature::twoe_integral(Rmin, Rmax, eigen_vec_to_arma(xq), eigen_vec_to_arma(wq), p, L));
         if(tei.has_nan()) {
           printf("twoe_integral(%i,%i) has NaN!\n",L,(int) iel);
         }
@@ -518,14 +514,14 @@ namespace helfem {
 
         // Integral by quadrature
         std::shared_ptr<const polynomial_basis::PolynomialBasis> p(fem.get_basis(iel));
-        arma::mat tei(quadrature::yukawa_integral(Rmin, Rmax, xq, wq, p, L, lambda));
+        arma::mat tei(quadrature::yukawa_integral(Rmin, Rmax, eigen_vec_to_arma(xq), eigen_vec_to_arma(wq), p, L, lambda));
 
         return helfem::to_eigen(tei);
       }
 
       helfem::Matrix FEMRadialBasis::erfc_integral(int L, double mu, size_t iel, size_t kel) const {
         // Number of quadrature points
-        size_t Nq = xq.n_elem;
+        size_t Nq = (size_t) xq.size();
         // Number of subintervals
         size_t Nint;
 
@@ -587,13 +583,13 @@ namespace helfem {
 
         // Integral by quadrature
         std::shared_ptr<polynomial_basis::PolynomialBasis> p(fem.get_basis(iel));
-        arma::mat pot(quadrature::spherical_potential(Rmin, Rmax, xq, wq, p));
+        arma::mat pot(quadrature::spherical_potential(Rmin, Rmax, eigen_vec_to_arma(xq), eigen_vec_to_arma(wq), p));
 
         return helfem::to_eigen(pot);
       }
 
       arma::mat FEMRadialBasis::get_bf(size_t iel) const {
-        return get_bf(xq, iel);
+        return get_bf(eigen_vec_to_arma(xq), iel);
       }
 
       // get_taylor() has been removed in favour of fem.eval_over_r().
@@ -636,7 +632,7 @@ namespace helfem {
       }
 
       arma::mat FEMRadialBasis::get_df(size_t iel) const {
-        return get_df(xq ,iel);
+        return get_df(eigen_vec_to_arma(xq), iel);
       }
 
       arma::mat FEMRadialBasis::get_df(const arma::vec & x, size_t iel) const {
@@ -657,7 +653,7 @@ namespace helfem {
       }
 
       arma::mat FEMRadialBasis::get_lf(size_t iel) const {
-        return get_lf(xq, iel);
+        return get_lf(eigen_vec_to_arma(xq), iel);
       }
 
       arma::mat FEMRadialBasis::get_lf(const arma::vec & x, size_t iel) const {
@@ -680,7 +676,7 @@ namespace helfem {
       }
 
       arma::vec FEMRadialBasis::get_wrad(size_t iel) const {
-        return get_wrad(wq, iel);
+        return get_wrad(eigen_vec_to_arma(wq), iel);
       }
 
       arma::vec FEMRadialBasis::get_wrad(const arma::vec & w, size_t iel) const {
@@ -689,7 +685,7 @@ namespace helfem {
       }
 
       arma::vec FEMRadialBasis::get_r(size_t iel) const {
-        return get_r(xq, iel);
+        return get_r(eigen_vec_to_arma(xq), iel);
       }
 
       arma::vec FEMRadialBasis::get_r(const arma::vec & x, size_t iel) const {
