@@ -15,7 +15,7 @@
 #ifndef LIB1DFEM_LOBATTO_H
 #define LIB1DFEM_LOBATTO_H
 
-#include <Eigen/Core>
+#include <lib1dfem/types.h>
 #include <cmath>
 #include <limits>
 #include <sstream>
@@ -29,18 +29,12 @@ namespace lobatto {
 ///     integral_{-1}^{1} f(x) dx
 ///         ~ 2/(n*(n-1)) * (f(-1) + f(1)) + sum_{i=2}^{n-1} w_i f(x_i)
 ///
-/// Templated on the scalar type T. The interior nodes are the roots of
-/// P'_{n-1}(x) (derivative of Legendre polynomial), found by Newton
-/// iteration starting from the Chebyshev-Gauss-Lobatto guess. Weights
-/// are w_i = 2 / (n * (n - 1) * P_{n-1}(x_i)^2).
-///
-/// Cost is a one-time setup; the iteration converges quadratically so
-/// the number of iterations scales as O(log(1 / eps_T)).
+/// Templated on the scalar type T. Interior nodes are roots of
+/// P'_{n-1}(x), found by Newton iteration starting from the
+/// Chebyshev-Gauss-Lobatto guess. Weights are
+/// w_i = 2 / (n * (n - 1) * P_{n-1}(x_i)^2).
 template <typename T>
-void lobatto_compute(int n, Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
-                              Eigen::Matrix<T, Eigen::Dynamic, 1> & w) {
-  using Vec = Eigen::Matrix<T, Eigen::Dynamic, 1>;
-  using Mat = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
+void lobatto_compute(int n, Vec<T> & x, Vec<T> & w) {
   if (n < 2) {
     std::ostringstream oss;
     oss << "Lobatto called with n=" << n << ", but n>=2 is required.\n";
@@ -58,9 +52,9 @@ void lobatto_compute(int n, Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
     x(i) = std::cos(pi * T(i) / T(n - 1));
   }
 
-  Vec xold(n);
+  Vec<T> xold(n);
   // p(i, j) holds P_j(x_i) for j in [0, n-1].
-  Mat p(n, n);
+  Mat<T> p(n, n);
 
   for (;;) {
     xold = x;
@@ -81,9 +75,7 @@ void lobatto_compute(int n, Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
       }
     }
 
-    // Newton step: roots of P'_{n-1}(x). Endpoints stay at +/-1 because
-    // the increment vanishes there (P_{n-1}(+/-1) = +/-1 and the formula
-    // gives a self-consistent fixed point).
+    // Newton step: roots of P'_{n-1}(x). Endpoints stay at +/-1.
     for (int i = 0; i < n; ++i) {
       x(i) = xold(i)
            - (x(i) * p(i, n - 1) - p(i, n - 2)) / (T(n) * p(i, n - 1));
@@ -98,13 +90,10 @@ void lobatto_compute(int n, Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
     if (error <= tolerance) break;
   }
 
-  // Reverse order so the result runs from -1 to +1 (matches the convention
-  // used by lobatto_compute in libhelfem prior to the v2 migration).
+  // Reverse order so the result runs from -1 to +1.
   x = x.reverse().eval();
 
-  // Weights use the final-iteration P_{n-1}(x_i) BEFORE the reverse above;
-  // but since w(i) depends only on P_{n-1}(x_i)^2 and the x order has been
-  // reversed, we recompute P_{n-1} at the reversed x to keep w aligned with x.
+  // Weights use P_{n-1}(x_i) at the (reversed) x values to keep w aligned with x.
   for (int i = 0; i < n; ++i) {
     T pn = T(1), pnm1 = T(1);
     T pnm2;
