@@ -215,10 +215,11 @@ namespace helfem {
         /// Compute off-center nuclear attraction matrix in element
         arma::mat nuclear_offcenter(size_t iel, double Rhalf, int L) const;
 
-        /// Compute primitive two-electron integral
-        arma::mat twoe_integral(int L, size_t iel) const;
+        /// Compute primitive two-electron integral (Eigen; Phase 2a).
+        helfem::Matrix twoe_integral(int L, size_t iel) const;
         /// Compute primitive Yukawa-screened two-electron integral
-        arma::mat yukawa_integral(int L, double lambda, size_t iel) const;
+        /// (Eigen; Phase 2a).
+        helfem::Matrix yukawa_integral(int L, double lambda, size_t iel) const;
 
         /// Pivoted-Cholesky decomposition of the in-element 4-index
         /// two-electron tensor twoe_integral(L, iel). Returns L of shape
@@ -236,11 +237,13 @@ namespace helfem {
         /// Assumes the in-element tensor is positive semi-definite; this
         /// holds for the bare Coulomb and Yukawa kernels (both PSD as
         /// integral kernels).
-        arma::mat twoe_integral_cholesky(int L, size_t iel,
-                                         double tol = 1e-12) const;
+        /// Eigen-typed (Phase 2a migration).
+        helfem::Matrix twoe_integral_cholesky(int L, size_t iel,
+                                              double tol = 1e-12) const;
         /// Same as above for the Yukawa-screened tensor yukawa_integral.
-        arma::mat yukawa_integral_cholesky(int L, double lambda, size_t iel,
-                                           double tol = 1e-12) const;
+        /// Eigen-typed (Phase 2a).
+        helfem::Matrix yukawa_integral_cholesky(int L, double lambda, size_t iel,
+                                                double tol = 1e-12) const;
 
         // NOTE: the K-permuted in-element tensor (exchange_tei) is
         // essentially full rank as a PSD matrix (~Ni^2) -- its Cholesky
@@ -251,9 +254,10 @@ namespace helfem {
         // for typical FE rank-vs-Ni ratios but the canonical
         // RI/density-fitting form expected by external drivers like
         // PySCF's DF backend).
-        /// Compute primitive complementary error function two-electron integral
-        arma::mat erfc_integral(int L, double lambda, size_t iel,
-                                size_t jel) const;
+        /// Compute primitive complementary error function two-electron
+        /// integral (Eigen; Phase 2a).
+        helfem::Matrix erfc_integral(int L, double lambda, size_t iel,
+                                     size_t jel) const;
         /// Compute a spherically symmetric potential
         arma::mat spherical_potential(size_t iel) const;
 

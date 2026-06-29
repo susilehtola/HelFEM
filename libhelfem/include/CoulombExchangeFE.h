@@ -204,8 +204,11 @@ namespace helfem {
         inline arma::mat in_element_tei(const FEMRadialBasis & fem, int L,
                                          size_t iel,
                                          bool yukawa, double lambda) {
-          return yukawa ? fem.yukawa_integral(L, lambda, iel)
-                        : fem.twoe_integral(L, iel);
+          // Phase 2a: twoe_integral / yukawa_integral return helfem::Matrix;
+          // bridge here since prim_tei caches are std::vector<arma::mat>.
+          return helfem::to_arma(
+              yukawa ? fem.yukawa_integral(L, lambda, iel)
+                     : fem.twoe_integral(L, iel));
         }
 
       } // namespace detail_fe_2e
@@ -324,9 +327,11 @@ namespace helfem {
             for (size_t jel = 0; jel < Nel; ++jel) {
               const size_t Ni = radial.Nprim(iel);
               const size_t Nj = radial.Nprim(jel);
+              // Phase 2a: erfc_integral returns helfem::Matrix; bridge
+              // here since rs_ktei is std::vector<arma::mat>.
               rs_ktei[Nel * Nel * (size_t) L + iel * Nel + jel] =
                   helfem::utils::exchange_tei(
-                      radial.erfc_integral(L, mu, iel, jel),
+                      helfem::to_arma(radial.erfc_integral(L, mu, iel, jel)),
                       Ni, Ni, Nj, Nj);
             }
           }
