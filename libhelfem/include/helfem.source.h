@@ -16,6 +16,7 @@
 #define __HELFEM__
 
 #include <armadillo>
+#include <Matrix.h>
 #include <string>
 
 #define __HELFEM_VERSION__ "${LIBHELFEM_VERSION}"
@@ -53,8 +54,9 @@ namespace helfem {
 
     /**
      * Calculates the half-inverse of a matrix.
+     * Phase 5.10: Eigen-typed.
      */
-    arma::mat invh(arma::mat S, bool chol);
+    helfem::Matrix invh(helfem::Matrix S, bool chol);
   } // namespace utils
 } // namespace helfem
 

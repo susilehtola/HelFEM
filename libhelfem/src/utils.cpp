@@ -14,6 +14,9 @@
  */
 #include "utils.h"
 #include <lib1dfem/math.h>
+#include <Eigen/Cholesky>
+#include <Eigen/Eigenvalues>
+#include <Eigen/LU>
 #include <cmath>
 #include <cstring>
 
@@ -192,28 +195,37 @@ namespace helfem {
       return strcasecmp(str1.c_str(),str2.c_str());
     }
 
-    arma::mat invh(arma::mat S, bool chol) {
-      // Get the basis function norms
-      arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
-      // Go to normalized basis
-      S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
+    // Phase 5.10: invh migrated to Eigen.
+    helfem::Matrix invh(helfem::Matrix S, bool chol) {
+      // Basis function norms: 1 / sqrt(diag(S))
+      const helfem::Vector bfnormlz = S.diagonal().array().pow(-0.5).matrix();
 
-      // Half-inverse is
-      arma::mat Sinvh;
-      if(chol) {
-        Sinvh = arma::inv(arma::chol(S));
+      // Go to normalized basis: S -> diag(bfnormlz) S diag(bfnormlz)
+      S = bfnormlz.asDiagonal() * S * bfnormlz.asDiagonal();
+
+      helfem::Matrix Sinvh;
+      if (chol) {
+        // Sinvh = inv(chol(S))  -- upper-triangular L from LLT, inverted.
+        Eigen::LLT<helfem::Matrix> llt(S);
+        if (llt.info() != Eigen::Success)
+          throw std::logic_error("Cholesky decomposition of overlap matrix failed\n");
+        // arma::chol(S) returns the upper triangular U with U^T U = S;
+        // Eigen LLT stores L (lower) with L L^T = S. To mirror arma we
+        // take L^T then invert.
+        const helfem::Matrix U = llt.matrixL().transpose();
+        Sinvh = U.inverse();
       } else {
-        arma::vec Sval;
-        arma::mat Svec;
-        if(!arma::eig_sym(Sval,Svec,S)) {
+        Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(S);
+        if (es.info() != Eigen::Success)
           throw std::logic_error("Diagonalization of overlap matrix failed\n");
-        }
-        printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
-
-        Sinvh=Svec*arma::diagmat(arma::pow(Sval,-0.5))*arma::trans(Svec);
+        const helfem::Vector Sval = es.eigenvalues();
+        const helfem::Matrix Svec = es.eigenvectors();
+        printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",
+               Sval(0), Sval(Sval.size() - 1) / Sval(0));
+        Sinvh = Svec * Sval.array().pow(-0.5).matrix().asDiagonal() * Svec.transpose();
       }
 
-      Sinvh=arma::diagmat(bfnormlz)*Sinvh;
+      Sinvh = bfnormlz.asDiagonal() * Sinvh;
       return Sinvh;
     }
   }

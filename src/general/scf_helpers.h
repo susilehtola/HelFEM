@@ -16,11 +16,12 @@
 #define SCF_HELPERS_H
 #include <armadillo>
 #include <helfem.h>
+#include <Matrix.h>
 
 namespace helfem {
   namespace scf {
-    /// Form density matrix
-    arma::mat form_density(const arma::mat & C, size_t nocc);
+    /// Form density matrix (Phase 5.10: Eigen-typed).
+    helfem::Matrix form_density(const helfem::Matrix & C, size_t nocc);
     /// Enforce occupation of wanted symmetries
     void enforce_occupations(arma::mat & C, arma::vec & E, const arma::mat & S, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx);
 
@@ -51,8 +52,8 @@ namespace helfem {
 
     /// Form natural orbitals
     void form_NOs(const arma::mat & P, const arma::mat & Sh, const arma::mat & Sinvh, arma::mat & AO_to_NO, arma::mat & NO_to_AO, arma::vec & occs);
-    /// Form half-inverse overlap
-    inline arma::mat form_Sinvh(arma::mat S, bool chol=false) {
+    /// Form half-inverse overlap (Phase 5.10: Eigen-typed).
+    inline helfem::Matrix form_Sinvh(helfem::Matrix S, bool chol=false) {
       return utils::invh(S, chol);
     }
 
