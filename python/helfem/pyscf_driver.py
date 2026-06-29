@@ -160,41 +160,39 @@ def build_active_eri(basis, mo_active):
     repeated J calls into a HelFEM basis. Returns the UNPACKED tensor of
     shape (N, N, N, N) where N = mo_active.shape[1].
 
-    Cost: N*(N+1)/2 J builds (one per unique active orbital pair) plus
+    Cost: N**2 J builds (one per ordered active orbital pair) plus
     N**4 traces. For a typical active space N ~ 5-20 on top of an
     Nbf ~ 300-3000 atomic FE basis, the J builds dominate at
     ~ms each. Negligible compared to the CI / orbital-opt loop.
 
-    Math: with the symmetrised pair density
-        P_ij_sym = (c_i c_j^T + c_j c_i^T) / 2   for i != j
-                 = c_i c_i^T                       for i == j
-    we have J(P_ij_sym)_{ab} = (ab | ij)   (since the AO Coulomb kernel
-    is symmetric under (alpha, beta) swap, the asymmetric c_i c_j^T
-    and c_j c_i^T pieces average to the symmetric product), and so
-        (mn | ij) = c_m^T . J(P_ij_sym) . c_n.
+    Math: with the ASYMMETRIC pair-density indicator P = c_i c_j^T,
+        J(P)_{ab} = sum_{c,d} P_{cd} (ab|cd) = (ab | ij)
+    and the active-space entry
+        (mn | ij) = c_m^T . J(P) . c_n.
+
+    Why asymmetric P (not the half-sum of c_i c_j^T and c_j c_i^T): for
+    complex Y_lm AOs (HelFEM's atomic basis), (mn|ij) and (mn|ji) have
+    DIFFERENT m-conservation patterns -- one can be nonzero while the
+    other is zero. Averaging mixes them and contaminates the tensor
+    with spurious m-non-conserving entries (this was a real bug: He
+    lmax=1 CCSD gave a 5 mEh-wrong correlation energy through this
+    contamination; see install_full_eri's deprecation note below).
+    For REAL AO bases (Y_l0 only, or real spherical harmonics) the
+    two halves coincide and either form gives the same answer.
     """
     N = mo_active.shape[1]
     eri = np.zeros((N, N, N, N))
     for i in range(N):
-        for j in range(i, N):
+        for j in range(N):
             ci = mo_active[:, i]
             cj = mo_active[:, j]
-            if i == j:
-                P = np.outer(ci, ci)
-            else:
-                P = 0.5 * (np.outer(ci, cj) + np.outer(cj, ci))
+            # Asymmetric pair-density indicator: J(c_i c_j^T) extracts
+            # exactly (.|ij), with no (.|ji) contamination.
+            P = np.outer(ci, cj)
             Jij = basis.coulomb(P)
             # (mn | ij) = c_m^T . J . c_n.
             # JC = J . mo_active  -> (Nbf, N)   then mo_active.T @ JC -> (N, N).
-            mtJn = mo_active.T @ (Jij @ mo_active)        # shape (N, N)
-            eri[:, :, i, j] = mtJn
-            if i != j:
-                eri[:, :, j, i] = mtJn
-    # Enforce the (mn) <-> (ij) pair-swap symmetry that's required by
-    # PySCF's 8-fold-packed (s8) format. The block we computed
-    # satisfies (mn | ij) symmetry in m<->n and i<->j, but symmetrising
-    # over pair-swap protects against small numerical asymmetries.
-    eri = 0.5 * (eri + eri.transpose(2, 3, 0, 1))
+            eri[:, :, i, j] = mo_active.T @ (Jij @ mo_active)
     return eri
 
 
@@ -502,17 +500,70 @@ def install_full_eri(mf, basis):
     against the HelFEM basis through normal code paths -- no per-method
     overrides needed.
 
-    Cost: Nbf*(Nbf+1)/2 J builds + O(Nbf^4) storage. For a compact NAO
-    basis (Nbf ~ 10-30) this is trivial (Nbf^4 ~ 10k-800k entries).
-    For larger Nbf the storage blows up -- use DF/Cholesky or stick to
-    the per-multipole install_eri_builder path instead. Typical NAO
-    workflows are small enough that this is the path of least
-    resistance for CASSCF.
+    !!! DEPRECATED for complex-Y_lm AOs (mmax > 0). !!!
+
+    HelFEM's atomic basis labels each AO by a definite (l, m)
+    quantum-mechanical magnetic-quantum-number, i.e. the AOs are
+    complex spherical harmonics Y_l,m(Omega) * u(r). For lmax = 0 only
+    the (l=0, m=0) shell exists and Y_00 is real-valued, so the
+    AO ERI tensor has full 8-fold permutational symmetry and the
+    s8-packed mf._eri + PySCF post-HF stack works correctly.
+
+    For any shell with m != 0 (lmax > 0 / mmax > 0):
+      - The AO ERI is REAL (m-conservation) but only 2-fold symmetric
+        ((mn|ij) = (ij|mn)); the other PySCF-assumed symmetries
+        ((mn|ij) = (nm|ij), (mn|ij) = (mn|ji)) FAIL because complex
+        AOs conjugate the bra differently.
+      - PySCF's CCSD / CASSCF / MP2 internals derive equations from
+        the 8-fold-symmetric ERI; running them on a 2-fold-symmetric
+        tensor gives WRONG correlation energies. (Empirically, He
+        lmax=1 mmax=1 install_full_eri -> CCSD gave a 5.6 mEh wrong
+        correlation; the correct route via radial_df_factors gave the
+        right answer.)
+      - Even with build_active_eri's symmetrisation bug fixed (this PR:
+        asymmetric P, m-conservation respected), s8 packing throws
+        away non-symmetric entries, and s1 packing into PySCF's CCSD
+        still doesn't reach the right answer because PySCF assumes
+        full 8-fold symmetry internally.
+
+    The supported general path is:
+        basis.radial_df_factors(tol) -> Bk
+    consumed by libatomscf's cderi_from_radial_df + PySCF DF post-HF,
+    which builds the AO ERI in the REAL spherical-harmonic basis where
+    full 8-fold symmetry holds. See radial_df_factors() docstring on
+    the C++ AtomicBasis side; the angular Gaunt assembly and PySCF DF
+    wiring live in libatomscf, not here.
+
+    This function now raises NotImplementedError when basis has any
+    shell with m != 0. For real-Y_lm AOs (m == 0 only) it still works
+    and is useful as a small-case cross-check.
     """
+    mvals = list(basis.mvals())
+    complex_shells = [(i, basis.lvals()[i], m) for i, m in enumerate(mvals) if m != 0]
+    if complex_shells:
+        raise NotImplementedError(
+            "install_full_eri is complex-AO-unsafe: HelFEM uses complex Y_lm,\n"
+            "and PySCF's 8-fold-symmetric post-HF machinery doesn't produce\n"
+            f"correct correlation energies on a 2-fold-symmetric ERI.\n"
+            f"  basis has {len(complex_shells)} shell(s) with m != 0:\n"
+            f"    {complex_shells[:3]}{' ...' if len(complex_shells) > 3 else ''}\n"
+            "\n"
+            "Use the radial_df_factors() + libatomscf cderi path for post-HF\n"
+            "calculations at lmax > 0 (or mmax > 0):\n"
+            "\n"
+            "    B = basis.radial_df_factors(tol=1e-12)\n"
+            "    cderi = libatomscf.cderi_from_radial_df(B, basis.lvals(),\n"
+            "                                            basis.mvals(),\n"
+            "                                            basis.Nrad())\n"
+            "    # feed cderi to PySCF DF-CCSD / DF-CASSCF / etc.\n"
+            "\n"
+            "install_full_eri remains correct (and useful as a cross-check)\n"
+            "for the lmax == 0, mmax == 0 case (s-shell-only, real AOs)."
+        )
     Nbf = basis.Nbf()
     # build_active_eri with identity coefficients returns the AO ERI.
     eri_unpacked = build_active_eri(basis, np.eye(Nbf))
-    # Store in 8-fold-packed form (the format PySCF uses internally).
+    # Store in 8-fold-packed form (valid for real AOs, lmax=0 only).
     mf._eri = ao2mo.restore('s8', eri_unpacked, Nbf)
     return mf
 
