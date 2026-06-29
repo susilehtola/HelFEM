@@ -13,6 +13,8 @@ list(APPEND LIBHELFEM_PUBLIC_HEADERS
     "RadialBasis.h"
     "SphericalNucleus.h"
     "RegularizedNucleus.h"
+    "Matrix.h"
+    "ArmaEigen.h"
 )
 foreach(header IN LISTS LIBHELFEM_PUBLIC_HEADERS)
     configure_file("include/${header}" "include/${header}" COPYONLY)
@@ -36,7 +38,7 @@ add_library(helfem
     src/RadialBasis.cpp
 )
 target_include_directories(helfem PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
-target_link_libraries(helfem PUBLIC helfem::lib1dfem)
+target_link_libraries(helfem PUBLIC helfem::lib1dfem Eigen3::Eigen)
 target_compile_features(helfem PUBLIC cxx_std_17)
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/include/" DESTINATION include)
 install(TARGETS helfem DESTINATION lib)
