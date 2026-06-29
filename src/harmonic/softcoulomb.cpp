@@ -18,6 +18,7 @@
 #include "PolynomialBasis.h"
 #include "FiniteElementBasis.h"
 #include "chebyshev.h"
+#include <cstring>
 
 using namespace helfem;
 
@@ -145,10 +146,16 @@ int main(int argc, char **argv) {
   Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
   printf("Orbital orthonormality devation is %e\n",arma::norm(Smo,"fro"));
 
-  // Evaluate the basis set: 0th derivative
-  arma::mat bfval(fem.eval_dnf(xq, 0));
+  // Evaluate the basis set: 0th derivative (Phase 5.3 bridge).
+  helfem::Vector xq_e(xq.n_elem);
+  std::memcpy(xq_e.data(), xq.memptr(), sizeof(double) * xq.n_elem);
+  helfem::Matrix bfval_e = fem.eval_dnf(xq_e, 0);
+  arma::mat bfval(bfval_e.rows(), bfval_e.cols());
+  std::memcpy(bfval.memptr(), bfval_e.data(), sizeof(double) * (size_t) bfval_e.size());
   arma::mat phival(bfval*C);
-  arma::mat coords(fem.eval_coord(xq));
+  helfem::Vector coords_e = fem.eval_coord(xq_e);
+  arma::vec coords(coords_e.size());
+  std::memcpy(coords.memptr(), coords_e.data(), sizeof(double) * coords_e.size());
   arma::mat weights(fem.eval_weights(wq));
 
   // Test orbitals are still orthonormal
