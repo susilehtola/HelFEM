@@ -25,6 +25,19 @@
 #include "LegendreBasis.h"
 #include <lib1dfem/HIP2Basis.h>  // analytic HIP order 2 (primbas=8 since v2)
 #include <lib1dfem/HIP3Basis.h>  // analytic HIP order 3 (primbas=9 since v2)
+#include <ArmaEigen.h>
+#include <cstring>
+
+namespace {
+  // Phase 5.2: lib1dfem PolynomialBasis subclasses now take Vec<T>
+  // (Eigen) constructors. This helper bridges from arma::vec at the
+  // libhelfem factory boundary; copy cost is one-time at basis setup.
+  inline helfem::lib1dfem::Vec<double> arma_to_eigen_vec(const arma::vec & v) {
+    helfem::lib1dfem::Vec<double> e(v.n_elem);
+    std::memcpy(e.data(), v.memptr(), sizeof(double) * v.n_elem);
+    return e;
+  }
+} // namespace
 // (GeneralHIPBasis was removed when its callers were either rerouted to
 // analytic HIP2/HIP3 (primbas=8, 9) or deprecated (primbas=6, 7, 10, 11).)
 
@@ -52,7 +65,7 @@ namespace helfem {
         {
           arma::vec x, w;
           ::lobatto_compute(Nnodes,x,w);
-          poly=new polynomial_basis::LIPBasis(x,primbas);
+          poly=new polynomial_basis::LIPBasis(arma_to_eigen_vec(x),primbas);
           printf("Basis set composed of %i-node LIPs with Gauss-Lobatto nodes.\n",Nnodes);
           break;
         }
@@ -61,7 +74,7 @@ namespace helfem {
         {
           arma::vec x, w;
           ::lobatto_compute(Nnodes,x,w);
-          poly=new polynomial_basis::HIPBasis(x,primbas);
+          poly=new polynomial_basis::HIPBasis(arma_to_eigen_vec(x),primbas);
           printf("Basis set composed of %i-node HIPs with Gauss-Lobatto nodes.\n",Nnodes);
           break;
         }
@@ -72,7 +85,7 @@ namespace helfem {
           for(int i=0;i<Nnodes;i++)
             ang(i) = M_PI*(Nnodes-1-i)/(Nnodes-1);
           arma::vec x=arma::cos(ang);
-          poly=new polynomial_basis::LIPBasis(x,4);
+          poly=new polynomial_basis::LIPBasis(arma_to_eigen_vec(x),4);
           printf("Basis set composed of %i-node LIPs with Chebyshev nodes.\n",Nnodes);
           break;
         }
@@ -83,7 +96,7 @@ namespace helfem {
           for(int i=0;i<Nnodes;i++)
             ang(i) = M_PI*(Nnodes-1-i)/(Nnodes-1);
           arma::vec x=arma::cos(ang);
-          poly=new polynomial_basis::HIPBasis(x,5);
+          poly=new polynomial_basis::HIPBasis(arma_to_eigen_vec(x),5);
           printf("Basis set composed of %i-node HIPs with Chebyshev nodes.\n",Nnodes);
           break;
         }
@@ -94,7 +107,7 @@ namespace helfem {
           // runtime-inverted GeneralHIPBasis(nder=2) path.
           arma::vec x, w;
           ::lobatto_compute(Nnodes, x, w);
-          poly = new lib1dfem::polynomial_basis::HIP2Basis<double>(x, primbas);
+          poly = new lib1dfem::polynomial_basis::HIP2Basis<double>(arma_to_eigen_vec(x), primbas);
           printf("Basis set composed of %i-node 2nd order analytic HIPs with Gauss-Lobatto nodes.\n", Nnodes);
           break;
         }
@@ -105,7 +118,7 @@ namespace helfem {
           // runtime-inverted GeneralHIPBasis(nder=3) path.
           arma::vec x, w;
           ::lobatto_compute(Nnodes, x, w);
-          poly = new lib1dfem::polynomial_basis::HIP3Basis<double>(x, primbas);
+          poly = new lib1dfem::polynomial_basis::HIP3Basis<double>(arma_to_eigen_vec(x), primbas);
           printf("Basis set composed of %i-node 3rd order analytic HIPs with Gauss-Lobatto nodes.\n", Nnodes);
           break;
         }

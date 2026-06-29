@@ -15,6 +15,7 @@
 
 #include "FiniteElementBasis.h"
 #include <cfloat>
+#include <cstring>
 
 namespace helfem {
   namespace polynomial_basis {
@@ -240,8 +241,14 @@ namespace helfem {
     }
 
     arma::uvec FiniteElementBasis::basis_indices(size_t iel) const {
+      // Phase 5.2: lib1dfem PolynomialBasis::enabled is IVec (Eigen);
+      // bridge to arma::uvec at the libhelfem boundary.
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      return p->get_enabled();
+      const auto & ie = p->get_enabled();
+      arma::uvec out(ie.size());
+      for (Eigen::Index i = 0; i < ie.size(); ++i)
+        out(i) = static_cast<arma::uword>(ie(i));
+      return out;
     }
 
     arma::mat FiniteElementBasis::get_basis(const arma::mat &bas, size_t iel) const {
@@ -292,8 +299,15 @@ namespace helfem {
     }
 
     void FiniteElementBasis::eval_dnf(const arma::vec & x, arma::mat & dnf, int n, size_t iel) const {
+      // Phase 5.2: lib1dfem eval_dnf takes/returns Eigen. Bridge here.
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      p->eval_dnf(x,dnf,n,scaling_factor(iel));
+      lib1dfem::Vec<double> xe(x.n_elem);
+      std::memcpy(xe.data(), x.memptr(), sizeof(double) * x.n_elem);
+      lib1dfem::Mat<double> dnf_e;
+      p->eval_dnf(xe, dnf_e, n, scaling_factor(iel));
+      dnf.set_size(dnf_e.rows(), dnf_e.cols());
+      std::memcpy(dnf.memptr(), dnf_e.data(),
+                  sizeof(double) * static_cast<size_t>(dnf_e.size()));
     }
 
     arma::mat FiniteElementBasis::eval_f(const arma::vec & x, size_t iel) const {
@@ -309,8 +323,9 @@ namespace helfem {
     }
 
     arma::mat FiniteElementBasis::eval_dnf(const arma::vec & x, int n, size_t iel) const {
-      std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      return p->eval_dnf(x,n,scaling_factor(iel));
+      arma::mat dnf;
+      eval_dnf(x, dnf, n, iel);
+      return dnf;
     }
 
     arma::mat FiniteElementBasis::eval_over_r(const arma::vec & x, int n, size_t iel) const {
@@ -320,9 +335,15 @@ namespace helfem {
             " element " << iel << " starts at " << element_begin(iel) << ".\n";
         throw std::logic_error(oss.str());
       }
+      // Phase 5.2: lib1dfem eval_over_r takes/returns Eigen. Bridge.
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      arma::mat dnf_over_r;
-      p->eval_over_r(x, dnf_over_r, n, scaling_factor(iel));
+      lib1dfem::Vec<double> xe(x.n_elem);
+      std::memcpy(xe.data(), x.memptr(), sizeof(double) * x.n_elem);
+      lib1dfem::Mat<double> dnf_e;
+      p->eval_over_r(xe, dnf_e, n, scaling_factor(iel));
+      arma::mat dnf_over_r(dnf_e.rows(), dnf_e.cols());
+      std::memcpy(dnf_over_r.memptr(), dnf_e.data(),
+                  sizeof(double) * static_cast<size_t>(dnf_e.size()));
       return dnf_over_r;
     }
 

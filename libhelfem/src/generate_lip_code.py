@@ -44,7 +44,7 @@ print('''/*
 #ifndef LIB1DFEM_LIPBASIS_EVAL_H
 #define LIB1DFEM_LIPBASIS_EVAL_H
 
-#include <armadillo>
+#include <lib1dfem/types.h>
 #include <sstream>
 #include <stdexcept>
 
@@ -55,20 +55,20 @@ namespace detail {
 
 /// Evaluate the n-th derivative of every LIP polynomial on the reference
 /// element [-1, 1] at the given points x, given the control-node vector
-/// x0. Fills dnf (size x.n_elem x x0.n_elem) with d^n L_i(x_j)/dx^n in
+/// x0. Fills dnf (size x.size() x x0.size()) with d^n L_i(x_j)/dx^n in
 /// column-major (point, polynomial) layout. element_length is unused
 /// at this layer (the chain-rule scaling lives in PolynomialBasis::eval_dnf).
 template <typename T>
-void eval_lip_prim_dnf(const arma::Col<T> & x, const arma::Col<T> & x0,
-                       arma::Mat<T> & dnf, int n) {
+void eval_lip_prim_dnf(const Vec<T> & x, const Vec<T> & x0,
+                       Mat<T> & dnf, int n) {
   switch (n) {''')
 
 for order in range(0, maxorder):
     fname = 'dnf'
     print('case ({}): {{'.format(order))
-    print('  {}.zeros(x.n_elem, x0.n_elem);'.format(fname))
-    print('  for (size_t ix = 0; ix < x.n_elem; ix++) {')
-    print('    for (size_t fi = 0; fi < x0.n_elem; fi++) {')
+    print('  {}.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());'.format(fname))
+    print('  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {')
+    print('    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {')
     if order > 0:
         if kahan:
             print('      T s = T(0), s2 = T(0), t;')
@@ -79,14 +79,14 @@ for order in range(0, maxorder):
     factor = 1
     for ider in range(1, order + 1):
         print('      for (size_t d{0} = 0; d{0} < {1}; d{0}++) {{'.format(
-            ider, 'x0.n_elem' if ider == 1 else 'd{}'.format(ider - 1)))
+            ider, '(size_t) x0.size()' if ider == 1 else 'd{}'.format(ider - 1)))
         for term in ['fi']:
             print('        if (d{0} == {1}) continue;'.format(ider, term))
         factor *= ider
 
     # Now do the product
     print('      T {}val = T(1);'.format(fname))
-    print('      for (size_t ip = 0; ip < x0.n_elem; ip++) {')
+    print('      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {')
     check_terms = ['d{}'.format(o) for o in range(1, order + 1)]
     check_terms.append('fi')
     for term in check_terms:

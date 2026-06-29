@@ -73,9 +73,22 @@ int main(int argc, char **argv) {
   arma::vec xq, wq;
   chebyshev::chebyshev(Nquad,xq,wq);
 
-  // Evaluate polynomials at quadrature points
-  arma::mat bf(poly->eval_dnf(xq, 0, 1.0));
-  arma::mat dbf(poly->eval_dnf(xq, 1, 1.0));
+  // Evaluate polynomials at quadrature points (Phase 5.2: bridge to
+  // lib1dfem Eigen API).
+  arma::mat bf, dbf;
+  {
+    helfem::lib1dfem::Vec<double> xe(xq.n_elem);
+    std::memcpy(xe.data(), xq.memptr(), sizeof(double) * xq.n_elem);
+    helfem::lib1dfem::Mat<double> bfe, dbfe;
+    poly->eval_dnf(xe, bfe,  0, 1.0);
+    poly->eval_dnf(xe, dbfe, 1, 1.0);
+    bf.set_size(bfe.rows(), bfe.cols());
+    dbf.set_size(dbfe.rows(), dbfe.cols());
+    std::memcpy(bf.memptr(), bfe.data(),
+                sizeof(double) * static_cast<size_t>(bfe.size()));
+    std::memcpy(dbf.memptr(), dbfe.data(),
+                sizeof(double) * static_cast<size_t>(dbfe.size()));
+  }
 
   xq.save("x.dat",arma::raw_ascii);
   bf.save("bf.dat",arma::raw_ascii);

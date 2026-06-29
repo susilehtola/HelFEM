@@ -38,6 +38,11 @@ using Mat = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T>
 using RowVec = Eigen::Matrix<T, 1, Eigen::Dynamic>;
 
+/// Index vector (signed Eigen::Index = ptrdiff_t). Used wherever the
+/// arma::uvec lived in the v1 code -- typically for the `enabled`
+/// column-selection list on PolynomialBasis subclasses.
+using IVec = Eigen::Matrix<Eigen::Index, Eigen::Dynamic, 1>;
+
 } // namespace lib1dfem
 } // namespace helfem
 
