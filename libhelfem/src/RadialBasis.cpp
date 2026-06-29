@@ -190,15 +190,15 @@ namespace helfem {
       // Per-element B-evaluator for cross-basis quadrature. Only B-kinds
       // are meaningful cross-basis (R-kinds carry a per-element 1/r factor
       // that's tied to a single basis's element-length scaling).
-      static arma::mat eval_B_at(const polynomial_basis::FiniteElementBasis & fem,
-                                 const arma::vec & x, size_t iel,
-                                 FEMRadialBasis::BasisKind k) {
+      // Phase 5.8: cross-basis B-evaluator rewritten in native Eigen.
+      static helfem::Matrix eval_B_at(const polynomial_basis::FiniteElementBasis & fem,
+                                       const helfem::Vector & x, size_t iel,
+                                       FEMRadialBasis::BasisKind k) {
         using BK = FEMRadialBasis::BasisKind;
-        const helfem::Vector xe = arma_to_eigen_vec(x);
         switch (k) {
-          case BK::B0: return eigen_mat_to_arma(fem.eval_f  (xe, iel));
-          case BK::B1: return eigen_mat_to_arma(fem.eval_df (xe, iel));
-          case BK::B2: return eigen_mat_to_arma(fem.eval_d2f(xe, iel));
+          case BK::B0: return fem.eval_f  (x, iel);
+          case BK::B1: return fem.eval_df (x, iel);
+          case BK::B2: return fem.eval_d2f(x, iel);
           case BK::R0: case BK::R1: case BK::R2:
             throw std::logic_error(
                 "FEMRadialBasis::matrix_element(cross-basis): R-kinds are not "
@@ -212,15 +212,12 @@ namespace helfem {
           const FEMRadialBasis & rh,
           BasisKind bra, BasisKind ket,
           const std::function<double(double)> & weight) const {
-        // Pick a quadrature rule sized for the finer of the two bases so the
-        // projection is well resolved on every overlap interval.
-        const size_t n_quad = std::max((size_t) xq.size(), (size_t) rh.xq.size());
-        arma::vec xproj, wproj;
-        chebyshev::chebyshev(n_quad, xproj, wproj);
+        // Pick a quadrature rule sized for the finer of the two bases.
+        const Eigen::Index n_quad = std::max(xq.size(), rh.xq.size());
+        helfem::Vector xproj, wproj;
+        helfem::lib1dfem::chebyshev::chebyshev<double>((int) n_quad, xproj, wproj);
 
-        // For each element on the bra side, list every ket-side element it
-        // overlaps in r-space; the product of two FE shape functions is
-        // nonzero only there.
+        // List overlapping (iel, jel) element pairs.
         std::vector<std::vector<size_t>> overlap(fem.get_nelem());
         for (size_t iel = 0; iel < fem.get_nelem(); ++iel) {
           const double istart = fem.element_begin(iel);
@@ -234,10 +231,9 @@ namespace helfem {
           }
         }
 
-        arma::mat S(Nbf(), rh.Nbf(), arma::fill::zeros);
+        helfem::Matrix S = helfem::Matrix::Zero(Nbf(), rh.Nbf());
         for (size_t iel = 0; iel < fem.get_nelem(); ++iel) {
           for (size_t jel : overlap[iel]) {
-            // Restrict the quadrature to the actual overlap interval.
             const double intstart = std::max(fem.element_begin(iel),
                                              rh.fem.element_begin(jel));
             const double intend   = std::min(fem.element_end(iel),
@@ -245,32 +241,30 @@ namespace helfem {
             const double intmid   = 0.5 * (intend + intstart);
             const double intlen   = 0.5 * (intend - intstart);
 
-            const arma::vec r =
-                intmid * arma::ones<arma::vec>(xproj.n_elem) + intlen * xproj;
+            const helfem::Vector r =
+                helfem::Vector::Constant(xproj.size(), intmid) + intlen * xproj;
 
-            // Back-transform r into each basis's reference coords
-            // (Phase 5.3: eval_prim is Eigen; bridge).
-            const helfem::Vector r_e = arma_to_eigen_vec(r);
-            const helfem::Vector xi_e = fem.eval_prim(r_e, iel);
-            const helfem::Vector xj_e = rh.fem.eval_prim(r_e, jel);
-            arma::vec xi(xi_e.size()); std::memcpy(xi.memptr(), xi_e.data(), sizeof(double) * xi_e.size());
-            arma::vec xj(xj_e.size()); std::memcpy(xj.memptr(), xj_e.data(), sizeof(double) * xj_e.size());
+            const helfem::Vector xi = fem.eval_prim(r, iel);
+            const helfem::Vector xj = rh.fem.eval_prim(r, jel);
 
-            arma::vec wtot = wproj * intlen;
+            helfem::Vector wtot = wproj * intlen;
             if (weight)
-              for (arma::uword i = 0; i < r.n_elem; ++i)
+              for (Eigen::Index i = 0; i < r.size(); ++i)
                 wtot(i) *= weight(r(i));
 
-            const arma::mat ifunc = eval_B_at(fem,    xi, iel, bra);
-            const arma::mat jfunc = eval_B_at(rh.fem, xj, jel, ket);
+            const helfem::Matrix ifunc = eval_B_at(fem,    xi, iel, bra);
+            const helfem::Matrix jfunc = eval_B_at(rh.fem, xj, jel, ket);
 
             size_t ifirst, ilast; get_idx(iel, ifirst, ilast);
             size_t jfirst, jlast; rh.get_idx(jel, jfirst, jlast);
-            S.submat(ifirst, jfirst, ilast, jlast) +=
-                arma::trans(ifunc) * arma::diagmat(wtot) * jfunc;
+            const Eigen::Index Ni = ilast - ifirst + 1;
+            const Eigen::Index Nj = jlast - jfirst + 1;
+            // ifunc^T * diag(wtot) * jfunc = (ifunc^T * wtot.asDiagonal()) * jfunc.
+            S.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj)
+                += ifunc.transpose() * wtot.asDiagonal() * jfunc;
           }
         }
-        return helfem::to_eigen(S);
+        return S;
       }
 
       helfem::Matrix FEMRadialBasis::radial_integral(const FEMRadialBasis &rh, int n,
@@ -535,48 +529,36 @@ namespace helfem {
           Nint = 1;
         }
 
-        // Get lh quadrature points
-        arma::vec xi, wi;
-        chebyshev::chebyshev(Nq, xi, wi);
-        // and basis function values (Phase 5.3 bridge).
-        arma::mat ibf(eigen_mat_to_arma(fem.eval_f(arma_to_eigen_vec(xi), iel)));
-        double Rmini(fem.element_begin(iel));
-        double Rmaxi(fem.element_end(iel));
+        // Phase 5.8: local scratch is now native Eigen.
+        helfem::Vector xi, wi;
+        helfem::lib1dfem::chebyshev::chebyshev<double>((int) Nq, xi, wi);
+        helfem::Matrix ibf = fem.eval_f(xi, iel);
+        const double Rmini = fem.element_begin(iel);
+        const double Rmaxi = fem.element_end(iel);
 
-        // Rh quadrature points
-        arma::vec xk(Nq * Nint);
-        arma::vec wk(Nq * Nint);
-        for (size_t ii = 0; ii < Nint; ii++) {
-          // Interval starts at
-          double istart = ii * 2.0 / Nint - 1.0;
-          double iend = (ii + 1) * 2.0 / Nint - 1.0;
-          // Midpoint and half-length of interval
-          double imid = 0.5 * (iend + istart);
-          double ilen = 0.5 * (iend - istart);
-
-          // Place quadrature points at
-          xk.subvec(ii * Nq, (ii + 1) * Nq - 1) = arma::ones<arma::vec>(Nq) * imid + xi * ilen;
-          // which have the renormalized weights
-          wk.subvec(ii * Nq, (ii + 1) * Nq - 1) = wi * ilen;
+        // Rh quadrature points: Nint copies of xi, mapped to subintervals.
+        helfem::Vector xk(Nq * Nint), wk(Nq * Nint);
+        for (size_t ii = 0; ii < Nint; ++ii) {
+          const double istart = ii * 2.0 / Nint - 1.0;
+          const double iend   = (ii + 1) * 2.0 / Nint - 1.0;
+          const double imid   = 0.5 * (iend + istart);
+          const double ilen   = 0.5 * (iend - istart);
+          xk.segment((Eigen::Index)(ii * Nq), (Eigen::Index) Nq)
+              = helfem::Vector::Constant((Eigen::Index) Nq, imid) + xi * ilen;
+          wk.segment((Eigen::Index)(ii * Nq), (Eigen::Index) Nq) = wi * ilen;
         }
-        // and basis function values (Phase 5.3 bridge).
-        arma::mat kbf(eigen_mat_to_arma(fem.eval_f(arma_to_eigen_vec(xk), kel)));
-        double Rmink(fem.element_begin(kel));
-        double Rmaxk(fem.element_end(kel));
+        const helfem::Matrix kbf = fem.eval_f(xk, kel);
+        const double Rmink = fem.element_begin(kel);
+        const double Rmaxk = fem.element_end(kel);
 
-        // Evaluate integral (Phase 5.7: quadrature::erfc_integral is
-        // Eigen; bridge the local arma::vec / arma::mat scratch).
-        arma::mat tei(eigen_mat_to_arma(quadrature::erfc_integral(
-            Rmini, Rmaxi,
-            helfem::to_eigen(ibf), arma_to_eigen_vec(xi), arma_to_eigen_vec(wi),
-            Rmink, Rmaxk,
-            helfem::to_eigen(kbf), arma_to_eigen_vec(xk), arma_to_eigen_vec(wk),
-            L, mu)));
-        // Symmetrize just to be sure (quadrature points were different).
+        helfem::Matrix tei = quadrature::erfc_integral(
+            Rmini, Rmaxi, ibf, xi, wi,
+            Rmink, Rmaxk, kbf, xk, wk, L, mu);
+        // Symmetrize just to be sure (quadrature points differ across iel/kel).
         if (iel == kel)
-          tei = 0.5 * (tei + tei.t());
+          tei = 0.5 * (tei + tei.transpose()).eval();
 
-        return helfem::to_eigen(tei);
+        return tei;
       }
 
       helfem::Matrix FEMRadialBasis::spherical_potential(size_t iel) const {
