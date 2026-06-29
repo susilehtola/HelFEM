@@ -205,8 +205,12 @@ namespace helfem {
       }
     }
 
-    arma::vec FiniteElementBasis::get_bval() const {
-      return bval;
+    helfem::Vector FiniteElementBasis::get_bval() const {
+      // Phase 5.4: bval is still an arma::vec member; bridge at the
+      // accessor boundary. A future PR will migrate the member.
+      helfem::Vector out(bval.n_elem);
+      std::memcpy(out.data(), bval.memptr(), sizeof(double) * bval.n_elem);
+      return out;
     }
 
     // Phase 5.3: per-element evaluators migrated arma -> Eigen.
@@ -225,10 +229,10 @@ namespace helfem {
       return r;
     }
 
-    arma::vec FiniteElementBasis::eval_weights(const arma::vec & w) const {
-      arma::vec wr(get_nelem()*w.n_elem);
-      for(size_t iel=0;iel<get_nelem();iel++)
-        wr.subvec(iel*w.n_elem, (iel+1)*w.n_elem-1) = w*scaling_factor(iel);
+    helfem::Vector FiniteElementBasis::eval_weights(const helfem::Vector & w) const {
+      helfem::Vector wr(get_nelem() * w.size());
+      for (size_t iel = 0; iel < get_nelem(); ++iel)
+        wr.segment(iel * w.size(), w.size()) = w * scaling_factor(iel);
       return wr;
     }
 
@@ -346,149 +350,112 @@ namespace helfem {
       return f;
     }
 
-    arma::mat FiniteElementBasis::matrix_element(const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
+    // Phase 5.4: matrix_element / vector_element migrated to Eigen.
+    // Function-pointer overload's lambdas now have signature
+    // helfem::Matrix(helfem::Vector, size_t), matching eval_dnf.
+    helfem::Matrix FiniteElementBasis::matrix_element(const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_lh, const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_rh, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const {
       // Compute matrix elements in parallel
-      std::vector<arma::mat> matel(get_nelem());
+      std::vector<helfem::Matrix> matel(get_nelem());
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-      for(size_t iel=0; iel<get_nelem(); iel++) {
+      for (size_t iel = 0; iel < get_nelem(); ++iel) {
         matel[iel] = matrix_element(iel, eval_lh, eval_rh, xq, wq, f);
       }
 
-      // Fill in the global matrix
-      arma::mat M(get_nbf(),get_nbf(),arma::fill::zeros);
-      for(size_t iel=0; iel<get_nelem(); iel++) {
-        // Indices in matrix
+      const Eigen::Index N = static_cast<Eigen::Index>(get_nbf());
+      helfem::Matrix M = helfem::Matrix::Zero(N, N);
+      for (size_t iel = 0; iel < get_nelem(); ++iel) {
         size_t ifirst, ilast;
         get_idx(iel, ifirst, ilast);
-
-        // Accumulate
-        M.submat(ifirst, ifirst, ilast, ilast) += matel[iel];
+        M.block((Eigen::Index) ifirst, (Eigen::Index) ifirst,
+                ilast - ifirst + 1, ilast - ifirst + 1) += matel[iel];
       }
-
       return M;
     }
 
-    arma::vec FiniteElementBasis::vector_element(const std::function<arma::mat(arma::vec,size_t)> & eval, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      // Compute matrix elements in parallel
-      std::vector<arma::vec> vecel(get_nelem());
+    helfem::Vector FiniteElementBasis::vector_element(const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const {
+      std::vector<helfem::Vector> vecel(get_nelem());
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-      for(size_t iel=0; iel<get_nelem(); iel++) {
+      for (size_t iel = 0; iel < get_nelem(); ++iel) {
         vecel[iel] = vector_element(iel, eval, xq, wq, f);
       }
 
-      // Fill in the global vector
-      arma::vec V(get_nbf(),arma::fill::zeros);
-      for(size_t iel=0; iel<get_nelem(); iel++) {
-        // Indices in matrix
+      helfem::Vector V = helfem::Vector::Zero(get_nbf());
+      for (size_t iel = 0; iel < get_nelem(); ++iel) {
         size_t ifirst, ilast;
         get_idx(iel, ifirst, ilast);
-
-        // Accumulate
-        V.subvec(ifirst, ilast) += vecel[iel];
+        V.segment((Eigen::Index) ifirst, ilast - ifirst + 1) += vecel[iel];
       }
-
       return V;
     }
 
-    namespace {
-      // Phase 5.3 bridge: matrix_element's function-pointer overload takes
-      // arma::mat-returning lambdas, but eval_dnf is now Eigen-typed. Wrap
-      // the eval_dnf result through to_arma so the function-pointer
-      // overload's signature stays unchanged.
-      inline std::function<arma::mat(const arma::vec &, size_t)>
-      make_arma_eval_dnf(const FiniteElementBasis * fe, int der) {
-        return [fe, der](const arma::vec & xa, size_t iel) {
-          helfem::Vector xe(xa.n_elem);
-          std::memcpy(xe.data(), xa.memptr(), sizeof(double) * xa.n_elem);
-          helfem::Matrix me = fe->eval_dnf(xe, der, iel);
-          arma::mat out(me.rows(), me.cols());
-          std::memcpy(out.memptr(), me.data(),
-                      sizeof(double) * static_cast<size_t>(me.size()));
-          return out;
-        };
-      }
-    } // namespace
-
-    arma::mat FiniteElementBasis::matrix_element(int lhder, int rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      auto eval_lh = make_arma_eval_dnf(this, lhder);
-      auto eval_rh = make_arma_eval_dnf(this, rhder);
+    helfem::Matrix FiniteElementBasis::matrix_element(int lhder, int rhder, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const {
+      auto eval_lh = [this, lhder](helfem::Vector x, size_t iel) { return this->eval_dnf(x, lhder, iel); };
+      auto eval_rh = [this, rhder](helfem::Vector x, size_t iel) { return this->eval_dnf(x, rhder, iel); };
       return matrix_element(eval_lh, eval_rh, xq, wq, f);
     }
 
-    arma::mat FiniteElementBasis::matrix_element(size_t iel, int lhder, int rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      auto eval_lh = make_arma_eval_dnf(this, lhder);
-      auto eval_rh = make_arma_eval_dnf(this, rhder);
+    helfem::Matrix FiniteElementBasis::matrix_element(size_t iel, int lhder, int rhder, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const {
+      auto eval_lh = [this, lhder](helfem::Vector x, size_t iel_) { return this->eval_dnf(x, lhder, iel_); };
+      auto eval_rh = [this, rhder](helfem::Vector x, size_t iel_) { return this->eval_dnf(x, rhder, iel_); };
       return matrix_element(iel, eval_lh, eval_rh, xq, wq, f);
     }
 
-    arma::mat FiniteElementBasis::matrix_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f, double x_left, double x_right) const {
+    helfem::Matrix FiniteElementBasis::matrix_element(size_t iel, const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_lh, const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_rh, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f, double x_left, double x_right) const {
+      // Transform xq from [-1,1] to [x_left, x_right] and the same for wq.
+      const double a = (x_right - x_left) / 2.0;
+      const double b = (x_right + x_left) / 2.0;
+      const helfem::Vector x_shifted = a * xq + helfem::Vector::Constant(xq.size(), b);
 
-      // todo: figure out how to transform xq from [-1,1] to [x_left, x_right] and the same transformation for wq
-      arma::vec x_shifted((x_right-x_left)/2.0*xq + (x_right+x_left)/2.0*arma::ones<arma::vec>(xq.n_elem));
-
-      // Get coordinate values (Phase 5.3: eval_coord is Eigen).
-      helfem::Vector xs_e(x_shifted.n_elem);
-      std::memcpy(xs_e.data(), x_shifted.memptr(), sizeof(double) * x_shifted.n_elem);
-      helfem::Vector r_e = eval_coord(xs_e, iel);
-      arma::vec r(r_e.size());
-      std::memcpy(r.memptr(), r_e.data(), sizeof(double) * r_e.size());
-      // Calculate total weight per point
-      arma::vec wp(wq*scaling_factor(iel)*(x_right-x_left)/2.0);
-      // Include the function
-      if(f) {
-          for(size_t i=0; i<wp.n_elem; i++)
-            wp(i)*=f(r(i));
+      // Get coordinate values
+      const helfem::Vector r = eval_coord(x_shifted, iel);
+      // Total weight per point
+      helfem::Vector wp = wq * scaling_factor(iel) * a;
+      if (f) {
+        for (Eigen::Index i = 0; i < wp.size(); ++i)
+          wp(i) *= f(r(i));
       }
 
       // Evaluate basis functions
-      if(!eval_lh)
+      if (!eval_lh)
         throw std::logic_error("Need function for evaluating left-hand basis functions!\n");
-      arma::mat lhbf = eval_lh(x_shifted, iel);
-      if(!eval_rh)
+      helfem::Matrix lhbf = eval_lh(x_shifted, iel);
+      if (!eval_rh)
         throw std::logic_error("Need function for evaluating right-hand basis functions!\n");
-      arma::mat rhbf = eval_rh(x_shifted, iel);
+      const helfem::Matrix rhbf = eval_rh(x_shifted, iel);
 
-      // Include weight in the lh operand
-      for(size_t i=0;i<lhbf.n_cols;i++)
-        lhbf.col(i)%=wp;
+      // Include weight in lh operand (column-wise multiply by wp).
+      for (Eigen::Index j = 0; j < lhbf.cols(); ++j)
+        lhbf.col(j).array() *= wp.array();
 
-      return arma::trans(lhbf)*rhbf;
+      return lhbf.transpose() * rhbf;
     }
 
-    arma::vec FiniteElementBasis::vector_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_bf, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      // Get coordinate values (Phase 5.3 bridge).
-      helfem::Vector xq_e(xq.n_elem);
-      std::memcpy(xq_e.data(), xq.memptr(), sizeof(double) * xq.n_elem);
-      helfem::Vector r_e = eval_coord(xq_e, iel);
-      arma::vec r(r_e.size());
-      std::memcpy(r.memptr(), r_e.data(), sizeof(double) * r_e.size());
-      // Calculate total weight per point
-      arma::vec wp(wq*scaling_factor(iel));
-      // Include the function
-      if(f) {
-          for(size_t i=0; i<wp.n_elem; i++)
-            wp(i)*=f(r(i));
+    helfem::Vector FiniteElementBasis::vector_element(size_t iel, const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_bf, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const {
+      const helfem::Vector r = eval_coord(xq, iel);
+      helfem::Vector wp = wq * scaling_factor(iel);
+      if (f) {
+        for (Eigen::Index i = 0; i < wp.size(); ++i)
+          wp(i) *= f(r(i));
       }
 
-      // Evaluate basis functions
-      if(!eval_bf)
+      if (!eval_bf)
         throw std::logic_error("Need function for evaluating basis functions!\n");
-      arma::mat bf = eval_bf(xq, iel);
+      const helfem::Matrix bf = eval_bf(xq, iel);
 
-      return bf.t()*wp;
+      return bf.transpose() * wp;
     }
 
-    arma::vec FiniteElementBasis::vector_element(int der, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      auto eval_f = make_arma_eval_dnf(this, der);
+    helfem::Vector FiniteElementBasis::vector_element(int der, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const {
+      auto eval_f = [this, der](helfem::Vector x, size_t iel) { return this->eval_dnf(x, der, iel); };
       return vector_element(eval_f, xq, wq, f);
     }
 
-    arma::vec FiniteElementBasis::vector_element(size_t iel, int der, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      auto eval_f = make_arma_eval_dnf(this, der);
+    helfem::Vector FiniteElementBasis::vector_element(size_t iel, int der, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const {
+      auto eval_f = [this, der](helfem::Vector x, size_t iel_) { return this->eval_dnf(x, der, iel_); };
       return vector_element(iel, eval_f, xq, wq, f);
     }
 

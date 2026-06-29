@@ -27,6 +27,29 @@
 namespace helfem {
   namespace atomic {
     namespace basis {
+      namespace {
+        // Phase 5.3/5.4 helpers: FiniteElementBasis methods are now
+        // Eigen-typed. RadialBasis keeps its arma::vec/arma::mat surface
+        // for downstream chemistry code; bridge inline at every fem.*
+        // call site via these one-line memcpy converters.
+        inline helfem::Vector arma_to_eigen_vec(const arma::vec & v) {
+          helfem::Vector e(v.n_elem);
+          std::memcpy(e.data(), v.memptr(), sizeof(double) * v.n_elem);
+          return e;
+        }
+        inline arma::mat eigen_mat_to_arma(const helfem::Matrix & m) {
+          arma::mat out(m.rows(), m.cols());
+          std::memcpy(out.memptr(), m.data(),
+                      sizeof(double) * static_cast<size_t>(m.size()));
+          return out;
+        }
+        inline arma::vec eigen_vec_to_arma(const helfem::Vector & v) {
+          arma::vec out(v.size());
+          std::memcpy(out.memptr(), v.data(), sizeof(double) * v.size());
+          return out;
+        }
+      } // namespace
+
       FEMRadialBasis::FEMRadialBasis() {}
 
       FEMRadialBasis::FEMRadialBasis(const polynomial_basis::FiniteElementBasis & fem_, int n_quad) : fem(fem_) {
@@ -71,7 +94,9 @@ namespace helfem {
       }
 
       arma::vec FEMRadialBasis::get_bval() const {
-        return fem.get_bval();
+        // Phase 5.4: fem.get_bval() is Eigen; bridge here -- RadialBasis
+        // keeps its arma::vec surface for downstream chemistry-layer code.
+        return eigen_vec_to_arma(fem.get_bval());
       }
 
       int FEMRadialBasis::get_poly_id() const {
@@ -95,47 +120,29 @@ namespace helfem {
         return ret;
       }
 
-      namespace {
-        // Phase 5.3 helpers: FiniteElementBasis::eval_f / eval_df / eval_d2f
-        // now take helfem::Vector and return helfem::Matrix. The
-        // matrix_element function-pointer overload still takes arma
-        // lambdas, so the make_evaluator below bridges per-call.
-        inline helfem::Vector arma_to_eigen_vec(const arma::vec & v) {
-          helfem::Vector e(v.n_elem);
-          std::memcpy(e.data(), v.memptr(), sizeof(double) * v.n_elem);
-          return e;
-        }
-        inline arma::mat eigen_mat_to_arma(const helfem::Matrix & m) {
-          arma::mat out(m.rows(), m.cols());
-          std::memcpy(out.memptr(), m.data(),
-                      sizeof(double) * static_cast<size_t>(m.size()));
-          return out;
-        }
-      } // namespace
-
-      // Pre-bound evaluator for each BasisKind. Bridges arma <-> Eigen
-      // at the per-call boundary; eval_* / get_* are now Eigen-typed.
-      static std::function<arma::mat(const arma::vec &, size_t)>
+      // Phase 5.4: matrix_element fn-pointer is now Eigen-typed.
+      // get_bf/df/lf are still arma; bridge there per call.
+      static std::function<helfem::Matrix(helfem::Vector, size_t)>
       make_evaluator(const FEMRadialBasis * rb, FEMRadialBasis::BasisKind k) {
         using BK = FEMRadialBasis::BasisKind;
         switch (k) {
-          case BK::B0: return [rb](const arma::vec & x, size_t iel) {
-            return eigen_mat_to_arma(rb->get_fem().eval_f(arma_to_eigen_vec(x), iel));
+          case BK::B0: return [rb](helfem::Vector x, size_t iel) {
+            return rb->get_fem().eval_f(x, iel);
           };
-          case BK::B1: return [rb](const arma::vec & x, size_t iel) {
-            return eigen_mat_to_arma(rb->get_fem().eval_df(arma_to_eigen_vec(x), iel));
+          case BK::B1: return [rb](helfem::Vector x, size_t iel) {
+            return rb->get_fem().eval_df(x, iel);
           };
-          case BK::B2: return [rb](const arma::vec & x, size_t iel) {
-            return eigen_mat_to_arma(rb->get_fem().eval_d2f(arma_to_eigen_vec(x), iel));
+          case BK::B2: return [rb](helfem::Vector x, size_t iel) {
+            return rb->get_fem().eval_d2f(x, iel);
           };
-          case BK::R0: return [rb](const arma::vec & x, size_t iel) {
-            return rb->get_bf(x, iel);
+          case BK::R0: return [rb](helfem::Vector x, size_t iel) {
+            return helfem::to_eigen(rb->get_bf(eigen_vec_to_arma(x), iel));
           };
-          case BK::R1: return [rb](const arma::vec & x, size_t iel) {
-            return rb->get_df(x, iel);
+          case BK::R1: return [rb](helfem::Vector x, size_t iel) {
+            return helfem::to_eigen(rb->get_df(eigen_vec_to_arma(x), iel));
           };
-          case BK::R2: return [rb](const arma::vec & x, size_t iel) {
-            return rb->get_lf(x, iel);
+          case BK::R2: return [rb](helfem::Vector x, size_t iel) {
+            return helfem::to_eigen(rb->get_lf(eigen_vec_to_arma(x), iel));
           };
         }
         throw std::logic_error("FEMRadialBasis::matrix_element: unknown BasisKind\n");
@@ -144,10 +151,13 @@ namespace helfem {
       helfem::Matrix FEMRadialBasis::matrix_element(
           size_t iel, BasisKind bra, BasisKind ket,
           const std::function<double(double)> & weight) const {
+        // Phase 5.4: fem.matrix_element is Eigen; xq, wq members
+        // are still arma -- bridge.
         auto lhs = make_evaluator(this, bra);
         auto rhs = make_evaluator(this, ket);
-        return helfem::to_eigen(
-            fem.matrix_element(iel, lhs, rhs, xq, wq, weight));
+        return fem.matrix_element(iel, lhs, rhs,
+                                  arma_to_eigen_vec(xq),
+                                  arma_to_eigen_vec(wq), weight);
       }
 
       helfem::Matrix FEMRadialBasis::matrix_element(
@@ -155,8 +165,9 @@ namespace helfem {
           const std::function<double(double)> & weight) const {
         auto lhs = make_evaluator(this, bra);
         auto rhs = make_evaluator(this, ket);
-        return helfem::to_eigen(
-            fem.matrix_element(lhs, rhs, xq, wq, weight));
+        return fem.matrix_element(lhs, rhs,
+                                  arma_to_eigen_vec(xq),
+                                  arma_to_eigen_vec(wq), weight);
       }
 
       helfem::Matrix FEMRadialBasis::matrix_element(
@@ -165,8 +176,9 @@ namespace helfem {
           double x_left, double x_right) const {
         auto lhs = make_evaluator(this, bra);
         auto rhs = make_evaluator(this, ket);
-        return helfem::to_eigen(
-            fem.matrix_element(iel, lhs, rhs, xq, wq, weight, x_left, x_right));
+        return fem.matrix_element(iel, lhs, rhs,
+                                  arma_to_eigen_vec(xq),
+                                  arma_to_eigen_vec(wq), weight, x_left, x_right);
       }
 
       helfem::Matrix FEMRadialBasis::bessel_il_integral(int L, double lambda, size_t iel) const {
