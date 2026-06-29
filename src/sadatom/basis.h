@@ -77,20 +77,21 @@ namespace helfem {
         arma::mat Sinvh() const;
         /// Form radial integral
         arma::mat radial_integral(int n) const;
+        // Phase 3: SCF surface migrated to Eigen.
         /// Form overlap matrix
-        arma::mat overlap() const;
+        helfem::Matrix overlap() const;
         /// Form basic part kinetic energy matrix
-        arma::mat kinetic() const;
+        helfem::Matrix kinetic() const;
         /// Form l part of kinetic energy matrix
-        arma::mat kinetic_l() const;
+        helfem::Matrix kinetic_l() const;
         /// Form nuclear attraction matrix
-        arma::mat nuclear() const;
+        helfem::Matrix nuclear() const;
 	/// Form confinement potential matrix
 	arma::mat confinement(int N, double r_0, int iconf, double V, double shift_pot) const;
         /// Form model potential matrix
 	arma::mat model_potential(const modelpotential::ModelPotential * model) const;
         /// Form Coulomb matrix
-        arma::mat coulomb(const arma::mat & P) const;
+        helfem::Matrix coulomb(const helfem::Matrix & P) const;
         /// Form exchange matrix
         arma::cube exchange(const arma::cube & P) const;
         /// Form exchange matrix

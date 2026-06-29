@@ -66,8 +66,7 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::Sinvh() const {
-        // Form overlap matrix
-        arma::mat S(overlap());
+        arma::mat S(helfem::to_arma(overlap()));
         return scf::form_Sinvh(S,false);
       }
 
@@ -89,11 +88,12 @@ namespace helfem {
         return Orad;
       }
 
-      arma::mat TwoDBasis::overlap() const {
-        return radial_integral(0);
+      helfem::Matrix TwoDBasis::overlap() const {
+        // Phase 3: SCF surface returns Eigen.
+        return helfem::to_eigen(radial_integral(0));
       }
 
-      arma::mat TwoDBasis::kinetic() const {
+      helfem::Matrix TwoDBasis::kinetic() const {
         // Build radial kinetic energy matrix
         size_t Nrad(radial.Nbf());
         arma::mat Trad(Nrad,Nrad);
@@ -107,10 +107,10 @@ namespace helfem {
           Trad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.kinetic(iel));
         }
 
-        return Trad;
+        return helfem::to_eigen(Trad);
       }
 
-      arma::mat TwoDBasis::kinetic_l() const {
+      helfem::Matrix TwoDBasis::kinetic_l() const {
         // Build radial kinetic energy matrix
         size_t Nrad(radial.Nbf());
         arma::mat Trad_l(Nrad,Nrad);
@@ -124,15 +124,15 @@ namespace helfem {
           Trad_l.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.kinetic_l(iel));
         }
 
-        return Trad_l;
+        return helfem::to_eigen(Trad_l);
       }
 
-      arma::mat TwoDBasis::nuclear() const {
+      helfem::Matrix TwoDBasis::nuclear() const {
         if(model != modelpotential::POINT_NUCLEUS) {
           modelpotential::ModelPotential * pot = modelpotential::get_nuclear_model(model,Z,Rrms);
           arma::mat Vrad(model_potential(pot));
           delete pot;
-          return Vrad;
+          return helfem::to_eigen(Vrad);
         } else {
           size_t Nrad(radial.Nbf());
           arma::mat Vrad(Nrad,Nrad);
@@ -145,7 +145,7 @@ namespace helfem {
             Vrad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(-1,iel));
           }
 
-          return -Z*Vrad;
+          return helfem::to_eigen(arma::mat(-Z*Vrad));
         }
       }
 
@@ -221,9 +221,12 @@ namespace helfem {
         atomic::basis::compute_erfc_ktei(radial, N_L, lambda, rs_ktei);
       }
 
-      arma::mat TwoDBasis::coulomb(const arma::mat & P) const {
+      helfem::Matrix TwoDBasis::coulomb(const helfem::Matrix & P_in) const {
         if(!prim_tei.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
+        // Phase 3: SCF surface takes Eigen; internal J helper still
+        // takes arma -- one conversion at entry, one at exit.
+        const arma::mat P = helfem::to_arma(P_in);
 
         // sadatom is spherically averaged: only the L=0 multipole
         // contributes. Delegate to the shared FE assembly with our
@@ -240,8 +243,9 @@ namespace helfem {
         auto tw = [&](size_t iel) -> const helfem::Matrix & {
           return prim_tei[Nel * Nel * L + iel * Nel + iel];
         };
-        return Lfac * atomic::basis::assemble_J_FE_one_multipole_cached(
-            radial, rs, rb, tw, P);
+        return helfem::to_eigen(
+            arma::mat(Lfac * atomic::basis::assemble_J_FE_one_multipole_cached(
+                radial, rs, rb, tw, P)));
       }
 
       arma::cube TwoDBasis::exchange(const arma::cube & P) const {

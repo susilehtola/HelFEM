@@ -213,8 +213,8 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::Shalf(bool chol, int sym) const {
-        // Form overlap matrix
-        arma::mat S(overlap());
+        // Phase 3: overlap() returns helfem::Matrix.
+        arma::mat S(helfem::to_arma(overlap()));
 
         // Get the basis function norms
         arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
@@ -250,8 +250,7 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::Sinvh(bool chol, int sym) const {
-        // Form overlap matrix
-        arma::mat S(overlap());
+        arma::mat S(helfem::to_arma(overlap()));
 
         // Half-inverse is
         if(sym==0) {
@@ -313,8 +312,9 @@ namespace helfem {
         return remove_boundaries(O);
       }
 
-      arma::mat TwoDBasis::overlap() const {
-        return radial_integral(0);
+      helfem::Matrix TwoDBasis::overlap() const {
+        // Phase 3: SCF surface returns Eigen; internals unchanged.
+        return helfem::to_eigen(radial_integral(0));
       }
 
       arma::mat TwoDBasis::overlap(const TwoDBasis & rh) const {
@@ -333,7 +333,7 @@ namespace helfem {
         return S;
       }
 
-      arma::mat TwoDBasis::kinetic() const {
+      helfem::Matrix TwoDBasis::kinetic() const {
         // Build radial kinetic energy matrix
         size_t Nrad(radial.Nbf());
         arma::mat Trad(Nrad,Nrad);
@@ -364,15 +364,15 @@ namespace helfem {
           }
         }
 
-        return remove_boundaries(T);
+        return helfem::to_eigen(remove_boundaries(T));
       }
 
-      arma::mat TwoDBasis::nuclear() const {
+      helfem::Matrix TwoDBasis::nuclear() const {
         if(model != modelpotential::POINT_NUCLEUS) {
           modelpotential::ModelPotential *pot=modelpotential::get_nuclear_model(model,Z,Rrms);
           arma::mat Vnuc(model_potential(pot));
           delete pot;
-          return Vnuc;
+          return helfem::to_eigen(Vnuc);
         } else {
           // Full nuclear attraction matrix
           arma::mat V(Ndummy(),Ndummy());
@@ -444,7 +444,7 @@ namespace helfem {
             }
           }
 
-          return remove_boundaries(V);
+          return helfem::to_eigen(remove_boundaries(V));
         }
       }
 
@@ -843,11 +843,13 @@ namespace helfem {
         atomic::basis::compute_erfc_ktei(radial, N_L, lambda, rs_ktei);
       }
 
-      arma::mat TwoDBasis::coulomb(const arma::mat & P0) const {
+      helfem::Matrix TwoDBasis::coulomb(const helfem::Matrix & P0_in) const {
         if(!prim_tei.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
-        // Extend to boundaries
+        // Phase 3: SCF surface takes Eigen, internals stay arma -- one
+        // conversion at entry, one at exit.
+        const arma::mat P0 = helfem::to_arma(P0_in);
         arma::mat P(expand_boundaries(P0));
 
         // Number of radial elements
@@ -945,14 +947,14 @@ namespace helfem {
           }
         }
 
-        return remove_boundaries(J);
+        return helfem::to_eigen(remove_boundaries(J));
       }
 
-      arma::mat TwoDBasis::exchange(const arma::mat & P0) const {
+      helfem::Matrix TwoDBasis::exchange(const helfem::Matrix & P0_in) const {
         if(!prim_ktei.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
-        // Extend to boundaries
+        const arma::mat P0 = helfem::to_arma(P0_in);
         arma::mat P(expand_boundaries(P0));
 
         // Gaunt coefficient table
@@ -1060,14 +1062,14 @@ namespace helfem {
           }
         }
 
-        return remove_boundaries(K);
+        return helfem::to_eigen(remove_boundaries(K));
       }
 
-      arma::mat TwoDBasis::rs_exchange(const arma::mat & P0) const {
+      helfem::Matrix TwoDBasis::rs_exchange(const helfem::Matrix & P0_in) const {
         if(!rs_ktei.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
-        // Extend to boundaries
+        const arma::mat P0 = helfem::to_arma(P0_in);
         arma::mat P(expand_boundaries(P0));
 
         // Gaunt coefficient table
@@ -1193,7 +1195,7 @@ namespace helfem {
           }
         }
 
-        return remove_boundaries(K);
+        return helfem::to_eigen(remove_boundaries(K));
       }
 
       arma::mat TwoDBasis::remove_boundaries(const arma::mat & Fnob) const {

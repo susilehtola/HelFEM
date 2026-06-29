@@ -46,6 +46,7 @@
 #include "../src/atomic/TwoDBasis.h"
 #include "../libhelfem/include/PolynomialBasis.h"
 #include "../libhelfem/include/ModelPotential.h"
+#include "../libhelfem/include/ArmaEigen.h"
 
 namespace py = pybind11;
 
@@ -134,11 +135,16 @@ namespace helfem_py {
       return out;
     }
 
-    py::array_t<double> overlap() const { return arma_to_numpy(basis_.overlap()); }
-    py::array_t<double> kinetic() const { return arma_to_numpy(basis_.kinetic()); }
-    py::array_t<double> nuclear() const { return arma_to_numpy(basis_.nuclear()); }
+    // Phase 3: basis_ SCF surface returns helfem::Matrix; bridge to
+    // arma at the numpy boundary (kept arma_to_numpy for now to
+    // preserve byte-identical Python behavior).
+    py::array_t<double> overlap() const { return arma_to_numpy(helfem::to_arma(basis_.overlap())); }
+    py::array_t<double> kinetic() const { return arma_to_numpy(helfem::to_arma(basis_.kinetic())); }
+    py::array_t<double> nuclear() const { return arma_to_numpy(helfem::to_arma(basis_.nuclear())); }
     py::array_t<double> hcore()   const {
-      return arma_to_numpy(basis_.kinetic() + basis_.nuclear());
+      const arma::mat T = helfem::to_arma(basis_.kinetic());
+      const arma::mat V = helfem::to_arma(basis_.nuclear());
+      return arma_to_numpy(arma::mat(T + V));
     }
 
     /// Build (J, K) from a density matrix. K returned with HF MINUS sign
@@ -149,23 +155,26 @@ namespace helfem_py {
     std::tuple<py::array_t<double>, py::array_t<double>>
     get_jk(py::array_t<double, py::array::c_style | py::array::forcecast> P_in) {
       ensure_tei_();
-      arma::mat P = numpy_to_arma(P_in);
-      arma::mat J = basis_.coulomb(P);
-      arma::mat K = -basis_.exchange(P);   // flip sign for PySCF positivity
+      // Phase 3: basis_.coulomb / exchange take/return helfem::Matrix.
+      const helfem::Matrix P_E = helfem::to_eigen(numpy_to_arma(P_in));
+      const arma::mat J = helfem::to_arma(basis_.coulomb(P_E));
+      const arma::mat K = -helfem::to_arma(basis_.exchange(P_E));  // flip sign for PySCF positivity
       return std::make_tuple(arma_to_numpy(J), arma_to_numpy(K));
     }
 
     py::array_t<double>
     coulomb(py::array_t<double, py::array::c_style | py::array::forcecast> P_in) {
       ensure_tei_();
-      return arma_to_numpy(basis_.coulomb(numpy_to_arma(P_in)));
+      const helfem::Matrix P_E = helfem::to_eigen(numpy_to_arma(P_in));
+      return arma_to_numpy(helfem::to_arma(basis_.coulomb(P_E)));
     }
 
     py::array_t<double>
     exchange(py::array_t<double, py::array::c_style | py::array::forcecast> P_in) {
       ensure_tei_();
+      const helfem::Matrix P_E = helfem::to_eigen(numpy_to_arma(P_in));
       // Match PySCF positive-K convention.
-      return arma_to_numpy(-basis_.exchange(numpy_to_arma(P_in)));
+      return arma_to_numpy(arma::mat(-helfem::to_arma(basis_.exchange(P_E))));
     }
 
     /// Density-fitted (Cholesky-factored) BARE radial Slater integrals.
