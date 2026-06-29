@@ -16,11 +16,25 @@
 #include "PolynomialBasis.h"
 #include "FiniteElementBasis.h"
 #include "chebyshev.h"
+#include <cstring>
 
 using namespace helfem;
 
+namespace {
+  inline helfem::Vector to_e(const arma::vec & v) {
+    helfem::Vector e(v.n_elem);
+    std::memcpy(e.data(), v.memptr(), sizeof(double) * v.n_elem);
+    return e;
+  }
+  inline arma::mat to_a(const helfem::Matrix & m) {
+    arma::mat out(m.rows(), m.cols());
+    std::memcpy(out.memptr(), m.data(), sizeof(double) * (size_t) m.size());
+    return out;
+  }
+} // namespace
+
 arma::mat overlap(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
-  return fem.matrix_element(false, false, x, wx, nullptr);
+  return to_a(fem.matrix_element(false, false, to_e(x), to_e(wx), nullptr));
 }
 
 double square_potential(double r) {
@@ -28,11 +42,11 @@ double square_potential(double r) {
 }
 
 arma::mat potential(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
-  return fem.matrix_element(false, false, x, wx, square_potential);
+  return to_a(fem.matrix_element(false, false, to_e(x), to_e(wx), square_potential));
 }
 
 arma::mat kinetic(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
-  return fem.matrix_element(true, true, x, wx, nullptr);
+  return to_a(fem.matrix_element(true, true, to_e(x), to_e(wx), nullptr));
 }
 
 int main(int argc, char **argv) {

@@ -22,8 +22,22 @@
 
 using namespace helfem;
 
+namespace {
+  // Phase 5.4 bridge.
+  inline helfem::Vector to_e(const arma::vec & v) {
+    helfem::Vector e(v.n_elem);
+    std::memcpy(e.data(), v.memptr(), sizeof(double) * v.n_elem);
+    return e;
+  }
+  inline arma::mat to_a(const helfem::Matrix & m) {
+    arma::mat out(m.rows(), m.cols());
+    std::memcpy(out.memptr(), m.data(), sizeof(double) * (size_t) m.size());
+    return out;
+  }
+} // namespace
+
 arma::mat overlap(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
-  return fem.matrix_element(false, false, x, wx, nullptr);
+  return to_a(fem.matrix_element(false, false, to_e(x), to_e(wx), nullptr));
 }
 
 arma::mat potential(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx, double z, double x0, double alpha, bool abs) {
@@ -37,11 +51,11 @@ arma::mat potential(const helfem::polynomial_basis::FiniteElementBasis & fem, co
       return -z/sqrt((x-x0)*(x-x0)+alpha*alpha);
     };
   }
-  return fem.matrix_element(false, false, x, wx, soft_coulomb);
+  return to_a(fem.matrix_element(false, false, to_e(x), to_e(wx), soft_coulomb));
 }
 
 arma::mat kinetic(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
-  return 0.5*fem.matrix_element(true, true, x, wx, nullptr);
+  return 0.5*to_a(fem.matrix_element(true, true, to_e(x), to_e(wx), nullptr));
 }
 
 int main(int argc, char **argv) {
@@ -156,7 +170,9 @@ int main(int argc, char **argv) {
   helfem::Vector coords_e = fem.eval_coord(xq_e);
   arma::vec coords(coords_e.size());
   std::memcpy(coords.memptr(), coords_e.data(), sizeof(double) * coords_e.size());
-  arma::mat weights(fem.eval_weights(wq));
+  helfem::Vector weights_e(fem.eval_weights(to_e(wq)));
+  arma::vec weights(weights_e.size());
+  std::memcpy(weights.memptr(), weights_e.data(), sizeof(double) * weights_e.size());
 
   // Test orbitals are still orthonormal
   arma::mat Sgrid(phival.t()*arma::diagmat(weights)*phival);

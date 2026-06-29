@@ -141,8 +141,10 @@ namespace helfem {
         for (size_t k = 0; k < basis.size(); ++k) {
           const GTOContracted & gto = basis[k];
           auto f = [&gto](double r) { return detail_gto::eval_u(gto, r); };
-          arma::vec b = fem.vector_element(/*der=*/0, xq, wq, f);
-          C.col(k) = arma::solve(S, b);
+          // Phase 5.4: fem.vector_element is Eigen-typed.
+          const helfem::Vector be = fem.vector_element(/*der=*/0,
+              helfem::to_eigen(xq), helfem::to_eigen(wq), f);
+          C.col(k) = arma::solve(S, helfem::to_arma(be));
         }
         return NAORadialBasis::from_owned_radial(std::move(radial), std::move(C));
       }

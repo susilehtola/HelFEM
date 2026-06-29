@@ -80,7 +80,7 @@ namespace helfem {
       arma::mat get_basis(const arma::mat &bas, size_t iel) const;
 
       /// Get the element boundaries
-      arma::vec get_bval() const;
+      helfem::Vector get_bval() const;
       /// Element begins at
       double element_begin(size_t iel) const;
       /// Element ends at
@@ -105,7 +105,7 @@ namespace helfem {
       helfem::Vector eval_prim(const helfem::Vector & xreal, size_t iel) const;
 
       /// Evaluate full set of weights for primitive weights
-      arma::vec eval_weights(const arma::vec & wq) const;
+      helfem::Vector eval_weights(const helfem::Vector & wq) const;
 
       /// Element size scaling factor
       double scaling_factor(size_t iel) const;
@@ -171,9 +171,12 @@ namespace helfem {
        * wq:    quadrature weights
        * f(r):  additional weight function, use nullptr for unit weight
        */
-      arma::mat matrix_element(int lhder, int rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      // Phase 5.4: matrix_element / vector_element overloads migrated to
+      // Eigen. The fn-pointer overload's lambda signature is now
+      // helfem::Matrix(helfem::Vector, size_t).
+      helfem::Matrix matrix_element(int lhder, int rhder, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
       /// Same as above, but only in a single element
-      arma::mat matrix_element(size_t iel, int lhder, int rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      helfem::Matrix matrix_element(size_t iel, int lhder, int rhder, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
 
       /**
        * Compute vector elements in the finite element basis <lh|f|rh>
@@ -183,9 +186,9 @@ namespace helfem {
        * wq:    quadrature weights
        * f(r):  additional weight function, use nullptr for unit weight
        */
-      arma::vec vector_element(int der, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      helfem::Vector vector_element(int der, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
       /// Same as above, but only in a single element
-      arma::vec vector_element(size_t iel, int der, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      helfem::Vector vector_element(size_t iel, int der, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
 
       /**
        * Compute matrix elements in the finite element basis <lh|f|rh>
@@ -196,9 +199,9 @@ namespace helfem {
        * wq:    quadrature weights
        * f(r):  additional weight function, use nullptr for unit weight
        */
-      arma::mat matrix_element(const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      helfem::Matrix matrix_element(const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_lh, const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_rh, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
       /// The driver function
-      arma::mat matrix_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_lh, const std::function<arma::mat(arma::vec,size_t)> & eval_rh, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f, double x_left = -1.0, double x_right = 1.0) const;
+      helfem::Matrix matrix_element(size_t iel, const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_lh, const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_rh, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f, double x_left = -1.0, double x_right = 1.0) const;
 
 
       /**
@@ -209,9 +212,9 @@ namespace helfem {
        * wq:    quadrature weights
        * f(r):  additional weight function, use nullptr for unit weight
        */
-      arma::vec vector_element(const std::function<arma::mat(arma::vec,size_t)> & eval_bf, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      helfem::Vector vector_element(const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_bf, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
       /// The driver function
-      arma::vec vector_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_bf, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const;
+      helfem::Vector vector_element(size_t iel, const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_bf, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
 
       /// Print out the basis functions
       void print(const std::string & str="") const;

@@ -78,7 +78,7 @@ namespace helfem {
       }
 
       arma::vec RadialBasis::get_bval() const {
-        return fem.get_bval();
+        return eigen_vec_to_arma(fem.get_bval());
       }
 
       int RadialBasis::get_poly_id() const {
@@ -120,7 +120,7 @@ namespace helfem {
         } else if(m==0 && n!=0) {
           chsh = [n](double mu) { return std::pow(std::cosh(mu), n); };
         }
-        return fem.matrix_element(false, false, xq, wq, chsh);
+        return eigen_mat_to_arma(fem.matrix_element(false, false, arma_to_eigen_vec(xq), arma_to_eigen_vec(wq), chsh));
       }
 
       arma::mat RadialBasis::overlap(const RadialBasis & rh, int n) const {
@@ -219,7 +219,7 @@ namespace helfem {
         } else {
           Plm = [legtab, L, M](double mu) { return std::sinh(mu)*legtab.get_Plm(L,M,cosh(mu)); };
         }
-        return fem.matrix_element(iel, false, false, xq, wq, Plm);
+        return eigen_mat_to_arma(fem.matrix_element(iel, false, false, arma_to_eigen_vec(xq), arma_to_eigen_vec(wq), Plm));
       }
 
       arma::mat RadialBasis::Qlm_integral(int k, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
@@ -229,12 +229,12 @@ namespace helfem {
         } else {
           Qlm = [legtab, L, M](double mu) { return std::sinh(mu)*legtab.get_Qlm(L,M,cosh(mu)); };
         }
-        return fem.matrix_element(iel, false, false, xq, wq, Qlm);
+        return eigen_mat_to_arma(fem.matrix_element(iel, false, false, arma_to_eigen_vec(xq), arma_to_eigen_vec(wq), Qlm));
       }
 
       arma::mat RadialBasis::kinetic() const {
         std::function<double(double)> sinhmu = [](double mu) {return std::sinh(mu);};
-        return fem.matrix_element(true, true, xq, wq, sinhmu);
+        return eigen_mat_to_arma(fem.matrix_element(true, true, arma_to_eigen_vec(xq), arma_to_eigen_vec(wq), sinhmu));
       }
 
       arma::mat RadialBasis::twoe_integral(int alpha, int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
