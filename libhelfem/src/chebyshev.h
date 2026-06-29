@@ -23,16 +23,32 @@
 // libhelfem headers) source-compatible during the migration.
 
 #include <lib1dfem/chebyshev.h>
+#include <armadillo>
+#include <cstring>
 
 namespace helfem {
 namespace chebyshev {
 
+// Phase 5.1: lib1dfem chebyshev is now Eigen-typed. These libhelfem
+// shims preserve the legacy arma::vec API used throughout the rest of
+// the codebase by bridging once at the boundary -- one Eigen Vector
+// build + one arma::vec copy per call. Both quadrature routines are
+// called a small constant number of times per SCF setup, so the bridge
+// cost is negligible.
 inline void chebyshev(int n, arma::vec & x, arma::vec & w) {
-  lib1dfem::chebyshev::chebyshev<double>(n, x, w);
+  Eigen::Matrix<double, Eigen::Dynamic, 1> xe, we;
+  lib1dfem::chebyshev::chebyshev<double>(n, xe, we);
+  x.set_size(xe.size()); w.set_size(we.size());
+  std::memcpy(x.memptr(), xe.data(), sizeof(double) * (size_t) xe.size());
+  std::memcpy(w.memptr(), we.data(), sizeof(double) * (size_t) we.size());
 }
 
 inline void radial_chebyshev(int n, arma::vec & r, arma::vec & wr) {
-  lib1dfem::chebyshev::radial_chebyshev<double>(n, r, wr);
+  Eigen::Matrix<double, Eigen::Dynamic, 1> re, wre;
+  lib1dfem::chebyshev::radial_chebyshev<double>(n, re, wre);
+  r.set_size(re.size()); wr.set_size(wre.size());
+  std::memcpy(r.memptr(),  re.data(),  sizeof(double) * (size_t) re.size());
+  std::memcpy(wr.memptr(), wre.data(), sizeof(double) * (size_t) wre.size());
 }
 
 } // namespace chebyshev

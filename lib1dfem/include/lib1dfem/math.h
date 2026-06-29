@@ -15,7 +15,7 @@
 #ifndef LIB1DFEM_MATH_H
 #define LIB1DFEM_MATH_H
 
-#include <armadillo>
+#include <Eigen/Core>
 #include <cmath>
 #include <algorithm>
 #include <limits>
@@ -33,9 +33,9 @@ T arcosh(T x) {
 }
 
 template <typename T>
-arma::Col<T> arcosh(const arma::Col<T> & x) {
-  arma::Col<T> y(x.n_elem);
-  for (size_t i = 0; i < x.n_elem; ++i) y(i) = arcosh<T>(x(i));
+Eigen::Matrix<T, Eigen::Dynamic, 1> arcosh(const Eigen::Matrix<T, Eigen::Dynamic, 1> & x) {
+  Eigen::Matrix<T, Eigen::Dynamic, 1> y(x.size());
+  for (Eigen::Index i = 0; i < x.size(); ++i) y(i) = arcosh<T>(x(i));
   return y;
 }
 
@@ -46,9 +46,9 @@ T arsinh(T x) {
 }
 
 template <typename T>
-arma::Col<T> arsinh(const arma::Col<T> & x) {
-  arma::Col<T> y(x.n_elem);
-  for (size_t i = 0; i < x.n_elem; ++i) y(i) = arsinh<T>(x(i));
+Eigen::Matrix<T, Eigen::Dynamic, 1> arsinh(const Eigen::Matrix<T, Eigen::Dynamic, 1> & x) {
+  Eigen::Matrix<T, Eigen::Dynamic, 1> y(x.size());
+  for (Eigen::Index i = 0; i < x.size(); ++i) y(i) = arsinh<T>(x(i));
   return y;
 }
 
@@ -90,9 +90,9 @@ T bessel_il(T r, int L) {
 }
 
 template <typename T>
-arma::Col<T> bessel_il(const arma::Col<T> & r, int L) {
-  arma::Col<T> ret(r.n_elem);
-  for (size_t i = 0; i < ret.n_elem; ++i) ret(i) = bessel_il<T>(r(i), L);
+Eigen::Matrix<T, Eigen::Dynamic, 1> bessel_il(const Eigen::Matrix<T, Eigen::Dynamic, 1> & r, int L) {
+  Eigen::Matrix<T, Eigen::Dynamic, 1> ret(r.size());
+  for (Eigen::Index i = 0; i < ret.size(); ++i) ret(i) = bessel_il<T>(r(i), L);
   return ret;
 }
 
@@ -110,9 +110,9 @@ T bessel_kl(T r, int L) {
 }
 
 template <typename T>
-arma::Col<T> bessel_kl(const arma::Col<T> & r, int L) {
-  arma::Col<T> ret(r.n_elem);
-  for (size_t i = 0; i < ret.n_elem; ++i) ret(i) = bessel_kl<T>(r(i), L);
+Eigen::Matrix<T, Eigen::Dynamic, 1> bessel_kl(const Eigen::Matrix<T, Eigen::Dynamic, 1> & r, int L) {
+  Eigen::Matrix<T, Eigen::Dynamic, 1> ret(r.size());
+  for (Eigen::Index i = 0; i < ret.size(); ++i) ret(i) = bessel_kl<T>(r(i), L);
   return ret;
 }
 
