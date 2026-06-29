@@ -17,6 +17,7 @@
 #include "chebyshev.h"
 #include "lobatto.h"
 #include "LIPBasis.h"
+#include <ArmaEigen.h>
 #include <cstring>
 
 using namespace helfem;
@@ -35,8 +36,9 @@ void run(double R, int n_quad) {
   arma::vec xq, wq;
   chebyshev::chebyshev(n_quad,xq,wq);
 
-  // Get inner integral by quadrature
-  arma::mat teiinner(quadrature::twoe_inner_integral(0,R,xq,wq,pbas,0));
+  // Get inner integral by quadrature (Phase 5.7: quadrature is Eigen).
+  arma::mat teiinner(helfem::to_arma(
+      quadrature::twoe_inner_integral(0, R, helfem::to_eigen(xq), helfem::to_eigen(wq), pbas, 0)));
 
   // Test against analytical integrals. r values are
   arma::vec r(0.5*R*arma::ones<arma::vec>(xq.n_elem)+0.5*R*xq);
@@ -55,7 +57,8 @@ void run(double R, int n_quad) {
   teiishould-=teiinner;
   printf("Error in inner integral is %e\n",arma::norm(teiishould,"fro"));
 
-  arma::mat teiq(quadrature::twoe_integral(0,R,xq,wq,pbas,0));
+  arma::mat teiq(helfem::to_arma(
+      quadrature::twoe_integral(0, R, helfem::to_eigen(xq), helfem::to_eigen(wq), pbas, 0)));
 
   arma::mat tei(4,4);
   // Maple gives the following integrals for L=0, in units of R
