@@ -22,13 +22,13 @@ namespace helfem {
   namespace scf {
     /// Form density matrix (Phase 5.10: Eigen-typed).
     helfem::Matrix form_density(const helfem::Matrix & C, size_t nocc);
-    /// Enforce occupation of wanted symmetries
-    void enforce_occupations(arma::mat & C, arma::vec & E, const arma::mat & S, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx);
+    /// Enforce occupation of wanted symmetries (Phase 5.13: Eigen matrices; m_idx kept arma::uvec).
+    void enforce_occupations(helfem::Matrix & C, helfem::Vector & E, const helfem::Matrix & S, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx);
 
-    /// Enforce wanted symmetry in the Fock matrix (zero out off-diagonal blocks)
-    arma::mat enforce_fock_symmetry(const arma::mat & Fin, const std::vector<arma::uvec> & m_idx);
-    /// Average out the Fock matrix
-    arma::mat fock_symmetry_average(const arma::mat & Fin, const std::vector< std::vector<arma::uvec> > & sym_idx);
+    /// Enforce wanted symmetry in the Fock matrix (zero out off-diagonal blocks). Phase 5.13: Eigen.
+    helfem::Matrix enforce_fock_symmetry(const helfem::Matrix & Fin, const std::vector<arma::uvec> & m_idx);
+    /// Average out the Fock matrix (Phase 5.13: Eigen).
+    helfem::Matrix fock_symmetry_average(const helfem::Matrix & Fin, const std::vector< std::vector<arma::uvec> > & sym_idx);
 
     /// Solve generalized eigenvalue problem (Phase 5.11: Eigen-typed).
     void eig_gsym(helfem::Vector & E, helfem::Matrix & C, const helfem::Matrix & F, const helfem::Matrix & Sinvh);

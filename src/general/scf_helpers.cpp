@@ -30,104 +30,98 @@ namespace helfem {
       return Cocc * Cocc.transpose();
     }
 
-    void enforce_occupations(arma::mat & C, arma::vec & E, const arma::mat & S, const arma::ivec & nocc, const std::vector<arma::uvec> & m_idx) {
-      if(nocc.n_elem != m_idx.size())
+    namespace {
+      // Convert one arma::uvec (chemistry-side index list) to a vector
+      // of Eigen::Index, suitable for Eigen 3.4 (rows/cols) indexing.
+      inline std::vector<Eigen::Index> uvec_to_indices(const arma::uvec & u) {
+        std::vector<Eigen::Index> v(u.n_elem);
+        for (size_t i = 0; i < u.n_elem; ++i) v[i] = static_cast<Eigen::Index>(u(i));
+        return v;
+      }
+      // Sort indices ascending by E values.
+      inline std::vector<Eigen::Index> sort_index_ascending(const helfem::Vector & E) {
+        std::vector<Eigen::Index> idx(E.size());
+        for (Eigen::Index i = 0; i < E.size(); ++i) idx[i] = i;
+        std::sort(idx.begin(), idx.end(),
+                  [&E](Eigen::Index a, Eigen::Index b) { return E(a) < E(b); });
+        return idx;
+      }
+    }
+
+    // Phase 5.13: Eigen-typed matrices; m_idx kept arma::uvec.
+    void enforce_occupations(helfem::Matrix & C, helfem::Vector & E,
+                              const helfem::Matrix & S, const arma::ivec & nocc,
+                              const std::vector<arma::uvec> & m_idx) {
+      if (nocc.n_elem != m_idx.size())
         throw std::logic_error("nocc vector and symmetry indices don't match!\n");
 
-      // Make sure index vector doesn't have duplicates
+      // Duplicate check across the union of symmetry blocks.
       {
-        // Collect all indices
-        arma::uvec fullidx;
-        for(size_t i=0;i<m_idx.size();i++) {
-          arma::uvec fidx(fullidx.n_elem+m_idx[i].n_elem);
-          if(fullidx.n_elem)
-            fidx.subvec(0,fullidx.n_elem-1)=fullidx;
-          fidx.subvec(fullidx.n_elem,fidx.n_elem-1)=m_idx[i];
-          fullidx=fidx;
-        }
-        // Get indices of unique elements
-        arma::uvec iunq(arma::find_unique(fullidx));
-        if(iunq.n_elem != fullidx.n_elem)
+        std::vector<arma::uword> all;
+        for (size_t i = 0; i < m_idx.size(); ++i)
+          for (arma::uword j = 0; j < m_idx[i].n_elem; ++j)
+            all.push_back(m_idx[i](j));
+        std::vector<arma::uword> sorted = all;
+        std::sort(sorted.begin(), sorted.end());
+        if (std::adjacent_find(sorted.begin(), sorted.end()) != sorted.end())
           throw std::logic_error("Duplicate basis functions in symmetry list!\n");
       }
 
-      // Indices of occupied orbitals
-      std::vector<arma::uword> occidx;
+      std::vector<Eigen::Index> occidx;
+      for (size_t isym = 0; isym < m_idx.size(); ++isym) {
+        if (!nocc(isym)) continue;
+        const auto rows = uvec_to_indices(m_idx[isym]);
+        // Csub = C(rows, :), Ssub = S(rows, rows).
+        const helfem::Matrix Csub = C(rows, Eigen::all);
+        const helfem::Matrix Ssub = S(rows, rows);
+        // Csubnrm = diag(Csub^T Ssub Csub).
+        helfem::Vector Csubnrm = (Csub.transpose() * Ssub * Csub).diagonal();
+        const double thr = 10 * DBL_EPSILON;
+        for (Eigen::Index j = 0; j < Csubnrm.size(); ++j)
+          if (Csubnrm(j) <= thr) Csubnrm(j) = 0.0;
+        // Cind = columns of C with nonzero norm in this block.
+        std::vector<Eigen::Index> Cind;
+        Cind.reserve(Csubnrm.size());
+        for (Eigen::Index j = 0; j < Csubnrm.size(); ++j)
+          if (Csubnrm(j) != 0.0) Cind.push_back(j);
+        for (arma::sword io = 0; io < nocc(isym); ++io)
+          occidx.push_back(Cind[io]);
+      }
+      std::sort(occidx.begin(), occidx.end());
 
-      // Loop over symmetries
-      for(size_t isym=0;isym<m_idx.size();isym++) {
-        // Check for occupation
-        if(!nocc(isym))
-          continue;
-
-        // C submatrix
-        arma::mat Csub(C.rows(m_idx[isym]));
-        // S submatrix
-        arma::mat Ssub(S.submat(m_idx[isym],m_idx[isym]));
-
-        // Find basis vectors that belong to this symmetry: compute their norm
-        arma::vec Csubnrm(arma::diagvec(Csub.t()*Ssub*Csub));
-        // Clean up
-        Csubnrm(arma::find(Csubnrm <= 10*DBL_EPSILON)).zeros();
-
-        // Column indices of C that have non-zero elements
-        arma::uvec Cind(arma::find(Csubnrm));
-
-        // Add to list of occupied orbitals
-        for(arma::sword io=0;io<nocc(isym);io++)
-          occidx.push_back(Cind(io));
+      // Duplicate check on occupied indices.
+      if (std::adjacent_find(occidx.begin(), occidx.end()) != occidx.end()) {
+        for (auto i : occidx) printf("%lld ", (long long) i);
+        printf(" -- occupied orbital list\n");
+        fflush(stdout);
+        throw std::logic_error("Duplicates in occupied orbital list!\n");
       }
 
-      // Sort list
-      std::sort(occidx.begin(),occidx.end());
-
-      // Make sure orbital vector doesn't have duplicates
-      {
-        arma::uvec iunq(arma::find_unique(arma::conv_to<arma::uvec>::from(occidx)));
-        if(iunq.n_elem != occidx.size()) {
-          arma::conv_to<arma::uvec>::from(occidx).print("Occupied orbital list");
-          fflush(stdout);
-          throw std::logic_error("Duplicates in occupied orbital list!\n");
-        }
+      std::vector<Eigen::Index> virtidx;
+      virtidx.reserve(C.cols());
+      for (Eigen::Index i = 0; i < C.cols(); ++i) {
+        bool found = false;
+        for (auto j : occidx) if (j == i) { found = true; break; }
+        if (!found) virtidx.push_back(i);
       }
 
-      // Add in the rest of the orbitals
-      std::vector<arma::uword> virtidx;
-      for(arma::uword i=0;i<C.n_cols;i++) {
-        bool found=false;
-        for(size_t j=0;j<occidx.size();j++)
-          if(occidx[j]==i) {
-            found=true;
-            break;
-          }
-        if(!found)
-          virtidx.push_back(i);
-      }
+      // Sort occupied by energy ascending.
+      std::sort(occidx.begin(), occidx.end(),
+                [&E](Eigen::Index a, Eigen::Index b) { return E(a) < E(b); });
+      std::sort(virtidx.begin(), virtidx.end(),
+                [&E](Eigen::Index a, Eigen::Index b) { return E(a) < E(b); });
 
-      // Make sure orbital energies are in order
-      arma::uvec occorder;
-      if(occidx.size()) {
-	occorder=arma::conv_to<arma::uvec>::from(occidx);
-	arma::vec Eocc(E(occorder));
-	arma::uvec occsort(arma::sort_index(Eocc,"ascend"));
-	occorder=occorder(occsort);
-      }
+      std::vector<Eigen::Index> newidx;
+      newidx.reserve(occidx.size() + virtidx.size());
+      for (auto i : occidx)  newidx.push_back(i);
+      for (auto i : virtidx) newidx.push_back(i);
 
-      arma::uvec virtorder;
-      if(virtidx.size()) {
-	virtorder=arma::conv_to<arma::uvec>::from(virtidx);
-	arma::vec Evirt(E(virtorder));
-	arma::uvec virtsort(arma::sort_index(Evirt,"ascend"));
-	virtorder=virtorder(virtsort);
+      const helfem::Matrix Cold = C;
+      const helfem::Vector Eold = E;
+      for (size_t k = 0; k < newidx.size(); ++k) {
+        C.col(static_cast<Eigen::Index>(k)) = Cold.col(newidx[k]);
+        E(static_cast<Eigen::Index>(k))     = Eold(newidx[k]);
       }
-
-      arma::uvec newidx(occorder.n_elem+virtorder.n_elem);
-      if(occorder.n_elem)
-	newidx.subvec(0,occorder.n_elem-1)=occorder;
-      if(virtorder.n_elem)
-	newidx.subvec(occorder.n_elem,newidx.n_elem-1)=virtorder;
-      C=C.cols(newidx);
-      E=E(newidx);
     }
 
     // Phase 5.11: Eigen-typed.
@@ -140,24 +134,6 @@ namespace helfem {
       E = es.eigenvalues();
       // Return to non-orthonormal basis: C = Sinvh * V.
       C = Sinvh * es.eigenvectors();
-    }
-
-    namespace {
-      // Convert one arma::uvec (chemistry-side index list) to a vector
-      // of Eigen::Index, suitable for Eigen 3.4 (rows/cols) indexing.
-      inline std::vector<Eigen::Index> uvec_to_indices(const arma::uvec & u) {
-        std::vector<Eigen::Index> v(u.n_elem);
-        for (size_t i = 0; i < u.n_elem; ++i) v[i] = static_cast<Eigen::Index>(u(i));
-        return v;
-      }
-      // Pivot-sort indices ascending by E values (stable not required).
-      inline std::vector<Eigen::Index> sort_index_ascending(const helfem::Vector & E) {
-        std::vector<Eigen::Index> idx(E.size());
-        for (Eigen::Index i = 0; i < E.size(); ++i) idx[i] = i;
-        std::sort(idx.begin(), idx.end(),
-                  [&E](Eigen::Index a, Eigen::Index b) { return E(a) < E(b); });
-        return idx;
-      }
     }
 
     // Phase 5.12: Eigen matrices; m_idx kept arma::uvec until TwoDBasis
@@ -290,40 +266,33 @@ namespace helfem {
       Cvirt.cols(0,Nact-Cocc.n_cols-1)=C.cols(Cocc.n_cols,Nact-1);
     }
 
-    arma::mat enforce_fock_symmetry(const arma::mat & Fin, const std::vector<arma::uvec> & m_idx) {
-      arma::mat Fout;
-      Fout.zeros(Fin.n_rows,Fin.n_rows);
-
-      // Loop over symmetries
-      for(size_t isym=0;isym<m_idx.size();isym++) {
-        // Find basis vectors that belong to this symmetry
-        arma::uvec idx(m_idx[isym]);
-        Fout(idx,idx)=Fin(idx,idx);
+    // Phase 5.13: Eigen-typed.
+    helfem::Matrix enforce_fock_symmetry(const helfem::Matrix & Fin,
+                                          const std::vector<arma::uvec> & m_idx) {
+      helfem::Matrix Fout = helfem::Matrix::Zero(Fin.rows(), Fin.rows());
+      for (size_t isym = 0; isym < m_idx.size(); ++isym) {
+        const auto idx = uvec_to_indices(m_idx[isym]);
+        Fout(idx, idx) = Fin(idx, idx);
       }
-
       return Fout;
     }
 
-    arma::mat fock_symmetry_average(const arma::mat & Fin, const std::vector< std::vector<arma::uvec> > & sym_idx) {
-      arma::mat Fout(Fin);
-
-      // Loop over symmetries
-      for(size_t isym=0;isym<sym_idx.size();isym++) {
-        // Form averaged Fock matrix
-        arma::mat Fmean(sym_idx[isym][0].n_elem, sym_idx[isym][0].n_elem, arma::fill::zeros);
-        for(size_t ic=0;ic<sym_idx[isym].size();ic++) {
-          const arma::uvec & idx(sym_idx[isym][ic]);
-          Fmean += Fin(idx,idx);
+    helfem::Matrix fock_symmetry_average(const helfem::Matrix & Fin,
+                                          const std::vector< std::vector<arma::uvec> > & sym_idx) {
+      helfem::Matrix Fout = Fin;
+      for (size_t isym = 0; isym < sym_idx.size(); ++isym) {
+        const Eigen::Index n = static_cast<Eigen::Index>(sym_idx[isym][0].n_elem);
+        helfem::Matrix Fmean = helfem::Matrix::Zero(n, n);
+        for (size_t ic = 0; ic < sym_idx[isym].size(); ++ic) {
+          const auto idx = uvec_to_indices(sym_idx[isym][ic]);
+          Fmean += Fin(idx, idx);
         }
-        Fmean /= sym_idx[isym].size();
-
-        // Write out the averaged matrix
-        for(size_t ic=0;ic<sym_idx[isym].size();ic++) {
-          const arma::uvec & idx(sym_idx[isym][ic]);
-          Fout(idx,idx)=Fmean;
+        Fmean /= static_cast<double>(sym_idx[isym].size());
+        for (size_t ic = 0; ic < sym_idx[isym].size(); ++ic) {
+          const auto idx = uvec_to_indices(sym_idx[isym][ic]);
+          Fout(idx, idx) = Fmean;
         }
       }
-
       return Fout;
     }
 
