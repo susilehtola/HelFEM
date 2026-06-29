@@ -20,6 +20,7 @@
 #include <memory>
 #include "PolynomialBasis.h"
 #include "Matrix.h"
+#include <lib1dfem/types.h>
 
 namespace helfem {
   namespace polynomial_basis {
@@ -30,7 +31,8 @@ namespace helfem {
       std::shared_ptr<const polynomial_basis::PolynomialBasis> poly;
 
       /// Element boundary values
-      arma::vec bval;
+      // Phase 5.5: members migrated to Eigen.
+      helfem::Vector bval;
       /// Zero out function at left end?
       bool zero_func_left;
       /// Zero out derivative at left end?
@@ -41,9 +43,9 @@ namespace helfem {
       bool zero_deriv_right;
 
       /// First basis function in element
-      arma::uvec first_func_in_element;
+      helfem::lib1dfem::IVec first_func_in_element;
       /// Last basis function in element
-      arma::uvec last_func_in_element;
+      helfem::lib1dfem::IVec last_func_in_element;
       /// Update the above list of basis functions
       void update_bf_list();
 
@@ -51,7 +53,7 @@ namespace helfem {
       void check_bf_continuity() const;
 
       /// Used basis function indices in element
-      arma::uvec basis_indices(size_t iel) const;
+      helfem::lib1dfem::IVec basis_indices(size_t iel) const;
 
     public:
       /// Dummy constructor

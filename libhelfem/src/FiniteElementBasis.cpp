@@ -23,7 +23,10 @@ namespace helfem {
     }
 
     FiniteElementBasis::FiniteElementBasis(const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly_,
-                                           const arma::vec &bval_, bool zero_func_left_, bool zero_deriv_left_, bool zero_func_right_, bool zero_deriv_right_) : bval(bval_), zero_func_left(zero_func_left_), zero_deriv_left(zero_deriv_left_), zero_func_right(zero_func_right_), zero_deriv_right(zero_deriv_right_) {
+                                           const arma::vec &bval_, bool zero_func_left_, bool zero_deriv_left_, bool zero_func_right_, bool zero_deriv_right_) : zero_func_left(zero_func_left_), zero_deriv_left(zero_deriv_left_), zero_func_right(zero_func_right_), zero_deriv_right(zero_deriv_right_) {
+      // Phase 5.5: bval is now Eigen; bridge constructor input arma::vec.
+      bval.resize(bval_.n_elem);
+      std::memcpy(bval.data(), bval_.memptr(), sizeof(double) * bval_.n_elem);
       poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(poly_->copy());
       // Update list of basis functions
       update_bf_list();
@@ -35,17 +38,16 @@ namespace helfem {
     }
 
     void FiniteElementBasis::update_bf_list() {
-      if(bval.n_elem==0)
+      if (bval.size() == 0)
         throw std::logic_error("Can't update basis function list since there are no elements!\n");
 
       // Form list of element boundaries
-      first_func_in_element.zeros(bval.n_elem-1);
-      last_func_in_element.zeros(bval.n_elem-1);
-      for(size_t iel=0; iel<first_func_in_element.n_elem; iel++) {
-        // First func is
-        first_func_in_element[iel] = (iel == 0) ? 0 : last_func_in_element[iel-1] - poly->get_noverlap() + 1;
-        // Last func is
-        last_func_in_element[iel] = first_func_in_element[iel] + basis_indices(iel).n_elem - 1;
+      first_func_in_element = helfem::lib1dfem::IVec::Zero(bval.size() - 1);
+      last_func_in_element  = helfem::lib1dfem::IVec::Zero(bval.size() - 1);
+      for (Eigen::Index iel = 0; iel < first_func_in_element.size(); ++iel) {
+        first_func_in_element(iel) = (iel == 0) ? 0
+            : last_func_in_element(iel - 1) - poly->get_noverlap() + 1;
+        last_func_in_element(iel) = first_func_in_element(iel) + basis_indices(iel).size() - 1;
       }
     }
 
@@ -130,19 +132,17 @@ namespace helfem {
 
     void FiniteElementBasis::add_boundary(double r) {
       // Check that r is not in bval
-      bool in_bval = false;
-      for (size_t i = 0; i < bval.n_elem; i++)
+      for (Eigen::Index i = 0; i < bval.size(); ++i)
         if (bval(i) == r)
-          in_bval = true;
+          return;
 
-      // Add
-      if (!in_bval) {
-        arma::vec newbval(bval.n_elem + 1);
-        newbval.subvec(0, bval.n_elem - 1) = bval;
-        newbval(bval.n_elem) = r;
-        bval = arma::sort(newbval, "ascend");
-        update_bf_list();
-      }
+      // Append + sort
+      helfem::Vector newbval(bval.size() + 1);
+      newbval.head(bval.size()) = bval;
+      newbval(bval.size()) = r;
+      std::sort(newbval.data(), newbval.data() + newbval.size());
+      bval = newbval;
+      update_bf_list();
     }
 
     std::shared_ptr<polynomial_basis::PolynomialBasis> FiniteElementBasis::get_poly() const { return std::shared_ptr<polynomial_basis::PolynomialBasis>(poly->copy()); }
@@ -206,11 +206,8 @@ namespace helfem {
     }
 
     helfem::Vector FiniteElementBasis::get_bval() const {
-      // Phase 5.4: bval is still an arma::vec member; bridge at the
-      // accessor boundary. A future PR will migrate the member.
-      helfem::Vector out(bval.n_elem);
-      std::memcpy(out.data(), bval.memptr(), sizeof(double) * bval.n_elem);
-      return out;
+      // Phase 5.5: bval is now native Eigen; direct return.
+      return bval;
     }
 
     // Phase 5.3: per-element evaluators migrated arma -> Eigen.
@@ -251,20 +248,20 @@ namespace helfem {
       return poly->get_nnodes();
     }
 
-    arma::uvec FiniteElementBasis::basis_indices(size_t iel) const {
-      // Phase 5.2: lib1dfem PolynomialBasis::enabled is IVec (Eigen);
-      // bridge to arma::uvec at the libhelfem boundary.
+    helfem::lib1dfem::IVec FiniteElementBasis::basis_indices(size_t iel) const {
+      // Phase 5.5: native Eigen pass-through.
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      const auto & ie = p->get_enabled();
-      arma::uvec out(ie.size());
-      for (Eigen::Index i = 0; i < ie.size(); ++i)
-        out(i) = static_cast<arma::uword>(ie(i));
-      return out;
+      return p->get_enabled();
     }
 
     arma::mat FiniteElementBasis::get_basis(const arma::mat &bas, size_t iel) const {
-      arma::uvec idx(basis_indices(iel));
-      return bas.cols(idx);
+      // Phase 5.5: basis_indices is IVec; bridge to arma::uvec for the
+      // arma::mat::cols selector.
+      const helfem::lib1dfem::IVec idx = basis_indices(iel);
+      arma::uvec u(idx.size());
+      for (Eigen::Index i = 0; i < idx.size(); ++i)
+        u(i) = static_cast<arma::uword>(idx(i));
+      return bas.cols(u);
     }
 
     std::shared_ptr<polynomial_basis::PolynomialBasis>
@@ -272,21 +269,20 @@ namespace helfem {
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(poly->copy());
       if (iel == 0)
         p->drop_first(zero_func_left, zero_deriv_left);
-      if (iel == bval.n_elem - 2)
+      if (iel == bval.size() - 2)
         p->drop_last(zero_func_right, zero_deriv_right);
 
       return p;
     }
 
     size_t FiniteElementBasis::get_nbf() const {
-      // The number of function is just the index of the last function + 1
-      if(last_func_in_element.n_elem==0)
+      if (last_func_in_element.size() == 0)
         throw std::logic_error("Basis function list has not been filled\n");
-      return last_func_in_element[last_func_in_element.n_elem-1]+1;
+      return static_cast<size_t>(last_func_in_element(last_func_in_element.size() - 1) + 1);
     }
 
     size_t FiniteElementBasis::get_nelem() const {
-      return bval.n_elem-1;
+      return bval.size() - 1;
     }
 
     size_t FiniteElementBasis::get_max_nprim() const {
@@ -461,7 +457,7 @@ namespace helfem {
 
     void FiniteElementBasis::print(const std::string & str) const {
       printf("%s",str.c_str());
-      bval.print("bval");
+      printf("bval has %lld entries\n", (long long) bval.size());
     }
   }
 }
