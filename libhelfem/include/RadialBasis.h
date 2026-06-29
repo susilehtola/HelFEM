@@ -209,11 +209,12 @@ namespace helfem {
 	/// Driver for computing confinement potential
 	arma::mat confinement_potential(size_t iel, int N, double r_0, int iconf, double V, double shift_pot) const;
 
-        /// Compute model potential matrix in element
-        arma::mat model_potential(const modelpotential::ModelPotential *nuc,
-                                  size_t iel) const;
+        /// Compute model potential matrix in element (Eigen; Phase 2a).
+        helfem::Matrix model_potential(const modelpotential::ModelPotential *nuc,
+                                       size_t iel) const;
         /// Compute off-center nuclear attraction matrix in element
-        arma::mat nuclear_offcenter(size_t iel, double Rhalf, int L) const;
+        /// (Eigen; Phase 2a wrap-up).
+        helfem::Matrix nuclear_offcenter(size_t iel, double Rhalf, int L) const;
 
         /// Compute primitive two-electron integral (Eigen; Phase 2a).
         helfem::Matrix twoe_integral(int L, size_t iel) const;
@@ -258,18 +259,18 @@ namespace helfem {
         /// integral (Eigen; Phase 2a).
         helfem::Matrix erfc_integral(int L, double lambda, size_t iel,
                                      size_t jel) const;
-        /// Compute a spherically symmetric potential
-        arma::mat spherical_potential(size_t iel) const;
+        /// Compute a spherically symmetric potential (Eigen; Phase 2a).
+        helfem::Matrix spherical_potential(size_t iel) const;
 
-        /// Compute cross-basis integral
-        arma::mat radial_integral(const FEMRadialBasis &rh, int n,
-                                  bool lhder = false, bool rhder = false) const;
-        /// Compute cross-basis model potential integral
-        arma::mat model_potential(const FEMRadialBasis &rh,
-                                  const modelpotential::ModelPotential *model,
-                                  bool lhder = false, bool rhder = false) const;
-        /// Compute projection
-        arma::mat overlap(const FEMRadialBasis &rh) const;
+        /// Compute cross-basis integral (Eigen; Phase 2a).
+        helfem::Matrix radial_integral(const FEMRadialBasis &rh, int n,
+                                       bool lhder = false, bool rhder = false) const;
+        /// Compute cross-basis model potential integral (Eigen; Phase 2a).
+        helfem::Matrix model_potential(const FEMRadialBasis &rh,
+                                       const modelpotential::ModelPotential *model,
+                                       bool lhder = false, bool rhder = false) const;
+        /// Compute projection (Eigen; Phase 2a).
+        helfem::Matrix overlap(const FEMRadialBasis &rh) const;
 
         /// Evaluate basis functions at quadrature points
         arma::mat get_bf(size_t iel) const;

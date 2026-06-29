@@ -176,7 +176,8 @@ namespace helfem {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-          Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.model_potential(pot,iel);
+          // Phase 2a: model_potential returns helfem::Matrix; bridge.
+          Vrad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.model_potential(pot,iel));
         }
         return Vrad;
       }
@@ -581,7 +582,7 @@ namespace helfem {
           arma::vec Pv(arma::vectorise(Prad.submat(ifirst,ifirst,ilast,ilast)));
 
           // Calculate the in-element potential
-          arma::mat pot(radial.spherical_potential(iel));
+          arma::mat pot(helfem::to_arma(radial.spherical_potential(iel)));
           V[iel] += pot*Pv;
 
           // Add in the contributions from the other elements

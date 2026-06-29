@@ -244,25 +244,22 @@ namespace helfem {
         return helfem::to_eigen(S);
       }
 
-      arma::mat FEMRadialBasis::radial_integral(const FEMRadialBasis &rh, int n,
-                                                bool lhder, bool rhder) const {
+      helfem::Matrix FEMRadialBasis::radial_integral(const FEMRadialBasis &rh, int n,
+                                                     bool lhder, bool rhder) const {
         modelpotential::RadialPotential rad(n);
         return model_potential(rh, &rad, lhder, rhder);
       }
 
-      arma::mat FEMRadialBasis::model_potential(const FEMRadialBasis &rh,
-                                                const modelpotential::ModelPotential *model,
-                                                bool lhder, bool rhder) const {
-        // Phase 2a: matrix_element returns Eigen; bridge here to keep
-        // model_potential's arma API for downstream callers.
-        return helfem::to_arma(
-            matrix_element(rh,
-                           lhder ? BasisKind::B1 : BasisKind::B0,
-                           rhder ? BasisKind::B1 : BasisKind::B0,
-                           [model](double r){ return model->V(r); }));
+      helfem::Matrix FEMRadialBasis::model_potential(const FEMRadialBasis &rh,
+                                                     const modelpotential::ModelPotential *model,
+                                                     bool lhder, bool rhder) const {
+        return matrix_element(rh,
+                              lhder ? BasisKind::B1 : BasisKind::B0,
+                              rhder ? BasisKind::B1 : BasisKind::B0,
+                              [model](double r){ return model->V(r); });
       }
 
-      arma::mat FEMRadialBasis::overlap(const FEMRadialBasis &rh) const {
+      helfem::Matrix FEMRadialBasis::overlap(const FEMRadialBasis &rh) const {
         return radial_integral(rh, 0);
       }
 
@@ -389,31 +386,23 @@ namespace helfem {
       }
 
 
-      arma::mat FEMRadialBasis::model_potential(const modelpotential::ModelPotential *model,
-                                                size_t iel) const {
-        return helfem::to_arma(matrix_element(iel, BasisKind::B0, BasisKind::B0,
-                              [model](double r){ return model->V(r); }));
+      helfem::Matrix FEMRadialBasis::model_potential(const modelpotential::ModelPotential *model,
+                                                     size_t iel) const {
+        return matrix_element(iel, BasisKind::B0, BasisKind::B0,
+                              [model](double r){ return model->V(r); });
       }
 
-      arma::mat FEMRadialBasis::nuclear_offcenter(size_t iel, double Rhalf, int L) const {
-        // Phase 2a: radial_integral returns helfem::Matrix; materialise
-        // the scalar-times-Matrix expression into a concrete Matrix
-        // before to_arma (disambiguates the Eigen expression-template
-        // overload).
+      helfem::Matrix FEMRadialBasis::nuclear_offcenter(size_t iel, double Rhalf, int L) const {
         if (fem.element_begin(iel) <= Rhalf) {
-          const helfem::Matrix tmp = -sqrt(4.0 * M_PI / (2 * L + 1)) *
-                                      radial_integral(-L - 1, iel) *
-                                      std::pow(Rhalf, L);
-          return helfem::to_arma(tmp);
+          return -sqrt(4.0 * M_PI / (2 * L + 1)) *
+                  radial_integral(-L - 1, iel) *
+                  std::pow(Rhalf, L);
         } else if (fem.element_end(iel) >= Rhalf) {
-          const helfem::Matrix tmp = -sqrt(4.0 * M_PI / (2 * L + 1)) *
-                                      radial_integral(L, iel) *
-                                      std::pow(Rhalf, -L - 1);
-          return helfem::to_arma(tmp);
+          return -sqrt(4.0 * M_PI / (2 * L + 1)) *
+                  radial_integral(L, iel) *
+                  std::pow(Rhalf, -L - 1);
         } else {
           throw std::logic_error("Nucleus placed within element!\n");
-          arma::mat ret;
-          return ret;
         }
       }
 
@@ -559,7 +548,7 @@ namespace helfem {
         return helfem::to_eigen(tei);
       }
 
-      arma::mat FEMRadialBasis::spherical_potential(size_t iel) const {
+      helfem::Matrix FEMRadialBasis::spherical_potential(size_t iel) const {
         double Rmin(fem.element_begin(iel));
         double Rmax(fem.element_end(iel));
 
@@ -567,7 +556,7 @@ namespace helfem {
         std::shared_ptr<polynomial_basis::PolynomialBasis> p(fem.get_basis(iel));
         arma::mat pot(quadrature::spherical_potential(Rmin, Rmax, xq, wq, p));
 
-        return pot;
+        return helfem::to_eigen(pot);
       }
 
       arma::mat FEMRadialBasis::get_bf(size_t iel) const {

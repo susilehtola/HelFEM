@@ -322,7 +322,7 @@ namespace helfem {
         arma::mat S(Ndummy(),rh.Ndummy());
         S.zeros();
         // Form radial overlap
-        arma::mat Srad(radial.overlap(rh.radial));
+        arma::mat Srad(helfem::to_arma(radial.overlap(rh.radial)));
 
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++)
@@ -408,7 +408,7 @@ namespace helfem {
                 // Where are we in the matrix?
                 size_t ifirst, ilast;
                 radial.get_idx(iel,ifirst,ilast);
-                Vaux[L].submat(ifirst,ifirst,ilast,ilast)+=radial.nuclear_offcenter(iel,Rhalf,L);
+                Vaux[L].submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.nuclear_offcenter(iel,Rhalf,L));
               }
             }
 
@@ -461,7 +461,7 @@ namespace helfem {
 	  // Where are we in the matrix?
 	  size_t ifirst, ilast;
 	  radial.get_idx(iel,ifirst,ilast);
-	  Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.model_potential(pot,iel);
+	  Vrad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.model_potential(pot,iel));
 	}
 	// Fill elements
 	for(size_t iang=0;iang<lval.n_elem;iang++)
