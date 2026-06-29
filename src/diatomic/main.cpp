@@ -741,11 +741,23 @@ int main(int argc, char **argv) {
 
       // Enforce occupation according to specified symmetry
       if(readocc) {
-	scf::enforce_occupations(Ca,Ea,S,occnuma,occsym);
+	{ // Phase 5.13 bridge: enforce_occupations is Eigen.
+	  helfem::Matrix Ca_e = helfem::to_eigen(Ca);
+	  helfem::Vector Ea_e = helfem::to_eigen(Ea);
+	  scf::enforce_occupations(Ca_e, Ea_e, helfem::to_eigen(S), occnuma, occsym);
+	  Ca = helfem::to_arma(Ca_e);
+	  Ea = helfem::to_arma(Ea_e);
+	}
 	if(restr && nela==nelb)
 	  Cb=Ca;
 	else
-	  scf::enforce_occupations(Cb,Eb,S,occnumb,occsym);
+	  { // Phase 5.13 bridge: enforce_occupations is Eigen.
+	    helfem::Matrix Cb_e = helfem::to_eigen(Cb);
+	    helfem::Vector Eb_e = helfem::to_eigen(Eb);
+	    scf::enforce_occupations(Cb_e, Eb_e, helfem::to_eigen(S), occnumb, occsym);
+	    Cb = helfem::to_arma(Cb_e);
+	    Eb = helfem::to_arma(Eb_e);
+	  }
       }
     }
 
@@ -917,13 +929,13 @@ int main(int argc, char **argv) {
 
     // m averaging?
     if(maverage) {
-      Fa=scf::fock_symmetry_average(Fa,mavg_idx);
-      Fb=scf::fock_symmetry_average(Fb,mavg_idx);
+      Fa=helfem::to_arma(scf::fock_symmetry_average(helfem::to_eigen(Fa),mavg_idx));
+      Fb=helfem::to_arma(scf::fock_symmetry_average(helfem::to_eigen(Fb),mavg_idx));
     }
     // Enforce symmetry of Fock matrix
     if(symm) {
-      Fa=scf::enforce_fock_symmetry(Fa,dsym);
-      Fb=scf::enforce_fock_symmetry(Fb,dsym);
+      Fa=helfem::to_arma(scf::enforce_fock_symmetry(helfem::to_eigen(Fa),dsym));
+      Fb=helfem::to_arma(scf::enforce_fock_symmetry(helfem::to_eigen(Fb),dsym));
     }
 
     // ROHF update to Fock matrix
@@ -977,7 +989,13 @@ int main(int argc, char **argv) {
       }
     // Enforce occupation according to specified symmetry
     if(i<readocc) {
-      scf::enforce_occupations(Ca,Ea,S,occnuma,occsym);
+      { // Phase 5.13 bridge: enforce_occupations is Eigen.
+        helfem::Matrix Ca_e = helfem::to_eigen(Ca);
+        helfem::Vector Ea_e = helfem::to_eigen(Ea);
+        scf::enforce_occupations(Ca_e, Ea_e, helfem::to_eigen(S), occnuma, occsym);
+        Ca = helfem::to_arma(Ca_e);
+        Ea = helfem::to_arma(Ea_e);
+      }
     }
 
     if(restr && nela==nelb) {
@@ -1001,7 +1019,13 @@ int main(int argc, char **argv) {
     }
     // Enforce occupation according to specified symmetry
     if(i<readocc) {
-      scf::enforce_occupations(Cb,Eb,S,occnumb,occsym);
+      { // Phase 5.13 bridge: enforce_occupations is Eigen.
+        helfem::Matrix Cb_e = helfem::to_eigen(Cb);
+        helfem::Vector Eb_e = helfem::to_eigen(Eb);
+        scf::enforce_occupations(Cb_e, Eb_e, helfem::to_eigen(S), occnumb, occsym);
+        Cb = helfem::to_arma(Cb_e);
+        Eb = helfem::to_arma(Eb_e);
+      }
     }
 
     chkpt.write("Ca",Ca);
