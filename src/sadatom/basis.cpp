@@ -162,7 +162,7 @@ namespace helfem {
 	    size_t ifirst, ilast;
 	    radial.get_idx(iel,ifirst,ilast);
 	    // r_0 is handled by other routine
-	    Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.confinement_potential(iel, N, r_0, iconf, V, shift_pot);
+	    Vrad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.confinement_potential(iel, N, r_0, iconf, V, shift_pot));
 	  }
 	  return Vrad;
       }

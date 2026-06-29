@@ -198,16 +198,18 @@ namespace helfem {
         helfem::Matrix nuclear() const override;
         /// Compute nuclear attraction matrix in element (Eigen; Phase 2a).
         helfem::Matrix nuclear(size_t iel) const;
+	// Phase 2a wrap-up: confinement helpers Eigen-typed; chain together
+	// via confinement_potential which dispatches by iconf.
 	/// Compute polynomial confinement potential matrix in element
-	arma::mat polynomial_confinement(size_t iel, int N, double shift_pot) const;
+	helfem::Matrix polynomial_confinement(size_t iel, int N, double shift_pot) const;
 	/// Compute exponential confinement potential matrix in element
-	arma::mat exponential_confinement(size_t iel, int N, double r_0, double shift_pot) const;
+	helfem::Matrix exponential_confinement(size_t iel, int N, double r_0, double shift_pot) const;
 	/// Compute barrier confinement potential matrix in element
-	arma::mat barrier_confinement(size_t iel, double V, double r_c) const;
+	helfem::Matrix barrier_confinement(size_t iel, double V, double r_c) const;
 	/// Compute Junquera et al. confinement potential matrix in element
-	arma::mat junq_confinement(size_t iel, int N, double V0, double r_c, double shift_pot) const;
+	helfem::Matrix junq_confinement(size_t iel, int N, double V0, double r_c, double shift_pot) const;
 	/// Driver for computing confinement potential
-	arma::mat confinement_potential(size_t iel, int N, double r_0, int iconf, double V, double shift_pot) const;
+	helfem::Matrix confinement_potential(size_t iel, int N, double r_0, int iconf, double V, double shift_pot) const;
 
         /// Compute model potential matrix in element (Eigen; Phase 2a).
         helfem::Matrix model_potential(const modelpotential::ModelPotential *nuc,

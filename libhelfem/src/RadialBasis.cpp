@@ -295,17 +295,17 @@ namespace helfem {
       helfem::Matrix FEMRadialBasis::nuclear()      const { return -matrix_element(BasisKind::R0, BasisKind::R0, kRWeight); }
       helfem::Matrix FEMRadialBasis::nuclear(size_t iel) const { return -matrix_element(iel, BasisKind::R0, BasisKind::R0, kRWeight); }
 
-      arma::mat FEMRadialBasis::polynomial_confinement(size_t iel, int N, double shift_pot) const {
-        return helfem::to_arma(matrix_element(iel, BasisKind::R0, BasisKind::R0,
+      helfem::Matrix FEMRadialBasis::polynomial_confinement(size_t iel, int N, double shift_pot) const {
+        return matrix_element(iel, BasisKind::R0, BasisKind::R0,
                               [N, shift_pot](double r) {
                                 return (r < shift_pot)
                                     ? 0.0
                                     : std::pow(r - shift_pot, N + 2);
-                              }));
+                              });
       }
 
-      arma::mat FEMRadialBasis::exponential_confinement(size_t iel, int N, double r_0, double shift_pot) const {
-        return helfem::to_arma(matrix_element(iel, BasisKind::B0, BasisKind::B0,
+      helfem::Matrix FEMRadialBasis::exponential_confinement(size_t iel, int N, double r_0, double shift_pot) const {
+        return matrix_element(iel, BasisKind::B0, BasisKind::B0,
                               [r_0, N, shift_pot](double r) {
                                 if (r < shift_pot) return 0.0;
                                 const double r_ratio = (r - shift_pot) / r_0;
@@ -320,27 +320,27 @@ namespace helfem {
                                 V += std::exp(r_ratio);
                                 V *= fact;
                                 return V;
-                              }));
+                              });
       }
 
-      arma::mat FEMRadialBasis::barrier_confinement(size_t iel, double V, double shift_pot) const {
-        return helfem::to_arma(matrix_element(iel, BasisKind::B0, BasisKind::B0,
+      helfem::Matrix FEMRadialBasis::barrier_confinement(size_t iel, double V, double shift_pot) const {
+        return matrix_element(iel, BasisKind::B0, BasisKind::B0,
                               [V, shift_pot](double r) {
                                 return (r < shift_pot) ? 0.0 : V;
-                              }));
+                              });
       }
 
-      arma::mat FEMRadialBasis::junq_confinement(size_t iel, int N, double V0, double r_c, double shift_pot) const {
-        return helfem::to_arma(matrix_element(iel, BasisKind::B0, BasisKind::B0,
+      helfem::Matrix FEMRadialBasis::junq_confinement(size_t iel, int N, double V0, double r_c, double shift_pot) const {
+        return matrix_element(iel, BasisKind::B0, BasisKind::B0,
                               [N, r_c, V0, shift_pot](double r) {
                                 if (r < shift_pot) return 0.0;
                                 const double denominator  = std::pow(r_c - r, N);
                                 const double exponential  = std::exp(-(r_c - shift_pot) / (r - shift_pot));
                                 return V0 * exponential / denominator;
-                              }));
+                              });
       }
 
-      arma::mat FEMRadialBasis::confinement_potential(size_t iel, int N, double r_0, int iconf, double V, double shift_pot) const {
+      helfem::Matrix FEMRadialBasis::confinement_potential(size_t iel, int N, double r_0, int iconf, double V, double shift_pot) const {
 	// Attractive potential does not make sense for shift_pot != 0
 
 	// sign of r0 controls if the potential is attractive or repulsive

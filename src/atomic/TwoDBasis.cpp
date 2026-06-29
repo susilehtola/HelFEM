@@ -488,7 +488,7 @@ namespace helfem {
 	  // Where are we in the matrix?
 	  size_t ifirst, ilast;
 	  radial.get_idx(iel,ifirst,ilast);
-	  Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.confinement_potential(iel,N,r_0,iconf,V,shift_pot);
+	  Orad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.confinement_potential(iel,N,r_0,iconf,V,shift_pot));
 	}
 
         // Fill elements
