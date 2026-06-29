@@ -35,11 +35,8 @@ set_target_properties(_helfem PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/helfem")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/helfem/__init__.py"
                "${CMAKE_CURRENT_BINARY_DIR}/helfem/__init__.py" COPYONLY)
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/helfem/pyscf_driver.py"
-               "${CMAKE_CURRENT_BINARY_DIR}/helfem/pyscf_driver.py" COPYONLY)
 
 # Install the .so + the Python shim under ${CMAKE_INSTALL_PREFIX}/python/helfem/.
 install(TARGETS _helfem LIBRARY DESTINATION python/helfem)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/helfem/__init__.py"
-              "${CMAKE_CURRENT_SOURCE_DIR}/helfem/pyscf_driver.py"
         DESTINATION python/helfem)
