@@ -299,7 +299,8 @@ namespace helfem {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-	  Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(Rexp,iel);
+	  // Phase 2a: radial_integral returns helfem::Matrix; bridge here.
+	  Orad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(Rexp,iel));
         }
 
         // Full overlap matrix
@@ -386,7 +387,7 @@ namespace helfem {
               // Where are we in the matrix?
               size_t ifirst, ilast;
               radial.get_idx(iel,ifirst,ilast);
-              Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(-1,iel);
+              Vrad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(-1,iel));
             }
             // Fill elements
             for(size_t iang=0;iang<lval.n_elem;iang++)
@@ -512,7 +513,7 @@ namespace helfem {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-          Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(1,iel);
+          Orad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(1,iel));
         }
 
         int gmax(std::max(arma::max(lval),arma::max(mval)));
@@ -552,7 +553,7 @@ namespace helfem {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-          Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(2,iel);
+          Orad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(2,iel));
         }
 
         int gmax(std::max(arma::max(lval),arma::max(mval)));
@@ -596,8 +597,8 @@ namespace helfem {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-          O0rad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(0,iel);
-          O2rad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(2,iel);
+          O0rad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(0,iel));
+          O2rad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(2,iel));
         }
 
         // Full coupling
