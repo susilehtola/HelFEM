@@ -417,7 +417,7 @@ namespace helfem {
         }
       }
 
-      arma::mat FEMRadialBasis::twoe_integral(int L, size_t iel) const {
+      helfem::Matrix FEMRadialBasis::twoe_integral(int L, size_t iel) const {
         double Rmin(fem.element_begin(iel));
         double Rmax(fem.element_end(iel));
 
@@ -427,7 +427,7 @@ namespace helfem {
         if(tei.has_nan()) {
           printf("twoe_integral(%i,%i) has NaN!\n",L,(int) iel);
         }
-        return tei;
+        return helfem::to_eigen(tei);
       }
 
       // Pivoted Cholesky with truncation. Returns Lout of shape
@@ -474,19 +474,23 @@ namespace helfem {
         return L;
       }
 
-      arma::mat FEMRadialBasis::twoe_integral_cholesky(int L, size_t iel,
-                                                       double tol) const {
-        return pivoted_cholesky_(twoe_integral(L, iel), tol);
+      helfem::Matrix FEMRadialBasis::twoe_integral_cholesky(int L, size_t iel,
+                                                            double tol) const {
+        // Phase 2a: twoe_integral now returns helfem::Matrix; bridge here
+        // -- pivoted_cholesky_ is arma-based.
+        return helfem::to_eigen(
+            pivoted_cholesky_(helfem::to_arma(twoe_integral(L, iel)), tol));
       }
 
-      arma::mat FEMRadialBasis::yukawa_integral_cholesky(int L, double lambda,
-                                                         size_t iel,
-                                                         double tol) const {
-        return pivoted_cholesky_(yukawa_integral(L, lambda, iel), tol);
+      helfem::Matrix FEMRadialBasis::yukawa_integral_cholesky(int L, double lambda,
+                                                              size_t iel,
+                                                              double tol) const {
+        return helfem::to_eigen(
+            pivoted_cholesky_(helfem::to_arma(yukawa_integral(L, lambda, iel)), tol));
       }
 
 
-      arma::mat FEMRadialBasis::yukawa_integral(int L, double lambda, size_t iel) const {
+      helfem::Matrix FEMRadialBasis::yukawa_integral(int L, double lambda, size_t iel) const {
         double Rmin(fem.element_begin(iel));
         double Rmax(fem.element_end(iel));
 
@@ -494,10 +498,10 @@ namespace helfem {
         std::shared_ptr<const polynomial_basis::PolynomialBasis> p(fem.get_basis(iel));
         arma::mat tei(quadrature::yukawa_integral(Rmin, Rmax, xq, wq, p, L, lambda));
 
-        return tei;
+        return helfem::to_eigen(tei);
       }
 
-      arma::mat FEMRadialBasis::erfc_integral(int L, double mu, size_t iel, size_t kel) const {
+      helfem::Matrix FEMRadialBasis::erfc_integral(int L, double mu, size_t iel, size_t kel) const {
         // Number of quadrature points
         size_t Nq = xq.n_elem;
         // Number of subintervals
@@ -552,7 +556,7 @@ namespace helfem {
         if (iel == kel)
           tei = 0.5 * (tei + tei.t());
 
-        return tei;
+        return helfem::to_eigen(tei);
       }
 
       arma::mat FEMRadialBasis::spherical_potential(size_t iel) const {
