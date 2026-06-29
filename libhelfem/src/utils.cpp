@@ -139,6 +139,32 @@ namespace helfem {
       return ktei;
     }
 
+    helfem::Matrix exchange_tei(const helfem::Matrix & tei,
+                                 size_t Ni, size_t Nj, size_t Nk, size_t Nl) {
+      // Eigen overload of the same scalar-by-scalar (ij|kl) -> (jk|il)
+      // permutation. Both arma and Eigen are column-major so the
+      // packed-pair index layout (a-fast, b-slow) is identical.
+      if (static_cast<size_t>(tei.rows()) != Ni*Nj) {
+        std::ostringstream oss;
+        oss << "Invalid input tei: was supposed to get " << Ni*Nj
+            << " rows but got " << tei.rows() << "!\n";
+        throw std::logic_error(oss.str());
+      }
+      if (static_cast<size_t>(tei.cols()) != Nk*Nl) {
+        std::ostringstream oss;
+        oss << "Invalid input tei: was supposed to get " << Nk*Nl
+            << " cols but got " << tei.cols() << "!\n";
+        throw std::logic_error(oss.str());
+      }
+      helfem::Matrix ktei = helfem::Matrix::Zero(Nj*Nk, Ni*Nl);
+      for (size_t ii = 0; ii < Ni; ++ii)
+        for (size_t jj = 0; jj < Nj; ++jj)
+          for (size_t kk = 0; kk < Nk; ++kk)
+            for (size_t ll = 0; ll < Nl; ++ll)
+              ktei(kk*Nj+jj, ll*Ni+ii) = tei(jj*Ni+ii, ll*Nk+kk);
+      return ktei;
+    }
+
     int stricmp(const std::string & str1, const std::string & str2) {
       return strcasecmp(str1.c_str(),str2.c_str());
     }

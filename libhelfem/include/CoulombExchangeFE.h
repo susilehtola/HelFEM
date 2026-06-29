@@ -28,6 +28,11 @@ namespace helfem {
   namespace utils {
     arma::mat exchange_tei(const arma::mat & tei, size_t Ni, size_t Nj,
                             size_t Nk, size_t Nl);
+    /// Eigen overload (Phase 2c wrap-up): same (ij|kl) -> (jk|il) permutation
+    /// for helfem::Matrix-typed in-element TEIs, avoids the
+    /// to_eigen(to_arma(...)) round-trip the helpers used to do.
+    helfem::Matrix exchange_tei(const helfem::Matrix & tei, size_t Ni, size_t Nj,
+                                 size_t Nk, size_t Nl);
   }
   namespace atomic {
     namespace basis {
@@ -292,13 +297,13 @@ namespace helfem {
         for (int L = 0; L < N_L; ++L) {
           for (size_t iel = 0; iel < Nel; ++iel) {
             const size_t Ni = radial.Nprim(iel);
-            // utils::exchange_tei is arma-based; bridge here.
-            // Phase 2c: prim_tei / prim_ktei caches are Eigen.
+            // Phase 2c wrap-up: utils::exchange_tei now has an Eigen
+            // overload, so prim_tei (Eigen) -> prim_ktei (Eigen) is
+            // direct -- no arma round-trip.
             prim_ktei[Nel * Nel * (size_t) L + iel * Nel + iel] =
-                helfem::to_eigen(helfem::utils::exchange_tei(
-                    helfem::to_arma(
-                        prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel]),
-                    Ni, Ni, Ni, Ni));
+                helfem::utils::exchange_tei(
+                    prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel],
+                    Ni, Ni, Ni, Ni);
           }
         }
       }
@@ -326,12 +331,12 @@ namespace helfem {
             for (size_t jel = 0; jel < Nel; ++jel) {
               const size_t Ni = radial.Nprim(iel);
               const size_t Nj = radial.Nprim(jel);
-              // utils::exchange_tei is arma-based; convert here.
-              // Phase 2c: rs_ktei is std::vector<helfem::Matrix>.
+              // Phase 2c wrap-up: utils::exchange_tei Eigen overload
+              // -- direct erfc_integral (Eigen) -> rs_ktei (Eigen).
               rs_ktei[Nel * Nel * (size_t) L + iel * Nel + jel] =
-                  helfem::to_eigen(helfem::utils::exchange_tei(
-                      helfem::to_arma(radial.erfc_integral(L, mu, iel, jel)),
-                      Ni, Ni, Nj, Nj));
+                  helfem::utils::exchange_tei(
+                      radial.erfc_integral(L, mu, iel, jel),
+                      Ni, Ni, Nj, Nj);
             }
           }
         }
@@ -602,10 +607,9 @@ namespace helfem {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
             const size_t Ni = ilast - ifirst + 1;
-            // utils::exchange_tei is arma-based; bridge for now.
-            scratch_ktei[iel] = helfem::to_eigen(utils::exchange_tei(
-                helfem::to_arma(detail_fe_2e::in_element_tei(radial, L, iel, false, 0.0)),
-                Ni, Ni, Ni, Ni));
+            scratch_ktei[iel] = utils::exchange_tei(
+                detail_fe_2e::in_element_tei(radial, L, iel, false, 0.0),
+                Ni, Ni, Ni, Ni);
           }
           return scratch_ktei[iel];
         };
@@ -657,9 +661,9 @@ namespace helfem {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
             const size_t Ni = ilast - ifirst + 1;
-            scratch_ktei[iel] = helfem::to_eigen(utils::exchange_tei(
-                helfem::to_arma(detail_fe_2e::in_element_tei(radial, L, iel, true, lambda)),
-                Ni, Ni, Ni, Ni));
+            scratch_ktei[iel] = utils::exchange_tei(
+                detail_fe_2e::in_element_tei(radial, L, iel, true, lambda),
+                Ni, Ni, Ni, Ni);
           }
           return scratch_ktei[iel];
         };

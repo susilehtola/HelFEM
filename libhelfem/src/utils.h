@@ -16,6 +16,7 @@
 #define UTILS_H
 
 #include <armadillo>
+#include "../include/Matrix.h"
 
 namespace helfem {
   namespace utils {
@@ -45,6 +46,11 @@ namespace helfem {
 
     /// Permute indices (ij|kl) -> (jk|il)
     arma::mat exchange_tei(const arma::mat & tei, size_t Ni, size_t Nj, size_t Nk, size_t Nl);
+    /// Eigen overload of the same permutation (Phase 2c cleanup -- lets
+    /// the libhelfem 2e helpers skip the to_eigen(to_arma(...)) round-
+    /// trip that bridged the old arma-only function).
+    helfem::Matrix exchange_tei(const helfem::Matrix & tei,
+                                 size_t Ni, size_t Nj, size_t Nk, size_t Nl);
 
     /// Case independent string comparison
     int stricmp(const std::string & str1, const std::string & str2);
