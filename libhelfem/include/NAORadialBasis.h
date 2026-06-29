@@ -16,6 +16,7 @@
 #define ATOMIC_BASIS_NAORADIALBASIS_H
 
 #include "RadialBasis.h"
+#include "ArmaEigen.h"
 #include "CoulombExchangeFE.h"
 #include <armadillo>
 #include <memory>
@@ -107,8 +108,14 @@ namespace helfem {
         size_t Nbf() const override { return C_.n_cols; }
 
         /// S_NAO = C^T S_underlying C.
-        arma::mat overlap() const override {
-          return C_.t() * underlying_->overlap() * C_;
+        helfem::Matrix overlap() const override {
+          // Bridge: underlying_->overlap() is Eigen (Phase 2a); C_ is
+          // still arma. Convert at the boundary; subsequent Phase 2
+          // PR migrates C_ to Eigen and drops the round-trip. Force
+          // evaluation of the arma expression template into a concrete
+          // mat before to_eigen to avoid ADL ambiguity.
+          arma::mat S_arma = C_.t() * helfem::to_arma(underlying_->overlap()) * C_;
+          return helfem::to_eigen(S_arma);
         }
 
         /// T_NAO = C^T T_underlying C.
