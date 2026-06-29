@@ -143,13 +143,14 @@ namespace helfem {
         /// FiniteElementBasis::matrix_element and is the engine that the
         /// named matrix-element methods below (overlap, kinetic, nuclear, ...)
         /// can be composed from. Default weight is identity (1).
-        arma::mat matrix_element(
+        /// Eigen-typed (Phase 2a migration).
+        helfem::Matrix matrix_element(
             size_t iel, BasisKind bra, BasisKind ket,
             const std::function<double(double)> & weight =
                 std::function<double(double)>()) const;
 
         /// Same as above, summed over every element of the basis.
-        arma::mat matrix_element(
+        helfem::Matrix matrix_element(
             BasisKind bra, BasisKind ket,
             const std::function<double(double)> & weight =
                 std::function<double(double)>()) const;
@@ -158,7 +159,7 @@ namespace helfem {
         /// reference element [x_left, x_right] (defaults to the full range
         /// [-1, +1]). Useful for two-electron inner integrals and other
         /// piecewise integrations.
-        arma::mat matrix_element(
+        helfem::Matrix matrix_element(
             size_t iel, BasisKind bra, BasisKind ket,
             const std::function<double(double)> & weight,
             double x_left, double x_right) const;
@@ -172,7 +173,7 @@ namespace helfem {
         /// n_quad = max(this->n_quad, rh.n_quad). Only B0, B1, B2 are
         /// meaningful here -- R-kinds (B(r)/r) are tied to a single basis's
         /// element-length and aren't well-defined cross-basis.
-        arma::mat matrix_element(
+        helfem::Matrix matrix_element(
             const FEMRadialBasis & rh,
             BasisKind bra, BasisKind ket,
             const std::function<double(double)> & weight =
