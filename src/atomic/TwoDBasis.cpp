@@ -13,6 +13,7 @@
  * for the full license text.
  */
 #include "TwoDBasis.h"
+#include <ArmaEigen.h>
 #include <CoulombExchangeFE.h>
 #include "basis.h"
 #include "quadrature.h"
@@ -344,8 +345,10 @@ namespace helfem {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-          Trad.submat(ifirst,ifirst,ilast,ilast)+=radial.kinetic(iel);
-          Trad_l.submat(ifirst,ifirst,ilast,ilast)+=radial.kinetic_l(iel);
+          // Phase 2a: radial.kinetic(iel) / kinetic_l(iel) now return
+          // helfem::Matrix; bridge here -- TwoDBasis caches are still arma.
+          Trad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.kinetic(iel));
+          Trad_l.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.kinetic_l(iel));
         }
 
         // Full kinetic energy matrix

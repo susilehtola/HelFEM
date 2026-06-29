@@ -181,23 +181,23 @@ namespace helfem {
 
         /// Compute overlap matrix (Eigen-typed; Phase 2a migration).
         helfem::Matrix overlap() const override;
-        /// Compute overlap matrix in element
-        arma::mat overlap(size_t iel) const;
+        /// Compute overlap matrix in element (Eigen-typed; Phase 2a).
+        helfem::Matrix overlap(size_t iel) const;
 
         /// Compute primitive kinetic energy matrix (excluding l part).
         /// Eigen-typed; Phase 2a migration.
         helfem::Matrix kinetic() const override;
         /// Compute primitive kinetic energy matrix in element (excluding l
-        /// part)
-        arma::mat kinetic(size_t iel) const;
+        /// part). Eigen-typed (Phase 2a).
+        helfem::Matrix kinetic(size_t iel) const;
         /// Compute l part of kinetic energy matrix (Eigen; Phase 2a).
         helfem::Matrix kinetic_l() const override;
-        /// Compute l part of kinetic energy matrix in element
-        arma::mat kinetic_l(size_t iel) const;
+        /// Compute l part of kinetic energy matrix in element (Eigen; Phase 2a).
+        helfem::Matrix kinetic_l(size_t iel) const;
         /// Compute nuclear attraction matrix (Eigen; Phase 2a).
         helfem::Matrix nuclear() const override;
-        /// Compute nuclear attraction matrix in element
-        arma::mat nuclear(size_t iel) const;
+        /// Compute nuclear attraction matrix in element (Eigen; Phase 2a).
+        helfem::Matrix nuclear(size_t iel) const;
 	/// Compute polynomial confinement potential matrix in element
 	arma::mat polynomial_confinement(size_t iel, int N, double shift_pot) const;
 	/// Compute exponential confinement potential matrix in element

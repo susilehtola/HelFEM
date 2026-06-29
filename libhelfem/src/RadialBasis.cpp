@@ -292,17 +292,17 @@ namespace helfem {
       // arithmetic works on the return value with no manual wrapping).
       // Per-element variants stay arma-typed; bridge with to_arma at the
       // matrix_element call site.
-      helfem::Matrix FEMRadialBasis::overlap()    const { return matrix_element(BasisKind::B0, BasisKind::B0, kNoWeight); }
-      arma::mat FEMRadialBasis::overlap(size_t iel) const { return helfem::to_arma(matrix_element(iel, BasisKind::B0, BasisKind::B0, kNoWeight)); }
+      helfem::Matrix FEMRadialBasis::overlap()      const { return matrix_element(BasisKind::B0, BasisKind::B0, kNoWeight); }
+      helfem::Matrix FEMRadialBasis::overlap(size_t iel) const { return matrix_element(iel, BasisKind::B0, BasisKind::B0, kNoWeight); }
 
-      helfem::Matrix FEMRadialBasis::kinetic()    const { return 0.5 * matrix_element(BasisKind::B1, BasisKind::B1, kNoWeight); }
-      arma::mat FEMRadialBasis::kinetic(size_t iel) const { return 0.5 * helfem::to_arma(matrix_element(iel, BasisKind::B1, BasisKind::B1, kNoWeight)); }
+      helfem::Matrix FEMRadialBasis::kinetic()      const { return 0.5 * matrix_element(BasisKind::B1, BasisKind::B1, kNoWeight); }
+      helfem::Matrix FEMRadialBasis::kinetic(size_t iel) const { return 0.5 * matrix_element(iel, BasisKind::B1, BasisKind::B1, kNoWeight); }
 
-      helfem::Matrix FEMRadialBasis::kinetic_l()  const { return 0.5 * matrix_element(BasisKind::R0, BasisKind::R0, kNoWeight); }
-      arma::mat FEMRadialBasis::kinetic_l(size_t iel) const { return 0.5 * helfem::to_arma(matrix_element(iel, BasisKind::R0, BasisKind::R0, kNoWeight)); }
+      helfem::Matrix FEMRadialBasis::kinetic_l()    const { return 0.5 * matrix_element(BasisKind::R0, BasisKind::R0, kNoWeight); }
+      helfem::Matrix FEMRadialBasis::kinetic_l(size_t iel) const { return 0.5 * matrix_element(iel, BasisKind::R0, BasisKind::R0, kNoWeight); }
 
-      helfem::Matrix FEMRadialBasis::nuclear()    const { return -matrix_element(BasisKind::R0, BasisKind::R0, kRWeight); }
-      arma::mat FEMRadialBasis::nuclear(size_t iel) const { return -helfem::to_arma(matrix_element(iel, BasisKind::R0, BasisKind::R0, kRWeight)); }
+      helfem::Matrix FEMRadialBasis::nuclear()      const { return -matrix_element(BasisKind::R0, BasisKind::R0, kRWeight); }
+      helfem::Matrix FEMRadialBasis::nuclear(size_t iel) const { return -matrix_element(iel, BasisKind::R0, BasisKind::R0, kRWeight); }
 
       arma::mat FEMRadialBasis::polynomial_confinement(size_t iel, int N, double shift_pot) const {
         return helfem::to_arma(matrix_element(iel, BasisKind::R0, BasisKind::R0,
