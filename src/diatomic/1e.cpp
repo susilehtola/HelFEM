@@ -161,7 +161,12 @@ int main(int argc, char **argv) {
 
   arma::vec E;
   arma::mat C;
-  scf::eig_gsym(E,C,H0,Sinvh);
+  { // Phase 5.11 bridge: eig_gsym is Eigen.
+    helfem::Vector E_e; helfem::Matrix C_e;
+    scf::eig_gsym(E_e, C_e, helfem::to_eigen(H0), helfem::to_eigen(Sinvh));
+    E = helfem::to_arma(E_e);
+    C = helfem::to_arma(C_e);
+  }
 
   double Ekin=arma::as_scalar(C.col(0).t()*T*C.col(0));
   double Enuc=arma::as_scalar(C.col(0).t()*Vnuc*C.col(0));

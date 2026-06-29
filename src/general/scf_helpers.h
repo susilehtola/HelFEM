@@ -30,8 +30,8 @@ namespace helfem {
     /// Average out the Fock matrix
     arma::mat fock_symmetry_average(const arma::mat & Fin, const std::vector< std::vector<arma::uvec> > & sym_idx);
 
-    /// Solve generalized eigenvalue problem
-    void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh);
+    /// Solve generalized eigenvalue problem (Phase 5.11: Eigen-typed).
+    void eig_gsym(helfem::Vector & E, helfem::Matrix & C, const helfem::Matrix & F, const helfem::Matrix & Sinvh);
     /// Solve generalized eigenvalue problem in subspaces
     void eig_gsym_sub(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh, const std::vector<arma::uvec> & m_idx, bool verbose=true);
     /// Solve eigenvalue problem in subspaces

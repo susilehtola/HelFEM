@@ -14,6 +14,8 @@
  */
 #include "scf_helpers.h"
 #include "timer.h"
+#include <ArmaEigen.h>
+#include <Eigen/Eigenvalues>
 #include <cfloat>
 
 namespace helfem {
@@ -128,15 +130,16 @@ namespace helfem {
       E=E(newidx);
     }
 
-    void eig_gsym(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh) {
-      // Form matrix in orthonormal basis
-      arma::mat Forth(Sinvh.t()*F*Sinvh);
-
-      if(!arma::eig_sym(E,C,Forth))
+    // Phase 5.11: Eigen-typed.
+    void eig_gsym(helfem::Vector & E, helfem::Matrix & C, const helfem::Matrix & F, const helfem::Matrix & Sinvh) {
+      // Form matrix in orthonormal basis: Forth = Sinvh^T * F * Sinvh.
+      const helfem::Matrix Forth = Sinvh.transpose() * F * Sinvh;
+      Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(Forth);
+      if (es.info() != Eigen::Success)
         throw std::logic_error("Eigendecomposition failed!\n");
-
-      // Return to non-orthonormal basis
-      C=Sinvh*C;
+      E = es.eigenvalues();
+      // Return to non-orthonormal basis: C = Sinvh * V.
+      C = Sinvh * es.eigenvectors();
     }
 
     void eig_gsym_sub(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh, const std::vector<arma::uvec> & m_idx, bool verbose) {
@@ -156,10 +159,12 @@ namespace helfem {
         // Column indices of Sinvh that have non-zero elements
         arma::uvec Sind(arma::find(Snrm));
 
-        // Solve subproblem
-        arma::vec Esub;
-        arma::mat Csub;
-        eig_gsym(Esub,Csub,F,Sinvh.cols(Sind));
+        // Solve subproblem (Phase 5.11 bridge: eig_gsym is Eigen).
+        helfem::Vector Esub_e;
+        helfem::Matrix Csub_e;
+        eig_gsym(Esub_e, Csub_e, helfem::to_eigen(F), helfem::to_eigen(arma::mat(Sinvh.cols(Sind))));
+        arma::vec Esub = helfem::to_arma(Esub_e);
+        arma::mat Csub = helfem::to_arma(Csub_e);
 
         // Store solutions
         E.subvec(iidx,iidx+Esub.n_elem-1)=Esub;
@@ -246,10 +251,13 @@ namespace helfem {
       double frz(arma::sum(Fnorm.subvec(Nact-Cocc.n_cols-1,Fnorm.n_elem-1)));
       printf("Active space norm %e, frozen space norm %e\n",act,frz);
 
-      // Form subspace solution
+      // Form subspace solution (Phase 5.11 bridge).
       arma::mat C;
       arma::mat Corth(arma::join_rows(Cocc,Cvirt.cols(0,Nact-Cocc.n_cols-1)));
-      eig_gsym(E,C,F,Corth);
+      helfem::Vector E_e; helfem::Matrix C_e;
+      eig_gsym(E_e, C_e, helfem::to_eigen(F), helfem::to_eigen(Corth));
+      E = helfem::to_arma(E_e);
+      C = helfem::to_arma(C_e);
 
       // Update occupied and virtual orbitals
       Cocc=C.cols(0,Cocc.n_cols-1);
@@ -365,8 +373,12 @@ namespace helfem {
       if(nsub >= Cocc.n_cols+Cvirt.n_cols) {
         arma::mat Corth(arma::join_rows(Cocc,Cvirt));
 
+        // Phase 5.11 bridge.
         arma::mat C;
-        eig_gsym(E,C,F,Corth);
+        helfem::Vector E_e; helfem::Matrix C_e;
+        eig_gsym(E_e, C_e, helfem::to_eigen(F), helfem::to_eigen(Corth));
+        E = helfem::to_arma(E_e);
+        C = helfem::to_arma(C_e);
         if(Cocc.n_cols)
           Cocc=C.cols(0,Cocc.n_cols-1);
         Cvirt=C.cols(Cocc.n_cols,C.n_cols-1);
