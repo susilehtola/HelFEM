@@ -114,6 +114,13 @@ namespace helfem_py {
     size_t Nbf()  const { return basis_.Nbf(); }
     size_t Nrad() const { return basis_.Nrad(); }
     size_t Nang() const { return basis_.Nang(); }
+    size_t Nel()  const { return basis_.get_rad_Nel(); }
+    /// Return (ifirst, ilast) inclusive radial-function index range
+    /// for element iel. Adjacent elements OVERLAP by `noverlap`
+    /// (= 1 for LIP, 2 for HIP) at boundary indices.
+    std::pair<size_t, size_t> radial_element_range(size_t iel) const {
+      return basis_.radial_element_range(iel);
+    }
     py::list lvals() const {
       py::list out;
       arma::ivec lv = basis_.get_l();
@@ -241,6 +248,15 @@ PYBIND11_MODULE(_helfem, m) {
            "Total number of basis functions = Nrad * Nang.")
       .def("Nrad",    &helfem_py::AtomicBasis::Nrad)
       .def("Nang",    &helfem_py::AtomicBasis::Nang)
+      .def("Nel",     &helfem_py::AtomicBasis::Nel,
+           "Number of radial FE elements.")
+      .def("radial_element_range",
+           &helfem_py::AtomicBasis::radial_element_range,
+           py::arg("iel"),
+           "Inclusive (ifirst, ilast) radial-function index range for\n"
+           "element iel. Adjacent elements OVERLAP at boundary indices\n"
+           "(noverlap = 1 for LIP, 2 for HIP) -- callers partitioning\n"
+           "per-element quantities must account for the shared boundary.")
       .def("lvals",   &helfem_py::AtomicBasis::lvals)
       .def("mvals",   &helfem_py::AtomicBasis::mvals)
       .def("overlap", &helfem_py::AtomicBasis::overlap, "Overlap matrix S.")

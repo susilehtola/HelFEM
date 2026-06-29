@@ -668,28 +668,7 @@ namespace helfem {
         std::vector<arma::cube> B(N_L);
 
         for (int L = 0; L < N_L; ++L) {
-          // -- 1. Initial diagonal of R^L over redundant pair index (i, j).
-          //    D(i, j) = R^L(i, j, i, j). FE basis: nonzero only when i, j
-          //    are in the same element. Pull from the cached in-element
-          //    4-index tensor (prim_tei).
-          arma::mat D(Nrad, Nrad, arma::fill::zeros);
-          for (size_t iel = 0; iel < Nel; ++iel) {
-            size_t ifirst, ilast;
-            radial.get_idx(iel, ifirst, ilast);
-            const size_t Ni = ilast - ifirst + 1;
-            const arma::mat & T =
-                prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel];
-            // T is (Ni^2, Ni^2) indexed as pair = i_loc + j_loc * Ni
-            // (Armadillo column-major). The diagonal is T(pair, pair).
-            for (size_t j_loc = 0; j_loc < Ni; ++j_loc) {
-              for (size_t i_loc = 0; i_loc < Ni; ++i_loc) {
-                const size_t pair = i_loc + j_loc * Ni;
-                D(ifirst + i_loc, ifirst + j_loc) = T(pair, pair);
-              }
-            }
-          }
-
-          // -- 2. Cached accessor lambdas for the per-L J helper.
+          // -- 1. Cached accessor lambdas for the per-L J helper.
           auto rs = [&, L](size_t iel) -> const arma::mat & {
             return disjoint_L[(size_t) L * Nel + iel];
           };
@@ -699,6 +678,55 @@ namespace helfem {
           auto tw = [&, L](size_t iel) -> const arma::mat & {
             return prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel];
           };
+
+          // -- 2. Initial diagonal D(i, j) = R^L(i, j, i, j) over the
+          //    redundant pair index. Compute via the J helper so that
+          //    BOUNDARY-shared basis functions get all element
+          //    contributions summed correctly. For an interior pair
+          //    (i, j) both in element iel, J(P_ij)[i, j] is exactly the
+          //    cached prim_tei diagonal; for a pair involving the
+          //    shared boundary index, J(P_ij)[i, j] sums the within-
+          //    elem_left, within-elem_right, and cross-element pieces
+          //    that arise because the boundary function has support in
+          //    two adjacent elements.
+          //
+          //    A naive prim_tei-only init misses the off-element
+          //    pieces for boundary indices and corrupts the pivoted
+          //    Cholesky -- D_pivot ends up too small, v_new is
+          //    overscaled, and the reconstructed R^L diverges by ~1%
+          //    on boundary-involved quadruples (verified bug, fixed
+          //    here).
+          //
+          //    Iterate pairs per-element so cross-element (i, j) pairs
+          //    (zero pair density -> D = 0) are not visited. Each
+          //    pair is visited once if it lives in one element, twice
+          //    (with identical J output) if both indices are the same
+          //    boundary -- harmless small redundancy.
+          arma::mat D(Nrad, Nrad, arma::fill::zeros);
+          for (size_t iel = 0; iel < Nel; ++iel) {
+            size_t ifirst, ilast;
+            radial.get_idx(iel, ifirst, ilast);
+            const size_t Ni = ilast - ifirst + 1;
+            for (size_t j_loc = 0; j_loc < Ni; ++j_loc) {
+              for (size_t i_loc = 0; i_loc <= j_loc; ++i_loc) {
+                const size_t i = ifirst + i_loc;
+                const size_t j = ifirst + j_loc;
+                arma::mat P(Nrad, Nrad, arma::fill::zeros);
+                if (i == j) {
+                  P(i, i) = 1.0;
+                } else {
+                  P(i, j) = 0.5;
+                  P(j, i) = 0.5;
+                }
+                arma::mat J =
+                    helfem::atomic::basis::
+                        assemble_J_FE_one_multipole_cached(
+                            radial, rs, rb, tw, P);
+                D(i, j) = J(i, j);
+                D(j, i) = D(i, j);
+              }
+            }
+          }
 
           // -- 3. Pivoted Cholesky on R^L. Each iteration picks the
           //    redundant-pair index (i*, j*) with maximum residual
@@ -1320,6 +1348,13 @@ namespace helfem {
 
       size_t TwoDBasis::get_rad_Nel() const {
         return radial.Nel();
+      }
+
+      std::pair<size_t, size_t>
+      TwoDBasis::radial_element_range(size_t iel) const {
+        size_t ifirst, ilast;
+        radial.get_idx(iel, ifirst, ilast);
+        return {ifirst, ilast};
       }
 
       arma::vec TwoDBasis::get_wrad(size_t iel) const {
