@@ -82,7 +82,8 @@ namespace helfem {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-	  Orad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(Rexp,iel);
+	  // Phase 2a: radial_integral returns helfem::Matrix; bridge here.
+	  Orad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(Rexp,iel));
         }
 
         return Orad;
@@ -141,7 +142,7 @@ namespace helfem {
             // Where are we in the matrix?
             size_t ifirst, ilast;
             radial.get_idx(iel,ifirst,ilast);
-            Vrad.submat(ifirst,ifirst,ilast,ilast)+=radial.radial_integral(-1,iel);
+            Vrad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(-1,iel));
           }
 
           return -Z*Vrad;
@@ -556,8 +557,8 @@ namespace helfem {
           radial.get_idx(iel,ifirst,ilast);
           // Density matrix
           arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
-          arma::mat zm(radial.radial_integral(0,iel));
-          arma::mat mo(radial.radial_integral(-1,iel));
+          arma::mat zm(helfem::to_arma(radial.radial_integral(0,iel)));
+          arma::mat mo(helfem::to_arma(radial.radial_integral(-1,iel)));
           zero(iel)=arma::trace(Psub*zm);
           minusone(iel)=arma::trace(Psub*mo);
         }
@@ -941,7 +942,7 @@ namespace helfem {
 	double m=a+(b-a)/2.0;
 	while(b-a>=conv_thr) {
 	  m=a+(b-a)/2.0;
-	  result=arma::trace(Psub*radial.radial_integral(0,ielement,m,1.0));
+	  result=arma::trace(Psub*helfem::to_arma(radial.radial_integral(0,ielement,m,1.0)));
 	  if(result<s_left)
 	    b=m;
 	  else if(result>s_left)

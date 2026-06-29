@@ -119,13 +119,13 @@ namespace helfem {
         arma::mat radial_integral(const arma::mat &bf_c, int n,
                                   size_t iel) const;
         /// Compute radial matrix elements <r^n> in element (overlap is n=0,
-        /// nuclear is n=-1)
-        arma::mat radial_integral(int n, size_t iel, double x_left = -1.0, double x_right = 1.0) const;
+        /// nuclear is n=-1). Eigen-typed (Phase 2a migration).
+        helfem::Matrix radial_integral(int n, size_t iel, double x_left = -1.0, double x_right = 1.0) const;
 
-        /// Compute Bessel i_L integral
-        arma::mat bessel_il_integral(int L, double lambda, size_t iel) const;
-        /// Compute Bessel k_L integral
-        arma::mat bessel_kl_integral(int L, double lambda, size_t iel) const;
+        /// Compute Bessel i_L integral (Eigen; Phase 2a).
+        helfem::Matrix bessel_il_integral(int L, double lambda, size_t iel) const;
+        /// Compute Bessel k_L integral (Eigen; Phase 2a).
+        helfem::Matrix bessel_kl_integral(int L, double lambda, size_t iel) const;
 
         /// Identifies which representation of the radial basis to use when
         /// evaluating bra/ket factors in a matrix element. Bn is the raw FE

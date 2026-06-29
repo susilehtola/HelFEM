@@ -16,6 +16,7 @@
 #define ATOMIC_BASIS_COULOMB_EXCHANGE_FE_H
 
 #include "RadialBasis.h"
+#include "ArmaEigen.h"
 #include <armadillo>
 #include <functional>
 
@@ -187,13 +188,18 @@ namespace helfem {
 
         inline arma::mat r_small(const FEMRadialBasis & fem, int L, size_t iel,
                                   bool yukawa, double lambda) {
-          return yukawa ? fem.bessel_il_integral(L, lambda, iel)
-                        : fem.radial_integral(L, iel);
+          // Phase 2a: bessel_*_integral and radial_integral return
+          // helfem::Matrix; bridge here since the FE caches (disjoint_L
+          // etc.) are still std::vector<arma::mat>.
+          return helfem::to_arma(
+              yukawa ? fem.bessel_il_integral(L, lambda, iel)
+                     : fem.radial_integral(L, iel));
         }
         inline arma::mat r_big(const FEMRadialBasis & fem, int L, size_t iel,
                                 bool yukawa, double lambda) {
-          return yukawa ? fem.bessel_kl_integral(L, lambda, iel)
-                        : fem.radial_integral(-L - 1, iel);
+          return helfem::to_arma(
+              yukawa ? fem.bessel_kl_integral(L, lambda, iel)
+                     : fem.radial_integral(-L - 1, iel));
         }
         inline arma::mat in_element_tei(const FEMRadialBasis & fem, int L,
                                          size_t iel,

@@ -82,19 +82,15 @@ namespace helfem {
         return fem.get_poly_nnodes();
       }
 
-      arma::mat FEMRadialBasis::radial_integral(int Rexp, size_t iel, double x_left, double x_right) const {
+      helfem::Matrix FEMRadialBasis::radial_integral(int Rexp, size_t iel, double x_left, double x_right) const {
         // <R | r^Rexp | R> with the FE-natural dr measure means weight r^(Rexp+2):
         //   integral B(r)^2 r^(Rexp+2) / r^2  dr  =  integral R(r)^2 r^(Rexp+2)  dr
         // = QM <r^Rexp> = integral R^2 r^Rexp r^2 dr.
         const std::function<double(double)> rpowL =
             [Rexp](double r){ return std::pow(r, Rexp + 2); };
-        // Phase 2a: matrix_element now returns helfem::Matrix; bridge to
-        // arma here -- radial_integral itself is still arma-typed (per-
-        // element variant; migrated in a later tracer).
-        arma::mat ret = helfem::to_arma(
-            matrix_element(iel, BasisKind::R0, BasisKind::R0,
-                           rpowL, x_left, x_right));
-        if (ret.has_nan())
+        helfem::Matrix ret = matrix_element(iel, BasisKind::R0, BasisKind::R0,
+                                            rpowL, x_left, x_right);
+        if (ret.array().isNaN().any())
           printf("radial_integral(%i,%i) has NaN!\n", Rexp, (int)iel);
         return ret;
       }
@@ -157,16 +153,14 @@ namespace helfem {
             fem.matrix_element(iel, lhs, rhs, xq, wq, weight, x_left, x_right));
       }
 
-      arma::mat FEMRadialBasis::bessel_il_integral(int L, double lambda, size_t iel) const {
-        // Phase 2a: matrix_element now returns helfem::Matrix; bridge here.
-        return helfem::to_arma(matrix_element(iel, BasisKind::B0, BasisKind::B0,
-                              [L, lambda](double r){ return utils::bessel_il(r * lambda, L); }));
+      helfem::Matrix FEMRadialBasis::bessel_il_integral(int L, double lambda, size_t iel) const {
+        return matrix_element(iel, BasisKind::B0, BasisKind::B0,
+                              [L, lambda](double r){ return utils::bessel_il(r * lambda, L); });
       }
 
-      arma::mat FEMRadialBasis::bessel_kl_integral(int L, double lambda, size_t iel) const {
-        // Phase 2a: matrix_element now returns helfem::Matrix; bridge here.
-        return helfem::to_arma(matrix_element(iel, BasisKind::B0, BasisKind::B0,
-                              [L, lambda](double r){ return utils::bessel_kl(r * lambda, L); }));
+      helfem::Matrix FEMRadialBasis::bessel_kl_integral(int L, double lambda, size_t iel) const {
+        return matrix_element(iel, BasisKind::B0, BasisKind::B0,
+                              [L, lambda](double r){ return utils::bessel_kl(r * lambda, L); });
       }
 
       // Per-element B-evaluator for cross-basis quadrature. Only B-kinds
@@ -402,13 +396,21 @@ namespace helfem {
       }
 
       arma::mat FEMRadialBasis::nuclear_offcenter(size_t iel, double Rhalf, int L) const {
-        if (fem.element_begin(iel) <= Rhalf)
-          return -sqrt(4.0 * M_PI / (2 * L + 1)) * radial_integral(-L - 1, iel) *
-            std::pow(Rhalf, L);
-        else if (fem.element_end(iel) >= Rhalf)
-          return -sqrt(4.0 * M_PI / (2 * L + 1)) * radial_integral(L, iel) *
-            std::pow(Rhalf, -L - 1);
-        else {
+        // Phase 2a: radial_integral returns helfem::Matrix; materialise
+        // the scalar-times-Matrix expression into a concrete Matrix
+        // before to_arma (disambiguates the Eigen expression-template
+        // overload).
+        if (fem.element_begin(iel) <= Rhalf) {
+          const helfem::Matrix tmp = -sqrt(4.0 * M_PI / (2 * L + 1)) *
+                                      radial_integral(-L - 1, iel) *
+                                      std::pow(Rhalf, L);
+          return helfem::to_arma(tmp);
+        } else if (fem.element_end(iel) >= Rhalf) {
+          const helfem::Matrix tmp = -sqrt(4.0 * M_PI / (2 * L + 1)) *
+                                      radial_integral(L, iel) *
+                                      std::pow(Rhalf, -L - 1);
+          return helfem::to_arma(tmp);
+        } else {
           throw std::logic_error("Nucleus placed within element!\n");
           arma::mat ret;
           return ret;
