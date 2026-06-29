@@ -446,59 +446,57 @@ namespace helfem {
       // (n x r) such that Lout * Lout^T == A up to abs tolerance on the
       // residual diagonal. Standard textbook algorithm (Higham, Sec 10.3);
       // pivots greedily on the largest remaining diagonal each step.
-      static arma::mat pivoted_cholesky_(const arma::mat & A, double tol) {
-        const arma::uword n = A.n_rows;
-        if (A.n_cols != n)
+      // Phase 5.9: native Eigen.
+      static helfem::Matrix pivoted_cholesky_(const helfem::Matrix & A, double tol) {
+        const Eigen::Index n = A.rows();
+        if (A.cols() != n)
           throw std::logic_error("pivoted_cholesky: input must be square.\n");
-        arma::vec  D    = A.diag();
-        arma::uvec done(n, arma::fill::zeros);
-        arma::mat  L(n, 0);
-        for (arma::uword k = 0; k < n; ++k) {
-          // Pivot on the largest remaining diagonal residual.
-          arma::uword pivot = n;
+        helfem::Vector D = A.diagonal();
+        std::vector<unsigned char> done(n, 0);
+        // Build columns one at a time; concat at end.
+        std::vector<helfem::Vector> Lcols;
+        for (Eigen::Index k = 0; k < n; ++k) {
+          // Pivot on largest remaining diagonal residual.
+          Eigen::Index pivot = n;
           double pivot_val = tol;
-          for (arma::uword i = 0; i < n; ++i)
-            if (!done(i) && D(i) > pivot_val) {
+          for (Eigen::Index i = 0; i < n; ++i)
+            if (!done[i] && D(i) > pivot_val) {
               pivot = i;
               pivot_val = D(i);
             }
-          if (pivot == n) break;            // truncated -- rank reached
-          done(pivot) = 1;
+          if (pivot == n) break;
+          done[pivot] = 1;
           const double sqrt_d = std::sqrt(pivot_val);
-          arma::vec col(n);
-          // col(i) = (A(i, pivot) - sum_{j<k} L(i,j) L(pivot,j)) / sqrt_d.
-          // For already-pivoted rows (i with done(i)==1, i != pivot) the
-          // residual is 0 by construction; skip the computation cleanly
-          // by zeroing.
-          for (arma::uword i = 0; i < n; ++i) {
-            if (done(i) && i != pivot) { col(i) = 0.0; continue; }
+          helfem::Vector col(n);
+          for (Eigen::Index i = 0; i < n; ++i) {
+            if (done[i] && i != pivot) { col(i) = 0.0; continue; }
             double s = A(i, pivot);
-            if (L.n_cols > 0)
-              s -= arma::dot(L.row(i), L.row(pivot));
+            // s -= sum_{j<k} L(i, j) * L(pivot, j)
+            for (size_t j = 0; j < Lcols.size(); ++j)
+              s -= Lcols[j](i) * Lcols[j](pivot);
             col(i) = s / sqrt_d;
           }
           col(pivot) = sqrt_d;
-          L.insert_cols(L.n_cols, col);
-          // Update residual diagonal for the not-yet-pivoted rows.
-          for (arma::uword i = 0; i < n; ++i)
-            if (!done(i)) D(i) -= col(i) * col(i);
+          Lcols.push_back(col);
+          for (Eigen::Index i = 0; i < n; ++i)
+            if (!done[i]) D(i) -= col(i) * col(i);
         }
+        helfem::Matrix L(n, (Eigen::Index) Lcols.size());
+        for (size_t j = 0; j < Lcols.size(); ++j)
+          L.col((Eigen::Index) j) = Lcols[j];
         return L;
       }
 
       helfem::Matrix FEMRadialBasis::twoe_integral_cholesky(int L, size_t iel,
                                                             double tol) const {
-        // Phase 2a: twoe_integral now returns helfem::Matrix; bridge here
-        // -- pivoted_cholesky_ is arma-based.
-        return helfem::to_eigen(
-            pivoted_cholesky_(helfem::to_arma(twoe_integral(L, iel)), tol));
+        // Phase 5.9: pivoted_cholesky_ is native Eigen; no bridge.
+        return pivoted_cholesky_(twoe_integral(L, iel), tol);
       }
 
       helfem::Matrix FEMRadialBasis::yukawa_integral_cholesky(int L, double lambda,
                                                               size_t iel,
                                                               double tol) const {
-        return helfem::to_eigen(
-            pivoted_cholesky_(helfem::to_arma(yukawa_integral(L, lambda, iel)), tol));
+        return pivoted_cholesky_(yukawa_integral(L, lambda, iel), tol);
       }
 
 
