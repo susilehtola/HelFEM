@@ -419,9 +419,11 @@ namespace helfem {
         E.resize(F.n_rows,lmax+1);
         C.resize(F.n_rows,F.n_rows,lmax+1);
         for(int l=0;l<=lmax;l++) {
-          arma::vec El;
-          helfem::scf::eig_gsym(El,C.slice(l),F.slice(l),Sinvh);
-          E.col(l)=El;
+          // Phase 5.11 bridge: eig_gsym is Eigen.
+          helfem::Vector El_e; helfem::Matrix Cl_e;
+          helfem::scf::eig_gsym(El_e, Cl_e, helfem::to_eigen(arma::mat(F.slice(l))), helfem::to_eigen(Sinvh));
+          C.slice(l) = helfem::to_arma(Cl_e);
+          E.col(l) = helfem::to_arma(El_e);
         }
       }
 
@@ -447,9 +449,11 @@ namespace helfem {
             Fl=C.slice(l)*Fmo*C.slice(l).t();
           }
 
-          arma::vec El;
-          helfem::scf::eig_gsym(El,C.slice(l),Fl,Sinvh);
-          E.col(l)=El;
+          // Phase 5.11 bridge.
+          helfem::Vector El_e; helfem::Matrix Cl_e;
+          helfem::scf::eig_gsym(El_e, Cl_e, helfem::to_eigen(Fl), helfem::to_eigen(Sinvh));
+          C.slice(l) = helfem::to_arma(Cl_e);
+          E.col(l) = helfem::to_arma(El_e);
         }
       }
 
@@ -469,13 +473,16 @@ namespace helfem {
             // Shift matrix
             arma::mat shmat(shift*S*Cv*Cv.t()*S);
             // Update orbitals
-            arma::vec El;
-            helfem::scf::eig_gsym(El,C.slice(l),Fl+shmat,Sinvh);
-            E.col(l)=El;
+            // Phase 5.11 bridge.
+            helfem::Vector El_e; helfem::Matrix Cl_e;
+            helfem::scf::eig_gsym(El_e, Cl_e, helfem::to_eigen(arma::mat(Fl+shmat)), helfem::to_eigen(Sinvh));
+            C.slice(l) = helfem::to_arma(Cl_e);
+            E.col(l) = helfem::to_arma(El_e);
           } else {
-            arma::vec El;
-            helfem::scf::eig_gsym(El,C.slice(l),Fl,Sinvh);
-            E.col(l)=El;
+            helfem::Vector El_e; helfem::Matrix Cl_e;
+            helfem::scf::eig_gsym(El_e, Cl_e, helfem::to_eigen(Fl), helfem::to_eigen(Sinvh));
+            C.slice(l) = helfem::to_arma(Cl_e);
+            E.col(l) = helfem::to_arma(El_e);
           }
 
           /*

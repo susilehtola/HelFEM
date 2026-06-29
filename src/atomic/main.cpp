@@ -539,7 +539,12 @@ int main(int argc, char **argv) {
 	  if(symm)
 	    scf::eig_gsym_sub(Ea,Ca,F,Sinvh,dsym);
 	  else
-	    scf::eig_gsym(Ea,Ca,F,Sinvh);
+	    { // Phase 5.11 bridge: eig_gsym is Eigen.
+	      helfem::Vector Ea_e; helfem::Matrix Ca_e;
+	      scf::eig_gsym(Ea_e, Ca_e, helfem::to_eigen(F), helfem::to_eigen(Sinvh));
+	      Ea = helfem::to_arma(Ea_e);
+	      Ca = helfem::to_arma(Ca_e);
+	    }
 
 	  // Load Fock matrix
 	  loadchk.read("Fb",F);
@@ -553,7 +558,12 @@ int main(int argc, char **argv) {
 	  if(symm)
 	    scf::eig_gsym_sub(Eb,Cb,F,Sinvh,dsym);
 	  else
-	    scf::eig_gsym(Eb,Cb,F,Sinvh);
+	    { // Phase 5.11 bridge: eig_gsym is Eigen.
+	      helfem::Vector Eb_e; helfem::Matrix Cb_e;
+	      scf::eig_gsym(Eb_e, Cb_e, helfem::to_eigen(F), helfem::to_eigen(Sinvh));
+	      Eb = helfem::to_arma(Eb_e);
+	      Cb = helfem::to_arma(Cb_e);
+	    }
 	}
         break;
 
@@ -640,7 +650,12 @@ int main(int argc, char **argv) {
       if(symm)
         scf::eig_gsym_sub(Ea,Ca,Hguess,Sinvh,dsym);
       else
-        scf::eig_gsym(Ea,Ca,Hguess,Sinvh);
+        { // Phase 5.11 bridge: eig_gsym is Eigen.
+          helfem::Vector Ea_e; helfem::Matrix Ca_e;
+          scf::eig_gsym(Ea_e, Ca_e, helfem::to_eigen(Hguess), helfem::to_eigen(Sinvh));
+          Ea = helfem::to_arma(Ea_e);
+          Ca = helfem::to_arma(Ca_e);
+        }
 
       // Beta guess is the same as the alpha guess
       Cb=Ca;
@@ -934,7 +949,12 @@ int main(int argc, char **argv) {
     if(symm)
       scf::eig_gsym_sub(Ea,Ca,Fa,Sinvh,dsym);
     else
-      scf::eig_gsym(Ea,Ca,Fa,Sinvh);
+      { // Phase 5.11 bridge: eig_gsym is Eigen.
+        helfem::Vector Ea_e; helfem::Matrix Ca_e;
+        scf::eig_gsym(Ea_e, Ca_e, helfem::to_eigen(Fa), helfem::to_eigen(Sinvh));
+        Ea = helfem::to_arma(Ea_e);
+        Ca = helfem::to_arma(Ca_e);
+      }
     // Enforce occupation according to specified symmetry
     if(i<readocc) {
       scf::enforce_occupations(Ca,Ea,S,occnuma,occsym);
@@ -947,7 +967,12 @@ int main(int argc, char **argv) {
       if(symm)
         scf::eig_gsym_sub(Eb,Cb,Fb,Sinvh,dsym);
       else
-        scf::eig_gsym(Eb,Cb,Fb,Sinvh);
+        { // Phase 5.11 bridge: eig_gsym is Eigen.
+          helfem::Vector Eb_e; helfem::Matrix Cb_e;
+          scf::eig_gsym(Eb_e, Cb_e, helfem::to_eigen(Fb), helfem::to_eigen(Sinvh));
+          Eb = helfem::to_arma(Eb_e);
+          Cb = helfem::to_arma(Cb_e);
+        }
     }
     // Enforce occupation according to specified symmetry
     if(i<readocc) {
