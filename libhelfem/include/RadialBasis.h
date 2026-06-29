@@ -43,15 +43,18 @@ namespace helfem {
         virtual helfem::Matrix overlap() const = 0;
         /// Radial kinetic matrix (1/2) integral u'_i(r) u'_j(r) dr.
         /// EXCLUDES the centrifugal term -- caller adds l*(l+1) * kinetic_l().
-        virtual arma::mat kinetic() const = 0;
+        /// Eigen-typed (Phase 2a migration; follows overlap() in PR #103).
+        virtual helfem::Matrix kinetic() const = 0;
         /// Half the centrifugal-per-l(l+1) matrix:
         /// (1/2) integral u_i(r) u_j(r) / r^2 dr.
         /// Full centrifugal contribution is l*(l+1) * kinetic_l().
-        virtual arma::mat kinetic_l() const = 0;
+        /// Eigen-typed (Phase 2a migration).
+        virtual helfem::Matrix kinetic_l() const = 0;
         /// Nuclear attraction at Z=1 (sign included):
         /// - integral u_i(r) u_j(r) / r dr.
         /// For arbitrary Z, the caller multiplies by +Z.
-        virtual arma::mat nuclear() const = 0;
+        /// Eigen-typed (Phase 2a migration).
+        virtual helfem::Matrix nuclear() const = 0;
 
         /// Evaluate orbitals (columns of C) at a given r.
         virtual arma::vec eval_orbs(const arma::mat & C, double r) const = 0;
@@ -180,17 +183,18 @@ namespace helfem {
         /// Compute overlap matrix in element
         arma::mat overlap(size_t iel) const;
 
-        /// Compute primitive kinetic energy matrix (excluding l part)
-        arma::mat kinetic() const override;
+        /// Compute primitive kinetic energy matrix (excluding l part).
+        /// Eigen-typed; Phase 2a migration.
+        helfem::Matrix kinetic() const override;
         /// Compute primitive kinetic energy matrix in element (excluding l
         /// part)
         arma::mat kinetic(size_t iel) const;
-        /// Compute l part of kinetic energy matrix
-        arma::mat kinetic_l() const override;
+        /// Compute l part of kinetic energy matrix (Eigen; Phase 2a).
+        helfem::Matrix kinetic_l() const override;
         /// Compute l part of kinetic energy matrix in element
         arma::mat kinetic_l(size_t iel) const;
-        /// Compute nuclear attraction matrix
-        arma::mat nuclear() const override;
+        /// Compute nuclear attraction matrix (Eigen; Phase 2a).
+        helfem::Matrix nuclear() const override;
         /// Compute nuclear attraction matrix in element
         arma::mat nuclear(size_t iel) const;
 	/// Compute polynomial confinement potential matrix in element

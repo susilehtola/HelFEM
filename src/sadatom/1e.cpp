@@ -105,9 +105,10 @@ int main(int argc, char **argv) {
   arma::mat S(helfem::to_arma(radial.overlap()));
   arma::mat Sinvh=scf::form_Sinvh(S,false);
 
-  arma::mat T(radial.kinetic());
-  arma::mat Tl(radial.kinetic_l());
-  arma::mat V(radial.nuclear());
+  // Phase 2a: radial.kinetic / kinetic_l / nuclear return helfem::Matrix.
+  arma::mat T(helfem::to_arma(radial.kinetic()));
+  arma::mat Tl(helfem::to_arma(radial.kinetic_l()));
+  arma::mat V(helfem::to_arma(radial.nuclear()));
 
   // Compute orbitals
   for(int l=0;l<=lmax;l++) {
