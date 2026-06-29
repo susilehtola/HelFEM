@@ -129,6 +129,30 @@ if(HELFEM_FIND_DEPS)
     endif()
 endif()
 
+# Eigen: header-only matrix library. Phase 1 of the Eigen migration
+# arc -- introduces the helfem::Matrix typedef and arma<->Eigen
+# converters in libhelfem/include without yet replacing Armadillo
+# anywhere. Subsequent phases migrate libhelfem and src/ leaf-by-leaf.
+# Prefer a system-installed Eigen3 >= 3.4, otherwise fetch v3.4.0.
+find_package(Eigen3 3.4 QUIET NO_MODULE)
+if(NOT Eigen3_FOUND)
+    message(STATUS "Eigen3 >= 3.4 not found via find_package; fetching v3.4.0")
+    include(FetchContent)
+    FetchContent_Declare(
+        Eigen3
+        GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+        GIT_TAG        3.4.0
+    )
+    # Suppress Eigen's own build targets / tests; we only need the
+    # interface library that exposes the headers.
+    set(EIGEN_BUILD_DOC      OFF CACHE INTERNAL "")
+    set(EIGEN_BUILD_PKGCONFIG OFF CACHE INTERNAL "")
+    set(BUILD_TESTING        OFF CACHE INTERNAL "")
+    FetchContent_MakeAvailable(Eigen3)
+else()
+    message(STATUS "Using system Eigen3 (${Eigen3_VERSION})")
+endif()
+
 # Wigner-nj symbols: prefer a system-installed wignernj >= 0.5.0, otherwise
 # fetch and build that version.
 find_package(wignernj 0.5.0 QUIET)
