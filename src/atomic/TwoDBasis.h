@@ -176,6 +176,26 @@ namespace helfem {
         /// Form range-separated exchange matrix
         arma::mat rs_exchange(const arma::mat & P) const;
 
+        /// Density-fitted (Cholesky-factored) BARE radial Slater
+        /// integrals R^k(i, j, m, n) for k = 0..2*max(lval).
+        ///
+        /// Returns vec[k] = arma::cube of shape (Nrad, Nrad, naux_k)
+        /// such that for each multipole k:
+        ///     R^k(i, j, m, n)  =  sum_Q  B[k](i, j, Q) * B[k](m, n, Q)
+        /// where R^k is the BARE radial Slater integral (no 4*pi/(2k+1),
+        /// no Gaunt -- libatomscf applies those at angular assembly).
+        ///
+        /// Computed via pivoted Cholesky on R^k as a Nrad^2 x Nrad^2
+        /// matrix, with columns generated on-the-fly via
+        /// assemble_J_FE_one_multipole_cached using the SCF-cached
+        /// per-element integrals. R^k is naturally sparse in the FE
+        /// basis (cross-element pairs have zero density), so naux_k
+        /// is bounded by sum_iel Ni^2 (typically ~Nel * Ni << Nrad^2).
+        ///
+        /// `tol` is the residual diagonal threshold for stopping the
+        /// Cholesky iteration; pivots below `tol` are dropped.
+        std::vector<arma::cube> radial_df_factors(double tol = 1e-10) const;
+
         /// Get primitive integrals
         std::vector<arma::mat> get_prim_tei() const;
 

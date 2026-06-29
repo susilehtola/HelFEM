@@ -161,6 +161,39 @@ namespace helfem_py {
       return arma_to_numpy(-basis_.exchange(numpy_to_arma(P_in)));
     }
 
+    /// Density-fitted (Cholesky-factored) BARE radial Slater integrals.
+    /// Returns a Python list over multipoles k = 0..2*lmax, each entry
+    /// being a numpy array of shape (naux_k, Nrad, Nrad). Convention:
+    ///     R^k(i, j, m, n) = sum_Q B[k][Q, i, j] * B[k][Q, m, n]
+    /// where R^k is the BARE radial Slater integral (no 4*pi/(2k+1), no
+    /// Gaunt -- libatomscf applies those at angular assembly).
+    py::list radial_df_factors(double tol = 1e-10) {
+      ensure_tei_();
+      auto cubes = basis_.radial_df_factors(tol);
+      const size_t Nrad = basis_.Nrad();
+      py::list out;
+      for (auto & cube : cubes) {
+        // arma::cube layout: (Nrad, Nrad, naux). Each slice is a Nrad x
+        // Nrad matrix. We want numpy shape (naux, Nrad, Nrad). Build a
+        // new contiguous numpy array of that shape and copy slice-by-
+        // slice (column-major arma -> C-order numpy via element-wise
+        // copy through (i, j) -> (Q, i, j)).
+        const size_t naux = cube.n_slices;
+        py::array_t<double> arr({naux, Nrad, Nrad});
+        auto buf = arr.mutable_unchecked<3>();
+        for (size_t q = 0; q < naux; ++q) {
+          const arma::mat & M = cube.slice(q);
+          for (size_t i = 0; i < Nrad; ++i) {
+            for (size_t j = 0; j < Nrad; ++j) {
+              buf(q, i, j) = M(i, j);
+            }
+          }
+        }
+        out.append(std::move(arr));
+      }
+      return out;
+    }
+
    private:
     void ensure_tei_() {
       if (!tei_done_) {
@@ -223,5 +256,14 @@ PYBIND11_MODULE(_helfem, m) {
            "POSITIVE sign convention (PySCF style: F = h + J - K).")
       .def("coulomb", &helfem_py::AtomicBasis::coulomb, py::arg("dm"))
       .def("exchange", &helfem_py::AtomicBasis::exchange, py::arg("dm"),
-           "Returns POSITIVE K (sign flipped vs HelFEM's internal -K).");
+           "Returns POSITIVE K (sign flipped vs HelFEM's internal -K).")
+      .def("radial_df_factors", &helfem_py::AtomicBasis::radial_df_factors,
+           py::arg("tol") = 1e-10,
+           "Density-fitted (Cholesky) BARE radial Slater integrals.\n"
+           "Returns list[k] of numpy arrays of shape (naux_k, Nrad, Nrad)\n"
+           "such that R^k(i, j, m, n) = sum_Q B[k][Q,i,j] * B[k][Q,m,n].\n"
+           "k runs 0..2*lmax. R^k is the BARE radial Slater integral; the\n"
+           "caller (libatomscf) applies 4*pi/(2k+1) and Gaunt at angular\n"
+           "assembly. tol is the residual diagonal threshold for the\n"
+           "pivoted Cholesky iteration.");
 }
