@@ -13,6 +13,7 @@
  * for the full license text.
  */
 #include "basis.h"
+#include <ArmaEigen.h>
 #include <CoulombExchangeFE.h>
 #include "chebyshev.h"
 #include "../general/spherical_harmonics.h"
@@ -102,7 +103,7 @@ namespace helfem {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-          Trad.submat(ifirst,ifirst,ilast,ilast)+=radial.kinetic(iel);
+          Trad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.kinetic(iel));
         }
 
         return Trad;
@@ -119,7 +120,7 @@ namespace helfem {
           // Where are we in the matrix?
           size_t ifirst, ilast;
           radial.get_idx(iel,ifirst,ilast);
-          Trad_l.submat(ifirst,ifirst,ilast,ilast)+=radial.kinetic_l(iel);
+          Trad_l.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.kinetic_l(iel));
         }
 
         return Trad_l;
@@ -912,8 +913,8 @@ namespace helfem {
 	  radial.get_idx(iel,ifirst,ilast);
 	  // Density matrix
 	  arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
-	  // Overlap matrix
-	  arma::mat S(radial.overlap(iel));
+	  // Overlap matrix (Phase 2a: overlap(iel) returns helfem::Matrix).
+	  arma::mat S(helfem::to_arma(radial.overlap(iel)));
 	  densities[iel]=arma::trace(Psub*S);
 	}
 
