@@ -17,7 +17,6 @@
 
 #include <lib1dfem/LIPBasis.h>
 #include <lib1dfem/HIP3Basis_eval.h>
-#include <armadillo>
 #include <cmath>
 #include <sstream>
 #include <stdexcept>
@@ -37,24 +36,24 @@ template <typename T>
 class HIP3Basis : public LIPBasis<T> {
  protected:
   /// L_i^(1)(x_i), L_i^(2)(x_i), L_i^(3)(x_i) at every node (precomputed).
-  arma::Col<T> lipxi, lipxi2, lipxi3;
+  Vec<T> lipxi, lipxi2, lipxi3;
 
  public:
   /// id_ is the primbas value echoed via get_id() (typically 9 for HIP3).
-  HIP3Basis(const arma::Col<T> & x, int id_ = 9) : LIPBasis<T>(x, id_) {
+  HIP3Basis(const Vec<T> & x, int id_ = 9) : LIPBasis<T>(x, id_) {
     // Four overlapping functions per node (value + 1st + 2nd + 3rd deriv).
     this->noverlap = 4;
-    this->nprim    = 4 * static_cast<int>(this->x0.n_elem);
-    this->enabled  = arma::linspace<arma::uvec>(0, this->nprim - 1, this->nprim);
-    this->nnodes   = static_cast<int>(this->x0.n_elem);
+    this->nprim    = 4 * static_cast<int>(this->x0.size());
+    this->enabled  = IVec::LinSpaced(this->nprim, 0, this->nprim - 1);
+    this->nnodes   = static_cast<int>(this->x0.size());
 
-    arma::Mat<T> dlip, ddlip, dddlip;
+    Mat<T> dlip, ddlip, dddlip;
     detail::eval_lip_prim_dnf<T>(this->x0, this->x0, dlip,   1);
     detail::eval_lip_prim_dnf<T>(this->x0, this->x0, ddlip,  2);
     detail::eval_lip_prim_dnf<T>(this->x0, this->x0, dddlip, 3);
-    lipxi  = arma::diagvec(dlip);
-    lipxi2 = arma::diagvec(ddlip);
-    lipxi3 = arma::diagvec(dddlip);
+    lipxi  = dlip.diagonal();
+    lipxi2 = ddlip.diagonal();
+    lipxi3 = dddlip.diagonal();
   }
 
   ~HIP3Basis() override = default;
@@ -63,7 +62,7 @@ class HIP3Basis : public LIPBasis<T> {
     return new HIP3Basis<T>(*this);
   }
 
-  void eval_prim_dnf(const arma::Col<T> & x, arma::Mat<T> & dnf, int n,
+  void eval_prim_dnf(const Vec<T> & x, Mat<T> & dnf, int n,
                      T element_length) const override {
     detail::eval_hip3_prim_dnf<T>(x, this->x0, lipxi, lipxi2, lipxi3, dnf, n,
                                   element_length);
@@ -76,28 +75,27 @@ class HIP3Basis : public LIPBasis<T> {
   ///   func=false, deriv=true  : drop only the three derivative interpolants
   ///   func=false, deriv=false : drop nothing
   void drop_first(bool func, bool deriv) override {
-    const arma::uvec first(this->enabled.subvec(0, 3));
-    const arma::uvec rest(this->enabled.subvec(4, this->enabled.n_elem - 1));
-    arma::uvec keep;
-    keep.set_size((func ? 0 : 1) + (deriv ? 0 : 3) + rest.n_elem);
-    arma::uword idx = 0;
+    const IVec first(this->enabled.segment(0, (3) - (0) + 1));
+    const IVec rest(this->enabled.segment(4, (this->enabled.size() - (4) + 1) - 1));
+    IVec keep;
+    keep.resize((func ? 0 : 1) + (deriv ? 0 : 3) + rest.size());
+    Eigen::Index idx = 0;
     if (!func)  keep(idx++) = first(0);
     if (!deriv) { keep(idx++) = first(1); keep(idx++) = first(2); keep(idx++) = first(3); }
-    if (rest.n_elem)
-      keep.subvec(idx, idx + rest.n_elem - 1) = rest;
+    if (rest.size())
+      keep.segment(idx, (idx + rest.size() - (idx) + 1) - 1) = rest;
     this->enabled = keep;
   }
 
   void drop_last(bool func, bool deriv) override {
-    const arma::uvec head(this->enabled.subvec(0, this->enabled.n_elem - 5));
-    const arma::uvec last(this->enabled.subvec(this->enabled.n_elem - 4,
-                                               this->enabled.n_elem - 1));
-    arma::uvec keep;
-    keep.set_size(head.n_elem + (func ? 0 : 1) + (deriv ? 0 : 3));
-    arma::uword idx = 0;
-    if (head.n_elem) {
-      keep.subvec(0, head.n_elem - 1) = head;
-      idx = head.n_elem;
+    const IVec head(this->enabled.segment(0, (this->enabled.size() - (0) + 1) - 5));
+    const IVec last(this->enabled.segment(this->enabled.size() - 4, (this->enabled.size() - (this->enabled.size() - 4) + 1) - 1));
+    IVec keep;
+    keep.resize(head.size() + (func ? 0 : 1) + (deriv ? 0 : 3));
+    Eigen::Index idx = 0;
+    if (head.size()) {
+      keep.segment(0, (head.size() - (0) + 1) - 1) = head;
+      idx = head.size();
     }
     if (!func)  keep(idx++) = last(0);
     if (!deriv) { keep(idx++) = last(1); keep(idx++) = last(2); keep(idx++) = last(3); }
@@ -130,7 +128,7 @@ class HIP3Basis : public LIPBasis<T> {
   /// d^n/dr^n picks up (1/e)^n via the chain rule.
   ///
   /// Implemented for n in {0, 1, 2}; throws for higher orders.
-  void eval_over_r(const arma::Col<T> & x, arma::Mat<T> & dnf_over_r, int n,
+  void eval_over_r(const Vec<T> & x, Mat<T> & dnf_over_r, int n,
                    T element_length) const override {
     if (n < 0 || n > 2) {
       std::ostringstream oss;
@@ -138,22 +136,22 @@ class HIP3Basis : public LIPBasis<T> {
           << " not implemented (only 0, 1, 2 supported).\n";
       throw std::logic_error(oss.str());
     }
-    if (this->enabled.n_elem == 0)
+    if (this->enabled.size() == 0)
       throw std::logic_error("HIP3Basis::eval_over_r: no surviving basis functions.\n");
     if (this->enabled(0) == 0)
       throw std::logic_error(
           "HIP3Basis::eval_over_r requires drop_first(func=true, deriv=false): "
           "the value-shape at node 0 has B(-1) != 0 and B/r is singular.\n");
 
-    const arma::Col<T> & x0_full = this->x0;
-    const arma::Col<T> x0_red    = x0_full.subvec(1, x0_full.n_elem - 1);
+    const Vec<T> & x0_full = this->x0;
+    const Vec<T> x0_red    = x0_full.segment(1, (x0_full.size() - (1) + 1) - 1);
 
-    arma::Mat<T> Lr0, Lr1, Lr2;
+    Mat<T> Lr0, Lr1, Lr2;
     detail::eval_lip_prim_dnf<T>(x, x0_red, Lr0, 0);
     if (n >= 1) detail::eval_lip_prim_dnf<T>(x, x0_red, Lr1, 1);
     if (n >= 2) detail::eval_lip_prim_dnf<T>(x, x0_red, Lr2, 2);
 
-    arma::Mat<T> Lf0, Lf1, Lf2;
+    Mat<T> Lf0, Lf1, Lf2;
     detail::eval_lip_prim_dnf<T>(x, x0_full, Lf0, 0);
     if (n >= 1) detail::eval_lip_prim_dnf<T>(x, x0_full, Lf1, 1);
     if (n >= 2) detail::eval_lip_prim_dnf<T>(x, x0_full, Lf2, 2);
@@ -161,13 +159,13 @@ class HIP3Basis : public LIPBasis<T> {
     const T inv_e   = T(1) / element_length;
     const T chain_n = std::pow(inv_e, n);
 
-    dnf_over_r.set_size(x.n_elem, this->enabled.n_elem);
-    for (arma::uword k = 0; k < this->enabled.n_elem; ++k) {
-      const arma::uword idx  = this->enabled(k);
-      const arma::uword node = idx / 4;
-      const arma::uword kind = idx % 4;
+    dnf_over_r.resize(x.size(), this->enabled.size());
+    for (Eigen::Index k = 0; k < this->enabled.size(); ++k) {
+      const Eigen::Index idx  = this->enabled(k);
+      const Eigen::Index node = idx / 4;
+      const Eigen::Index kind = idx % 4;
 
-      for (arma::uword ix = 0; ix < x.n_elem; ++ix) {
+      for (Eigen::Index ix = 0; ix < x.size(); ++ix) {
         const T xv   = x(ix);
         const T xpx1 = xv + T(1);
         const T xi   = x0_full(node);
@@ -185,7 +183,7 @@ class HIP3Basis : public LIPBasis<T> {
           pd  = (n >= 1) ? Lf1(ix, 0) : T(0);
           pdd = (n >= 2) ? Lf2(ix, 0) : T(0);
         } else {
-          const arma::uword i_red = node - 1;
+          const Eigen::Index i_red = node - 1;
           p   = Lr0(ix, i_red);
           pd  = (n >= 1) ? Lr1(ix, i_red) : T(0);
           pdd = (n >= 2) ? Lr2(ix, i_red) : T(0);

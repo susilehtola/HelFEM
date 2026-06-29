@@ -43,7 +43,7 @@ print('''/*
 #ifndef LIB1DFEM_HIPBASIS_EVAL_H
 #define LIB1DFEM_HIPBASIS_EVAL_H
 
-#include <armadillo>
+#include <lib1dfem/types.h>
 #include <lib1dfem/LIPBasis_eval.h>
 #include <sstream>
 #include <stdexcept>
@@ -56,15 +56,15 @@ namespace detail {
 /// Evaluate the n-th derivative of every HIP basis function on the
 /// reference element [-1, 1] at the given points x, given control nodes
 /// x0 and the precomputed LIP-derivative-at-nodes vector lipxi. Fills
-/// dnf (size x.n_elem x 2*x0.n_elem) with paired function-and-derivative
+/// dnf (size x.size() x 2*x0.size()) with paired function-and-derivative
 /// shape functions:
 ///   - column 2*fi   : the value-interpolating Hermite function for node fi
 ///   - column 2*fi+1 : the derivative-interpolating Hermite function for node fi
 /// scaled by element_length on the derivative slot.
 template <typename T>
-void eval_hip_prim_dnf(const arma::Col<T> & x, const arma::Col<T> & x0,
-                       const arma::Col<T> & lipxi,
-                       arma::Mat<T> & dnf, int n, T element_length) {
+void eval_hip_prim_dnf(const Vec<T> & x, const Vec<T> & x0,
+                       const Vec<T> & lipxi,
+                       Mat<T> & dnf, int n, T element_length) {
   switch (n) {''')
 
 
@@ -103,13 +103,13 @@ def emit_term(label, Li):
 for order in range(0, maxorder):
     fname = 'dnf'
     print('case ({}): {{'.format(order))
-    print('  {}.zeros(x.n_elem, 2 * x0.n_elem);'.format(fname))
+    print('  {}.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());'.format(fname))
     for olip in range(order + 1):
-        print('  arma::Mat<T> {0}lip;'.format(get_fname(olip)))
+        print('  Mat<T> {0}lip;'.format(get_fname(olip)))
         print('  eval_lip_prim_dnf<T>(x, x0, {0}lip, {1});'.format(
             get_fname(olip), olip))
-    print('  for (size_t ix = 0; ix < x.n_elem; ix++) {')
-    print('    for (size_t fi = 0; fi < x0.n_elem; fi++) {')
+    print('  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {')
+    print('    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {')
     print('      // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2')
     print('      // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2')
     print('      T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);')

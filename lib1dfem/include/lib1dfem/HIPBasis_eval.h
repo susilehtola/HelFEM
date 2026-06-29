@@ -12,7 +12,7 @@
 #ifndef LIB1DFEM_HIPBASIS_EVAL_H
 #define LIB1DFEM_HIPBASIS_EVAL_H
 
-#include <armadillo>
+#include <lib1dfem/types.h>
 #include <lib1dfem/LIPBasis_eval.h>
 #include <sstream>
 #include <stdexcept>
@@ -25,22 +25,22 @@ namespace detail {
 /// Evaluate the n-th derivative of every HIP basis function on the
 /// reference element [-1, 1] at the given points x, given control nodes
 /// x0 and the precomputed LIP-derivative-at-nodes vector lipxi. Fills
-/// dnf (size x.n_elem x 2*x0.n_elem) with paired function-and-derivative
+/// dnf (size x.size() x 2*x0.size()) with paired function-and-derivative
 /// shape functions:
 ///   - column 2*fi   : the value-interpolating Hermite function for node fi
 ///   - column 2*fi+1 : the derivative-interpolating Hermite function for node fi
 /// scaled by element_length on the derivative slot.
 template <typename T>
-void eval_hip_prim_dnf(const arma::Col<T> & x, const arma::Col<T> & x0,
-                       const arma::Col<T> & lipxi,
-                       arma::Mat<T> & dnf, int n, T element_length) {
+void eval_hip_prim_dnf(const Vec<T> & x, const Vec<T> & x0,
+                       const Vec<T> & lipxi,
+                       Mat<T> & dnf, int n, T element_length) {
   switch (n) {
 case (0): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -52,13 +52,13 @@ case (0): {
   }
 } break;
 case (1): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -73,15 +73,15 @@ case (1): {
   }
 } break;
 case (2): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -96,17 +96,17 @@ case (2): {
   }
 } break;
 case (3): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -121,19 +121,19 @@ case (3): {
   }
 } break;
 case (4): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -148,21 +148,21 @@ case (4): {
   }
 } break;
 case (5): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -177,23 +177,23 @@ case (5): {
   }
 } break;
 case (6): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -208,25 +208,25 @@ case (6): {
   }
 } break;
 case (7): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -241,27 +241,27 @@ case (7): {
   }
 } break;
 case (8): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  arma::Mat<T> d8flip;
+  Mat<T> d8flip;
   eval_lip_prim_dnf<T>(x, x0, d8flip, 8);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -276,29 +276,29 @@ case (8): {
   }
 } break;
 case (9): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  arma::Mat<T> d8flip;
+  Mat<T> d8flip;
   eval_lip_prim_dnf<T>(x, x0, d8flip, 8);
-  arma::Mat<T> d9flip;
+  Mat<T> d9flip;
   eval_lip_prim_dnf<T>(x, x0, d9flip, 9);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -313,31 +313,31 @@ case (9): {
   }
 } break;
 case (10): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  arma::Mat<T> d8flip;
+  Mat<T> d8flip;
   eval_lip_prim_dnf<T>(x, x0, d8flip, 8);
-  arma::Mat<T> d9flip;
+  Mat<T> d9flip;
   eval_lip_prim_dnf<T>(x, x0, d9flip, 9);
-  arma::Mat<T> d10flip;
+  Mat<T> d10flip;
   eval_lip_prim_dnf<T>(x, x0, d10flip, 10);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -352,33 +352,33 @@ case (10): {
   }
 } break;
 case (11): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  arma::Mat<T> d8flip;
+  Mat<T> d8flip;
   eval_lip_prim_dnf<T>(x, x0, d8flip, 8);
-  arma::Mat<T> d9flip;
+  Mat<T> d9flip;
   eval_lip_prim_dnf<T>(x, x0, d9flip, 9);
-  arma::Mat<T> d10flip;
+  Mat<T> d10flip;
   eval_lip_prim_dnf<T>(x, x0, d10flip, 10);
-  arma::Mat<T> d11flip;
+  Mat<T> d11flip;
   eval_lip_prim_dnf<T>(x, x0, d11flip, 11);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -393,35 +393,35 @@ case (11): {
   }
 } break;
 case (12): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  arma::Mat<T> d8flip;
+  Mat<T> d8flip;
   eval_lip_prim_dnf<T>(x, x0, d8flip, 8);
-  arma::Mat<T> d9flip;
+  Mat<T> d9flip;
   eval_lip_prim_dnf<T>(x, x0, d9flip, 9);
-  arma::Mat<T> d10flip;
+  Mat<T> d10flip;
   eval_lip_prim_dnf<T>(x, x0, d10flip, 10);
-  arma::Mat<T> d11flip;
+  Mat<T> d11flip;
   eval_lip_prim_dnf<T>(x, x0, d11flip, 11);
-  arma::Mat<T> d12flip;
+  Mat<T> d12flip;
   eval_lip_prim_dnf<T>(x, x0, d12flip, 12);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -436,37 +436,37 @@ case (12): {
   }
 } break;
 case (13): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  arma::Mat<T> d8flip;
+  Mat<T> d8flip;
   eval_lip_prim_dnf<T>(x, x0, d8flip, 8);
-  arma::Mat<T> d9flip;
+  Mat<T> d9flip;
   eval_lip_prim_dnf<T>(x, x0, d9flip, 9);
-  arma::Mat<T> d10flip;
+  Mat<T> d10flip;
   eval_lip_prim_dnf<T>(x, x0, d10flip, 10);
-  arma::Mat<T> d11flip;
+  Mat<T> d11flip;
   eval_lip_prim_dnf<T>(x, x0, d11flip, 11);
-  arma::Mat<T> d12flip;
+  Mat<T> d12flip;
   eval_lip_prim_dnf<T>(x, x0, d12flip, 12);
-  arma::Mat<T> d13flip;
+  Mat<T> d13flip;
   eval_lip_prim_dnf<T>(x, x0, d13flip, 13);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -481,39 +481,39 @@ case (13): {
   }
 } break;
 case (14): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  arma::Mat<T> d8flip;
+  Mat<T> d8flip;
   eval_lip_prim_dnf<T>(x, x0, d8flip, 8);
-  arma::Mat<T> d9flip;
+  Mat<T> d9flip;
   eval_lip_prim_dnf<T>(x, x0, d9flip, 9);
-  arma::Mat<T> d10flip;
+  Mat<T> d10flip;
   eval_lip_prim_dnf<T>(x, x0, d10flip, 10);
-  arma::Mat<T> d11flip;
+  Mat<T> d11flip;
   eval_lip_prim_dnf<T>(x, x0, d11flip, 11);
-  arma::Mat<T> d12flip;
+  Mat<T> d12flip;
   eval_lip_prim_dnf<T>(x, x0, d12flip, 12);
-  arma::Mat<T> d13flip;
+  Mat<T> d13flip;
   eval_lip_prim_dnf<T>(x, x0, d13flip, 13);
-  arma::Mat<T> d14flip;
+  Mat<T> d14flip;
   eval_lip_prim_dnf<T>(x, x0, d14flip, 14);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -528,41 +528,41 @@ case (14): {
   }
 } break;
 case (15): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  arma::Mat<T> d8flip;
+  Mat<T> d8flip;
   eval_lip_prim_dnf<T>(x, x0, d8flip, 8);
-  arma::Mat<T> d9flip;
+  Mat<T> d9flip;
   eval_lip_prim_dnf<T>(x, x0, d9flip, 9);
-  arma::Mat<T> d10flip;
+  Mat<T> d10flip;
   eval_lip_prim_dnf<T>(x, x0, d10flip, 10);
-  arma::Mat<T> d11flip;
+  Mat<T> d11flip;
   eval_lip_prim_dnf<T>(x, x0, d11flip, 11);
-  arma::Mat<T> d12flip;
+  Mat<T> d12flip;
   eval_lip_prim_dnf<T>(x, x0, d12flip, 12);
-  arma::Mat<T> d13flip;
+  Mat<T> d13flip;
   eval_lip_prim_dnf<T>(x, x0, d13flip, 13);
-  arma::Mat<T> d14flip;
+  Mat<T> d14flip;
   eval_lip_prim_dnf<T>(x, x0, d14flip, 14);
-  arma::Mat<T> d15flip;
+  Mat<T> d15flip;
   eval_lip_prim_dnf<T>(x, x0, d15flip, 15);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -577,43 +577,43 @@ case (15): {
   }
 } break;
 case (16): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  arma::Mat<T> d8flip;
+  Mat<T> d8flip;
   eval_lip_prim_dnf<T>(x, x0, d8flip, 8);
-  arma::Mat<T> d9flip;
+  Mat<T> d9flip;
   eval_lip_prim_dnf<T>(x, x0, d9flip, 9);
-  arma::Mat<T> d10flip;
+  Mat<T> d10flip;
   eval_lip_prim_dnf<T>(x, x0, d10flip, 10);
-  arma::Mat<T> d11flip;
+  Mat<T> d11flip;
   eval_lip_prim_dnf<T>(x, x0, d11flip, 11);
-  arma::Mat<T> d12flip;
+  Mat<T> d12flip;
   eval_lip_prim_dnf<T>(x, x0, d12flip, 12);
-  arma::Mat<T> d13flip;
+  Mat<T> d13flip;
   eval_lip_prim_dnf<T>(x, x0, d13flip, 13);
-  arma::Mat<T> d14flip;
+  Mat<T> d14flip;
   eval_lip_prim_dnf<T>(x, x0, d14flip, 14);
-  arma::Mat<T> d15flip;
+  Mat<T> d15flip;
   eval_lip_prim_dnf<T>(x, x0, d15flip, 15);
-  arma::Mat<T> d16flip;
+  Mat<T> d16flip;
   eval_lip_prim_dnf<T>(x, x0, d16flip, 16);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -628,45 +628,45 @@ case (16): {
   }
 } break;
 case (17): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  arma::Mat<T> d8flip;
+  Mat<T> d8flip;
   eval_lip_prim_dnf<T>(x, x0, d8flip, 8);
-  arma::Mat<T> d9flip;
+  Mat<T> d9flip;
   eval_lip_prim_dnf<T>(x, x0, d9flip, 9);
-  arma::Mat<T> d10flip;
+  Mat<T> d10flip;
   eval_lip_prim_dnf<T>(x, x0, d10flip, 10);
-  arma::Mat<T> d11flip;
+  Mat<T> d11flip;
   eval_lip_prim_dnf<T>(x, x0, d11flip, 11);
-  arma::Mat<T> d12flip;
+  Mat<T> d12flip;
   eval_lip_prim_dnf<T>(x, x0, d12flip, 12);
-  arma::Mat<T> d13flip;
+  Mat<T> d13flip;
   eval_lip_prim_dnf<T>(x, x0, d13flip, 13);
-  arma::Mat<T> d14flip;
+  Mat<T> d14flip;
   eval_lip_prim_dnf<T>(x, x0, d14flip, 14);
-  arma::Mat<T> d15flip;
+  Mat<T> d15flip;
   eval_lip_prim_dnf<T>(x, x0, d15flip, 15);
-  arma::Mat<T> d16flip;
+  Mat<T> d16flip;
   eval_lip_prim_dnf<T>(x, x0, d16flip, 16);
-  arma::Mat<T> d17flip;
+  Mat<T> d17flip;
   eval_lip_prim_dnf<T>(x, x0, d17flip, 17);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -681,47 +681,47 @@ case (17): {
   }
 } break;
 case (18): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  arma::Mat<T> d8flip;
+  Mat<T> d8flip;
   eval_lip_prim_dnf<T>(x, x0, d8flip, 8);
-  arma::Mat<T> d9flip;
+  Mat<T> d9flip;
   eval_lip_prim_dnf<T>(x, x0, d9flip, 9);
-  arma::Mat<T> d10flip;
+  Mat<T> d10flip;
   eval_lip_prim_dnf<T>(x, x0, d10flip, 10);
-  arma::Mat<T> d11flip;
+  Mat<T> d11flip;
   eval_lip_prim_dnf<T>(x, x0, d11flip, 11);
-  arma::Mat<T> d12flip;
+  Mat<T> d12flip;
   eval_lip_prim_dnf<T>(x, x0, d12flip, 12);
-  arma::Mat<T> d13flip;
+  Mat<T> d13flip;
   eval_lip_prim_dnf<T>(x, x0, d13flip, 13);
-  arma::Mat<T> d14flip;
+  Mat<T> d14flip;
   eval_lip_prim_dnf<T>(x, x0, d14flip, 14);
-  arma::Mat<T> d15flip;
+  Mat<T> d15flip;
   eval_lip_prim_dnf<T>(x, x0, d15flip, 15);
-  arma::Mat<T> d16flip;
+  Mat<T> d16flip;
   eval_lip_prim_dnf<T>(x, x0, d16flip, 16);
-  arma::Mat<T> d17flip;
+  Mat<T> d17flip;
   eval_lip_prim_dnf<T>(x, x0, d17flip, 17);
-  arma::Mat<T> d18flip;
+  Mat<T> d18flip;
   eval_lip_prim_dnf<T>(x, x0, d18flip, 18);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -736,49 +736,49 @@ case (18): {
   }
 } break;
 case (19): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  arma::Mat<T> d8flip;
+  Mat<T> d8flip;
   eval_lip_prim_dnf<T>(x, x0, d8flip, 8);
-  arma::Mat<T> d9flip;
+  Mat<T> d9flip;
   eval_lip_prim_dnf<T>(x, x0, d9flip, 9);
-  arma::Mat<T> d10flip;
+  Mat<T> d10flip;
   eval_lip_prim_dnf<T>(x, x0, d10flip, 10);
-  arma::Mat<T> d11flip;
+  Mat<T> d11flip;
   eval_lip_prim_dnf<T>(x, x0, d11flip, 11);
-  arma::Mat<T> d12flip;
+  Mat<T> d12flip;
   eval_lip_prim_dnf<T>(x, x0, d12flip, 12);
-  arma::Mat<T> d13flip;
+  Mat<T> d13flip;
   eval_lip_prim_dnf<T>(x, x0, d13flip, 13);
-  arma::Mat<T> d14flip;
+  Mat<T> d14flip;
   eval_lip_prim_dnf<T>(x, x0, d14flip, 14);
-  arma::Mat<T> d15flip;
+  Mat<T> d15flip;
   eval_lip_prim_dnf<T>(x, x0, d15flip, 15);
-  arma::Mat<T> d16flip;
+  Mat<T> d16flip;
   eval_lip_prim_dnf<T>(x, x0, d16flip, 16);
-  arma::Mat<T> d17flip;
+  Mat<T> d17flip;
   eval_lip_prim_dnf<T>(x, x0, d17flip, 17);
-  arma::Mat<T> d18flip;
+  Mat<T> d18flip;
   eval_lip_prim_dnf<T>(x, x0, d18flip, 18);
-  arma::Mat<T> d19flip;
+  Mat<T> d19flip;
   eval_lip_prim_dnf<T>(x, x0, d19flip, 19);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);
@@ -793,51 +793,51 @@ case (19): {
   }
 } break;
 case (20): {
-  dnf.zeros(x.n_elem, 2 * x0.n_elem);
-  arma::Mat<T> flip;
+  dnf.setZero((Eigen::Index) x.size(), 2 * (Eigen::Index) x0.size());
+  Mat<T> flip;
   eval_lip_prim_dnf<T>(x, x0, flip, 0);
-  arma::Mat<T> dflip;
+  Mat<T> dflip;
   eval_lip_prim_dnf<T>(x, x0, dflip, 1);
-  arma::Mat<T> d2flip;
+  Mat<T> d2flip;
   eval_lip_prim_dnf<T>(x, x0, d2flip, 2);
-  arma::Mat<T> d3flip;
+  Mat<T> d3flip;
   eval_lip_prim_dnf<T>(x, x0, d3flip, 3);
-  arma::Mat<T> d4flip;
+  Mat<T> d4flip;
   eval_lip_prim_dnf<T>(x, x0, d4flip, 4);
-  arma::Mat<T> d5flip;
+  Mat<T> d5flip;
   eval_lip_prim_dnf<T>(x, x0, d5flip, 5);
-  arma::Mat<T> d6flip;
+  Mat<T> d6flip;
   eval_lip_prim_dnf<T>(x, x0, d6flip, 6);
-  arma::Mat<T> d7flip;
+  Mat<T> d7flip;
   eval_lip_prim_dnf<T>(x, x0, d7flip, 7);
-  arma::Mat<T> d8flip;
+  Mat<T> d8flip;
   eval_lip_prim_dnf<T>(x, x0, d8flip, 8);
-  arma::Mat<T> d9flip;
+  Mat<T> d9flip;
   eval_lip_prim_dnf<T>(x, x0, d9flip, 9);
-  arma::Mat<T> d10flip;
+  Mat<T> d10flip;
   eval_lip_prim_dnf<T>(x, x0, d10flip, 10);
-  arma::Mat<T> d11flip;
+  Mat<T> d11flip;
   eval_lip_prim_dnf<T>(x, x0, d11flip, 11);
-  arma::Mat<T> d12flip;
+  Mat<T> d12flip;
   eval_lip_prim_dnf<T>(x, x0, d12flip, 12);
-  arma::Mat<T> d13flip;
+  Mat<T> d13flip;
   eval_lip_prim_dnf<T>(x, x0, d13flip, 13);
-  arma::Mat<T> d14flip;
+  Mat<T> d14flip;
   eval_lip_prim_dnf<T>(x, x0, d14flip, 14);
-  arma::Mat<T> d15flip;
+  Mat<T> d15flip;
   eval_lip_prim_dnf<T>(x, x0, d15flip, 15);
-  arma::Mat<T> d16flip;
+  Mat<T> d16flip;
   eval_lip_prim_dnf<T>(x, x0, d16flip, 16);
-  arma::Mat<T> d17flip;
+  Mat<T> d17flip;
   eval_lip_prim_dnf<T>(x, x0, d17flip, 17);
-  arma::Mat<T> d18flip;
+  Mat<T> d18flip;
   eval_lip_prim_dnf<T>(x, x0, d18flip, 18);
-  arma::Mat<T> d19flip;
+  Mat<T> d19flip;
   eval_lip_prim_dnf<T>(x, x0, d19flip, 19);
-  arma::Mat<T> d20flip;
+  Mat<T> d20flip;
   eval_lip_prim_dnf<T>(x, x0, d20flip, 20);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       // First shape function:  [1 - 2(x-xi)*lipxi(fi)] * L_i(x)^2  =  f1 * f2
       // Second shape function: (x-xi) * L_i(x)^2                    =  f3 * f2
       T f1 = T(1) - T(2) * (x(ix) - x0(fi)) * lipxi(fi);

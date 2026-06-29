@@ -15,22 +15,22 @@
 #ifndef LIB1DFEM_LEGENDRE_POLY_H
 #define LIB1DFEM_LEGENDRE_POLY_H
 
-#include <armadillo>
+#include <lib1dfem/types.h>
 
 namespace helfem {
 namespace lib1dfem {
 namespace legendre {
 
 /// Evaluate Legendre polynomials P_l(x) for l = 0, 1, ..., lmax at every
-/// point x in `x`. Returns a (n_elem x (lmax+1)) matrix with P_l(x_i) at
+/// point x in `x`. Returns a (n_points x (lmax+1)) matrix with P_l(x_i) at
 /// (i, l). Templated on the scalar type T.
 ///
 /// Recurrence: P_0(x) = 1, P_1(x) = x;
 ///             (n+1) P_{n+1}(x) = (2n+1) x P_n(x) - n P_{n-1}(x).
 template <typename T>
-arma::Mat<T> legendre_batch(int lmax, const arma::Col<T> & x) {
-  arma::Mat<T> P(x.n_elem, lmax + 1);
-  for (arma::uword i = 0; i < x.n_elem; ++i) {
+Mat<T> legendre_batch(int lmax, const Vec<T> & x) {
+  Mat<T> P(x.size(), lmax + 1);
+  for (Eigen::Index i = 0; i < x.size(); ++i) {
     P(i, 0) = T(1);
     if (lmax >= 1) P(i, 1) = x(i);
     for (int n = 1; n < lmax; ++n) {
@@ -41,15 +41,11 @@ arma::Mat<T> legendre_batch(int lmax, const arma::Col<T> & x) {
 }
 
 /// First derivatives P_l'(x), same layout.
-///
-/// Differentiating the polynomial recurrence:
-///   (n+1) P_{n+1}'(x) = (2n+1) P_n(x) + (2n+1) x P_n'(x) - n P_{n-1}'(x).
-/// P_0' = 0, P_1' = 1.
 template <typename T>
-arma::Mat<T> dlegendre_batch(int lmax, const arma::Col<T> & x) {
-  arma::Mat<T> P  = legendre_batch<T>(lmax, x);
-  arma::Mat<T> dP(x.n_elem, lmax + 1);
-  for (arma::uword i = 0; i < x.n_elem; ++i) {
+Mat<T> dlegendre_batch(int lmax, const Vec<T> & x) {
+  Mat<T> P = legendre_batch<T>(lmax, x);
+  Mat<T> dP(x.size(), lmax + 1);
+  for (Eigen::Index i = 0; i < x.size(); ++i) {
     dP(i, 0) = T(0);
     if (lmax >= 1) dP(i, 1) = T(1);
     for (int n = 1; n < lmax; ++n) {
@@ -62,15 +58,11 @@ arma::Mat<T> dlegendre_batch(int lmax, const arma::Col<T> & x) {
 }
 
 /// Second derivatives P_l''(x), same layout.
-///
-/// Differentiating the derivative recurrence once more:
-///   (n+1) P_{n+1}''(x) = 2(2n+1) P_n'(x) + (2n+1) x P_n''(x) - n P_{n-1}''(x).
-/// P_0'' = P_1'' = 0.
 template <typename T>
-arma::Mat<T> d2legendre_batch(int lmax, const arma::Col<T> & x) {
-  arma::Mat<T> dP  = dlegendre_batch<T>(lmax, x);
-  arma::Mat<T> d2P(x.n_elem, lmax + 1);
-  for (arma::uword i = 0; i < x.n_elem; ++i) {
+Mat<T> d2legendre_batch(int lmax, const Vec<T> & x) {
+  Mat<T> dP = dlegendre_batch<T>(lmax, x);
+  Mat<T> d2P(x.size(), lmax + 1);
+  for (Eigen::Index i = 0; i < x.size(); ++i) {
     d2P(i, 0) = T(0);
     if (lmax >= 1) d2P(i, 1) = T(0);
     for (int n = 1; n < lmax; ++n) {

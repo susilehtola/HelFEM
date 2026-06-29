@@ -12,7 +12,7 @@
 #ifndef LIB1DFEM_LIPBASIS_EVAL_H
 #define LIB1DFEM_LIPBASIS_EVAL_H
 
-#include <armadillo>
+#include <lib1dfem/types.h>
 #include <sstream>
 #include <stdexcept>
 
@@ -23,19 +23,19 @@ namespace detail {
 
 /// Evaluate the n-th derivative of every LIP polynomial on the reference
 /// element [-1, 1] at the given points x, given the control-node vector
-/// x0. Fills dnf (size x.n_elem x x0.n_elem) with d^n L_i(x_j)/dx^n in
+/// x0. Fills dnf (size x.size() x x0.size()) with d^n L_i(x_j)/dx^n in
 /// column-major (point, polynomial) layout. element_length is unused
 /// at this layer (the chain-rule scaling lives in PolynomialBasis::eval_dnf).
 template <typename T>
-void eval_lip_prim_dnf(const arma::Col<T> & x, const arma::Col<T> & x0,
-                       arma::Mat<T> & dnf, int n) {
+void eval_lip_prim_dnf(const Vec<T> & x, const Vec<T> & x0,
+                       Mat<T> & dnf, int n) {
   switch (n) {
 case (0): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == fi) continue;
         dnfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
       }
@@ -44,14 +44,14 @@ case (0): {
   }
 } break;
 case (1): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == fi) continue;
         dnfval *= (x(ix) - x0(ip)) / (x0(fi) - x0(ip));
@@ -64,16 +64,16 @@ case (1): {
   }
 } break;
 case (2): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == fi) continue;
@@ -88,18 +88,18 @@ case (2): {
   }
 } break;
 case (3): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
       for (size_t d3 = 0; d3 < d2; d3++) {
         if (d3 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -116,11 +116,11 @@ case (3): {
   }
 } break;
 case (4): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -129,7 +129,7 @@ case (4): {
       for (size_t d4 = 0; d4 < d3; d4++) {
         if (d4 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -148,11 +148,11 @@ case (4): {
   }
 } break;
 case (5): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -163,7 +163,7 @@ case (5): {
       for (size_t d5 = 0; d5 < d4; d5++) {
         if (d5 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -184,11 +184,11 @@ case (5): {
   }
 } break;
 case (6): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -201,7 +201,7 @@ case (6): {
       for (size_t d6 = 0; d6 < d5; d6++) {
         if (d6 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -224,11 +224,11 @@ case (6): {
   }
 } break;
 case (7): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -243,7 +243,7 @@ case (7): {
       for (size_t d7 = 0; d7 < d6; d7++) {
         if (d7 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -268,11 +268,11 @@ case (7): {
   }
 } break;
 case (8): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -289,7 +289,7 @@ case (8): {
       for (size_t d8 = 0; d8 < d7; d8++) {
         if (d8 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -316,11 +316,11 @@ case (8): {
   }
 } break;
 case (9): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -339,7 +339,7 @@ case (9): {
       for (size_t d9 = 0; d9 < d8; d9++) {
         if (d9 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -368,11 +368,11 @@ case (9): {
   }
 } break;
 case (10): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -393,7 +393,7 @@ case (10): {
       for (size_t d10 = 0; d10 < d9; d10++) {
         if (d10 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -424,11 +424,11 @@ case (10): {
   }
 } break;
 case (11): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -451,7 +451,7 @@ case (11): {
       for (size_t d11 = 0; d11 < d10; d11++) {
         if (d11 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -484,11 +484,11 @@ case (11): {
   }
 } break;
 case (12): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -513,7 +513,7 @@ case (12): {
       for (size_t d12 = 0; d12 < d11; d12++) {
         if (d12 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -548,11 +548,11 @@ case (12): {
   }
 } break;
 case (13): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -579,7 +579,7 @@ case (13): {
       for (size_t d13 = 0; d13 < d12; d13++) {
         if (d13 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -616,11 +616,11 @@ case (13): {
   }
 } break;
 case (14): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -649,7 +649,7 @@ case (14): {
       for (size_t d14 = 0; d14 < d13; d14++) {
         if (d14 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -688,11 +688,11 @@ case (14): {
   }
 } break;
 case (15): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -723,7 +723,7 @@ case (15): {
       for (size_t d15 = 0; d15 < d14; d15++) {
         if (d15 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -764,11 +764,11 @@ case (15): {
   }
 } break;
 case (16): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -801,7 +801,7 @@ case (16): {
       for (size_t d16 = 0; d16 < d15; d16++) {
         if (d16 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -844,11 +844,11 @@ case (16): {
   }
 } break;
 case (17): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -883,7 +883,7 @@ case (17): {
       for (size_t d17 = 0; d17 < d16; d17++) {
         if (d17 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -928,11 +928,11 @@ case (17): {
   }
 } break;
 case (18): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -969,7 +969,7 @@ case (18): {
       for (size_t d18 = 0; d18 < d17; d18++) {
         if (d18 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -1016,11 +1016,11 @@ case (18): {
   }
 } break;
 case (19): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -1059,7 +1059,7 @@ case (19): {
       for (size_t d19 = 0; d19 < d18; d19++) {
         if (d19 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;
@@ -1108,11 +1108,11 @@ case (19): {
   }
 } break;
 case (20): {
-  dnf.zeros(x.n_elem, x0.n_elem);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  dnf.setZero((Eigen::Index) x.size(), (Eigen::Index) x0.size());
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       T el = T(0);
-      for (size_t d1 = 0; d1 < x0.n_elem; d1++) {
+      for (size_t d1 = 0; d1 < (size_t) x0.size(); d1++) {
         if (d1 == fi) continue;
       for (size_t d2 = 0; d2 < d1; d2++) {
         if (d2 == fi) continue;
@@ -1153,7 +1153,7 @@ case (20): {
       for (size_t d20 = 0; d20 < d19; d20++) {
         if (d20 == fi) continue;
       T dnfval = T(1);
-      for (size_t ip = 0; ip < x0.n_elem; ip++) {
+      for (size_t ip = 0; ip < (size_t) x0.size(); ip++) {
         if (ip == d1) continue;
         if (ip == d2) continue;
         if (ip == d3) continue;

@@ -14,6 +14,25 @@
  */
 #include "quadrature.h"
 #include "chebyshev.h"
+#include <ArmaEigen.h>
+#include <cstring>
+
+namespace {
+  // Phase 5.2 bridge: lib1dfem PolynomialBasis::eval_dnf takes/returns
+  // Eigen. The diatomic quadrature routines below are still arma-typed.
+  inline arma::mat eval_poly_dnf(
+      const std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis> & poly,
+      const arma::vec & x, int n, double element_length) {
+    helfem::lib1dfem::Vec<double> xe(x.n_elem);
+    std::memcpy(xe.data(), x.memptr(), sizeof(double) * x.n_elem);
+    helfem::lib1dfem::Mat<double> me;
+    poly->eval_dnf(xe, me, n, element_length);
+    arma::mat out(me.rows(), me.cols());
+    std::memcpy(out.memptr(), me.data(),
+                sizeof(double) * static_cast<size_t>(me.size()));
+    return out;
+  }
+} // namespace
 
 namespace helfem {
   namespace diatomic {
@@ -44,7 +63,7 @@ namespace helfem {
         // Calculate x values the polynomials should be evaluated at
         arma::vec xpoly((mu-mumid0*arma::ones<arma::vec>(x.n_elem))/mulen0);
         // Evaluate the polynomials at these points
-        arma::mat bf(poly->eval_dnf(xpoly, 0, mulen0));
+        arma::mat bf(eval_poly_dnf(poly, xpoly, 0, mulen0));
 
         // Put in weight
         arma::mat wbf(bf);
@@ -95,7 +114,7 @@ namespace helfem {
         arma::mat inner(twoe_inner_integral(mumin, mumax, l, x, wx, poly, L, M, tab));
 
         // Evaluate basis functions at quadrature points
-        arma::mat bf(poly->eval_dnf(x, 0, mulen));
+        arma::mat bf(eval_poly_dnf(poly, x, 0, mulen));
 
         // Product functions
         arma::mat bfprod(bf.n_rows,bf.n_cols*bf.n_cols);

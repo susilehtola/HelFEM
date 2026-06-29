@@ -17,6 +17,7 @@
 #include "chebyshev.h"
 #include "lobatto.h"
 #include "LIPBasis.h"
+#include <cstring>
 
 using namespace helfem;
 
@@ -26,7 +27,9 @@ void run(double R, int n_quad) {
   // Get primitive polynomial representation for LIP
   arma::vec x, w;
   ::lobatto_compute(2,x,w);
-  auto pbas(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(new helfem::polynomial_basis::LIPBasis(x,0)));
+  helfem::lib1dfem::Vec<double> xe(x.n_elem);
+  std::memcpy(xe.data(), x.memptr(), sizeof(double) * x.n_elem);
+  auto pbas(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(new helfem::polynomial_basis::LIPBasis(xe,0)));
 
   // Get quadrature rule
   arma::vec xq, wq;

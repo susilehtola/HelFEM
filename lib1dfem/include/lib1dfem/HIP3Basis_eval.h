@@ -12,7 +12,7 @@
 #ifndef LIB1DFEM_HIP3BASIS_EVAL_H
 #define LIB1DFEM_HIP3BASIS_EVAL_H
 
-#include <armadillo>
+#include <lib1dfem/types.h>
 #include <lib1dfem/LIPBasis_eval.h>
 #include <sstream>
 #include <stdexcept>
@@ -44,17 +44,17 @@ namespace detail {
 /// needed once the Taylor pipeline in RadialBasis has been retired
 /// (see PR #69).
 template <typename T>
-void eval_hip3_prim_dnf(const arma::Col<T> & x, const arma::Col<T> & x0,
-                        const arma::Col<T> & lipxi, const arma::Col<T> & lipxi2,
-                        const arma::Col<T> & lipxi3,
-                        arma::Mat<T> & dnf, int n, T element_length) {
+void eval_hip3_prim_dnf(const Vec<T> & x, const Vec<T> & x0,
+                        const Vec<T> & lipxi, const Vec<T> & lipxi2,
+                        const Vec<T> & lipxi3,
+                        Mat<T> & dnf, int n, T element_length) {
   switch (n) {
 case (0): {
-  dnf.zeros(x.n_elem, 4 * x0.n_elem);
-  arma::Mat<T> Lx_all;
+  dnf.setZero((Eigen::Index) x.size(), 4 * (Eigen::Index) x0.size());
+  Mat<T> Lx_all;
   eval_lip_prim_dnf<T>(x, x0, Lx_all, 0);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       const T xv       = x(ix);
       const T xi       = x0(fi);
       const T Lx       = Lx_all(ix, fi);
@@ -73,13 +73,13 @@ case (0): {
   }
 } break;
 case (1): {
-  dnf.zeros(x.n_elem, 4 * x0.n_elem);
-  arma::Mat<T> Lx_all;
+  dnf.setZero((Eigen::Index) x.size(), 4 * (Eigen::Index) x0.size());
+  Mat<T> Lx_all;
   eval_lip_prim_dnf<T>(x, x0, Lx_all, 0);
-  arma::Mat<T> dLx_all;
+  Mat<T> dLx_all;
   eval_lip_prim_dnf<T>(x, x0, dLx_all, 1);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       const T xv       = x(ix);
       const T xi       = x0(fi);
       const T Lx       = Lx_all(ix, fi);
@@ -99,15 +99,15 @@ case (1): {
   }
 } break;
 case (2): {
-  dnf.zeros(x.n_elem, 4 * x0.n_elem);
-  arma::Mat<T> Lx_all;
+  dnf.setZero((Eigen::Index) x.size(), 4 * (Eigen::Index) x0.size());
+  Mat<T> Lx_all;
   eval_lip_prim_dnf<T>(x, x0, Lx_all, 0);
-  arma::Mat<T> dLx_all;
+  Mat<T> dLx_all;
   eval_lip_prim_dnf<T>(x, x0, dLx_all, 1);
-  arma::Mat<T> ddLx_all;
+  Mat<T> ddLx_all;
   eval_lip_prim_dnf<T>(x, x0, ddLx_all, 2);
-  for (size_t ix = 0; ix < x.n_elem; ix++) {
-    for (size_t fi = 0; fi < x0.n_elem; fi++) {
+  for (size_t ix = 0; ix < (size_t) x.size(); ix++) {
+    for (size_t fi = 0; fi < (size_t) x0.size(); fi++) {
       const T xv       = x(ix);
       const T xi       = x0(fi);
       const T Lx       = Lx_all(ix, fi);
