@@ -15,7 +15,7 @@
 #ifndef LIB1DFEM_LOBATTO_H
 #define LIB1DFEM_LOBATTO_H
 
-#include <armadillo>
+#include <Eigen/Core>
 #include <cmath>
 #include <limits>
 #include <sstream>
@@ -37,15 +37,18 @@ namespace lobatto {
 /// Cost is a one-time setup; the iteration converges quadratically so
 /// the number of iterations scales as O(log(1 / eps_T)).
 template <typename T>
-void lobatto_compute(int n, arma::Col<T> & x, arma::Col<T> & w) {
+void lobatto_compute(int n, Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
+                              Eigen::Matrix<T, Eigen::Dynamic, 1> & w) {
+  using Vec = Eigen::Matrix<T, Eigen::Dynamic, 1>;
+  using Mat = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
   if (n < 2) {
     std::ostringstream oss;
     oss << "Lobatto called with n=" << n << ", but n>=2 is required.\n";
     throw std::runtime_error(oss.str());
   }
 
-  x.set_size(n);
-  w.set_size(n);
+  x.resize(n);
+  w.resize(n);
 
   const T pi        = std::acos(T(-1));
   const T tolerance = T(100) * std::numeric_limits<T>::epsilon();
@@ -55,9 +58,9 @@ void lobatto_compute(int n, arma::Col<T> & x, arma::Col<T> & w) {
     x(i) = std::cos(pi * T(i) / T(n - 1));
   }
 
-  arma::Col<T> xold(n);
+  Vec xold(n);
   // p(i, j) holds P_j(x_i) for j in [0, n-1].
-  arma::Mat<T> p(n, n);
+  Mat p(n, n);
 
   for (;;) {
     xold = x;
@@ -97,7 +100,7 @@ void lobatto_compute(int n, arma::Col<T> & x, arma::Col<T> & w) {
 
   // Reverse order so the result runs from -1 to +1 (matches the convention
   // used by lobatto_compute in libhelfem prior to the v2 migration).
-  x = arma::reverse(x);
+  x = x.reverse().eval();
 
   // Weights use the final-iteration P_{n-1}(x_i) BEFORE the reverse above;
   // but since w(i) depends only on P_{n-1}(x_i)^2 and the x order has been

@@ -15,7 +15,7 @@
 #ifndef LIB1DFEM_GRID_H
 #define LIB1DFEM_GRID_H
 
-#include <armadillo>
+#include <Eigen/Core>
 #include <cmath>
 #include <cstdio>
 #include <stdexcept>
@@ -36,19 +36,20 @@ namespace grid {
 /// Endpoints are snapped to exactly 0 and rmax to avoid floating-point
 /// roundoff. Templated on the scalar type T.
 template <typename T>
-arma::Col<T> get_grid(T rmax, int num_el, int igrid, T zexp,
-                      bool verbose = false) {
-  arma::Col<T> bval;
+Eigen::Matrix<T, Eigen::Dynamic, 1> get_grid(T rmax, int num_el, int igrid, T zexp,
+                                              bool verbose = false) {
+  using Vec = Eigen::Matrix<T, Eigen::Dynamic, 1>;
+  Vec bval;
 
   switch (igrid) {
     case 1: { // linear
       if (verbose) std::printf("Using linear grid\n");
-      bval = arma::linspace<arma::Col<T>>(T(0), rmax, num_el + 1);
+      bval = Vec::LinSpaced(num_el + 1, T(0), rmax);
       break;
     }
     case 2: { // quadratic
       if (verbose) std::printf("Using quadratic grid\n");
-      bval.zeros(num_el + 1);
+      bval = Vec::Zero(num_el + 1);
       const T inv_n2 = T(1) / (T(num_el) * T(num_el));
       for (int i = 0; i <= num_el; ++i)
         bval(i) = T(i) * T(i) * rmax * inv_n2;
@@ -58,7 +59,7 @@ arma::Col<T> get_grid(T rmax, int num_el, int igrid, T zexp,
       if (verbose)
         std::printf("Using generalized polynomial grid, zexp = %e\n",
                     static_cast<double>(zexp));
-      bval.zeros(num_el + 1);
+      bval = Vec::Zero(num_el + 1);
       const T inv_n = T(1) / T(num_el);
       for (int i = 0; i <= num_el; ++i)
         bval(i) = rmax * std::pow(T(i) * inv_n, zexp);
@@ -69,8 +70,10 @@ arma::Col<T> get_grid(T rmax, int num_el, int igrid, T zexp,
         std::printf("Using generalized exponential grid, zexp = %e\n",
                     static_cast<double>(zexp));
       const T upper = std::pow(std::log(rmax + T(1)), T(1) / zexp);
-      auto t = arma::linspace<arma::Col<T>>(T(0), upper, num_el + 1);
-      bval = arma::exp(arma::pow(t, zexp)) - arma::ones<arma::Col<T>>(num_el + 1);
+      Vec t = Vec::LinSpaced(num_el + 1, T(0), upper);
+      bval = Vec(num_el + 1);
+      for (int i = 0; i <= num_el; ++i)
+        bval(i) = std::exp(std::pow(t(i), zexp)) - T(1);
       break;
     }
     case 5: { // geometric
@@ -80,11 +83,11 @@ arma::Col<T> get_grid(T rmax, int num_el, int igrid, T zexp,
       if (zexp <= T(0) || zexp >= T(1))
         throw std::logic_error("Invalid value for s parameter!\n");
       // h_k from p.158 of the Cancès-Mourad paper:
-      arma::Col<T> hk(num_el);
+      Vec hk(num_el);
       hk(num_el - 1) = (T(1) - zexp) / (T(1) - std::pow(zexp, num_el)) * rmax;
       for (int iel = num_el - 2; iel >= 0; --iel)
         hk(iel) = zexp * hk(iel + 1);
-      bval.zeros(num_el + 1);
+      bval = Vec::Zero(num_el + 1);
       for (int iel = 0; iel < num_el; ++iel)
         bval(iel + 1) = bval(iel) + hk(iel);
       break;
@@ -95,7 +98,7 @@ arma::Col<T> get_grid(T rmax, int num_el, int igrid, T zexp,
 
   // Make endpoints numerically exact.
   bval(0) = T(0);
-  bval(bval.n_elem - 1) = rmax;
+  bval(bval.size() - 1) = rmax;
   return bval;
 }
 

@@ -15,20 +15,26 @@
 #ifndef LIB1DFEM_CHEBYSHEV_H
 #define LIB1DFEM_CHEBYSHEV_H
 
-#include <armadillo>
+#include <Eigen/Core>
 #include <cmath>
 
 namespace helfem {
 namespace lib1dfem {
 namespace chebyshev {
 
+// Phase 5.1: lib1dfem primitives migrated arma -> Eigen. The libhelfem
+// double-only shim (libhelfem/src/chebyshev.h) bridges arma::vec on
+// the boundary so existing callers compile unchanged.
+
 /// Modified Gauss-Chebyshev quadrature of the second kind for
 ///     integral_{-1}^{1} f(x) dx
 /// Templated on the scalar type T.
 template <typename T>
-void chebyshev(int n, arma::Col<T> & x, arma::Col<T> & w) {
-  x.zeros(n);
-  w.zeros(n);
+void chebyshev(int n, Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
+                       Eigen::Matrix<T, Eigen::Dynamic, 1> & w) {
+  using Vec = Eigen::Matrix<T, Eigen::Dynamic, 1>;
+  x = Vec::Zero(n);
+  w = Vec::Zero(n);
 
   const T pi          = std::acos(T(-1));
   const T oonpp       = T(1) / T(n + 1);
@@ -47,8 +53,8 @@ void chebyshev(int n, arma::Col<T> & x, arma::Col<T> & w) {
              + two_over_pi * (T(1) + T(2) / T(3) * sinesq) * cosine * sine;
   }
 
-  x = arma::reverse(x);
-  w = arma::reverse(w);
+  x = x.reverse().eval();
+  w = w.reverse().eval();
 }
 
 /// Modified Gauss-Chebyshev quadrature of the second kind for
@@ -56,16 +62,18 @@ void chebyshev(int n, arma::Col<T> & x, arma::Col<T> & w) {
 /// (For integration in spherical coordinates the caller must still
 /// multiply by r^2.) Templated on the scalar type T.
 template <typename T>
-void radial_chebyshev(int nrad, arma::Col<T> & rad, arma::Col<T> & wrad) {
-  arma::Col<T> xc, wc;
+void radial_chebyshev(int nrad, Eigen::Matrix<T, Eigen::Dynamic, 1> & rad,
+                                  Eigen::Matrix<T, Eigen::Dynamic, 1> & wrad) {
+  using Vec = Eigen::Matrix<T, Eigen::Dynamic, 1>;
+  Vec xc, wc;
   chebyshev<T>(nrad, xc, wc);
 
-  rad.zeros(nrad);
-  wrad.zeros(nrad);
+  rad  = Vec::Zero(nrad);
+  wrad = Vec::Zero(nrad);
   const T inv_ln2 = T(1) / std::log(T(2));
 
   for (int ir = 0; ir < nrad; ++ir) {
-    const arma::uword ixc = xc.n_elem - 1 - ir;
+    const Eigen::Index ixc = xc.size() - 1 - ir;
     // r = (1 / ln 2) * log( 2 / (1 - x) )
     const T one_minus_x = T(1) - xc(ixc);
     const T r           = inv_ln2 * std::log(T(2) / one_minus_x);

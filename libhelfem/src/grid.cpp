@@ -20,9 +20,14 @@
 
 #include <helfem.h>
 #include <lib1dfem/grid.h>
+#include <cstring>
 
 arma::vec helfem::utils::get_grid(double rmax, int num_el, int igrid,
                                   double zexp) {
-  return helfem::lib1dfem::grid::get_grid<double>(rmax, num_el, igrid, zexp,
-                                                  helfem::verbose);
+  // Phase 5.1: lib1dfem grid now returns Eigen; bridge to arma here.
+  auto be = helfem::lib1dfem::grid::get_grid<double>(rmax, num_el, igrid, zexp,
+                                                     helfem::verbose);
+  arma::vec b(be.size());
+  std::memcpy(b.memptr(), be.data(), sizeof(double) * (size_t) be.size());
+  return b;
 }
