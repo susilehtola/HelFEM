@@ -204,6 +204,129 @@ namespace helfem {
 
       } // namespace detail_fe_2e
 
+      // -- Per-element cache construction helpers ---------------------
+      //
+      // The cached assembly helpers below
+      // (assemble_*_FE_one_multipole_cached) take per-(L, iel) integrals
+      // via accessor lambdas; SCF-driven callers (atomic::TwoDBasis,
+      // sadatom::TwoDBasis) populate those caches once per basis change.
+      // The fill loops are identical in structure between the two
+      // callers, so we share them here.
+      //
+      // Convention: caches are flat vectors with index = L*Nel + iel
+      // (or L*Nel*Nel + iel*Nel + jel for cross-element). Matches the
+      // existing TwoDBasis cache layouts exactly so the helpers below
+      // can be dropped into existing call sites without changing the
+      // surrounding accessor lambdas.
+
+      /// Per-(L, iel) disjoint radial integrals for the multipole
+      /// decomposition.
+      ///   bare:    disjoint_small[L*Nel+iel] = radial.radial_integral(L, iel)
+      ///            disjoint_big  [L*Nel+iel] = radial.radial_integral(-L-1, iel)
+      ///   Yukawa:  disjoint_small = radial.bessel_il_integral(L, lambda, iel)
+      ///            disjoint_big   = radial.bessel_kl_integral(L, lambda, iel)
+      inline void compute_disjoint_radial_integrals(
+          const FEMRadialBasis & radial,
+          int N_L,
+          std::vector<arma::mat> & disjoint_small,
+          std::vector<arma::mat> & disjoint_big,
+          bool yukawa = false,
+          double lambda = 0.0) {
+        const size_t Nel = radial.Nel();
+        disjoint_small.resize((size_t) N_L * Nel);
+        disjoint_big  .resize((size_t) N_L * Nel);
+        for (int L = 0; L < N_L; ++L) {
+          for (size_t iel = 0; iel < Nel; ++iel) {
+            disjoint_small[(size_t) L * Nel + iel] =
+                detail_fe_2e::r_small(radial, L, iel, yukawa, lambda);
+            disjoint_big  [(size_t) L * Nel + iel] =
+                detail_fe_2e::r_big  (radial, L, iel, yukawa, lambda);
+          }
+        }
+      }
+
+      /// Per-(L, iel) in-element 4-index 2e integrals. Only diagonal
+      /// (iel == iel) entries are populated; cross-element pieces are
+      /// assembled on the fly from the disjoint factors in the
+      /// assemble_*_FE_one_multipole_cached path. Layout:
+      ///   prim_tei[L*Nel*Nel + iel*Nel + iel] = in-element 4-index tensor
+      /// For bare Coulomb (default): radial.twoe_integral(L, iel).
+      /// For Yukawa: radial.yukawa_integral(L, lambda, iel).
+      inline void compute_in_element_tei(
+          const FEMRadialBasis & radial,
+          int N_L,
+          std::vector<arma::mat> & prim_tei,
+          bool yukawa = false,
+          double lambda = 0.0) {
+        const size_t Nel = radial.Nel();
+        prim_tei.resize(Nel * Nel * (size_t) N_L);
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+        for (int L = 0; L < N_L; ++L) {
+          for (size_t iel = 0; iel < Nel; ++iel) {
+            prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel] =
+                detail_fe_2e::in_element_tei(radial, L, iel, yukawa, lambda);
+          }
+        }
+      }
+
+      /// Apply utils::exchange_tei to each in-element prim_tei entry to
+      /// produce the exchange-permuted form (prim_ktei) used by the
+      /// cached K assembly. Only diagonal entries.
+      inline void compute_in_element_ktei_from_tei(
+          const FEMRadialBasis & radial,
+          int N_L,
+          const std::vector<arma::mat> & prim_tei,
+          std::vector<arma::mat> & prim_ktei) {
+        const size_t Nel = radial.Nel();
+        prim_ktei.resize(Nel * Nel * (size_t) N_L);
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+        for (int L = 0; L < N_L; ++L) {
+          for (size_t iel = 0; iel < Nel; ++iel) {
+            const size_t Ni = radial.Nprim(iel);
+            prim_ktei[Nel * Nel * (size_t) L + iel * Nel + iel] =
+                helfem::utils::exchange_tei(
+                    prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel],
+                    Ni, Ni, Ni, Ni);
+          }
+        }
+      }
+
+      /// Erfc-kernel cross-element ktei cache:
+      ///   rs_ktei[L*Nel*Nel + iel*Nel + jel]
+      ///     = exchange-permuted erfc 4-index tensor for (iel, jel).
+      /// The erfc kernel does NOT factorise into disjoint small/big
+      /// factors, so all Nel*Nel pairs are stored explicitly. The
+      /// pairwise K assembly path
+      /// (assemble_K_FE_one_multipole_cached_pairwise) consumes this
+      /// layout.
+      inline void compute_erfc_ktei(
+          const FEMRadialBasis & radial,
+          int N_L,
+          double mu,
+          std::vector<arma::mat> & rs_ktei) {
+        const size_t Nel = radial.Nel();
+        rs_ktei.resize(Nel * Nel * (size_t) N_L);
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+        for (int L = 0; L < N_L; ++L) {
+          for (size_t iel = 0; iel < Nel; ++iel) {
+            for (size_t jel = 0; jel < Nel; ++jel) {
+              const size_t Ni = radial.Nprim(iel);
+              const size_t Nj = radial.Nprim(jel);
+              rs_ktei[Nel * Nel * (size_t) L + iel * Nel + jel] =
+                  helfem::utils::exchange_tei(
+                      radial.erfc_integral(L, mu, iel, jel),
+                      Ni, Ni, Nj, Nj);
+            }
+          }
+        }
+      }
+
       // The core J / K assemblers operate on per-element accessors, so
       // the same body backs both the uncached (recompute-on-the-fly,
       // NAO use) and cached (look-up-from-SCF-cache, TwoDBasis use)

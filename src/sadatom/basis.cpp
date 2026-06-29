@@ -180,118 +180,42 @@ namespace helfem {
       }
 
       void TwoDBasis::compute_tei() {
-        // Number of distinct L values is
-        size_t N_L(2*arma::max(lval)+1);
-        size_t Nel(radial.Nel());
-
-        // Compute disjoint integrals
-        disjoint_L.resize(Nel*N_L);
-        disjoint_m1L.resize(Nel*N_L);
-        for(size_t L=0;L<N_L;L++)
-          for(size_t iel=0;iel<Nel;iel++) {
-            disjoint_L[L*Nel+iel]=radial.radial_integral(L,iel);
-            disjoint_m1L[L*Nel+iel]=radial.radial_integral(-L-1,iel);
-          }
-
-        // Form two-electron integrals
-        prim_tei.resize(Nel*Nel*N_L);
-#ifdef _OPENMP
-#pragma omp parallel for collapse(2)
-#endif
-        for(size_t L=0;L<N_L;L++) {
-          for(size_t iel=0;iel<Nel;iel++) {
-            // In-element integral
-            prim_tei[Nel*Nel*L + iel*Nel + iel]=radial.twoe_integral(L,iel);
-          }
-        }
-
-        // Two-electron exchange integrals
-        prim_ktei.resize(Nel*Nel*N_L);
-#ifdef _OPENMP
-#pragma omp parallel for collapse(2)
-#endif
-        for(size_t L=0;L<N_L;L++)
-          for(size_t iel=0;iel<Nel;iel++) {
-            // Diagonal integrals
-            size_t Ni(radial.Nprim(iel));
-            prim_ktei[Nel*Nel*L + iel*Nel + iel]=utils::exchange_tei(prim_tei[Nel*Nel*L + iel*Nel + iel],Ni,Ni,Ni,Ni);
-          }
+        // Delegate to the shared cache builders in CoulombExchangeFE.h
+        // -- same path atomic::TwoDBasis uses. Bare Coulomb + in-element
+        // prim_tei + exchange-permuted prim_ktei.
+        const int N_L = 2 * arma::max(lval) + 1;
+        atomic::basis::compute_disjoint_radial_integrals(
+            radial, N_L, disjoint_L, disjoint_m1L);
+        atomic::basis::compute_in_element_tei(radial, N_L, prim_tei);
+        atomic::basis::compute_in_element_ktei_from_tei(
+            radial, N_L, prim_tei, prim_ktei);
       }
 
       void TwoDBasis::compute_yukawa(double lambda_) {
-        lambda=lambda_;
-        yukawa=true;
-
-        // Number of distinct L values is
-        size_t N_L(2*arma::max(lval)+1);
-        size_t Nel(radial.Nel());
-
-        // Compute disjoint integrals
-        disjoint_iL.resize(Nel*N_L);
-        disjoint_kL.resize(Nel*N_L);
-        for(size_t L=0;L<N_L;L++)
-          for(size_t iel=0;iel<Nel;iel++) {
-            disjoint_iL[L*Nel+iel]=radial.bessel_il_integral(L,lambda,iel);
-            disjoint_kL[L*Nel+iel]=radial.bessel_kl_integral(L,lambda,iel);
-          }
-
-        /*
-          The exchange matrix is given by
-          K(jk) = (ij|kl) P(il)
-          i.e. the complex conjugation hits i and l as
-          in the density matrix.
-
-          To get this in the proper order, we permute the integrals
-          K(jk) = (jk;il) P(il)
-          so we don't have to reform the permutations in the exchange routine.
-        */
-        rs_ktei.resize(Nel*Nel*N_L);
-#ifdef _OPENMP
-#pragma omp parallel for collapse(2)
-#endif
-        for(size_t L=0;L<N_L;L++)
-          for(size_t iel=0;iel<Nel;iel++) {
-            // Diagonal integrals
-            size_t Ni(radial.Nprim(iel));
-            rs_ktei[Nel*Nel*L + iel*Nel + iel]=utils::exchange_tei(radial.yukawa_integral(L,lambda,iel),Ni,Ni,Ni,Ni);
-          }
+        lambda = lambda_;
+        yukawa = true;
+        const int N_L = 2 * arma::max(lval) + 1;
+        // Yukawa disjoint factors (bessel i / bessel k) + in-element
+        // Yukawa 2e -> exchange-permuted form needed by the cached K
+        // assembly.
+        atomic::basis::compute_disjoint_radial_integrals(
+            radial, N_L, disjoint_iL, disjoint_kL, /*yukawa=*/true, lambda);
+        std::vector<arma::mat> rs_tei_yk;
+        atomic::basis::compute_in_element_tei(
+            radial, N_L, rs_tei_yk, /*yukawa=*/true, lambda);
+        atomic::basis::compute_in_element_ktei_from_tei(
+            radial, N_L, rs_tei_yk, rs_ktei);
       }
 
       void TwoDBasis::compute_erfc(double mu) {
-        lambda=mu;
-        yukawa=false;
-
-        // Number of distinct L values is
-        size_t N_L(2*arma::max(lval)+1);
-        size_t Nel(radial.Nel());
-
-        // No disjoint integrals
+        lambda = mu;
+        yukawa = false;
+        // Erfc kernel doesn't factorise -- no disjoint integrals; all
+        // (iel, jel) pairs are stored explicitly in rs_ktei.
         disjoint_iL.clear();
         disjoint_kL.clear();
-
-        /*
-          The exchange matrix is given by
-          K(jk) = (ij|kl) P(il)
-          i.e. the complex conjugation hits i and l as
-          in the density matrix.
-
-          To get this in the proper order, we permute the integrals
-          K(jk) = (jk;il) P(il)
-          so we don't have to reform the permutations in the exchange routine.
-        */
-        rs_ktei.resize(Nel*Nel*N_L);
-#ifdef _OPENMP
-#pragma omp parallel for collapse(2)
-#endif
-        for(size_t L=0;L<N_L;L++)
-          for(size_t iel=0;iel<Nel;iel++) {
-            for(size_t kel=0;kel<Nel;kel++) {
-              // Diagonal integrals
-              size_t Ni(radial.Nprim(iel));
-              size_t Nk(radial.Nprim(kel));
-              rs_ktei[Nel*Nel*L + iel*Nel + kel]=utils::exchange_tei(radial.erfc_integral(L,lambda,iel,kel),Ni,Ni,Nk,Nk);
-            }
-          }
+        const int N_L = 2 * arma::max(lval) + 1;
+        atomic::basis::compute_erfc_ktei(radial, N_L, lambda, rs_ktei);
       }
 
       arma::mat TwoDBasis::coulomb(const arma::mat & P) const {
