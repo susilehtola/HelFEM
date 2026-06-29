@@ -99,7 +99,12 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
   // Use core guess
   arma::vec Ev;
   arma::mat C;
-  scf::eig_gsym_sub(Ev,C,H0,Sinvh,dsym);
+  { // Phase 5.12 bridge: eig_gsym_sub is Eigen.
+    helfem::Vector Ev_e; helfem::Matrix C_e;
+    scf::eig_gsym_sub(Ev_e, C_e, helfem::to_eigen(H0), helfem::to_eigen(Sinvh), dsym);
+    Ev = helfem::to_arma(Ev_e);
+    C = helfem::to_arma(C_e);
+  }
   //scf::eig_gsym(Ev,C,H0,Sinvh);
 
   // Sanity check

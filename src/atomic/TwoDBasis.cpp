@@ -233,7 +233,12 @@ namespace helfem {
           if(sym) {
             // Symmetries
             std::vector<arma::uvec> midx(get_sym_idx(sym));
-            scf::eig_sym_sub(Sval,Svec,S,midx);
+            { // Phase 5.12 bridge: eig_sym_sub is Eigen.
+              helfem::Vector Sval_e; helfem::Matrix Svec_e;
+              scf::eig_sym_sub(Sval_e, Svec_e, helfem::to_eigen(S), midx);
+              Sval = helfem::to_arma(Sval_e);
+              Svec = helfem::to_arma(Svec_e);
+            }
           } else {
             if(!arma::eig_sym(Sval,Svec,S)) {
               S.save("S.dat",arma::raw_ascii);

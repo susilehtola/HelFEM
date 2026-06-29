@@ -32,10 +32,10 @@ namespace helfem {
 
     /// Solve generalized eigenvalue problem (Phase 5.11: Eigen-typed).
     void eig_gsym(helfem::Vector & E, helfem::Matrix & C, const helfem::Matrix & F, const helfem::Matrix & Sinvh);
-    /// Solve generalized eigenvalue problem in subspaces
-    void eig_gsym_sub(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh, const std::vector<arma::uvec> & m_idx, bool verbose=true);
-    /// Solve eigenvalue problem in subspaces
-    void eig_sym_sub(arma::vec & E, arma::mat & C, const arma::mat & F, const std::vector<arma::uvec> & m_idx);
+    /// Solve generalized eigenvalue problem in subspaces (Phase 5.12: Eigen matrices; m_idx kept arma::uvec).
+    void eig_gsym_sub(helfem::Vector & E, helfem::Matrix & C, const helfem::Matrix & F, const helfem::Matrix & Sinvh, const std::vector<arma::uvec> & m_idx, bool verbose=true);
+    /// Solve eigenvalue problem in subspaces (Phase 5.12: Eigen matrices; m_idx kept arma::uvec).
+    void eig_sym_sub(helfem::Vector & E, helfem::Matrix & C, const helfem::Matrix & F, const std::vector<arma::uvec> & m_idx);
 
     /// Solve eigenvalue problem in subspace
     void eig_sub_wrk(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, size_t Nact);

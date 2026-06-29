@@ -142,82 +142,108 @@ namespace helfem {
       C = Sinvh * es.eigenvectors();
     }
 
-    void eig_gsym_sub(arma::vec & E, arma::mat & C, const arma::mat & F, const arma::mat & Sinvh, const std::vector<arma::uvec> & m_idx, bool verbose) {
-      E.zeros(F.n_rows);
-      C.zeros(F.n_rows,F.n_rows);
-
-      size_t iidx=0;
-      // Loop over symmetries
-      for(size_t isym=0;isym<m_idx.size();isym++) {
-        // Find basis vectors that belong to this symmetry
-        arma::mat Scmp(Sinvh.rows(m_idx[isym]));
-
-        arma::vec Snrm(Scmp.n_cols);
-        for(size_t i=0;i<Snrm.n_elem;i++)
-          Snrm(i)=arma::norm(Scmp.col(i),"fro");
-
-        // Column indices of Sinvh that have non-zero elements
-        arma::uvec Sind(arma::find(Snrm));
-
-        // Solve subproblem (Phase 5.11 bridge: eig_gsym is Eigen).
-        helfem::Vector Esub_e;
-        helfem::Matrix Csub_e;
-        eig_gsym(Esub_e, Csub_e, helfem::to_eigen(F), helfem::to_eigen(arma::mat(Sinvh.cols(Sind))));
-        arma::vec Esub = helfem::to_arma(Esub_e);
-        arma::mat Csub = helfem::to_arma(Csub_e);
-
-        // Store solutions
-        E.subvec(iidx,iidx+Esub.n_elem-1)=Esub;
-        C.cols(iidx,iidx+Esub.n_elem-1)=Csub;
-
-#if 0
-        printf("Symmetry %i\n",isym);
-        Esub.t().print();
-#endif
-
-        // Increment offset
-        iidx+=Esub.n_elem;
+    namespace {
+      // Convert one arma::uvec (chemistry-side index list) to a vector
+      // of Eigen::Index, suitable for Eigen 3.4 (rows/cols) indexing.
+      inline std::vector<Eigen::Index> uvec_to_indices(const arma::uvec & u) {
+        std::vector<Eigen::Index> v(u.n_elem);
+        for (size_t i = 0; i < u.n_elem; ++i) v[i] = static_cast<Eigen::Index>(u(i));
+        return v;
       }
-      if(iidx!=F.n_rows) {
-        std::ostringstream oss;
-        oss << "Symmetry mismatch: expected " << F.n_rows << " vectors but got " << iidx << "!\n";
-        throw std::logic_error(oss.str());
+      // Pivot-sort indices ascending by E values (stable not required).
+      inline std::vector<Eigen::Index> sort_index_ascending(const helfem::Vector & E) {
+        std::vector<Eigen::Index> idx(E.size());
+        for (Eigen::Index i = 0; i < E.size(); ++i) idx[i] = i;
+        std::sort(idx.begin(), idx.end(),
+                  [&E](Eigen::Index a, Eigen::Index b) { return E(a) < E(b); });
+        return idx;
       }
-
-      // Sort energies
-      arma::uvec Eord=arma::sort_index(E,"ascend");
-      E=E(Eord);
-      C=C.cols(Eord);
     }
 
-    void eig_sym_sub(arma::vec & E, arma::mat & C, const arma::mat & F, const std::vector<arma::uvec> & m_idx) {
-      E.zeros(F.n_rows);
-      C.zeros(F.n_rows,F.n_rows);
+    // Phase 5.12: Eigen matrices; m_idx kept arma::uvec until TwoDBasis
+    // ::get_sym_idx migrates.
+    void eig_gsym_sub(helfem::Vector & E, helfem::Matrix & C,
+                      const helfem::Matrix & F, const helfem::Matrix & Sinvh,
+                      const std::vector<arma::uvec> & m_idx, bool verbose) {
+      (void) verbose;
+      E = helfem::Vector::Zero(F.rows());
+      C = helfem::Matrix::Zero(F.rows(), F.rows());
 
-      size_t iidx=0;
-      // Loop over symmetries
-      for(size_t i=0;i<m_idx.size();i++) {
-        // Solve subproblem
-        arma::vec Esub;
-        arma::mat Csub;
-        arma::eig_sym(Esub,Csub,F(m_idx[i],m_idx[i]));
+      Eigen::Index iidx = 0;
+      for (size_t isym = 0; isym < m_idx.size(); ++isym) {
+        const auto rows = uvec_to_indices(m_idx[isym]);
+        // Scmp = Sinvh(rows, :).
+        const helfem::Matrix Scmp = Sinvh(rows, Eigen::all);
+        // Snrm(j) = ||Scmp.col(j)||.
+        helfem::Vector Snrm(Scmp.cols());
+        for (Eigen::Index j = 0; j < Scmp.cols(); ++j)
+          Snrm(j) = Scmp.col(j).norm();
+        // Sind = indices of columns with nonzero norm.
+        std::vector<Eigen::Index> Sind;
+        Sind.reserve(Snrm.size());
+        for (Eigen::Index j = 0; j < Snrm.size(); ++j)
+          if (Snrm(j) != 0.0) Sind.push_back(j);
 
-        // Store solutions
-        arma::uvec cidx(arma::linspace<arma::uvec>(iidx,iidx+Esub.n_elem-1,Esub.n_elem));
-        E(cidx)=Esub;
-        C(m_idx[i],cidx)=Csub;
-        iidx+=Esub.n_elem;
+        helfem::Vector Esub;
+        helfem::Matrix Csub;
+        const helfem::Matrix SinvhSub = Sinvh(Eigen::all, Sind);
+        eig_gsym(Esub, Csub, F, SinvhSub);
+
+        E.segment(iidx, Esub.size()) = Esub;
+        C.middleCols(iidx, Csub.cols()) = Csub;
+        iidx += Esub.size();
       }
-      if(iidx!=F.n_rows) {
+      if (iidx != F.rows()) {
         std::ostringstream oss;
-        oss << "Symmetry mismatch: expected " << F.n_rows << " vectors but got " << iidx << "!\n";
+        oss << "Symmetry mismatch: expected " << F.rows() << " vectors but got " << iidx << "!\n";
         throw std::logic_error(oss.str());
       }
 
-      // Sort energies
-      arma::uvec Eord=arma::sort_index(E,"ascend");
-      E=E(Eord);
-      C=C.cols(Eord);
+      // Sort energies ascending.
+      const auto Eord = sort_index_ascending(E);
+      const helfem::Vector Eold = E;
+      const helfem::Matrix Cold = C;
+      for (Eigen::Index i = 0; i < E.size(); ++i) {
+        E(i) = Eold(Eord[i]);
+        C.col(i) = Cold.col(Eord[i]);
+      }
+    }
+
+    void eig_sym_sub(helfem::Vector & E, helfem::Matrix & C,
+                     const helfem::Matrix & F, const std::vector<arma::uvec> & m_idx) {
+      E = helfem::Vector::Zero(F.rows());
+      C = helfem::Matrix::Zero(F.rows(), F.rows());
+
+      Eigen::Index iidx = 0;
+      for (size_t i = 0; i < m_idx.size(); ++i) {
+        const auto idx = uvec_to_indices(m_idx[i]);
+        // Subblock F(idx, idx).
+        const helfem::Matrix Fsub = F(idx, idx);
+        Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(Fsub);
+        if (es.info() != Eigen::Success)
+          throw std::logic_error("Subspace eigendecomposition failed!\n");
+        const helfem::Vector Esub = es.eigenvalues();
+        const helfem::Matrix Csub = es.eigenvectors();
+        // Place results: E[iidx:iidx+n] = Esub; C(idx, iidx:iidx+n) = Csub.
+        E.segment(iidx, Esub.size()) = Esub;
+        for (Eigen::Index k = 0; k < Csub.cols(); ++k)
+          for (size_t r = 0; r < idx.size(); ++r)
+            C(idx[r], iidx + k) = Csub(static_cast<Eigen::Index>(r), k);
+        iidx += Esub.size();
+      }
+      if (iidx != F.rows()) {
+        std::ostringstream oss;
+        oss << "Symmetry mismatch: expected " << F.rows() << " vectors but got " << iidx << "!\n";
+        throw std::logic_error(oss.str());
+      }
+
+      const auto Eord = sort_index_ascending(E);
+      const helfem::Vector Eold = E;
+      const helfem::Matrix Cold = C;
+      for (Eigen::Index i = 0; i < E.size(); ++i) {
+        E(i) = Eold(Eord[i]);
+        C.col(i) = Cold.col(Eord[i]);
+      }
     }
 
     void eig_sub_wrk(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, size_t Nact) {
