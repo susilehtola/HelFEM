@@ -95,22 +95,38 @@ namespace helfem {
         return ret;
       }
 
-      // Pre-bound evaluator for each BasisKind: a callable (x, iel) -> arma::mat
-      // suitable for FiniteElementBasis::matrix_element. The evaluator captures
-      // `this` only; it does not allocate per call beyond what fem.eval_*/get_*
-      // already does.
+      namespace {
+        // Phase 5.3 helpers: FiniteElementBasis::eval_f / eval_df / eval_d2f
+        // now take helfem::Vector and return helfem::Matrix. The
+        // matrix_element function-pointer overload still takes arma
+        // lambdas, so the make_evaluator below bridges per-call.
+        inline helfem::Vector arma_to_eigen_vec(const arma::vec & v) {
+          helfem::Vector e(v.n_elem);
+          std::memcpy(e.data(), v.memptr(), sizeof(double) * v.n_elem);
+          return e;
+        }
+        inline arma::mat eigen_mat_to_arma(const helfem::Matrix & m) {
+          arma::mat out(m.rows(), m.cols());
+          std::memcpy(out.memptr(), m.data(),
+                      sizeof(double) * static_cast<size_t>(m.size()));
+          return out;
+        }
+      } // namespace
+
+      // Pre-bound evaluator for each BasisKind. Bridges arma <-> Eigen
+      // at the per-call boundary; eval_* / get_* are now Eigen-typed.
       static std::function<arma::mat(const arma::vec &, size_t)>
       make_evaluator(const FEMRadialBasis * rb, FEMRadialBasis::BasisKind k) {
         using BK = FEMRadialBasis::BasisKind;
         switch (k) {
           case BK::B0: return [rb](const arma::vec & x, size_t iel) {
-            return rb->get_fem().eval_f(x, iel);
+            return eigen_mat_to_arma(rb->get_fem().eval_f(arma_to_eigen_vec(x), iel));
           };
           case BK::B1: return [rb](const arma::vec & x, size_t iel) {
-            return rb->get_fem().eval_df(x, iel);
+            return eigen_mat_to_arma(rb->get_fem().eval_df(arma_to_eigen_vec(x), iel));
           };
           case BK::B2: return [rb](const arma::vec & x, size_t iel) {
-            return rb->get_fem().eval_d2f(x, iel);
+            return eigen_mat_to_arma(rb->get_fem().eval_d2f(arma_to_eigen_vec(x), iel));
           };
           case BK::R0: return [rb](const arma::vec & x, size_t iel) {
             return rb->get_bf(x, iel);
@@ -170,10 +186,11 @@ namespace helfem {
                                  const arma::vec & x, size_t iel,
                                  FEMRadialBasis::BasisKind k) {
         using BK = FEMRadialBasis::BasisKind;
+        const helfem::Vector xe = arma_to_eigen_vec(x);
         switch (k) {
-          case BK::B0: return fem.eval_f(x, iel);
-          case BK::B1: return fem.eval_df(x, iel);
-          case BK::B2: return fem.eval_d2f(x, iel);
+          case BK::B0: return eigen_mat_to_arma(fem.eval_f  (xe, iel));
+          case BK::B1: return eigen_mat_to_arma(fem.eval_df (xe, iel));
+          case BK::B2: return eigen_mat_to_arma(fem.eval_d2f(xe, iel));
           case BK::R0: case BK::R1: case BK::R2:
             throw std::logic_error(
                 "FEMRadialBasis::matrix_element(cross-basis): R-kinds are not "
@@ -223,9 +240,13 @@ namespace helfem {
             const arma::vec r =
                 intmid * arma::ones<arma::vec>(xproj.n_elem) + intlen * xproj;
 
-            // Back-transform r into each basis's reference coords.
-            const arma::vec xi = fem.eval_prim(r, iel);
-            const arma::vec xj = rh.fem.eval_prim(r, jel);
+            // Back-transform r into each basis's reference coords
+            // (Phase 5.3: eval_prim is Eigen; bridge).
+            const helfem::Vector r_e = arma_to_eigen_vec(r);
+            const helfem::Vector xi_e = fem.eval_prim(r_e, iel);
+            const helfem::Vector xj_e = rh.fem.eval_prim(r_e, jel);
+            arma::vec xi(xi_e.size()); std::memcpy(xi.memptr(), xi_e.data(), sizeof(double) * xi_e.size());
+            arma::vec xj(xj_e.size()); std::memcpy(xj.memptr(), xj_e.data(), sizeof(double) * xj_e.size());
 
             arma::vec wtot = wproj * intlen;
             if (weight)
@@ -511,8 +532,8 @@ namespace helfem {
         // Get lh quadrature points
         arma::vec xi, wi;
         chebyshev::chebyshev(Nq, xi, wi);
-        // and basis function values
-        arma::mat ibf(fem.eval_f(xi, iel));
+        // and basis function values (Phase 5.3 bridge).
+        arma::mat ibf(eigen_mat_to_arma(fem.eval_f(arma_to_eigen_vec(xi), iel)));
         double Rmini(fem.element_begin(iel));
         double Rmaxi(fem.element_end(iel));
 
@@ -532,8 +553,8 @@ namespace helfem {
           // which have the renormalized weights
           wk.subvec(ii * Nq, (ii + 1) * Nq - 1) = wi * ilen;
         }
-        // and basis function values
-        arma::mat kbf(fem.eval_f(xk, kel));
+        // and basis function values (Phase 5.3 bridge).
+        arma::mat kbf(eigen_mat_to_arma(fem.eval_f(arma_to_eigen_vec(xk), kel)));
         double Rmink(fem.element_begin(kel));
         double Rmaxk(fem.element_end(kel));
 
@@ -574,7 +595,9 @@ namespace helfem {
           // Find the element we are in
           size_t iel = fem.find_element(r);
           // Find the value of the primitive coordinate
-          arma::vec x(fem.eval_prim(arma::vec({r}), iel));
+          helfem::Vector r_e(1); r_e(0) = r;
+          helfem::Vector xe = fem.eval_prim(r_e, iel);
+          arma::vec x(xe.size()); std::memcpy(x.memptr(), xe.data(), sizeof(double) * xe.size());
 
           // Evaluate the basis functions in the element
           arma::mat val(get_bf(x, iel));
@@ -587,14 +610,13 @@ namespace helfem {
       }
 
       arma::mat FEMRadialBasis::get_bf(const arma::vec & x, size_t iel) const {
-        // For the element starting at r=0 use the analytic eval_over_r path
-        // (B(r)/r evaluated by deflating the (x+1) factor that the Dirichlet
-        // BC at r=0 guarantees). For other elements r > 0 so direct division
-        // is numerically fine.
+        // Phase 5.3: fem.eval_* / eval_coord are Eigen; bridge.
+        const helfem::Vector xe = arma_to_eigen_vec(x);
         if (iel == 0)
-          return fem.eval_over_r(x, 0, iel);
-        arma::mat val(fem.eval_f(x, iel));
-        arma::vec r(fem.eval_coord(x, iel));
+          return eigen_mat_to_arma(fem.eval_over_r(xe, 0, iel));
+        arma::mat val(eigen_mat_to_arma(fem.eval_f(xe, iel)));
+        const helfem::Vector r_e = fem.eval_coord(xe, iel);
+        arma::vec r(r_e.size()); std::memcpy(r.memptr(), r_e.data(), sizeof(double) * r_e.size());
         for (size_t ifun = 0; ifun < val.n_cols; ifun++)
           for (size_t ir = 0; ir < x.n_elem; ir++)
             val(ir, ifun) /= r(ir);
@@ -606,11 +628,13 @@ namespace helfem {
       }
 
       arma::mat FEMRadialBasis::get_df(const arma::vec & x, size_t iel) const {
+        const helfem::Vector xe = arma_to_eigen_vec(x);
         if (iel == 0)
-          return fem.eval_over_r(x, 1, iel);
-        arma::mat fval(fem.eval_f(x, iel));
-        arma::mat dval(fem.eval_df(x, iel));
-        arma::vec r(fem.eval_coord(x, iel));
+          return eigen_mat_to_arma(fem.eval_over_r(xe, 1, iel));
+        arma::mat fval(eigen_mat_to_arma(fem.eval_f (xe, iel)));
+        arma::mat dval(eigen_mat_to_arma(fem.eval_df(xe, iel)));
+        const helfem::Vector r_e = fem.eval_coord(xe, iel);
+        arma::vec r(r_e.size()); std::memcpy(r.memptr(), r_e.data(), sizeof(double) * r_e.size());
         arma::mat der(fval.n_rows, fval.n_cols);
         for (size_t ifun = 0; ifun < der.n_cols; ifun++)
           for (size_t ir = 0; ir < x.n_elem; ir++) {
@@ -625,12 +649,14 @@ namespace helfem {
       }
 
       arma::mat FEMRadialBasis::get_lf(const arma::vec & x, size_t iel) const {
+        const helfem::Vector xe = arma_to_eigen_vec(x);
         if (iel == 0)
-          return fem.eval_over_r(x, 2, iel);
-        arma::mat fval(fem.eval_f(x, iel));
-        arma::mat dval(fem.eval_df(x, iel));
-        arma::mat lval(fem.eval_d2f(x, iel));
-        arma::vec r(fem.eval_coord(x, iel));
+          return eigen_mat_to_arma(fem.eval_over_r(xe, 2, iel));
+        arma::mat fval(eigen_mat_to_arma(fem.eval_f  (xe, iel)));
+        arma::mat dval(eigen_mat_to_arma(fem.eval_df (xe, iel)));
+        arma::mat lval(eigen_mat_to_arma(fem.eval_d2f(xe, iel)));
+        const helfem::Vector r_e = fem.eval_coord(xe, iel);
+        arma::vec r(r_e.size()); std::memcpy(r.memptr(), r_e.data(), sizeof(double) * r_e.size());
         arma::mat lapl(fval.n_rows, fval.n_cols);
         for (size_t ifun = 0; ifun < lapl.n_cols; ifun++)
           for (size_t ir = 0; ir < x.n_elem; ir++) {
@@ -655,7 +681,9 @@ namespace helfem {
       }
 
       arma::vec FEMRadialBasis::get_r(const arma::vec & x, size_t iel) const {
-        return fem.eval_coord(x, iel);
+        const helfem::Vector r_e = fem.eval_coord(arma_to_eigen_vec(x), iel);
+        arma::vec r(r_e.size()); std::memcpy(r.memptr(), r_e.data(), sizeof(double) * r_e.size());
+        return r;
       }
 
       double FEMRadialBasis::get_r(double x, size_t iel) const {
@@ -672,7 +700,7 @@ namespace helfem {
         x(0) = -1.0;
 
         // Evaluate derivative at nucleus
-        arma::mat der(fem.eval_df(x, 0));
+        arma::mat der(eigen_mat_to_arma(fem.eval_df(arma_to_eigen_vec(x), (size_t) 0)));
 
         // Radial functions in element
         size_t ifirst, ilast;
@@ -695,8 +723,8 @@ namespace helfem {
         x(0) = -1.0;
 
         // Evaluate derivative at nucleus
-        arma::mat der(fem.eval_df(x, 0));
-        arma::mat lapl(fem.eval_d2f(x, 0));
+        arma::mat der(eigen_mat_to_arma(fem.eval_df(arma_to_eigen_vec(x), (size_t) 0)));
+        arma::mat lapl(eigen_mat_to_arma(fem.eval_d2f(arma_to_eigen_vec(x), (size_t) 0)));
 
         // Radial functions in element
         size_t ifirst, ilast;
@@ -716,7 +744,7 @@ namespace helfem {
         x(0) = -1.0;
 
         // Derivative
-        arma::mat der(fem.eval_df(x, 0));
+        arma::mat der(eigen_mat_to_arma(fem.eval_df(arma_to_eigen_vec(x), (size_t) 0)));
         // Radial functions in element
         size_t ifirst, ilast;
         get_idx(0, ifirst, ilast);

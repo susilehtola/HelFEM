@@ -16,6 +16,29 @@
 #include "quadrature.h"
 #include "PolynomialBasis.h"
 #include "chebyshev.h"
+#include <ArmaEigen.h>
+#include <cstring>
+
+namespace {
+  // Phase 5.3 bridge: FiniteElementBasis::eval_* / eval_coord / eval_prim
+  // now take/return Eigen. Diatomic basis is still arma; bridge here.
+  inline helfem::Vector arma_to_eigen_vec(const arma::vec & v) {
+    helfem::Vector e(v.n_elem);
+    std::memcpy(e.data(), v.memptr(), sizeof(double) * v.n_elem);
+    return e;
+  }
+  inline arma::vec eigen_vec_to_arma(const helfem::Vector & v) {
+    arma::vec a(v.size());
+    std::memcpy(a.memptr(), v.data(), sizeof(double) * v.size());
+    return a;
+  }
+  inline arma::mat eigen_mat_to_arma(const helfem::Matrix & m) {
+    arma::mat out(m.rows(), m.cols());
+    std::memcpy(out.memptr(), m.data(),
+                sizeof(double) * static_cast<size_t>(m.size()));
+    return out;
+  }
+} // namespace
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
 #include "../general/gsz.h"
@@ -160,8 +183,8 @@ namespace helfem {
 	    arma::vec mu(intmid*arma::ones<arma::vec>(xproj.n_elem)+intlen*xproj);
 
             // Calculate x values the polynomials should be evaluated at
-            arma::vec xi(fem.eval_prim(mu, iel));
-	    arma::vec xj(rh.fem.eval_prim(mu, jel));
+            arma::vec xi(eigen_vec_to_arma(fem.eval_prim(arma_to_eigen_vec(mu), iel)));
+	    arma::vec xj(eigen_vec_to_arma(rh.fem.eval_prim(arma_to_eigen_vec(mu), jel)));
 
 	    // Where are we in the matrix?
 	    size_t ifirst, ilast;
@@ -175,8 +198,8 @@ namespace helfem {
 	    if(n!=0)
 	      wtot%=arma::pow(arma::cosh(mu),n);
 	    // Put in weight
-	    arma::mat ibf(fem.eval_f(xi, iel));
-	    arma::mat jbf(rh.fem.eval_f(xj, jel));
+	    arma::mat ibf(eigen_mat_to_arma(fem.eval_f(arma_to_eigen_vec(xi), iel)));
+	    arma::mat jbf(eigen_mat_to_arma(rh.fem.eval_f(arma_to_eigen_vec(xj), jel)));
 
 	    // Perform quadrature
             arma::mat s(arma::trans(ibf)*arma::diagmat(wtot)*jbf);
@@ -267,11 +290,11 @@ namespace helfem {
       }
 
       arma::mat RadialBasis::get_bf(size_t iel, const arma::vec & x) const {
-        return fem.eval_f(x, iel);
+        return eigen_mat_to_arma(fem.eval_f(arma_to_eigen_vec(x), iel));
       }
 
       arma::mat RadialBasis::get_df(size_t iel) const {
-        return fem.eval_df(xq, iel);
+        return eigen_mat_to_arma(fem.eval_df(arma_to_eigen_vec(xq), iel));
       }
 
       arma::vec RadialBasis::get_wrad(size_t iel) const {
@@ -280,7 +303,7 @@ namespace helfem {
       }
 
       arma::vec RadialBasis::get_r(size_t iel) const {
-        return fem.eval_coord(xq, iel);
+        return eigen_vec_to_arma(fem.eval_coord(arma_to_eigen_vec(xq), iel));
       }
 
       void lm_to_l_m(const arma::ivec & lmax, arma::ivec & lval, arma::ivec & mval) {

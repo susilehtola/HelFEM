@@ -19,6 +19,7 @@
 #include <armadillo>
 #include <memory>
 #include "PolynomialBasis.h"
+#include "Matrix.h"
 
 namespace helfem {
   namespace polynomial_basis {
@@ -92,15 +93,16 @@ namespace helfem {
       /// Find the element the point is at
       size_t find_element(double x) const;
 
+      // Phase 5.3: per-element evaluators migrated arma -> Eigen.
       /// Evaluate real coordinate values from primitive coordinates
-      arma::vec eval_coord(const arma::vec & xprim, size_t iel) const;
+      helfem::Vector eval_coord(const helfem::Vector & xprim, size_t iel) const;
       /// Evaluate real coordinate values from primitive coordinates
       double eval_coord(double xprim, size_t iel) const;
       /// Evaluate full set of coordinate valuess from primitive coordinates
-      arma::vec eval_coord(const arma::vec & xq) const;
+      helfem::Vector eval_coord(const helfem::Vector & xq) const;
 
       /// Evaluate primitive coordinate values from real coordinates
-      arma::vec eval_prim(const arma::vec & xreal, size_t iel) const;
+      helfem::Vector eval_prim(const helfem::Vector & xreal, size_t iel) const;
 
       /// Evaluate full set of weights for primitive weights
       arma::vec eval_weights(const arma::vec & wq) const;
@@ -121,44 +123,44 @@ namespace helfem {
       size_t get_nelem() const;
 
       /// Evaluate polynomials at given points
-      void eval_f(const arma::vec & x, arma::mat & f, size_t iel) const;
+      void eval_f  (const helfem::Vector & x, helfem::Matrix & f,   size_t iel) const;
       /// Evaluate derivatives of polynomials at given points
-      void eval_df(const arma::vec & x, arma::mat & df, size_t iel) const;
+      void eval_df (const helfem::Vector & x, helfem::Matrix & df,  size_t iel) const;
       /// Evaluate second derivatives of polynomials at given points
-      void eval_d2f(const arma::vec & x, arma::mat & d2f, size_t iel) const;
+      void eval_d2f(const helfem::Vector & x, helfem::Matrix & d2f, size_t iel) const;
       /// Evaluate third derivatives of polynomials at given points
-      void eval_d3f(const arma::vec & x, arma::mat & d3f, size_t iel) const;
+      void eval_d3f(const helfem::Vector & x, helfem::Matrix & d3f, size_t iel) const;
       /// Evaluate fourth derivatives of polynomials at given points
-      void eval_d4f(const arma::vec & x, arma::mat & d4f, size_t iel) const;
+      void eval_d4f(const helfem::Vector & x, helfem::Matrix & d4f, size_t iel) const;
       /// Evaluate fifth derivatives of polynomials at given points
-      void eval_d5f(const arma::vec & x, arma::mat & d5f, size_t iel) const;
+      void eval_d5f(const helfem::Vector & x, helfem::Matrix & d5f, size_t iel) const;
       /// Evaluate nth derivative
-      void eval_dnf(const arma::vec & x, arma::mat & dnf, int n, size_t iel) const;
+      void eval_dnf(const helfem::Vector & x, helfem::Matrix & dnf, int n, size_t iel) const;
 
       /// Evaluate polynomials at given points
-      arma::mat eval_f(const arma::vec & x, size_t iel) const;
+      helfem::Matrix eval_f  (const helfem::Vector & x, size_t iel) const;
       /// Evaluate derivatives of polynomials at given points
-      arma::mat eval_df(const arma::vec & x, size_t iel) const;
+      helfem::Matrix eval_df (const helfem::Vector & x, size_t iel) const;
       /// Evaluate second derivatives of polynomials at given points
-      arma::mat eval_d2f(const arma::vec & x, size_t iel) const;
+      helfem::Matrix eval_d2f(const helfem::Vector & x, size_t iel) const;
       /// Evaluate third derivatives of polynomials at given points
-      arma::mat eval_d3f(const arma::vec & x, size_t iel) const;
+      helfem::Matrix eval_d3f(const helfem::Vector & x, size_t iel) const;
       /// Evaluate fourth derivatives of polynomials at given points
-      arma::mat eval_d4f(const arma::vec & x, size_t iel) const;
+      helfem::Matrix eval_d4f(const helfem::Vector & x, size_t iel) const;
       /// Evaluate fifth derivatives of polynomials at given points
-      arma::mat eval_d5f(const arma::vec & x, size_t iel) const;
+      helfem::Matrix eval_d5f(const helfem::Vector & x, size_t iel) const;
       /// Evaluate nth derivative
-      arma::mat eval_dnf(const arma::vec & x, int n, size_t iel) const;
+      helfem::Matrix eval_dnf(const helfem::Vector & x, int n, size_t iel) const;
 
       /// Evaluate the nth derivative at all quadrature points
-      arma::mat eval_dnf(const arma::vec & xq, int n) const;
+      helfem::Matrix eval_dnf(const helfem::Vector & xq, int n) const;
 
       /// Evaluate the n-th r-derivative of B_u(r)/r for the surviving shape
       /// functions on element iel. Only valid when element iel starts at
       /// r=0 (the Dirichlet-induced (x+1) factor in each B_u is what makes
       /// the deflation work). Delegates to PolynomialBasis::eval_over_r
       /// with the element's scaling_factor as the size argument.
-      arma::mat eval_over_r(const arma::vec & x, int n, size_t iel) const;
+      helfem::Matrix eval_over_r(const helfem::Vector & x, int n, size_t iel) const;
 
       /**
        * Compute matrix elements in the finite element basis <lh|f|rh>

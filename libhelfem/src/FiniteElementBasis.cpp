@@ -57,13 +57,18 @@ namespace helfem {
       arma::vec dnorm(get_nelem()-1);
       for(size_t iel=0; iel+1<get_nelem(); iel++) {
         // Points that correspond to lh and rh elements
-        arma::vec xrh(1), xlh(1);
-        xlh(0)=1.0;  // right-most point of left element
-        xrh(0)=-1.0; // should equal left-most point of right element
+        // Phase 5.3: eval_coord / eval_dnf now Eigen; build the
+        // 1-element x vectors as Eigen for direct use, materialise
+        // arma copies only for the existing logging code.
+        helfem::Vector xlh_e(1), xrh_e(1);
+        xlh_e(0) = 1.0;
+        xrh_e(0) = -1.0;
 
         /// Check that coordinates match
-        arma::vec rlh(eval_coord(xlh, iel));
-        arma::vec rrh(eval_coord(xrh, iel+1));
+        helfem::Vector rlh_e = eval_coord(xlh_e, iel);
+        helfem::Vector rrh_e = eval_coord(xrh_e, iel + 1);
+        arma::vec rlh(rlh_e.size()); std::memcpy(rlh.memptr(), rlh_e.data(), sizeof(double) * rlh_e.size());
+        arma::vec rrh(rrh_e.size()); std::memcpy(rrh.memptr(), rrh_e.data(), sizeof(double) * rrh_e.size());
         double dr(arma::norm(rlh-rrh,2));
         if(dr > 10*DBL_EPSILON*(1+arma::norm(rlh,2))) {
           rlh.print("rlh");
@@ -78,7 +83,9 @@ namespace helfem {
         arma::mat lh(noverlap, noverlap);
         for(int ider=0;ider<noverlap;ider++) {
           // We want the last noverlap functions evaluated at the r
-          arma::rowvec fval(eval_dnf(xlh, ider, iel));
+          helfem::Matrix fval_e = eval_dnf(xlh_e, ider, iel);
+          arma::rowvec fval(fval_e.cols());
+          std::memcpy(fval.memptr(), fval_e.data(), sizeof(double) * fval_e.size());
           lh.col(ider) = fval.subvec(fval.n_elem-noverlap, fval.n_elem-1).t();
         }
 
@@ -86,7 +93,9 @@ namespace helfem {
         arma::mat rh(noverlap, noverlap);
         for(int ider=0;ider<noverlap;ider++) {
           // We want the first noverlap functions
-          arma::rowvec fval(eval_dnf(xrh, ider, iel+1));
+          helfem::Matrix fval_e = eval_dnf(xrh_e, ider, iel + 1);
+          arma::rowvec fval(fval_e.cols());
+          std::memcpy(fval.memptr(), fval_e.data(), sizeof(double) * fval_e.size());
           rh.col(ider) = fval.subvec(0, noverlap-1).t();
         }
 
@@ -200,20 +209,19 @@ namespace helfem {
       return bval;
     }
 
-    arma::vec FiniteElementBasis::eval_coord(const arma::vec & x, size_t iel) const {
-      // The coordinates are
-      return element_midpoint(iel) * arma::ones<arma::vec>(x.n_elem) + scaling_factor(iel) * x;
+    // Phase 5.3: per-element evaluators migrated arma -> Eigen.
+    helfem::Vector FiniteElementBasis::eval_coord(const helfem::Vector & x, size_t iel) const {
+      return helfem::Vector::Constant(x.size(), element_midpoint(iel)) + scaling_factor(iel) * x;
     }
 
     double FiniteElementBasis::eval_coord(double x, size_t iel) const {
-      // The coordinates are
       return element_midpoint(iel) + scaling_factor(iel) * x;
     }
 
-    arma::vec FiniteElementBasis::eval_coord(const arma::vec & x) const {
-      arma::vec r(get_nelem()*x.n_elem);
-      for(size_t iel=0;iel<get_nelem();iel++)
-        r.subvec(iel*x.n_elem, (iel+1)*x.n_elem-1) = eval_coord(x, iel);
+    helfem::Vector FiniteElementBasis::eval_coord(const helfem::Vector & x) const {
+      helfem::Vector r(get_nelem() * x.size());
+      for (size_t iel = 0; iel < get_nelem(); ++iel)
+        r.segment(iel * x.size(), x.size()) = eval_coord(x, iel);
       return r;
     }
 
@@ -224,12 +232,11 @@ namespace helfem {
       return wr;
     }
 
-    arma::vec FiniteElementBasis::eval_prim(const arma::vec & y, size_t iel) const {
-      if(arma::min(y) < element_begin(iel) || arma::max(y) > element_end(iel)) {
+    helfem::Vector FiniteElementBasis::eval_prim(const helfem::Vector & y, size_t iel) const {
+      if (y.minCoeff() < element_begin(iel) || y.maxCoeff() > element_end(iel)) {
         throw std::logic_error("coordinates don't correspond to this element!\n");
       }
-      // The primitive coordinates are thus
-      return ((y - element_midpoint(iel) * arma::ones<arma::vec>(y.n_elem)) / scaling_factor(iel));
+      return (y - helfem::Vector::Constant(y.size(), element_midpoint(iel))) / scaling_factor(iel);
     }
 
     int FiniteElementBasis::get_poly_id() const {
@@ -286,73 +293,55 @@ namespace helfem {
       return get_basis(iel)->get_nbf();
     }
 
-    void FiniteElementBasis::eval_f(const arma::vec & x, arma::mat & f, size_t iel) const {
-      eval_dnf(x,f,0,iel);
-   }
+    // Phase 5.3: eval_* migrated to Eigen; internal lib1dfem call no longer
+    // bridges (its signature matches).
+    void FiniteElementBasis::eval_f  (const helfem::Vector & x, helfem::Matrix & f,   size_t iel) const { eval_dnf(x, f,   0, iel); }
+    void FiniteElementBasis::eval_df (const helfem::Vector & x, helfem::Matrix & df,  size_t iel) const { eval_dnf(x, df,  1, iel); }
+    void FiniteElementBasis::eval_d2f(const helfem::Vector & x, helfem::Matrix & d2f, size_t iel) const { eval_dnf(x, d2f, 2, iel); }
+    void FiniteElementBasis::eval_d3f(const helfem::Vector & x, helfem::Matrix & d3f, size_t iel) const { eval_dnf(x, d3f, 3, iel); }
+    void FiniteElementBasis::eval_d4f(const helfem::Vector & x, helfem::Matrix & d4f, size_t iel) const { eval_dnf(x, d4f, 4, iel); }
+    void FiniteElementBasis::eval_d5f(const helfem::Vector & x, helfem::Matrix & d5f, size_t iel) const { eval_dnf(x, d5f, 5, iel); }
 
-    void FiniteElementBasis::eval_df(const arma::vec & x, arma::mat & df, size_t iel) const {
-      eval_dnf(x,df,1,iel);
-    }
-
-    void FiniteElementBasis::eval_d2f(const arma::vec & x, arma::mat & d2f, size_t iel) const {
-      eval_dnf(x,d2f,2,iel);
-    }
-
-    void FiniteElementBasis::eval_dnf(const arma::vec & x, arma::mat & dnf, int n, size_t iel) const {
-      // Phase 5.2: lib1dfem eval_dnf takes/returns Eigen. Bridge here.
+    void FiniteElementBasis::eval_dnf(const helfem::Vector & x, helfem::Matrix & dnf, int n, size_t iel) const {
+      // helfem::Vector == lib1dfem::Vec<double>, same for Matrix; no
+      // conversion needed.
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      lib1dfem::Vec<double> xe(x.n_elem);
-      std::memcpy(xe.data(), x.memptr(), sizeof(double) * x.n_elem);
-      lib1dfem::Mat<double> dnf_e;
-      p->eval_dnf(xe, dnf_e, n, scaling_factor(iel));
-      dnf.set_size(dnf_e.rows(), dnf_e.cols());
-      std::memcpy(dnf.memptr(), dnf_e.data(),
-                  sizeof(double) * static_cast<size_t>(dnf_e.size()));
+      p->eval_dnf(x, dnf, n, scaling_factor(iel));
     }
 
-    arma::mat FiniteElementBasis::eval_f(const arma::vec & x, size_t iel) const {
-      return eval_dnf(x,0,iel);
-    }
+    helfem::Matrix FiniteElementBasis::eval_f  (const helfem::Vector & x, size_t iel) const { return eval_dnf(x, 0, iel); }
+    helfem::Matrix FiniteElementBasis::eval_df (const helfem::Vector & x, size_t iel) const { return eval_dnf(x, 1, iel); }
+    helfem::Matrix FiniteElementBasis::eval_d2f(const helfem::Vector & x, size_t iel) const { return eval_dnf(x, 2, iel); }
+    helfem::Matrix FiniteElementBasis::eval_d3f(const helfem::Vector & x, size_t iel) const { return eval_dnf(x, 3, iel); }
+    helfem::Matrix FiniteElementBasis::eval_d4f(const helfem::Vector & x, size_t iel) const { return eval_dnf(x, 4, iel); }
+    helfem::Matrix FiniteElementBasis::eval_d5f(const helfem::Vector & x, size_t iel) const { return eval_dnf(x, 5, iel); }
 
-    arma::mat FiniteElementBasis::eval_df(const arma::vec & x, size_t iel) const {
-      return eval_dnf(x,1,iel);
-    }
-
-    arma::mat FiniteElementBasis::eval_d2f(const arma::vec & x, size_t iel) const {
-      return eval_dnf(x,2,iel);
-    }
-
-    arma::mat FiniteElementBasis::eval_dnf(const arma::vec & x, int n, size_t iel) const {
-      arma::mat dnf;
+    helfem::Matrix FiniteElementBasis::eval_dnf(const helfem::Vector & x, int n, size_t iel) const {
+      helfem::Matrix dnf;
       eval_dnf(x, dnf, n, iel);
       return dnf;
     }
 
-    arma::mat FiniteElementBasis::eval_over_r(const arma::vec & x, int n, size_t iel) const {
+    helfem::Matrix FiniteElementBasis::eval_over_r(const helfem::Vector & x, int n, size_t iel) const {
       if (std::abs(element_begin(iel)) > 1e-14) {
         std::ostringstream oss;
         oss << "FiniteElementBasis::eval_over_r is only valid when the element starts at r=0;"
             " element " << iel << " starts at " << element_begin(iel) << ".\n";
         throw std::logic_error(oss.str());
       }
-      // Phase 5.2: lib1dfem eval_over_r takes/returns Eigen. Bridge.
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
-      lib1dfem::Vec<double> xe(x.n_elem);
-      std::memcpy(xe.data(), x.memptr(), sizeof(double) * x.n_elem);
-      lib1dfem::Mat<double> dnf_e;
-      p->eval_over_r(xe, dnf_e, n, scaling_factor(iel));
-      arma::mat dnf_over_r(dnf_e.rows(), dnf_e.cols());
-      std::memcpy(dnf_over_r.memptr(), dnf_e.data(),
-                  sizeof(double) * static_cast<size_t>(dnf_e.size()));
+      helfem::Matrix dnf_over_r;
+      p->eval_over_r(x, dnf_over_r, n, scaling_factor(iel));
       return dnf_over_r;
     }
 
-    arma::mat FiniteElementBasis::eval_dnf(const arma::vec & x, int n) const {
-      arma::mat f(get_nelem()*x.n_elem,get_nbf());
-      for(size_t iel=0;iel<get_nelem();iel++) {
-        size_t ifirst = first_func_in_element(iel);
-        size_t ilast = last_func_in_element(iel);
-        f.submat(iel*x.n_elem, ifirst, (iel+1)*x.n_elem-1, ilast) = eval_dnf(x, n, iel);
+    helfem::Matrix FiniteElementBasis::eval_dnf(const helfem::Vector & x, int n) const {
+      helfem::Matrix f(get_nelem() * x.size(), get_nbf());
+      f.setZero();
+      for (size_t iel = 0; iel < get_nelem(); ++iel) {
+        const Eigen::Index ifirst = static_cast<Eigen::Index>(first_func_in_element(iel));
+        const Eigen::Index ilast  = static_cast<Eigen::Index>(last_func_in_element(iel));
+        f.block(iel * x.size(), ifirst, x.size(), ilast - ifirst + 1) = eval_dnf(x, n, iel);
       }
       return f;
     }
@@ -405,15 +394,34 @@ namespace helfem {
       return V;
     }
 
+    namespace {
+      // Phase 5.3 bridge: matrix_element's function-pointer overload takes
+      // arma::mat-returning lambdas, but eval_dnf is now Eigen-typed. Wrap
+      // the eval_dnf result through to_arma so the function-pointer
+      // overload's signature stays unchanged.
+      inline std::function<arma::mat(const arma::vec &, size_t)>
+      make_arma_eval_dnf(const FiniteElementBasis * fe, int der) {
+        return [fe, der](const arma::vec & xa, size_t iel) {
+          helfem::Vector xe(xa.n_elem);
+          std::memcpy(xe.data(), xa.memptr(), sizeof(double) * xa.n_elem);
+          helfem::Matrix me = fe->eval_dnf(xe, der, iel);
+          arma::mat out(me.rows(), me.cols());
+          std::memcpy(out.memptr(), me.data(),
+                      sizeof(double) * static_cast<size_t>(me.size()));
+          return out;
+        };
+      }
+    } // namespace
+
     arma::mat FiniteElementBasis::matrix_element(int lhder, int rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      std::function<arma::mat(const arma::vec &,size_t)> eval_lh = [this,lhder](const arma::vec & x, size_t iel) {return this->eval_dnf(x, lhder, iel);};
-      std::function<arma::mat(const arma::vec &,size_t)> eval_rh = [this,rhder](const arma::vec & x, size_t iel) {return this->eval_dnf(x, rhder, iel);};
+      auto eval_lh = make_arma_eval_dnf(this, lhder);
+      auto eval_rh = make_arma_eval_dnf(this, rhder);
       return matrix_element(eval_lh, eval_rh, xq, wq, f);
     }
 
     arma::mat FiniteElementBasis::matrix_element(size_t iel, int lhder, int rhder, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      std::function<arma::mat(const arma::vec &,size_t)> eval_lh = [this,lhder](const arma::vec & x, size_t iel) {return this->eval_dnf(x, lhder, iel);};
-      std::function<arma::mat(const arma::vec &,size_t)> eval_rh = [this,rhder](const arma::vec & x, size_t iel) {return this->eval_dnf(x, rhder, iel);};
+      auto eval_lh = make_arma_eval_dnf(this, lhder);
+      auto eval_rh = make_arma_eval_dnf(this, rhder);
       return matrix_element(iel, eval_lh, eval_rh, xq, wq, f);
     }
 
@@ -422,8 +430,12 @@ namespace helfem {
       // todo: figure out how to transform xq from [-1,1] to [x_left, x_right] and the same transformation for wq
       arma::vec x_shifted((x_right-x_left)/2.0*xq + (x_right+x_left)/2.0*arma::ones<arma::vec>(xq.n_elem));
 
-      // Get coordinate values
-      arma::vec r(eval_coord(x_shifted, iel));
+      // Get coordinate values (Phase 5.3: eval_coord is Eigen).
+      helfem::Vector xs_e(x_shifted.n_elem);
+      std::memcpy(xs_e.data(), x_shifted.memptr(), sizeof(double) * x_shifted.n_elem);
+      helfem::Vector r_e = eval_coord(xs_e, iel);
+      arma::vec r(r_e.size());
+      std::memcpy(r.memptr(), r_e.data(), sizeof(double) * r_e.size());
       // Calculate total weight per point
       arma::vec wp(wq*scaling_factor(iel)*(x_right-x_left)/2.0);
       // Include the function
@@ -448,8 +460,12 @@ namespace helfem {
     }
 
     arma::vec FiniteElementBasis::vector_element(size_t iel, const std::function<arma::mat(arma::vec,size_t)> & eval_bf, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      // Get coordinate values
-      arma::vec r(eval_coord(xq, iel));
+      // Get coordinate values (Phase 5.3 bridge).
+      helfem::Vector xq_e(xq.n_elem);
+      std::memcpy(xq_e.data(), xq.memptr(), sizeof(double) * xq.n_elem);
+      helfem::Vector r_e = eval_coord(xq_e, iel);
+      arma::vec r(r_e.size());
+      std::memcpy(r.memptr(), r_e.data(), sizeof(double) * r_e.size());
       // Calculate total weight per point
       arma::vec wp(wq*scaling_factor(iel));
       // Include the function
@@ -467,12 +483,12 @@ namespace helfem {
     }
 
     arma::vec FiniteElementBasis::vector_element(int der, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      std::function<arma::mat(const arma::vec &,size_t)> eval_f = [this,der](const arma::vec & x, size_t iel) {return this->eval_dnf(x, der, iel);};
+      auto eval_f = make_arma_eval_dnf(this, der);
       return vector_element(eval_f, xq, wq, f);
     }
 
     arma::vec FiniteElementBasis::vector_element(size_t iel, int der, const arma::vec & xq, const arma::vec & wq, const std::function<double(double)> & f) const {
-      std::function<arma::mat(const arma::vec &,size_t)> eval_f = [this,der](const arma::vec & x, size_t iel) {return this->eval_dnf(x, der, iel);};
+      auto eval_f = make_arma_eval_dnf(this, der);
       return vector_element(iel, eval_f, xq, wq, f);
     }
 
