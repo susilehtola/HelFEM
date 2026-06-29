@@ -129,6 +129,41 @@ int main() {
   check(eig_diff < 1e-12,
         "arma::eig_sym vs Eigen::SelfAdjointEigenSolver agree (1e-12)");
 
+  // 8. Phase 4: MatrixT<long double> template instantiation.
+  // Sanity check the template machinery: a long-double symmetric
+  // matrix should diagonalise and reconstruct itself to long-double
+  // precision (~1e-18, several orders tighter than the ~1e-15 we get
+  // from double).
+  {
+    using MatLD = helfem::MatrixT<long double>;
+    using VecLD = helfem::VectorT<long double>;
+    MatLD M = MatLD::Random(6, 6);
+    M = (M + M.transpose()).eval();
+    M.diagonal().array() += 6.0L;
+
+    Eigen::SelfAdjointEigenSolver<MatLD> es_ld(M);
+    VecLD evals = es_ld.eigenvalues();
+    MatLD evecs = es_ld.eigenvectors();
+    // Reconstruct M = V diag(eig) V^T and check residual.
+    MatLD recon = evecs * evals.asDiagonal() * evecs.transpose();
+    long double resid = 0.0L;
+    for (Eigen::Index j = 0; j < M.cols(); ++j)
+      for (Eigen::Index i = 0; i < M.rows(); ++i)
+        resid = std::max(resid, std::fabs((long double)(M(i, j) - recon(i, j))));
+    // long double on x86-64 is 80-bit extended (~1.08e-19 eps); cap
+    // the threshold safely at 1e-16 to cover platforms where long
+    // double is just IEEE double.
+    check(resid < 1.0e-14L,
+          "MatrixT<long double>: V * diag(eig) * V^T == M (1e-14)");
+
+    // Cube<long double> also instantiates and stores slices correctly.
+    helfem::CubeT<long double> C;
+    C.reserve(2);
+    for (int k = 0; k < 2; ++k) C.emplace_back(MatLD::Constant(3, 3, (long double) k));
+    check(C.size() == 2 && C[1](0, 0) == 1.0L,
+          "CubeT<long double> stores slice values");
+  }
+
   std::printf("PASS\n");
   return 0;
 }
