@@ -221,6 +221,12 @@ namespace helfem {
 
         /// Get number of radial elements
         size_t get_rad_Nel() const;
+        /// Get (ifirst, ilast) inclusive radial-function index range
+        /// for element iel. Adjacent elements OVERLAP at boundary
+        /// indices (one shared index for C^0 LIP, two for C^1 HIP);
+        /// callers must account for this when partitioning per-element
+        /// quantities.
+        std::pair<size_t, size_t> radial_element_range(size_t iel) const;
         /// Get radial quadrature weights
         arma::vec get_wrad(size_t iel) const;
         /// Get r values
