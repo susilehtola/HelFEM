@@ -51,8 +51,8 @@ namespace helfem {
     /// previous iterative path).
     void eig_iter(helfem::Vector & E, helfem::Matrix & Cocc, helfem::Matrix & Cvirt, const helfem::Matrix & F, const helfem::Matrix & Sinvh, size_t nocc, size_t neig, size_t nsub, int maxit, double convthr);
 
-    /// Random perturbation
-    arma::mat perturbation_matrix(size_t N, double ampl);
+    /// Random perturbation (Phase 5.15: Eigen-typed).
+    helfem::Matrix perturbation_matrix(size_t N, double ampl);
 
     /// Form natural orbitals
     void form_NOs(const arma::mat & P, const arma::mat & Sh, const arma::mat & Sinvh, arma::mat & AO_to_NO, arma::mat & NO_to_AO, arma::vec & occs);
@@ -69,8 +69,8 @@ namespace helfem {
     /// Parse number of alpha and beta electrons
     void parse_nela_nelb(int & nela, int & nelb, int & Q, int & M, int Z);
 
-    /// Parse xc parameters
-    arma::vec parse_xc_params(const std::string & input);
+    /// Parse xc parameters (Phase 5.15: Eigen-typed).
+    helfem::Vector parse_xc_params(const std::string & input);
   }
 }
 

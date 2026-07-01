@@ -17,6 +17,9 @@
 #include <ArmaEigen.h>
 #include <Eigen/Eigenvalues>
 #include <cfloat>
+#include <fstream>
+#include <random>
+#include <sstream>
 
 namespace helfem {
   namespace scf {
@@ -412,21 +415,33 @@ namespace helfem {
         Cvirt.resize(eigvec.rows(), 0);
     }
 
-    arma::mat perturbation_matrix(size_t N, double ampl) {
-      arma::mat R(N,N);
-      // Uniform distribution
-      R.randu();
-      // Apply amplitude and antisymmetrize
-      R=0.5*ampl*(R-R.t());
-      // Eigendecompose
-      arma::vec Rval;
-      arma::cx_mat Rvec;
-      bool diagok=arma::eig_sym(Rval,Rvec,std::complex<double>(0.0,-1.0)*R);
-      if(!diagok)
-        throw std::runtime_error("Error diagonalizing R.\n");
+    // Phase 5.15: Eigen-typed.
+    helfem::Matrix perturbation_matrix(size_t N, double ampl) {
+      // Random N x N with uniform values in [0, 1). Matches arma::randu()
+      // semantics; a fresh mt19937 per call also matches arma's default.
+      static std::mt19937 rng(0x517cc1b7);
+      std::uniform_real_distribution<double> uni(0.0, 1.0);
+      helfem::Matrix R(static_cast<Eigen::Index>(N),
+                        static_cast<Eigen::Index>(N));
+      for (Eigen::Index i = 0; i < R.rows(); ++i)
+        for (Eigen::Index j = 0; j < R.cols(); ++j)
+          R(i, j) = uni(rng);
+      // Antisymmetrise and scale.
+      R = 0.5 * ampl * (R - R.transpose()).eval();
 
-      // Rotation matrix is given by
-      return arma::real(Rvec*arma::diagmat(arma::exp(std::complex<double>(0.0,1.0)*Rval))*arma::trans(Rvec));
+      // Eigendecompose iR (Hermitian since R is real antisymmetric).
+      using CMat = Eigen::MatrixXcd;
+      const CMat iR = std::complex<double>(0.0, 1.0) * R;
+      Eigen::SelfAdjointEigenSolver<CMat> es(iR);
+      if (es.info() != Eigen::Success)
+        throw std::runtime_error("Error diagonalizing R.\n");
+      const Eigen::VectorXd Rval = es.eigenvalues();          // real
+      const CMat Rvec = es.eigenvectors();                    // complex
+
+      // Rotation matrix: Re( Rvec * diag(exp(i Rval)) * Rvec^H ).
+      const Eigen::VectorXcd expiR = (std::complex<double>(0.0, 1.0) * Rval)
+                                        .array().exp().matrix();
+      return (Rvec * expiR.asDiagonal() * Rvec.adjoint()).real();
     }
 
     void form_NOs(const arma::mat & P, const arma::mat & Sh, const arma::mat & Sinvh, arma::mat & AO_to_NO, arma::mat & NO_to_AO, arma::vec & occs) {
@@ -595,24 +610,32 @@ namespace helfem {
       }
     }
 
-    arma::vec parse_xc_params(const std::string & input) {
-      arma::vec r;
-      if(input.size()) {
-        // Is this a file name?
-        bool isfile;
-        {
-          std::ifstream f(input.c_str());
-          isfile = f.good();
-        }
-        if(isfile) {
-          // Load the file
-          r.load(input,arma::raw_ascii);
-        } else {
-          // Assume string input
-          r = arma::vec(input);
-        }
+    // Phase 5.15: Eigen-typed. Parses either a whitespace-separated
+    // ASCII file or a string of doubles.
+    helfem::Vector parse_xc_params(const std::string & input) {
+      helfem::Vector r;
+      if (!input.size()) return r;
+
+      bool isfile;
+      {
+        std::ifstream probe(input.c_str());
+        isfile = probe.good();
       }
 
+      std::vector<double> vals;
+      if (isfile) {
+        std::ifstream f(input.c_str());
+        double x;
+        while (f >> x) vals.push_back(x);
+      } else {
+        std::istringstream iss(input);
+        double x;
+        while (iss >> x) vals.push_back(x);
+      }
+
+      r.resize(static_cast<Eigen::Index>(vals.size()));
+      for (size_t i = 0; i < vals.size(); ++i)
+        r(static_cast<Eigen::Index>(i)) = vals[i];
       return r;
     }
   }

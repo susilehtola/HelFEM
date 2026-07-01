@@ -263,11 +263,11 @@ int main(int argc, char **argv) {
   // Set parameters if necessary
   arma::vec xpars, cpars;
   if(xparf.size()) {
-    xpars = scf::parse_xc_params(xparf);
+    xpars = helfem::to_arma(scf::parse_xc_params(xparf));
     xpars.t().print("Exchange functional parameters");
   }
   if(cparf.size()) {
-    cpars = scf::parse_xc_params(cparf);
+    cpars = helfem::to_arma(scf::parse_xc_params(cparf));
     cpars.t().print("Correlation functional parameters");
   }
   solver.set_params(xpars,cpars);
