@@ -175,6 +175,23 @@ else()
     message(STATUS "Using system wignernj (${wignernj_VERSION})")
 endif()
 
+# OpenOrbitalOptimizer: header-only SCF-convergence library. Used by the
+# per-suite _ooo executables (sadatom_ooo, atomic_ooo, ...). Prefer a
+# system-installed copy, otherwise FetchContent from the upstream repo.
+find_package(OpenOrbitalOptimizer QUIET)
+if(NOT OpenOrbitalOptimizer_FOUND)
+    message(STATUS "OpenOrbitalOptimizer not found via find_package; fetching from GitHub")
+    include(FetchContent)
+    FetchContent_Declare(
+        OpenOrbitalOptimizer
+        GIT_REPOSITORY https://github.com/susilehtola/OpenOrbitalOptimizer.git
+        GIT_TAG        master
+    )
+    FetchContent_MakeAvailable(OpenOrbitalOptimizer)
+else()
+    message(STATUS "Using system OpenOrbitalOptimizer")
+endif()
+
 # Find OpenMP support
 if(USE_OPENMP)
  find_package( OpenMP )
