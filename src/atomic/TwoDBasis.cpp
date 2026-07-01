@@ -16,6 +16,7 @@
 #include <ArmaEigen.h>
 #include <CoulombExchangeFE.h>
 #include "../general/radial_block_helper.h"
+#include "../general/angular_index_helpers.h"
 #include "basis.h"
 #include "quadrature.h"
 #include "chebyshev.h"
@@ -143,50 +144,15 @@ namespace helfem {
       }
 
       arma::uvec TwoDBasis::m_indices(int m) const {
-        // Count how many functions
-        size_t nm=0;
-        for(size_t i=0;i<mval.n_elem;i++) {
-          if(mval(i)==m) {
-            nm += radial.Nbf();
-          }
-        }
-
-        // Collect functions
-        arma::uvec idx(nm);
-        size_t ioff=0;
-        size_t ibf=0;
-        for(size_t i=0;i<mval.n_elem;i++) {
-          // Number of functions on shell is
-          size_t nsh=radial.Nbf();
-          if(mval(i)==m) {
-            idx.subvec(ioff,ioff+nsh-1)=arma::linspace<arma::uvec>(ibf,ibf+nsh-1,nsh);
-            ioff+=nsh;
-          }
-          ibf+=nsh;
-        }
-
-        return idx;
+        return helfem::collect_shell_indices(mval.n_elem,
+            [&](size_t)   { return radial.Nbf(); },
+            [&](size_t i) { return mval(i) == m; });
       }
 
       arma::uvec TwoDBasis::lm_indices(int l, int m) const {
-        // Count how many functions
-        size_t nm=radial.Nbf();
-
-        // Collect functions
-        arma::uvec idx(nm);
-        size_t ioff=0;
-        size_t ibf=0;
-        for(size_t i=0;i<mval.n_elem;i++) {
-          // Number of functions on shell is
-          size_t nsh=radial.Nbf();
-          if(mval(i)==m && lval(i)==l) {
-            idx.subvec(ioff,ioff+nsh-1)=arma::linspace<arma::uvec>(ibf,ibf+nsh-1,nsh);
-            ioff+=nsh;
-          }
-          ibf+=nsh;
-        }
-
-        return idx;
+        return helfem::collect_shell_indices(mval.n_elem,
+            [&](size_t)   { return radial.Nbf(); },
+            [&](size_t i) { return mval(i) == m && lval(i) == l; });
       }
 
       std::vector<arma::uvec> TwoDBasis::get_sym_idx(int symm) const {

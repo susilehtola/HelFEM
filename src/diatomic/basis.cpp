@@ -17,6 +17,7 @@
 #include "PolynomialBasis.h"
 #include "chebyshev.h"
 #include <ArmaEigen.h>
+#include "../general/angular_index_helpers.h"
 #include <cstring>
 
 namespace {
@@ -529,55 +530,15 @@ namespace helfem {
       }
 
       arma::uvec TwoDBasis::m_indices(int m) const {
-        // Count how many functions
-        size_t nm=0;
-        for(size_t i=0;i<mval.n_elem;i++) {
-          if(mval(i)==m) {
-            nm += (m==0) ? radial.Nbf() : radial.Nbf()-1;
-          }
-        }
-
-        // Collect functions
-        arma::uvec idx(nm);
-        size_t ioff=0;
-        size_t ibf=0;
-        for(size_t i=0;i<mval.n_elem;i++) {
-          // Number of functions on shell is
-          size_t nsh=(mval(i)==0) ? radial.Nbf() : radial.Nbf()-1;
-          if(mval(i)==m) {
-            idx.subvec(ioff,ioff+nsh-1)=arma::linspace<arma::uvec>(ibf,ibf+nsh-1,nsh);
-            ioff+=nsh;
-          }
-          ibf+=nsh;
-        }
-
-        return idx;
+        return helfem::collect_shell_indices(mval.n_elem,
+            [&](size_t i) { return (mval(i) == 0) ? radial.Nbf() : radial.Nbf() - 1; },
+            [&](size_t i) { return mval(i) == m; });
       }
 
       arma::uvec TwoDBasis::m_indices(int m, bool odd) const {
-        // Count how many functions
-        size_t nm=0;
-        for(size_t i=0;i<mval.n_elem;i++) {
-          if(mval(i)==m && lval(i)%2==odd) {
-            nm += (m==0) ? radial.Nbf() : radial.Nbf()-1;
-          }
-        }
-
-        // Collect functions
-        arma::uvec idx(nm);
-        size_t ioff=0;
-        size_t ibf=0;
-        for(size_t i=0;i<mval.n_elem;i++) {
-          // Number of functions on shell is
-          size_t nsh=(mval(i)==0) ? radial.Nbf() : radial.Nbf()-1;
-          if(mval(i)==m && lval(i)%2==odd) {
-            idx.subvec(ioff,ioff+nsh-1)=arma::linspace<arma::uvec>(ibf,ibf+nsh-1,nsh);
-            ioff+=nsh;
-          }
-          ibf+=nsh;
-        }
-
-        return idx;
+        return helfem::collect_shell_indices(mval.n_elem,
+            [&](size_t i) { return (mval(i) == 0) ? radial.Nbf() : radial.Nbf() - 1; },
+            [&](size_t i) { return mval(i) == m && (lval(i) % 2 == odd); });
       }
 
       std::vector<arma::uvec> TwoDBasis::get_sym_idx(int symm) const {
