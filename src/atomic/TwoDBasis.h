@@ -76,7 +76,17 @@ namespace helfem {
       public:
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, int Zl, int Zr, double Rhalf);
+        // Phase 5.19: bval/lval/mval accepted as Eigen at the public
+        // boundary so a consumer does not need to include <armadillo>
+        // to instantiate the basis. Interior storage stays arma via a
+        // single memcpy inside the ctor.
+        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms,
+                   const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly,
+                   bool zeroder, int n_quad,
+                   const helfem::Vector & bval,
+                   const Eigen::VectorXi & lval,
+                   const Eigen::VectorXi & mval,
+                   int Zl, int Zr, double Rhalf);
         /// Destructor
         ~TwoDBasis();
 
@@ -141,12 +151,13 @@ namespace helfem {
         /// Number of angular shells
         size_t Nang() const;
 
-        /// Form half-overlap matrix
-        arma::mat Shalf(bool chol, int sym) const;
-        /// Form half-inverse overlap matrix
-        arma::mat Sinvh(bool chol, int sym) const;
-        /// Form radial integral
-        arma::mat radial_integral(int n) const;
+        /// Form half-overlap matrix (Phase 5.19: Eigen-typed at the
+        /// public boundary; interior computation still arma).
+        helfem::Matrix Shalf(bool chol, int sym) const;
+        /// Form half-inverse overlap matrix (Phase 5.19: Eigen-typed).
+        helfem::Matrix Sinvh(bool chol, int sym) const;
+        /// Form radial integral (Phase 5.19: Eigen-typed).
+        helfem::Matrix radial_integral(int n) const;
         // Phase 3: SCF surface migrated to Eigen.
         /// Form overlap matrix
         helfem::Matrix overlap() const;

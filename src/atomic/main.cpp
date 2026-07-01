@@ -262,7 +262,7 @@ int main(int argc, char **argv) {
   arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf, add_conf, shift_conf);
 
   atomic::basis::TwoDBasis basis;
-  basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, zeroder, Nquad, bval, lval, mval, Zl, Zr, Rhalf);
+  basis=atomic::basis::TwoDBasis(Z, (modelpotential::nuclear_model_t) finitenuc, Rrms, poly, zeroder, Nquad, helfem::to_eigen(bval), helfem::to_eigen(lval), helfem::to_eigen(mval), Zl, Zr, Rhalf);
   chkpt.write(basis);
   printf("Basis set consists of %i angular shells composed of %i radial functions, totaling %i basis functions\n",(int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
 
@@ -434,11 +434,11 @@ int main(int argc, char **argv) {
 
   // Get half-inverse
   timer.set();
-  arma::mat Sinvh(basis.Sinvh(!diag,symm));
+  arma::mat Sinvh(helfem::to_arma(basis.Sinvh(!diag,symm)));
   chkpt.write("Sinvh",Sinvh);
   printf("Half-inverse formed in %.6f\n",timer.get());
   helfem::scf_driver::report_ortho_deviation(S, Sinvh);
-  arma::mat Sh(basis.Shalf(!diag,symm));
+  arma::mat Sh(helfem::to_arma(basis.Shalf(!diag,symm)));
   chkpt.write("Sh",Sh);
   printf("Half-overlap formed in %.6f\n",timer.get());
   helfem::scf_driver::report_halfoverlap_error(Sh, Sinvh);
@@ -1040,10 +1040,10 @@ int main(int argc, char **argv) {
   }
 
   // Calculate <r^2> matrix
-  arma::mat rinvmat(basis.radial_integral(-1));
-  arma::mat rmat(basis.radial_integral(1));
-  arma::mat rsqmat(basis.radial_integral(2));
-  arma::mat rcbmat(basis.radial_integral(3));
+  arma::mat rinvmat(helfem::to_arma(basis.radial_integral(-1)));
+  arma::mat rmat(helfem::to_arma(basis.radial_integral(1)));
+  arma::mat rsqmat(helfem::to_arma(basis.radial_integral(2)));
+  arma::mat rcbmat(helfem::to_arma(basis.radial_integral(3)));
   // rms sizes
   arma::vec rinva(arma::ones<arma::vec>(Caocc.n_cols)/arma::diagvec(arma::trans(Caocc)*rinvmat*Caocc));
   arma::vec ra(arma::diagvec(arma::trans(Caocc)*rmat*Caocc));

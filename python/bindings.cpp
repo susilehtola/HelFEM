@@ -108,7 +108,8 @@ namespace helfem_py {
       basis_ = atomic::basis::TwoDBasis(
           Z, (modelpotential::nuclear_model_t) finitenuc, Rrms,
           poly_, /*zeroder=*/false,
-          Nquad, bval, lval, mval, /*Zl=*/0, /*Zr=*/0, /*Rhalf=*/0.0);
+          Nquad, helfem::to_eigen(bval), helfem::to_eigen(lval),
+          helfem::to_eigen(mval), /*Zl=*/0, /*Zr=*/0, /*Rhalf=*/0.0);
     }
 
     int Z() const { return Z_; }

@@ -70,6 +70,23 @@ namespace helfem {
     return out;
   }
 
+  // Integer vector converters -- arma::ivec (arma::sword) <-> Eigen::VectorXi.
+  // Widths may differ (arma::sword is long long on most platforms; int is 32-bit),
+  // so use an element-by-element cast rather than memcpy.
+  inline Eigen::VectorXi to_eigen(const arma::ivec & v) {
+    Eigen::VectorXi out(v.n_elem);
+    for (arma::uword i = 0; i < v.n_elem; ++i)
+      out(static_cast<Eigen::Index>(i)) = static_cast<int>(v(i));
+    return out;
+  }
+
+  inline arma::ivec to_arma(const Eigen::VectorXi & v) {
+    arma::ivec out(v.size());
+    for (Eigen::Index i = 0; i < v.size(); ++i)
+      out(static_cast<arma::uword>(i)) = static_cast<arma::sword>(v(i));
+    return out;
+  }
+
   // ---- Zero-copy views ------------------------------------------------
   //
   // Cast away const on arma::mat::memptr() for the const overloads: arma

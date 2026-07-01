@@ -50,7 +50,8 @@ namespace helfem {
      *        2 for generalized polynomial grid with exponent zexp
      *        3 for generalized exponential grid with parameter zexp
      */
-    arma::vec get_grid(double rmax, int num_el, int igrid, double zexp);
+    // Phase 5.19: Eigen-typed at public boundary; interior arma-native.
+    ::helfem::Vector get_grid(double rmax, int num_el, int igrid, double zexp);
 
     /**
      * Calculates the half-inverse of a matrix.
