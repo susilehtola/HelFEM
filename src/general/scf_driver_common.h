@@ -22,6 +22,11 @@
 #include <armadillo>
 #include <cstdio>
 #include <stdexcept>
+#include <string>
+#include <vector>
+#include "checkpoint.h"
+#include "scf_helpers.h"
+#include <ArmaEigen.h>
 
 namespace helfem {
   namespace scf_driver {
@@ -61,6 +66,38 @@ namespace helfem {
       arma::mat Smo(Sh.t() * Sinvh);
       Smo -= arma::eye<arma::mat>(Smo.n_rows, Smo.n_cols);
       printf("Half-overlap error is %e\n", arma::norm(Smo, "fro"));
+    }
+
+    /// Load a Fock matrix by key, project it through the checkpoint's
+    /// (old) orthonormal basis into the current (new) orthonormal
+    /// basis, transform back to the AO basis, and diagonalise into
+    /// (E, C). Both drivers use this pattern once per spin channel
+    /// when restarting from a checkpoint via Fock projection.
+    ///
+    ///   F <- oldSinvh^T F oldSinvh                       (to old orthonormal)
+    ///   F <- S12 F S12^T                                  (project to new orthonormal)
+    ///   F <- SSinvh F SSinvh^T                            (back to AO)
+    ///   (E, C) <- symm ? eig_gsym_sub(F, Sinvh, dsym) : eig_gsym(F, Sinvh).
+    inline void project_and_diagonalize(
+        Checkpoint & loadchk, const std::string & fock_key,
+        const arma::mat & oldSinvh, const arma::mat & S12,
+        const arma::mat & SSinvh,   const arma::mat & Sinvh,
+        bool symm, const std::vector<arma::uvec> & dsym,
+        arma::vec & E, arma::mat & C) {
+      arma::mat F;
+      loadchk.read(fock_key, F);
+      F = arma::trans(oldSinvh) * F * oldSinvh;
+      F = S12 * F * arma::trans(S12);
+      F = SSinvh * F * arma::trans(SSinvh);
+
+      helfem::Vector E_e;
+      helfem::Matrix C_e;
+      if (symm)
+        helfem::scf::eig_gsym_sub(E_e, C_e, helfem::to_eigen(F), helfem::to_eigen(Sinvh), dsym);
+      else
+        helfem::scf::eig_gsym    (E_e, C_e, helfem::to_eigen(F), helfem::to_eigen(Sinvh));
+      E = helfem::to_arma(E_e);
+      C = helfem::to_arma(C_e);
     }
   } // namespace scf_driver
 } // namespace helfem
