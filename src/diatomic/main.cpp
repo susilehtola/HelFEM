@@ -940,7 +940,15 @@ int main(int argc, char **argv) {
 
     // ROHF update to Fock matrix
     if(restr && nela!=nelb)
-      scf::ROHF_update(Fa,Fb,P,Sh,Sinvh,nela,nelb);
+      { // Phase 5.16 bridge: ROHF_update is Eigen.
+        helfem::Matrix Fa_e = helfem::to_eigen(Fa);
+        helfem::Matrix Fb_e = helfem::to_eigen(Fb);
+        scf::ROHF_update(Fa_e, Fb_e, helfem::to_eigen(P),
+                         helfem::to_eigen(Sh), helfem::to_eigen(Sinvh),
+                         nela, nelb);
+        Fa = helfem::to_arma(Fa_e);
+        Fb = helfem::to_arma(Fb_e);
+      }
 
     chkpt.write("Fa",Fa);
     chkpt.write("Fb",Fb);
