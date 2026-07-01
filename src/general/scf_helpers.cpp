@@ -222,48 +222,52 @@ namespace helfem {
       }
     }
 
-    void eig_sub_wrk(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, size_t Nact) {
-      // Active space must be at least as large as the occupied space, otherwise
-      // the subvec/cols indices below underflow (everything here is unsigned).
-      if(Nact <= Cocc.n_cols) {
+    // Phase 5.14: Eigen-typed.
+    void eig_sub_wrk(helfem::Vector & E, helfem::Matrix & Cocc, helfem::Matrix & Cvirt,
+                      const helfem::Matrix & F, size_t Nact) {
+      if (Nact <= static_cast<size_t>(Cocc.cols())) {
         std::ostringstream oss;
         oss << "eig_sub_wrk: active space (" << Nact
             << ") must be larger than the occupied space ("
-            << Cocc.n_cols << ").\n";
+            << Cocc.cols() << ").\n";
         throw std::logic_error(oss.str());
       }
 
-      // Form orbital gradient
-      arma::mat Forth(Cocc.t()*F*Cvirt);
+      // Orbital gradient block Forth = Cocc^T * F * Cvirt.
+      const helfem::Matrix Forth = Cocc.transpose() * F * Cvirt;
 
-      // Compute gradient norms
-      arma::vec Fnorm(Forth.n_cols);
-      for(size_t i=0;i<Forth.n_cols;i++)
-        Fnorm(i)=arma::norm(Forth.col(i),"fro");
+      // Gradient norms per virtual column.
+      helfem::Vector Fnorm(Forth.cols());
+      for (Eigen::Index i = 0; i < Forth.cols(); ++i)
+        Fnorm(i) = Forth.col(i).norm();
 
-      // Sort in decreasing value
-      arma::uvec idx(arma::sort_index(Fnorm,"descend"));
+      // Sort virtual orbitals by descending gradient norm.
+      std::vector<Eigen::Index> idx(Fnorm.size());
+      for (Eigen::Index i = 0; i < Fnorm.size(); ++i) idx[i] = i;
+      std::sort(idx.begin(), idx.end(),
+                [&Fnorm](Eigen::Index a, Eigen::Index b) { return Fnorm(a) > Fnorm(b); });
+      const helfem::Matrix Cvirt_old = Cvirt;
+      const helfem::Vector Fnorm_old = Fnorm;
+      for (size_t k = 0; k < idx.size(); ++k) {
+        Cvirt.col(static_cast<Eigen::Index>(k)) = Cvirt_old.col(idx[k]);
+        Fnorm(static_cast<Eigen::Index>(k))    = Fnorm_old(idx[k]);
+      }
 
-      // Update order
-      Cvirt=Cvirt.cols(idx);
-      Fnorm=Fnorm(idx);
+      const Eigen::Index Nact_virt = static_cast<Eigen::Index>(Nact) - Cocc.cols();
+      const double act = Fnorm.head(Nact_virt).sum();
+      const double frz = Fnorm.tail(Fnorm.size() - Nact_virt).sum();
+      printf("Active space norm %e, frozen space norm %e\n", act, frz);
 
-      // Calculate norms
-      double act(arma::sum(Fnorm.subvec(0,Nact-Cocc.n_cols-1)));
-      double frz(arma::sum(Fnorm.subvec(Nact-Cocc.n_cols-1,Fnorm.n_elem-1)));
-      printf("Active space norm %e, frozen space norm %e\n",act,frz);
+      helfem::Matrix Corth(Cocc.rows(), Cocc.cols() + Nact_virt);
+      Corth.leftCols(Cocc.cols())  = Cocc;
+      Corth.rightCols(Nact_virt)   = Cvirt.leftCols(Nact_virt);
 
-      // Form subspace solution (Phase 5.11 bridge).
-      arma::mat C;
-      arma::mat Corth(arma::join_rows(Cocc,Cvirt.cols(0,Nact-Cocc.n_cols-1)));
-      helfem::Vector E_e; helfem::Matrix C_e;
-      eig_gsym(E_e, C_e, helfem::to_eigen(F), helfem::to_eigen(Corth));
-      E = helfem::to_arma(E_e);
-      C = helfem::to_arma(C_e);
+      helfem::Matrix C;
+      eig_gsym(E, C, F, Corth);
 
-      // Update occupied and virtual orbitals
-      Cocc=C.cols(0,Cocc.n_cols-1);
-      Cvirt.cols(0,Nact-Cocc.n_cols-1)=C.cols(Cocc.n_cols,Nact-1);
+      const Eigen::Index n_occ = Cocc.cols();
+      Cocc                       = C.leftCols(n_occ);
+      Cvirt.leftCols(Nact_virt)  = C.middleCols(n_occ, Nact_virt);
     }
 
     // Phase 5.13: Eigen-typed.
@@ -296,144 +300,116 @@ namespace helfem {
       return Fout;
     }
 
-    void sort_eig(arma::vec & Eorb, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & Fao, size_t Nact, int maxit, double convthr) {
-      // Initialize vector
-      arma::mat C(Cocc.n_rows,Cocc.n_cols+Cvirt.n_cols);
-      C.cols(0,Cocc.n_cols-1)=Cocc;
-      C.cols(Cocc.n_cols,Cocc.n_cols+Cvirt.n_cols-1)=Cvirt;
+    // Phase 5.14: Eigen-typed.
+    void sort_eig(helfem::Vector & Eorb, helfem::Matrix & Cocc, helfem::Matrix & Cvirt,
+                   const helfem::Matrix & Fao, size_t Nact, int maxit, double convthr) {
+      // C = [Cocc | Cvirt].
+      helfem::Matrix C(Cocc.rows(), Cocc.cols() + Cvirt.cols());
+      C.leftCols(Cocc.cols())   = Cocc;
+      C.rightCols(Cvirt.cols()) = Cvirt;
 
-      // Compute lower bounds of eigenvalues
-      for(int it=0;it<maxit;it++) {
-        // Fock matrix
-        arma::mat Fmo(arma::trans(C)*Fao*C);
+      for (int it = 0; it < maxit; ++it) {
+        const helfem::Matrix Fmo = C.transpose() * Fao * C;
 
-        // Gerschgorin lower bound for eigenvalues
-        arma::vec Ebar(Fao.n_cols), R(Fao.n_cols);
-        for(size_t i=0;i<Fmo.n_cols;i++) {
-          double r=0.0;
-          for(size_t j=0;j<i;j++)
-            r+=std::pow(Fmo(j,i),2);
-          for(size_t j=i+1;j<Fmo.n_rows;j++)
-            r+=std::pow(Fmo(j,i),2);
-          r=sqrt(r);
-
-          Ebar(i)=Fmo(i,i);
-          R(i)=r;
+        // Gerschgorin lower bound for eigenvalues.
+        helfem::Vector Ebar(Fmo.cols()), R(Fmo.cols());
+        for (Eigen::Index i = 0; i < Fmo.cols(); ++i) {
+          double r = 0.0;
+          for (Eigen::Index j = 0; j < i; ++j)          r += std::pow(Fmo(j, i), 2);
+          for (Eigen::Index j = i + 1; j < Fmo.rows(); ++j) r += std::pow(Fmo(j, i), 2);
+          Ebar(i) = Fmo(i, i);
+          R(i)    = std::sqrt(r);
         }
 
-        // Sort by lowest possible eigenvalue
-        arma::uvec idx(arma::sort_index(Ebar-R,"ascend"));
-        printf("Orbital guess iteration %i\n",(int) it);
-        double ograd(arma::sum(arma::square(R.subvec(0,Cocc.n_cols-1))));
-        printf("Orbital gradient %e, occupied orbitals\n",ograd);
-        for(size_t i=0;i<Cocc.n_cols;i++)
-          printf("%2i %5i % e .. % e\n",(int) i, (int) idx(i), Ebar(idx(i))-R(idx(i)), Ebar(i)+R(idx(i)));
+        // Sort ascending by (Ebar - R).
+        const helfem::Vector key = Ebar - R;
+        std::vector<Eigen::Index> idx(key.size());
+        for (Eigen::Index i = 0; i < key.size(); ++i) idx[i] = i;
+        std::sort(idx.begin(), idx.end(),
+                  [&key](Eigen::Index a, Eigen::Index b) { return key(a) < key(b); });
 
-        // Has sort converged?
-        bool convd=true;
-        // Check if circles overlap. Maximum occupied orbital energy is
-        double Emax=Ebar(0)+R(0);
-        for(size_t i=0;i<Cocc.n_cols;i++)
-          Emax=std::max(Emax,Ebar(i)+R(i));
-        for(size_t i=Cocc.n_cols;i<Ebar.n_elem;i++)
-          if(Ebar(i)-R(i) >= Emax)
-            // Circles overlap!
-            convd=false;
-        // Check if gradient has converged
-        if(ograd>=convthr)
-          convd=false;
-        if(convd)
-          break;
+        printf("Orbital guess iteration %i\n", it);
+        const double ograd = R.head(Cocc.cols()).array().square().sum();
+        printf("Orbital gradient %e, occupied orbitals\n", ograd);
+        for (Eigen::Index i = 0; i < Cocc.cols(); ++i)
+          printf("%2i %5i % e .. % e\n", (int) i, (int) idx[i],
+                  Ebar(idx[i]) - R(idx[i]), Ebar(i) + R(idx[i]));
 
-        // Change orbital ordering
-        C=C.cols(idx);
+        // Convergence: Gerschgorin discs of virtual orbitals must sit
+        // above the maximum occupied bound, and orbital gradient below
+        // threshold.
+        bool convd = true;
+        double Emax = Ebar(0) + R(0);
+        for (Eigen::Index i = 0; i < Cocc.cols(); ++i)
+          Emax = std::max(Emax, Ebar(i) + R(i));
+        for (Eigen::Index i = Cocc.cols(); i < Ebar.size(); ++i)
+          if (Ebar(i) - R(i) >= Emax) convd = false;
+        if (ograd >= convthr) convd = false;
+        if (convd) break;
 
-        // Occupy orbitals with lowest estimated eigenvalues
-        arma::mat Cocctest(C.cols(0,Cocc.n_cols-1));
-        arma::mat Cvirttest(C.cols(Cocc.n_cols,C.n_cols-1));
+        // Reorder C by idx.
+        const helfem::Matrix Cold = C;
+        for (size_t k = 0; k < idx.size(); ++k)
+          C.col(static_cast<Eigen::Index>(k)) = Cold.col(idx[k]);
 
-        // Improve Gerschgorin estimate
-        eig_sub_wrk(Eorb,Cocctest,Cvirttest,Fao,Nact);
-
-        // Update C
-        C.cols(0,Cocc.n_cols-1)=Cocctest;
-        C.cols(Cocc.n_cols,C.n_cols-1)=Cvirttest;
+        helfem::Matrix Cocctest  = C.leftCols(Cocc.cols());
+        helfem::Matrix Cvirttest = C.rightCols(C.cols() - Cocc.cols());
+        eig_sub_wrk(Eorb, Cocctest, Cvirttest, Fao, Nact);
+        C.leftCols(Cocc.cols())                     = Cocctest;
+        C.rightCols(C.cols() - Cocc.cols())         = Cvirttest;
       }
 
-      Cocc=C.cols(0,Cocc.n_cols-1);
-      Cvirt=C.cols(Cocc.n_cols,C.n_cols-1);
+      Cocc  = C.leftCols(Cocc.cols());
+      Cvirt = C.rightCols(C.cols() - Cocc.cols());
     }
 
-    void eig_sub(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, size_t nsub, int maxit, double convthr) {
-      if(nsub >= Cocc.n_cols+Cvirt.n_cols) {
-        arma::mat Corth(arma::join_rows(Cocc,Cvirt));
-
-        // Phase 5.11 bridge.
-        arma::mat C;
-        helfem::Vector E_e; helfem::Matrix C_e;
-        eig_gsym(E_e, C_e, helfem::to_eigen(F), helfem::to_eigen(Corth));
-        E = helfem::to_arma(E_e);
-        C = helfem::to_arma(C_e);
-        if(Cocc.n_cols)
-          Cocc=C.cols(0,Cocc.n_cols-1);
-        Cvirt=C.cols(Cocc.n_cols,C.n_cols-1);
+    // Phase 5.14: Eigen-typed. The post-return unreachable iterative
+    // block was already dead in the arma version; kept the pattern
+    // (sort_eig covers the work) and elided the dead code.
+    void eig_sub(helfem::Vector & E, helfem::Matrix & Cocc, helfem::Matrix & Cvirt,
+                  const helfem::Matrix & F, size_t nsub, int maxit, double convthr) {
+      if (nsub >= static_cast<size_t>(Cocc.cols() + Cvirt.cols())) {
+        helfem::Matrix Corth(Cocc.rows(), Cocc.cols() + Cvirt.cols());
+        Corth.leftCols(Cocc.cols())   = Cocc;
+        Corth.rightCols(Cvirt.cols()) = Cvirt;
+        helfem::Matrix C;
+        eig_gsym(E, C, F, Corth);
+        const Eigen::Index n_occ = Cocc.cols();
+        if (n_occ) Cocc = C.leftCols(n_occ);
+        Cvirt = C.rightCols(C.cols() - n_occ);
         return;
       }
-
-      // Initialization: make sure we're occupying the lowest eigenstates
       sort_eig(E, Cocc, Cvirt, F, nsub, maxit, convthr);
-      // The above already does everything
-      return;
-
-      // Perform initial solution
-      eig_sub_wrk(E,Cocc,Cvirt,F,nsub);
-
-      // Iterative improvement
-      int iit;
-      arma::vec Eold;
-      for(iit=0;iit<maxit;iit++) {
-        // New subspace solution
-        eig_sub_wrk(E,Cocc,Cvirt,F,nsub);
-        // Frozen subspace gradient
-        arma::mat Cfrz(Cvirt.cols(nsub-Cocc.n_cols,Cvirt.n_cols-1));
-        // Orbital gradient
-        arma::mat G(arma::trans(Cocc)*F*Cfrz);
-        double ograd(arma::norm(G,"fro"));
-        printf("Eigeniteration %i orbital gradient %e\n",iit,ograd);
-        arma::vec Ecur(E.subvec(0,Cocc.n_cols-1));
-        Ecur.t().print("Occupied energies");
-        if(iit>0)
-          (Ecur-Eold).t().print("Energy change");
-        Eold=Ecur;
-        if(ograd<convthr)
-          break;
-      }
-      if(iit==maxit) throw std::runtime_error("Eigensolver did not converge!\n");
     }
 
-    void eig_iter(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, const arma::mat & Sinvh, size_t nocc, size_t neig, size_t nsub, int maxit, double convthr) {
-      arma::mat Forth(Sinvh.t()*F*Sinvh);
+    // Phase 5.14: iterative eigenvalue solver.
+    //
+    // The arma version used arma::newarp (an in-tree ARPACK-ish Lanczos).
+    // Eigen has no built-in equivalent and there are no in-tree callers,
+    // so the safe migration is a plain full-spectrum solve on Forth via
+    // SelfAdjointEigenSolver. If a caller ever comes back that genuinely
+    // needs the iterative path, swap in Spectra (header-only) here.
+    void eig_iter(helfem::Vector & E, helfem::Matrix & Cocc, helfem::Matrix & Cvirt,
+                   const helfem::Matrix & F, const helfem::Matrix & Sinvh,
+                   size_t nocc, size_t neig, size_t nsub, int maxit, double convthr) {
+      (void) nsub; (void) maxit; (void) convthr;
+      const helfem::Matrix Forth = Sinvh.transpose() * F * Sinvh;
+      Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(Forth);
+      if (es.info() != Eigen::Success)
+        throw std::logic_error("eig_iter: eigendecomposition failed!\n");
+      // Take the smallest neig eigenpairs (ascending order from
+      // SelfAdjointEigenSolver).
+      const Eigen::Index Ne  = std::min<Eigen::Index>(neig, es.eigenvalues().size());
+      E = es.eigenvalues().head(Ne);
+      const helfem::Matrix eigvec = Sinvh * es.eigenvectors().leftCols(Ne);
 
-      const arma::newarp::DenseGenMatProd<double> op(Forth);
-
-      arma::newarp::SymEigsSolver< double, arma::newarp::EigsSelect::SMALLEST_ALGE, arma::newarp::DenseGenMatProd<double> > eigs(op, neig, nsub);
-      eigs.init();
-
-      arma::uword nconv = eigs.compute(maxit, convthr);
-      printf("%i eigenvalues converged in %i iterations\n",(int) nconv, (int) eigs.num_iterations());
-      E = eigs.eigenvalues();
-      if(nconv < nocc)
-        throw std::logic_error("Eigendecomposition did not convege!\n");
-
-      arma::mat eigvec;
-      // Go back to non-orthogonal basis
-      eigvec = Sinvh*eigs.eigenvectors();
-
-      Cocc=eigvec.cols(0,nocc-1);
-      if(eigvec.n_cols>nocc)
-        Cvirt=eigvec.cols(nocc,eigvec.n_cols-1);
+      if (static_cast<size_t>(Ne) < nocc)
+        throw std::logic_error("Eigendecomposition did not converge!\n");
+      Cocc = eigvec.leftCols(nocc);
+      if (static_cast<size_t>(eigvec.cols()) > nocc)
+        Cvirt = eigvec.rightCols(eigvec.cols() - nocc);
       else
-        Cvirt.clear();
+        Cvirt.resize(eigvec.rows(), 0);
     }
 
     arma::mat perturbation_matrix(size_t N, double ampl) {
