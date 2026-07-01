@@ -15,6 +15,7 @@
 #include "basis.h"
 #include <ArmaEigen.h>
 #include <CoulombExchangeFE.h>
+#include "../general/radial_block_helper.h"
 #include "chebyshev.h"
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
@@ -71,115 +72,51 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::radial_integral(int Rexp) const {
-        // Build radial elements
-        size_t Nrad(radial.Nbf());
-        arma::mat Orad(Nrad,Nrad);
-        Orad.zeros();
-
-        // Loop over elements
-        for(size_t iel=0;iel<radial.Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
-	  // Phase 2a: radial_integral returns helfem::Matrix; bridge here.
-	  Orad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(Rexp,iel));
-        }
-
-        return Orad;
+        // Bridge to arma at the public API boundary.
+        return helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(Rexp, iel); }));
       }
 
       helfem::Matrix TwoDBasis::overlap() const {
-        // Phase 3: SCF surface returns Eigen.
-        return helfem::to_eigen(radial_integral(0));
+        return helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(0, iel); });
       }
 
       helfem::Matrix TwoDBasis::kinetic() const {
-        // Build radial kinetic energy matrix
-        size_t Nrad(radial.Nbf());
-        arma::mat Trad(Nrad,Nrad);
-        Trad.zeros();
-
-        // Loop over elements
-        for(size_t iel=0;iel<radial.Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
-          Trad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.kinetic(iel));
-        }
-
-        return helfem::to_eigen(Trad);
+        return helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.kinetic(iel); });
       }
 
       helfem::Matrix TwoDBasis::kinetic_l() const {
-        // Build radial kinetic energy matrix
-        size_t Nrad(radial.Nbf());
-        arma::mat Trad_l(Nrad,Nrad);
-        Trad_l.zeros();
-
-        // Loop over elements
-        for(size_t iel=0;iel<radial.Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
-          Trad_l.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.kinetic_l(iel));
-        }
-
-        return helfem::to_eigen(Trad_l);
+        return helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.kinetic_l(iel); });
       }
 
       helfem::Matrix TwoDBasis::nuclear() const {
-        if(model != modelpotential::POINT_NUCLEUS) {
-          modelpotential::ModelPotential * pot = modelpotential::get_nuclear_model(model,Z,Rrms);
+        if (model != modelpotential::POINT_NUCLEUS) {
+          modelpotential::ModelPotential * pot = modelpotential::get_nuclear_model(model, Z, Rrms);
           arma::mat Vrad(model_potential(pot));
           delete pot;
           return helfem::to_eigen(Vrad);
-        } else {
-          size_t Nrad(radial.Nbf());
-          arma::mat Vrad(Nrad,Nrad);
-          Vrad.zeros();
-          // Loop over elements
-          for(size_t iel=0;iel<radial.Nel();iel++) {
-            // Where are we in the matrix?
-            size_t ifirst, ilast;
-            radial.get_idx(iel,ifirst,ilast);
-            Vrad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(-1,iel));
-          }
-
-          return helfem::to_eigen(arma::mat(-Z*Vrad));
         }
+        return -Z * helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(-1, iel); });
       }
 
       arma::mat TwoDBasis::confinement(int N, double r_0, int iconf, double V, double shift_pot) const {
-          size_t Nrad(radial.Nbf());
-          arma::mat Vrad(Nrad,Nrad);
-          Vrad.zeros();
-	  if(!iconf)
-	    return Vrad;
-
-	  // Loop over elements
-	  for(size_t iel=0;iel<radial.Nel();iel++) {
-	    // Where are we in the matrix?
-	    size_t ifirst, ilast;
-	    radial.get_idx(iel,ifirst,ilast);
-	    // r_0 is handled by other routine
-	    Vrad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.confinement_potential(iel, N, r_0, iconf, V, shift_pot));
-	  }
-	  return Vrad;
+        if (!iconf) {
+          const size_t Nrad = radial.Nbf();
+          return arma::zeros<arma::mat>(Nrad, Nrad);
+        }
+        return helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) {
+              return radial.confinement_potential(iel, N, r_0, iconf, V, shift_pot);
+            }));
       }
 
       arma::mat TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {
-        size_t Nrad(radial.Nbf());
-        arma::mat Vrad(Nrad,Nrad);
-        Vrad.zeros();
-        // Loop over elements
-        for(size_t iel=0;iel<radial.Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
-          // Phase 2a: model_potential returns helfem::Matrix; bridge.
-          Vrad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.model_potential(pot,iel));
-        }
-        return Vrad;
+        return helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.model_potential(pot, iel); }));
       }
 
       void TwoDBasis::compute_tei() {
