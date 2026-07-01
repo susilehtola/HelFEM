@@ -238,43 +238,8 @@ namespace helfem {
         return ekin;
       }
 
-      void DFTGridWorker::init_xc() {
-        // Size of grid.
-        const size_t N=wtot.n_elem;
-
-        // Zero energy
-        zero_Exc();
-
-        if(!polarized) {
-          // Restricted case
-          vxc.zeros(1,N);
-          if(do_grad)
-            vsigma.zeros(1,N);
-          if(do_tau)
-            vtau.zeros(1,N);
-          if(do_lapl)
-            vlapl.zeros(1,N);
-        } else {
-          // Unrestricted case
-          vxc.zeros(2,N);
-          if(do_grad)
-            vsigma.zeros(3,N);
-          if(do_tau)
-            vtau.zeros(2,N);
-          if(do_lapl) {
-            vlapl.zeros(2,N);
-          }
-        }
-
-        // Initial values
-        do_gga=false;
-        do_mgga_l=false;
-        do_mgga_t=false;
-      }
-
-      void DFTGridWorker::zero_Exc() {
-        exc.zeros(wtot.n_elem);
-      }
+      // init_xc, zero_Exc: inherited from
+      // helfem::dftgrid_common::DFTGridWorkerBase.
 
       void DFTGridWorker::check_xc() {
         size_t inf=0;
@@ -339,122 +304,7 @@ namespace helfem {
         }
       }
 
-      void DFTGridWorker::compute_xc(int func_id, const arma::vec & p, double thr, bool pot) {
-        // Compute exchange-correlation functional
-
-        // Which functional is in question?
-        bool gga, mgga_t, mgga_l;
-        is_gga_mgga(func_id,gga,mgga_t,mgga_l);
-
-        // Update controlling flags for eval_Fxc (exchange and correlation
-        // parts might be of different type)
-        do_gga=do_gga || gga || mgga_t || mgga_l;
-        do_mgga_t=do_mgga_t || mgga_t;
-        do_mgga_l=do_mgga_l || mgga_l;
-
-        // Amount of grid points
-        const size_t N=wtot.n_elem;
-
-        // Work arrays - exchange and correlation are computed separately
-        arma::rowvec exc_wrk;
-        arma::mat vxc_wrk;
-        arma::mat vsigma_wrk;
-        arma::mat vlapl_wrk;
-        arma::mat vtau_wrk;
-
-        if(has_exc(func_id))
-          exc_wrk.zeros(exc.n_elem);
-        if(pot) {
-          vxc_wrk.zeros(vxc.n_rows,vxc.n_cols);
-          if(gga || mgga_t || mgga_l)
-            vsigma_wrk.zeros(vsigma.n_rows,vsigma.n_cols);
-          if(mgga_t)
-            vtau_wrk.zeros(vtau.n_rows,vtau.n_cols);
-          if(mgga_l)
-            vlapl_wrk.zeros(vlapl.n_rows,vlapl.n_cols);
-        }
-
-        // Spin variable for libxc
-        int nspin;
-        if(!polarized)
-          nspin=XC_UNPOLARIZED;
-        else
-          nspin=XC_POLARIZED;
-
-        // Initialize libxc worker
-        xc_func_type func;
-        if(xc_func_init(&func, func_id, nspin) != 0) {
-          std::ostringstream oss;
-          oss << "Functional "<<func_id<<" not found!";
-          throw std::runtime_error(oss.str());
-        }
-        // Set density threshold
-        xc_func_set_dens_threshold(&func, thr);
-
-        // Set parameters
-        if(p.n_elem) {
-          // Check sanity
-          if(p.n_elem != (arma::uword) xc_func_info_get_n_ext_params((xc_func_info_type *)func.info))
-            throw std::logic_error("Incompatible number of parameters!\n");
-          arma::vec phlp(p);
-          xc_func_set_ext_params(&func, phlp.memptr());
-        }
-
-        // Evaluate functionals.
-        if(has_exc(func_id)) {
-          if(pot) {
-            if(mgga_t || mgga_l) {// meta-GGA
-              double * laplp = mgga_l ? lapl.memptr() : NULL;
-              double * taup = mgga_t ? tau.memptr() : NULL;
-              double * vlaplp = mgga_l ? vlapl_wrk.memptr() : NULL;
-              double * vtaup = mgga_t ? vtau_wrk.memptr() : NULL;
-              xc_mgga_exc_vxc(&func, N, rho.memptr(), sigma.memptr(), laplp, taup, exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr(), vlaplp, vtaup);
-            } else if(gga) // GGA
-              xc_gga_exc_vxc(&func, N, rho.memptr(), sigma.memptr(), exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr());
-            else // LDA
-              xc_lda_exc_vxc(&func, N, rho.memptr(), exc_wrk.memptr(), vxc_wrk.memptr());
-          } else {
-            if(mgga_t || mgga_l) { // meta-GGA
-              double * laplp = mgga_l ? lapl.memptr() : NULL;
-              double * taup = mgga_t ? tau.memptr() : NULL;
-              xc_mgga_exc(&func, N, rho.memptr(), sigma.memptr(), laplp, taup, exc_wrk.memptr());
-            } else if(gga) // GGA
-              xc_gga_exc(&func, N, rho.memptr(), sigma.memptr(), exc_wrk.memptr());
-            else // LDA
-              xc_lda_exc(&func, N, rho.memptr(), exc_wrk.memptr());
-          }
-
-        } else {
-          if(pot) {
-            if(mgga_t || mgga_l) { // meta-GGA
-              double * laplp = mgga_l ? lapl.memptr() : NULL;
-              double * taup = mgga_t ? tau.memptr() : NULL;
-              double * vlaplp = mgga_l ? vlapl_wrk.memptr() : NULL;
-              double * vtaup = mgga_t ? vtau_wrk.memptr() : NULL;
-              xc_mgga_vxc(&func, N, rho.memptr(), sigma.memptr(), laplp, taup, vxc_wrk.memptr(), vsigma_wrk.memptr(), vlaplp, vtaup);
-            } else if(gga) // GGA
-              xc_gga_vxc(&func, N, rho.memptr(), sigma.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr());
-            else // LDA
-              xc_lda_vxc(&func, N, rho.memptr(), vxc_wrk.memptr());
-          }
-        }
-
-        // Free functional
-        xc_func_end(&func);
-
-        // Sum to total arrays containing both exchange and correlation
-        if(has_exc(func_id))
-          exc+=exc_wrk;
-        if(pot) {
-          if(mgga_l)
-            vlapl+=vlapl_wrk;
-          if(mgga_t)
-            vtau+=vtau_wrk;
-          if(mgga_t || mgga_l || gga)
-            vsigma+=vsigma_wrk;
-          vxc+=vxc_wrk;
-        }
-      }
+      // compute_xc: inherited from DFTGridWorkerBase.
 
       void DFTGridWorker::save(const std::string & info) const {
         rho.save("rho"+info+".dat",arma::raw_ascii);
@@ -467,13 +317,7 @@ namespace helfem {
         exc.save("exc"+info+".dat",arma::raw_ascii);
       }
 
-      double DFTGridWorker::eval_Exc() const {
-        arma::rowvec dens(rho.row(0));
-        if(polarized)
-          dens+=rho.row(1);
-
-        return arma::sum(wtot%exc%dens);
-      }
+      // eval_Exc: inherited from DFTGridWorkerBase.
 
       void DFTGridWorker::eval_overlap(arma::mat & So) const {
         // Calculate in subspace
@@ -630,40 +474,8 @@ namespace helfem {
           Hbo(bf_ind,bf_ind)+=Hb;
       }
 
-      void DFTGridWorker::check_grad_tau_lapl(int x_func, int c_func) {
-        // Do we need gradients?
-        do_grad=false;
-        if(x_func>0)
-          do_grad=do_grad || gradient_needed(x_func);
-        if(c_func>0)
-          do_grad=do_grad || gradient_needed(c_func);
-
-        // Do we need laplacians?
-        do_tau=false;
-        if(x_func>0)
-          do_tau=do_tau || tau_needed(x_func);
-        if(c_func>0)
-          do_tau=do_tau || tau_needed(c_func);
-
-        // Do we need laplacians?
-        do_lapl=false;
-        if(x_func>0)
-          do_lapl=do_lapl || laplacian_needed(x_func);
-        if(c_func>0)
-          do_lapl=do_lapl || laplacian_needed(c_func);
-      }
-
-      void DFTGridWorker::get_grad_tau_lapl(bool & grad_, bool & tau_, bool & lap_) const {
-        grad_=do_grad;
-        tau_=do_tau;
-        lap_=do_lapl;
-      }
-
-      void DFTGridWorker::set_grad_tau_lapl(bool grad_, bool tau_, bool lap_) {
-        do_grad=grad_;
-        do_tau=tau_;
-        do_lapl=lap_;
-      }
+      // check_grad_tau_lapl, get_grad_tau_lapl, set_grad_tau_lapl:
+      // inherited from DFTGridWorkerBase.
 
       void DFTGridWorker::compute_bf(size_t iel, size_t irad) {
         // Update function list

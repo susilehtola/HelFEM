@@ -17,13 +17,15 @@
 #define SADATOM_DFTGRID_H
 
 #include "basis.h"
+#include "../general/dftgrid_common.h"
 
 namespace helfem {
   namespace sadatom {
     namespace dftgrid {
 
-      /// Worker class
-      class DFTGridWorker {
+      /// Worker class. Shares XC plumbing with the atomic and diatomic
+      /// variants via helfem::dftgrid_common::DFTGridWorkerBase.
+      class DFTGridWorker : public helfem::dftgrid_common::DFTGridWorkerBase {
       protected:
         /// Basis set
         const helfem::sadatom::basis::TwoDBasis *basp;
@@ -32,8 +34,6 @@ namespace helfem {
         arma::rowvec r;
         /// Radial quadrature weight
         arma::rowvec wrad;
-        /// Total quadrature weight
-        arma::rowvec wtot;
 
         /// List of basis functions in element
         arma::uvec bf_ind;
@@ -50,52 +50,13 @@ namespace helfem {
         arma::mat Pav, Pav_rho;
         arma::mat Pbv, Pbv_rho;
 
-        /// Is gradient needed?
-        bool do_grad;
-        /// Is kinetic energy density needed?
-        bool do_tau;
-        /// Is laplacian needed?
-        bool do_lapl;
-
-        /// Spin-polarized calculation?
-        bool polarized;
-
-        /// GGA functional used? (Set in compute_xc, only affects eval_Fxc)
-        bool do_gga;
-        /// Meta-GGA tau used? (Set in compute_xc, only affects eval_Fxc)
-        bool do_mgga_t;
-        /// Meta-GGA lapl used? (Set in compute_xc, only affects eval_Fxc)
-        bool do_mgga_l;
-
-        // LDA stuff:
-
-        /// Density, Nrho x Npts
-        arma::mat rho;
-        /// Energy density, Npts
-        arma::rowvec exc;
-        /// Functional derivative of energy wrt electron density, Nrho x Npts
-        arma::mat vxc;
-
-        // GGA stuff
-
-        /// Gradient of electron density, (3 x Nrho) x Npts
+        /// Gradient of electron density
         arma::mat grho;
-        /// Dot products of gradient of electron density, N x Npts; N=1 for closed-shell and 3 for open-shell
-        arma::mat sigma;
-        /// Functional derivative of energy wrt gradient of electron density
-        arma::mat vsigma;
 
-        // Meta-GGA stuff
-
-        /// Laplacian of electron density
-        arma::mat lapl;
-        /// Kinetic energy density
-        arma::mat tau;
-
-        /// Functional derivative of energy wrt laplacian of electron density
-        arma::mat vlapl;
-        /// Functional derivative of energy wrt kinetic energy density
-        arma::mat vtau;
+        // Members provided by helfem::dftgrid_common::DFTGridWorkerBase:
+        //   wtot, exc, rho, sigma, vxc, vsigma, lapl, tau, vlapl, vtau
+        //   polarized, do_grad, do_tau, do_lapl,
+        //   do_gga, do_mgga_t, do_mgga_l
 
       public:
         /// Dummy constructor
@@ -105,12 +66,8 @@ namespace helfem {
         /// Destructor
         ~DFTGridWorker();
 
-        /// Check necessity of computing gradient and laplacians, necessary for compute_bf!
-        void check_grad_tau_lapl(int x_func, int c_func);
-        /// Get necessity of computing gradient and laplacians
-        void get_grad_tau_lapl(bool & grad, bool & tau, bool & lapl) const;
-        /// Set necessity of computing gradient and laplacians, necessary for compute_bf!
-        void set_grad_tau_lapl(bool grad, bool tau, bool lapl);
+        // check_grad_tau_lapl / get_grad_tau_lapl / set_grad_tau_lapl
+        // are inherited from DFTGridWorkerBase.
 
         /// Compute basis functions on grid points
         void compute_bf(size_t iel);
@@ -129,15 +86,8 @@ namespace helfem {
         /// Compute laplacian
         double compute_lapl() const;
 
-        /// Initialize XC arrays
-        void init_xc();
-        /// Compute XC functional from density and add to total XC
-        /// array. thr is density threshold. Pot toggles evaluation of potential
-        void compute_xc(int func_id, const arma::vec & params, double thr, bool pot=true);
-        /// Evaluate exchange/correlation energy
-        double eval_Exc() const;
-        /// Zero out energy
-        void zero_Exc();
+        // init_xc / compute_xc / eval_Exc / zero_Exc are inherited
+        // from DFTGridWorkerBase.
 
         /// Evaluate overlap matrix
         void eval_overlap(arma::mat & S) const;

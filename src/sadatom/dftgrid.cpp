@@ -264,44 +264,13 @@ namespace helfem {
         return l;
       }
 
-      void DFTGridWorker::init_xc() {
-        // Size of grid.
-        const size_t N=wtot.n_elem;
+      // init_xc, zero_Exc: inherited from
+      // helfem::dftgrid_common::DFTGridWorkerBase.
 
-        // Zero energy
-        zero_Exc();
-
-        if(!polarized) {
-          // Restricted case
-          vxc.zeros(1,N);
-          if(do_grad)
-            vsigma.zeros(1,N);
-          if(do_tau)
-            vtau.zeros(1,N);
-          if(do_lapl)
-            vlapl.zeros(1,N);
-        } else {
-          // Unrestricted case
-          vxc.zeros(2,N);
-          if(do_grad)
-            vsigma.zeros(3,N);
-          if(do_tau)
-            vtau.zeros(2,N);
-          if(do_lapl) {
-            vlapl.zeros(2,N);
-          }
-        }
-
-        // Initial values
-        do_gga=false;
-        do_mgga_l=false;
-        do_mgga_t=false;
-      }
-
-      void DFTGridWorker::zero_Exc() {
-        exc.zeros(wtot.n_elem);
-      }
-
+      // The compute_xc implementation is inherited; the NaN-guard
+      // diagnostic that lived here is now in the base and runs for
+      // atomic and diatomic too.
+#if 0
       void DFTGridWorker::compute_xc(int func_id, const arma::vec & p, double thr, bool pot) {
         // Compute exchange-correlation functional
 
@@ -483,6 +452,7 @@ namespace helfem {
         // Free functional
         xc_func_end(&func);
       }
+#endif
 
       void DFTGridWorker::get_pot(arma::mat & pot) const {
         double vrhoa=0.0, vrhob=0.0, vsigmaaa=0.0, vsigmaab=0.0, vsigmabb=0.0, vlapla=0.0, vlaplb=0.0, vtaua=0.0, vtaub=0.0;
@@ -589,13 +559,7 @@ namespace helfem {
         }
       }
 
-      double DFTGridWorker::eval_Exc() const {
-        arma::rowvec dens(rho.row(0));
-        if(polarized)
-          dens+=rho.row(1);
-
-        return arma::sum(wtot%exc%dens);
-      }
+      // eval_Exc: inherited from DFTGridWorkerBase.
 
       void DFTGridWorker::eval_overlap(arma::mat & So) const {
         // Calculate in subspace
@@ -803,40 +767,8 @@ namespace helfem {
         }
       }
 
-      void DFTGridWorker::check_grad_tau_lapl(int x_func, int c_func) {
-        // Do we need gradients?
-        do_grad=false;
-        if(x_func>0)
-          do_grad=do_grad || gradient_needed(x_func);
-        if(c_func>0)
-          do_grad=do_grad || gradient_needed(c_func);
-
-        // Do we need laplacians?
-        do_tau=false;
-        if(x_func>0)
-          do_tau=do_tau || tau_needed(x_func);
-        if(c_func>0)
-          do_tau=do_tau || tau_needed(c_func);
-
-        // Do we need laplacians?
-        do_lapl=false;
-        if(x_func>0)
-          do_lapl=do_lapl || laplacian_needed(x_func);
-        if(c_func>0)
-          do_lapl=do_lapl || laplacian_needed(c_func);
-      }
-
-      void DFTGridWorker::get_grad_tau_lapl(bool & grad_, bool & tau_, bool & lap_) const {
-        grad_=do_grad;
-        tau_=do_tau;
-        lap_=do_lapl;
-      }
-
-      void DFTGridWorker::set_grad_tau_lapl(bool grad_, bool tau_, bool lap_) {
-        do_grad=grad_;
-        do_tau=tau_;
-        do_lapl=lap_;
-      }
+      // check_grad_tau_lapl, get_grad_tau_lapl, set_grad_tau_lapl:
+      // inherited from DFTGridWorkerBase.
 
       void DFTGridWorker::compute_bf(size_t iel) {
         // Update function list
