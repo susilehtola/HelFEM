@@ -127,12 +127,17 @@ int main(int argc, char **argv) {
     throw std::logic_error("The specified exchange functional is not currently supported in HelFEM.\n");
   if (!is_supported(c_func))
     throw std::logic_error("The specified correlation functional is not currently supported in HelFEM.\n");
+  // Range-separation parameters (see atomic/ooo.cpp for the naming
+  // convention). RS hybrids use basis.rs_exchange with the erfc or
+  // Yukawa kernel selected via is_range_separated + compute_erfc /
+  // compute_yukawa.
   double kfrac, kshort, omega;
   range_separation(x_func, omega, kfrac, kshort);
   const bool have_exx = (kfrac != 0.0 || kshort != 0.0);
   const bool have_xc  = (x_func != 0 || c_func != 0);
-  if (have_exx && kshort != 0.0)
-    throw std::logic_error("Range-separated hybrids not yet supported in sadatom_ooo (needs omega wiring).\n");
+  bool rs_erfc = false, rs_yukawa = false;
+  if (kshort != 0.0)
+    is_range_separated(x_func, rs_erfc, rs_yukawa);
 
   arma::vec bval = atomic::basis::form_grid(
       modelpotential::POINT_NUCLEUS, 0.0, Nelem, Rmax, igrid, zexp,
@@ -151,6 +156,10 @@ int main(int argc, char **argv) {
 
   auto grid = helfem::sadatom::dftgrid::DFTGrid(&basis);
   basis.compute_tei();  // sadatom compute_tei takes no flag; exchange path is always available.
+  // Precompute the range-separated exchange kernel if the functional
+  // uses one.
+  if (rs_yukawa) basis.compute_yukawa(omega);
+  else if (rs_erfc) basis.compute_erfc(omega);
 
   // OOO block layout: per-l blocks.
   using OOO_Real = double;
@@ -244,20 +253,26 @@ int main(int argc, char **argv) {
     // gets K.slice(l) and Exx = 0.5 * sum_l trace(K[l] * Pl[l]) with
     // Pl the UNnormalized density -- matches bespoke solver.cpp:940.
     // ShellCapacity(l) = 2*(2l+1) for restricted, (2l+1) per spin for UKS.
+    // RS hybrids add kshort * basis.rs_exchange with the erfc/Yukawa
+    // kernel precomputed above.
     arma::cube Ka, Kb;
     double Exx = 0.0;
     if (have_exx) {
       arma::cube ang_a = Pal;
       for (size_t l = 0; l < nblock; ++l)
         ang_a.slice(l) /= restricted ? 2.0 * (2 * l + 1) : (2 * l + 1);
-      Ka = kfrac * basis.exchange(ang_a);
+      Ka.zeros(Nrad, Nrad, nblock);
+      if (kfrac  != 0.0) Ka += kfrac  * basis.exchange(ang_a);
+      if (kshort != 0.0) Ka += kshort * basis.rs_exchange(ang_a);
       for (size_t l = 0; l < nblock; ++l)
         Exx += 0.5 * arma::trace(Ka.slice(l) * Pal.slice(l));
       if (!restricted) {
         arma::cube ang_b = Pbl;
         for (size_t l = 0; l < nblock; ++l)
           ang_b.slice(l) /= (2 * l + 1);
-        Kb = kfrac * basis.exchange(ang_b);
+        Kb.zeros(Nrad, Nrad, nblock);
+        if (kfrac  != 0.0) Kb += kfrac  * basis.exchange(ang_b);
+        if (kshort != 0.0) Kb += kshort * basis.rs_exchange(ang_b);
         for (size_t l = 0; l < nblock; ++l)
           Exx += 0.5 * arma::trace(Kb.slice(l) * Pbl.slice(l));
       }
