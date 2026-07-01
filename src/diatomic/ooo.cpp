@@ -221,8 +221,31 @@ int main(int argc, char **argv) {
     }
   }
 
-  auto scatter_add = [&](arma::mat & P_full, const arma::mat & P_k, const arma::uvec & idx) {
-    P_full(idx, idx) += P_k;
+  // Accumulate a per-block density into the full-Nbf density matrix
+  // P_full through the block's basis-function scatter index dsym[k].
+  auto accumulate_density = [&](arma::mat & P_full, size_t k,
+                                 const helfem::Matrix & orb_e,
+                                 const helfem::Vector & occ_e) {
+    if (!dsym[k].n_elem) return;
+    const arma::mat orb  = helfem::to_arma(orb_e);
+    const arma::vec occ  = helfem::to_arma(occ_e);
+    const arma::mat C_k  = Sinvh_arma[k] * orb;
+    const arma::mat P_k  = C_k * arma::diagmat(occ) * C_k.t();
+    P_full(dsym[k], dsym[k]) += P_k;
+  };
+
+  // Extract F_full(dsym[k], dsym[k]), transform to the block's
+  // orthonormal basis via Sinvh_k^T . F_k . Sinvh_k, stash into fock[b].
+  auto orthonormalize_block =
+      [&](OpenOrbitalOptimizer::FockMatrix<OOO_Real> & fock, size_t b,
+          const arma::mat & F_full, size_t k) {
+    if (!dsym[k].n_elem) {
+      fock[b] = helfem::Matrix::Zero(0, 0);
+      return;
+    }
+    const arma::mat Fk_sub = F_full(dsym[k], dsym[k]);
+    const arma::mat F_orth = Sinvh_arma[k].t() * Fk_sub * Sinvh_arma[k];
+    fock[b] = helfem::to_eigen(F_orth);
   };
 
   OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> fock_builder =
@@ -230,29 +253,30 @@ int main(int argc, char **argv) {
     const auto & orbitals    = dm.first;
     const auto & occupations = dm.second;
 
-    // Assemble AO Pa / Pb from per-block orbitals.
-    arma::mat Pa(Nbf, Nbf, arma::fill::zeros);
-    arma::mat Pb(Nbf, Nbf, arma::fill::zeros);
-    for (size_t t = 0; t < nparttype; ++t) {
+    // Density assembly. Restricted mode has a single closed-shell channel
+    // with max_occ = 2, so P comes straight from the alpha channel; no
+    // Pa/Pb split, no *0.5 double-scatter.
+    OpenOrbitalOptimizer::FockMatrix<OOO_Real> fock(nsym * nparttype);
+    arma::mat P(Nbf, Nbf, arma::fill::zeros);
+    double Exc = 0.0;
+    double nelnum = 0.0, ekin_grid = 0.0;
+    arma::mat XCa, XCb;
+
+    if (restricted) {
+      for (size_t k = 0; k < nsym; ++k)
+        accumulate_density(P, k, orbitals[k], occupations[k]);
+      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa, Exc, nelnum, ekin_grid, dftthr);
+    } else {
+      arma::mat Pa(Nbf, Nbf, arma::fill::zeros);
+      arma::mat Pb(Nbf, Nbf, arma::fill::zeros);
       for (size_t k = 0; k < nsym; ++k) {
-        if (!dsym[k].n_elem) continue;
-        const size_t b = t * nsym + k;
-        const arma::mat orb_k = helfem::to_arma(orbitals[b]);
-        const arma::vec occ_k = helfem::to_arma(occupations[b]);
-        const arma::mat C_k = Sinvh_arma[k] * orb_k;
-        const arma::mat P_k = C_k * arma::diagmat(occ_k) * C_k.t();
-        if (restricted) {
-          const arma::mat Pha = 0.5 * P_k;
-          scatter_add(Pa, Pha, dsym[k]);
-          scatter_add(Pb, Pha, dsym[k]);
-        } else if (t == 0) {
-          scatter_add(Pa, P_k, dsym[k]);
-        } else {
-          scatter_add(Pb, P_k, dsym[k]);
-        }
+        accumulate_density(Pa, k, orbitals[k],        occupations[k]);
+        accumulate_density(Pb, k, orbitals[nsym + k], occupations[nsym + k]);
       }
+      P = Pa + Pb;
+      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb, XCa, XCb,
+                     Exc, nelnum, ekin_grid, nelb > 0, dftthr);
     }
-    const arma::mat P = Pa + Pb;
 
     const double Ekin = arma::trace(P * T);
     const double Enuc = arma::trace(P * Vnuc);
@@ -260,36 +284,23 @@ int main(int argc, char **argv) {
     const arma::mat J = basis.coulomb(P);
     const double Ecoul = 0.5 * arma::trace(P * J);
 
-    double Exc = 0.0;
-    double nelnum = 0.0, ekin_grid = 0.0;
-    arma::mat XCa, XCb;
-    if (restricted) {
-      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa, Exc, nelnum, ekin_grid, dftthr);
-      XCb = XCa;
-    } else {
-      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb, XCa, XCb,
-                     Exc, nelnum, ekin_grid, nelb > 0, dftthr);
-    }
-
     const double Etot = Ekin + Enuc + Ecoul + Exc + Enucr;
     printf("kinetic %.10f nuclear %.10f Enucr %.10f Coulomb %.10f XC %.10f  total %.10f  (nel err %.3e)\n",
             Ekin, Enuc, Enucr, Ecoul, Exc, Etot, nelnum - static_cast<double>(Ntot));
     fflush(stdout);
 
-    const arma::mat Fa_ao = T + Vnuc + J + XCa;
-    const arma::mat Fb_ao = restricted ? Fa_ao : arma::mat(T + Vnuc + J + XCb);
-
-    OpenOrbitalOptimizer::FockMatrix<OOO_Real> fock(nsym * nparttype);
-    for (size_t t = 0; t < nparttype; ++t) {
-      const arma::mat & F_ao = (t == 0) ? Fa_ao : Fb_ao;
+    // Fock assembly. Restricted: one AO Fock matrix per block.
+    // Unrestricted: separate alpha/beta AO Fock matrices.
+    if (restricted) {
+      const arma::mat F_ao = T + Vnuc + J + XCa;
+      for (size_t k = 0; k < nsym; ++k)
+        orthonormalize_block(fock, k, F_ao, k);
+    } else {
+      const arma::mat Fa_ao = T + Vnuc + J + XCa;
+      const arma::mat Fb_ao = T + Vnuc + J + XCb;
       for (size_t k = 0; k < nsym; ++k) {
-        if (!dsym[k].n_elem) {
-          fock[t * nsym + k] = helfem::Matrix::Zero(0, 0);
-          continue;
-        }
-        const arma::mat Fk_sub = F_ao(dsym[k], dsym[k]);
-        const arma::mat F_orth = Sinvh_arma[k].t() * Fk_sub * Sinvh_arma[k];
-        fock[t * nsym + k] = helfem::to_eigen(F_orth);
+        orthonormalize_block(fock, k,        Fa_ao, k);
+        orthonormalize_block(fock, nsym + k, Fb_ao, k);
       }
     }
     return std::make_pair(Etot, fock);
