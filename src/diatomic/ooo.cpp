@@ -124,8 +124,13 @@ int main(int argc, char **argv) {
   ::print_info(x_func, c_func);
   if (!is_supported(x_func) || !is_supported(c_func))
     throw std::logic_error("The specified functional is not supported in HelFEM.\n");
-  if (x_func == 0 && c_func == 0)
-    throw std::logic_error("HF is not yet implemented in diatomic_ooo -- pick a DFT functional.\n");
+
+  double kfrac, kshort, omega;
+  range_separation(x_func, omega, kfrac, kshort);
+  const bool have_exx = (kfrac != 0.0 || kshort != 0.0);
+  const bool have_xc  = (x_func != 0 || c_func != 0);
+  if (have_exx && kshort != 0.0)
+    throw std::logic_error("Range-separated hybrids not yet supported in diatomic_ooo (needs omega wiring).\n");
 
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
       polynomial_basis::get_basis(primbas, Nnodes));
@@ -199,7 +204,7 @@ int main(int argc, char **argv) {
   const int lang = ldft_arg > 0 ? ldft_arg : 4 * arma::max(lval) + 12;
   const int mang = mdft_arg > 0 ? mdft_arg : 4 * mmax + 12;
   auto grid = helfem::diatomic::dftgrid::DFTGrid(&basis, lang, mang);
-  basis.compute_tei(false);
+  basis.compute_tei(have_exx);
 
   const double Enucr = Z1 * Z2 / Rbond;
 
@@ -258,6 +263,7 @@ int main(int argc, char **argv) {
     // Pa/Pb split, no *0.5 double-scatter.
     OpenOrbitalOptimizer::FockMatrix<OOO_Real> fock(nsym * nparttype);
     arma::mat P(Nbf, Nbf, arma::fill::zeros);
+    arma::mat Pa, Pb;
     double Exc = 0.0;
     double nelnum = 0.0, ekin_grid = 0.0;
     arma::mat XCa, XCb;
@@ -265,17 +271,20 @@ int main(int argc, char **argv) {
     if (restricted) {
       for (size_t k = 0; k < nsym; ++k)
         accumulate_density(P, k, orbitals[k], occupations[k]);
-      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa, Exc, nelnum, ekin_grid, dftthr);
+      if (have_xc)
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa, Exc, nelnum, ekin_grid, dftthr);
+      if (have_exx) Pa = 0.5 * P;
     } else {
-      arma::mat Pa(Nbf, Nbf, arma::fill::zeros);
-      arma::mat Pb(Nbf, Nbf, arma::fill::zeros);
+      Pa.zeros(Nbf, Nbf);
+      Pb.zeros(Nbf, Nbf);
       for (size_t k = 0; k < nsym; ++k) {
         accumulate_density(Pa, k, orbitals[k],        occupations[k]);
         accumulate_density(Pb, k, orbitals[nsym + k], occupations[nsym + k]);
       }
       P = Pa + Pb;
-      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb, XCa, XCb,
-                     Exc, nelnum, ekin_grid, nelb > 0, dftthr);
+      if (have_xc)
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb, XCa, XCb,
+                       Exc, nelnum, ekin_grid, nelb > 0, dftthr);
     }
 
     const double Ekin = arma::trace(P * T);
@@ -284,20 +293,40 @@ int main(int argc, char **argv) {
     const arma::mat J = basis.coulomb(P);
     const double Ecoul = 0.5 * arma::trace(P * J);
 
-    const double Etot = Ekin + Enuc + Ecoul + Exc + Enucr;
-    printf("kinetic %.10f nuclear %.10f Enucr %.10f Coulomb %.10f XC %.10f  total %.10f  (nel err %.3e)\n",
-            Ekin, Enuc, Enucr, Ecoul, Exc, Etot, nelnum - static_cast<double>(Ntot));
+    // HF exchange. See sign-convention note in atomic/ooo.cpp: basis.exchange
+    // returns a matrix that gets ADDED to the Fock and the energy
+    // contribution is +0.5*trace(Pspin*Kspin) per channel.
+    arma::mat Ka, Kb;
+    double Exx = 0.0;
+    if (have_exx) {
+      Ka = kfrac * basis.exchange(Pa);
+      Exx = 0.5 * arma::trace(Pa * Ka);
+      if (!restricted) {
+        Kb = kfrac * basis.exchange(Pb);
+        Exx += 0.5 * arma::trace(Pb * Kb);
+      } else {
+        Exx *= 2.0;
+      }
+    }
+
+    const double Etot = Ekin + Enuc + Ecoul + Exc + Exx + Enucr;
+    printf("kinetic %.10f nuclear %.10f Enucr %.10f Coulomb %.10f XC %.10f Exx %.10f  total %.10f  (nel err %.3e)\n",
+            Ekin, Enuc, Enucr, Ecoul, Exc, Exx, Etot, nelnum - static_cast<double>(Ntot));
     fflush(stdout);
 
     // Fock assembly. Restricted: one AO Fock matrix per block.
     // Unrestricted: separate alpha/beta AO Fock matrices.
     if (restricted) {
-      const arma::mat F_ao = T + Vnuc + J + XCa;
+      arma::mat F_ao = T + Vnuc + J;
+      if (have_xc)  F_ao += XCa;
+      if (have_exx) F_ao += Ka;
       for (size_t k = 0; k < nsym; ++k)
         orthonormalize_block(fock, k, F_ao, k);
     } else {
-      const arma::mat Fa_ao = T + Vnuc + J + XCa;
-      const arma::mat Fb_ao = T + Vnuc + J + XCb;
+      arma::mat Fa_ao = T + Vnuc + J;
+      arma::mat Fb_ao = T + Vnuc + J;
+      if (have_xc)  { Fa_ao += XCa; Fb_ao += XCb; }
+      if (have_exx) { Fa_ao += Ka;  Fb_ao += Kb;  }
       for (size_t k = 0; k < nsym; ++k) {
         orthonormalize_block(fock, k,        Fa_ao, k);
         orthonormalize_block(fock, nsym + k, Fb_ao, k);

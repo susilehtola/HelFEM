@@ -132,8 +132,18 @@ int main(int argc, char **argv) {
   ::print_info(x_func, c_func);
   if (!is_supported(x_func) || !is_supported(c_func))
     throw std::logic_error("The specified functional is not supported in HelFEM.\n");
-  if (x_func == 0 && c_func == 0)
-    throw std::logic_error("HF is not yet implemented in atomic_ooo -- pick a DFT functional.\n");
+
+  // Range-separation parameters: kfrac for full-range HF exchange
+  // fraction (1 for pure HF, 0 for pure DFT, in-between for hybrids),
+  // kshort for the short-range fraction (nonzero only for range-
+  // separated hybrids). omega is the range-separation parameter itself,
+  // unused here because we don't wire an omega variant of rs_exchange.
+  double kfrac, kshort, omega;
+  range_separation(x_func, omega, kfrac, kshort);
+  const bool have_exx = (kfrac != 0.0 || kshort != 0.0);
+  const bool have_xc  = (x_func != 0 || c_func != 0);
+  if (have_exx && kshort != 0.0)
+    throw std::logic_error("Range-separated hybrids not yet supported in atomic_ooo (needs omega wiring).\n");
 
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
       polynomial_basis::get_basis(primbas, Nnodes));
@@ -190,7 +200,7 @@ int main(int argc, char **argv) {
   const int ldft = ldft_arg > 0 ? ldft_arg : 4 * lmax + 12;
   const int mdft = mdft_arg > 0 ? mdft_arg : 4 * mmax + 12;
   auto grid = helfem::atomic::dftgrid::DFTGrid(&basis, ldft, mdft);
-  basis.compute_tei(false);
+  basis.compute_tei(have_exx);
 
   // --- OOO block layout.
   using OOO_Real = double;
@@ -250,6 +260,9 @@ int main(int argc, char **argv) {
     //     channel; no Pa/Pb split, no *0.5 double-scatter, no unused Pb.
     OpenOrbitalOptimizer::FockMatrix<OOO_Real> fock(nsym * nparttype);
     arma::mat P(Nbf, Nbf, arma::fill::zeros);
+    // Spin-density buffers used for both the XC branch and the HF
+    // exchange branch; for restricted the alpha density is 0.5 * P.
+    arma::mat Pa, Pb;
     double Exc = 0.0;
     double nelnum = 0.0, ekin_grid = 0.0;
     arma::mat XCa, XCb;
@@ -257,17 +270,20 @@ int main(int argc, char **argv) {
     if (restricted) {
       for (size_t k = 0; k < nsym; ++k)
         accumulate_density(P, k, orbitals[k], occupations[k]);
-      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa, Exc, nelnum, ekin_grid, dftthr);
+      if (have_xc)
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa, Exc, nelnum, ekin_grid, dftthr);
+      if (have_exx) Pa = 0.5 * P;
     } else {
-      arma::mat Pa(Nbf, Nbf, arma::fill::zeros);
-      arma::mat Pb(Nbf, Nbf, arma::fill::zeros);
+      Pa.zeros(Nbf, Nbf);
+      Pb.zeros(Nbf, Nbf);
       for (size_t k = 0; k < nsym; ++k) {
         accumulate_density(Pa, k, orbitals[k],        occupations[k]);
         accumulate_density(Pb, k, orbitals[nsym + k], occupations[nsym + k]);
       }
       P = Pa + Pb;
-      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb, XCa, XCb,
-                     Exc, nelnum, ekin_grid, nelb > 0, dftthr);
+      if (have_xc)
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb, XCa, XCb,
+                       Exc, nelnum, ekin_grid, nelb > 0, dftthr);
     }
 
     const double Ekin = arma::trace(P * T);
@@ -276,20 +292,45 @@ int main(int argc, char **argv) {
     const arma::mat J = helfem::to_arma(basis.coulomb(helfem::to_eigen(P)));
     const double Ecoul = 0.5 * arma::trace(P * J);
 
-    const double Etot = Ekin + Enuc + Ecoul + Exc;
-    printf("kinetic %.10f nuclear %.10f Coulomb %.10f XC %.10f  total %.10f  (nel err %.3e)\n",
-            Ekin, Enuc, Ecoul, Exc, Etot, nelnum - static_cast<double>(Ntot));
+    // --- HF exchange: K = kfrac * basis.exchange(spin density). Sign
+    //     convention is baked into basis.exchange (it returns the
+    //     signed contribution that gets ADDED to the Fock matrix), so
+    //     Exx = 0.5 * trace(P_spin * K_spin) per channel with a +
+    //     sign matches the bespoke atomic driver's line 754.
+    arma::mat Ka, Kb;
+    double Exx = 0.0;
+    if (have_exx) {
+      Ka = kfrac * helfem::to_arma(basis.exchange(helfem::to_eigen(Pa)));
+      Exx = 0.5 * arma::trace(Pa * Ka);
+      if (!restricted) {
+        Kb = kfrac * helfem::to_arma(basis.exchange(helfem::to_eigen(Pb)));
+        Exx += 0.5 * arma::trace(Pb * Kb);
+      } else {
+        // In restricted mode alpha == beta density, and we only assemble
+        // one Fock. Skipping the K(Pb) call saves one exchange build;
+        // the beta contribution equals the alpha one so double it.
+        Exx *= 2.0;
+      }
+    }
+
+    const double Etot = Ekin + Enuc + Ecoul + Exc + Exx;
+    printf("kinetic %.10f nuclear %.10f Coulomb %.10f XC %.10f Exx %.10f  total %.10f  (nel err %.3e)\n",
+            Ekin, Enuc, Ecoul, Exc, Exx, Etot, nelnum - static_cast<double>(Ntot));
     fflush(stdout);
 
     // --- Fock assembly. Restricted: one AO Fock, orthonormalize per block.
     //     Unrestricted: separate Fa/Fb AO Fock matrices for the two channels.
     if (restricted) {
-      const arma::mat F_ao = T + Vnuc + J + XCa;
+      arma::mat F_ao = T + Vnuc + J;
+      if (have_xc)  F_ao += XCa;
+      if (have_exx) F_ao += Ka;
       for (size_t k = 0; k < nsym; ++k)
         orthonormalize_block(fock, k, F_ao, k);
     } else {
-      const arma::mat Fa_ao = T + Vnuc + J + XCa;
-      const arma::mat Fb_ao = T + Vnuc + J + XCb;
+      arma::mat Fa_ao = T + Vnuc + J;
+      arma::mat Fb_ao = T + Vnuc + J;
+      if (have_xc)  { Fa_ao += XCa; Fb_ao += XCb; }
+      if (have_exx) { Fa_ao += Ka;  Fb_ao += Kb;  }
       for (size_t k = 0; k < nsym; ++k) {
         orthonormalize_block(fock, k,        Fa_ao, k);
         orthonormalize_block(fock, nsym + k, Fb_ao, k);
