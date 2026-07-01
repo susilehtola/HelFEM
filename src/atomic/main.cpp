@@ -192,11 +192,11 @@ int main(int argc, char **argv) {
   // Set parameters if necessary
   arma::vec xpars, cpars;
   if(xparf.size()) {
-    xpars = scf::parse_xc_params(xparf);
+    xpars = helfem::to_arma(scf::parse_xc_params(xparf));
     xpars.t().print("Exchange functional parameters");
   }
   if(cparf.size()) {
-    cpars = scf::parse_xc_params(cparf);
+    cpars = helfem::to_arma(scf::parse_xc_params(cparf));
     cpars.t().print("Correlation functional parameters");
   }
 
@@ -702,11 +702,11 @@ int main(int argc, char **argv) {
     if(perturb) {
       // Generate norb x norb rotation matrix
       arma::arma_rng::set_seed(seed);
-      Ca*=scf::perturbation_matrix(Ca.n_cols,perturb);
+      Ca*=helfem::to_arma(scf::perturbation_matrix(Ca.n_cols,perturb));
       if(restr && nela==nelb) {
         Cb=Ca;
       } else {
-        Cb*=scf::perturbation_matrix(Cb.n_cols,perturb);
+        Cb*=helfem::to_arma(scf::perturbation_matrix(Cb.n_cols,perturb));
       }
       printf("Guess orbitals perturbed by %e\n",perturb);
     }
