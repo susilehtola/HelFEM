@@ -1,0 +1,46 @@
+@PACKAGE_INIT@
+
+# helfemConfig.cmake -- config file for consumers doing
+#
+#   find_package(helfem CONFIG REQUIRED)
+#   target_link_libraries(mytarget PRIVATE helfem::helfem)
+#
+# This exposes the IMPORTED target `helfem::helfem` which chains
+# helfem::helfem-common, helfem::legendre, helfem::lib1dfem and
+# their transitive dependencies. Consumer code needs no manual
+# -I<armadillo> or -DARMA_* flags -- they are propagated through
+# the exported target's INTERFACE_* properties.
+
+include(CMakeFindDependencyMacro)
+
+# Transitive deps -- these must be resolvable by the consumer's
+# find_package chain so the IMPORTED targets in helfemTargets.cmake
+# find their linkage.
+find_dependency(Eigen3 3.4 CONFIG)
+find_dependency(wignernj 0.5.0)
+
+# Armadillo is a private link/interface dep of helfem-common; the
+# consumer must be able to link against it. We do not require it
+# by find_package here because HelFEM's own build allows Armadillo
+# to come in via either find_package(Armadillo) or a plain
+# link_libraries(armadillo) from CMake.system. If a consumer runs
+# without Armadillo on the system, the link step below fails
+# clearly.
+find_dependency(Armadillo)
+
+# Optional deps used by helfem-common's DFT / HDF5 paths. Only
+# looked up if they were found at HelFEM build time.
+if(@HELFEM_HAS_HDF5@)
+    find_dependency(HDF5 COMPONENTS CXX)
+endif()
+
+# Bring in the imported targets: helfem::helfem, helfem::helfem-common,
+# helfem::legendre, helfem::lib1dfem.
+include("${CMAKE_CURRENT_LIST_DIR}/helfemTargets.cmake")
+
+# ARMA_64BIT_WORD / ARMA_BLAS_LONG are attached as
+# INTERFACE_COMPILE_DEFINITIONS on the exported targets, so a consumer
+# that just does target_link_libraries(mytarget PRIVATE helfem::helfem)
+# gets them automatically -- no need to remember the macros.
+
+check_required_components(helfem)

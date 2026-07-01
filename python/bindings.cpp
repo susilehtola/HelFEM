@@ -185,23 +185,23 @@ namespace helfem_py {
     /// Gaunt -- libatomscf applies those at angular assembly).
     py::list radial_df_factors(double tol = 1e-10) {
       ensure_tei_();
-      auto cubes = basis_.radial_df_factors(tol);
+      // Public API now returns std::vector<std::vector<helfem::Matrix>>
+      // (outer = multipole k, inner = Cholesky factor Q, each Nrad x Nrad
+      // Eigen matrix). Repack to numpy shape (naux_k, Nrad, Nrad) per k.
+      auto factors = basis_.radial_df_factors(tol);
       const size_t Nrad = basis_.Nrad();
       py::list out;
-      for (auto & cube : cubes) {
-        // arma::cube layout: (Nrad, Nrad, naux). Each slice is a Nrad x
-        // Nrad matrix. We want numpy shape (naux, Nrad, Nrad). Build a
-        // new contiguous numpy array of that shape and copy slice-by-
-        // slice (column-major arma -> C-order numpy via element-wise
-        // copy through (i, j) -> (Q, i, j)).
-        const size_t naux = cube.n_slices;
+      for (auto & per_L : factors) {
+        const size_t naux = per_L.size();
         py::array_t<double> arr({naux, Nrad, Nrad});
-        auto buf = arr.mutable_unchecked<3>();
-        for (size_t q = 0; q < naux; ++q) {
-          const arma::mat & M = cube.slice(q);
-          for (size_t i = 0; i < Nrad; ++i) {
-            for (size_t j = 0; j < Nrad; ++j) {
-              buf(q, i, j) = M(i, j);
+        if (naux > 0) {
+          auto buf = arr.mutable_unchecked<3>();
+          for (size_t q = 0; q < naux; ++q) {
+            const helfem::Matrix & M = per_L[q];
+            for (size_t i = 0; i < Nrad; ++i) {
+              for (size_t j = 0; j < Nrad; ++j) {
+                buf(q, i, j) = M(i, j);
+              }
             }
           }
         }

@@ -14,7 +14,14 @@ diatomic/dftgrid.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp
 )
 target_link_libraries(helfem-common PUBLIC helfem wignernj::wignernj)
-target_include_directories(helfem-common PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../libhelfem/src/")
+target_include_directories(helfem-common
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../libhelfem/src/>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        # Installed headers live at include/helfem/{atomic,general}/;
+        # consumers include as <helfem/atomic/TwoDBasis.h>.
+        $<INSTALL_INTERFACE:include>
+)
 target_compile_features(helfem-common PUBLIC cxx_std_17)
 
 add_executable(gensap sadatom/main.cpp)
@@ -37,6 +44,11 @@ target_link_libraries(1e_atom helfem-common legendre)
 add_library(legendre
   legendre/Legendre.cpp general/legendretable.cpp)
 target_compile_features(legendre PUBLIC cxx_std_17)
+
+# helfem-common uses LegendreTable symbols internally, so a consumer
+# linking only helfem-common needs legendre transitively. Declared
+# after `legendre` is defined so the target reference resolves.
+target_link_libraries(helfem-common PUBLIC legendre)
 
 add_executable(legendre_test legendre/legendre_test.cpp)
 target_link_libraries(legendre_test helfem-common legendre)
@@ -108,6 +120,32 @@ target_link_libraries(diatomic_dline helfem-common legendre)
 add_executable(diatomic_dgrid diatomic/density_grid.cpp)
 target_link_libraries(diatomic_dgrid helfem-common legendre)
 
-# Install libraries and main executables
+# Install libraries and main executables.
+# helfem-common + legendre are exported as part of the helfemTargets
+# set so external consumers doing find_package(helfem) pick up the
+# transitive linkage automatically.
 install (TARGETS atomic diatomic diatomic_cbasis diatomic_cpl gensap DESTINATION bin OPTIONAL)
-install (TARGETS helfem-common legendre DESTINATION lib OPTIONAL)
+install (TARGETS helfem-common legendre
+    EXPORT helfemTargets
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+    INCLUDES DESTINATION include)
+
+# Install atomic public headers into ${PREFIX}/include/helfem/atomic/
+# so a consumer can #include <helfem/atomic/TwoDBasis.h>. This is the
+# consumer-visible surface for the atomic FE basis backend that
+# libatomscf integrates.
+#
+# TwoDBasis.h has \"../general/model_potential.h\" and \"../general/sap.h\"
+# relative includes; keep the same directory layout under helfem/atomic/
+# and helfem/general/ so the relative-include chain still resolves
+# against the installed headers.
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/atomic/TwoDBasis.h"
+    DESTINATION include/helfem/atomic)
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/general/model_potential.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/general/RadialPotential.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/general/sap.h"
+    DESTINATION include/helfem/general)

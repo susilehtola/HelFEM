@@ -213,3 +213,46 @@ endif()
 if(HELFEM_BINARIES)
     add_subdirectory(src)
 endif()
+
+# ---- Export an installed CMake package -------------------------------
+#
+# After `cmake --install`, a consumer can do
+#
+#     find_package(helfem CONFIG REQUIRED)
+#     target_link_libraries(mytarget PRIVATE helfem::helfem)
+#
+# which pulls in the exported targets and their transitive properties
+# (INTERFACE_INCLUDE_DIRECTORIES / INTERFACE_LINK_LIBRARIES /
+#  INTERFACE_COMPILE_DEFINITIONS). This is the shape libatomscf and
+# other external C++ consumers use.
+include(CMakePackageConfigHelpers)
+
+# Test whether the HDF5 CXX target got resolved during our own build.
+# Used only to decide whether the exported config re-finds HDF5.
+if(TARGET HDF5::HDF5 OR DEFINED HDF5_CXX_LIBRARIES OR DEFINED HDF5_LIBRARIES)
+    set(HELFEM_HAS_HDF5 TRUE)
+else()
+    set(HELFEM_HAS_HDF5 FALSE)
+endif()
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/helfemConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/helfemConfig.cmake"
+    INSTALL_DESTINATION lib/cmake/helfem
+)
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/helfemConfigVersion.cmake"
+    VERSION "0.0.1"
+    COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/helfemConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/helfemConfigVersion.cmake"
+    DESTINATION lib/cmake/helfem)
+
+# helfemTargets.cmake is generated from EXPORT(helfemTargets)
+# declared by the individual add_subdirectory calls below.
+install(EXPORT helfemTargets
+    NAMESPACE helfem::
+    DESTINATION lib/cmake/helfem)

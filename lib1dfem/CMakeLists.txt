@@ -55,3 +55,7 @@ target_compile_features(lib1dfem INTERFACE cxx_std_17)
 
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/lib1dfem"
         DESTINATION include)
+# Export the INTERFACE target so downstream consumers get its include
+# path chained through helfem::helfem.
+install(TARGETS lib1dfem EXPORT helfemTargets
+    INCLUDES DESTINATION include)

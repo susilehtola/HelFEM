@@ -182,11 +182,17 @@ namespace helfem {
         /// Density-fitted (Cholesky-factored) BARE radial Slater
         /// integrals R^k(i, j, m, n) for k = 0..2*max(lval).
         ///
-        /// Returns vec[k] = arma::cube of shape (Nrad, Nrad, naux_k)
-        /// such that for each multipole k:
-        ///     R^k(i, j, m, n)  =  sum_Q  B[k](i, j, Q) * B[k](m, n, Q)
+        /// Returns vec[k][Q] = helfem::Matrix of shape (Nrad, Nrad),
+        /// the Q-th Cholesky factor for multipole k, so that:
+        ///     R^k(i, j, m, n)  =  sum_Q  B[k][Q](i, j) * B[k][Q](m, n)
         /// where R^k is the BARE radial Slater integral (no 4*pi/(2k+1),
         /// no Gaunt -- libatomscf applies those at angular assembly).
+        ///
+        /// The public return type is arma-free (Eigen matrices via
+        /// helfem::Matrix) so consumers link against libhelfem without
+        /// needing armadillo on their compile line. The interior
+        /// computation is arma-native; the conversion is one memcpy
+        /// per factor.
         ///
         /// Computed via pivoted Cholesky on R^k as a Nrad^2 x Nrad^2
         /// matrix, with columns generated on-the-fly via
@@ -197,7 +203,8 @@ namespace helfem {
         ///
         /// `tol` is the residual diagonal threshold for stopping the
         /// Cholesky iteration; pivots below `tol` are dropped.
-        std::vector<arma::cube> radial_df_factors(double tol = 1e-10) const;
+        std::vector<std::vector<helfem::Matrix>>
+        radial_df_factors(double tol = 1e-10) const;
 
         /// Get primitive integrals
         std::vector<arma::mat> get_prim_tei() const;
