@@ -1315,6 +1315,13 @@ namespace helfem {
         }
         // Index is
         size_t idx(low-lm_map.begin());
+        // When check==false callers use idx == lm_map.size() as a
+        // "not-found sentinel". Do not touch lm_map[idx] in that path
+        // -- with libstdc++'s hardened operator[] (GCC 16 default) an
+        // OOB access on operator[] is a hard abort even though the value
+        // would just be compared and discarded.
+        if (idx == lm_map.size())
+          return idx;
         if(check && (lm_map[idx].first != L || lm_map[idx].second != M)) {
           std::ostringstream oss;
           oss << "Map error: tried to get L = " << L << ", M = " << M << " but got instead L = " << lm_map[idx].first << ", M = " << lm_map[idx].second << "!\n";
@@ -1335,6 +1342,9 @@ namespace helfem {
         }
         // Index is
         size_t idx(low-LM_map.begin());
+        // See lmind() above: guard the operator[] access when idx == size.
+        if (idx == LM_map.size())
+          return idx;
         if(check && (LM_map[idx].first != L || LM_map[idx].second != M)) {
           std::ostringstream oss;
           oss << "Map error: tried to get L = " << L << ", M = " << M << " but got instead L = " << LM_map[idx].first << ", M = " << LM_map[idx].second << "!\n";
