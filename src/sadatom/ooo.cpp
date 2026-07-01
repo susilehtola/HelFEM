@@ -13,16 +13,17 @@
  * for the full license text.
  */
 
-// Sadatom driver using OpenOrbitalOptimizer for SCF convergence.
-// Ported from the aij branch (commit 0318ab9 "Atomic calculations should
-// work now with OpenOrbitalOptimizer") onto current master. The port
-// adapts to:
-//   - sadatom TwoDBasis constructor (dropped the taylor_order argument
-//     that lived on the aij branch).
-//   - Phase-5 migrated basis accessors (overlap/kinetic/nuclear/coulomb
-//     now return helfem::Matrix / Eigen).
-//   - OpenOrbitalOptimizer's Eigen-typed public API (was arma at the
-//     time the aij snapshot was written).
+// Sadatom driver using OpenOrbitalOptimizer. Supports:
+//   - Restricted (closed-shell) DFT: one particle type, per-l blocks,
+//     max_occupation = 2*(2l+1) per block.
+//   - Unrestricted DFT: two particle types (alpha, beta) each split
+//     into the same per-l blocks; max_occupation = 2l+1 per orbital.
+//
+// nela/nelb are derived from --Q and --M (spin multiplicity, 2S+1) via
+// scf::parse_nela_nelb, matching the CLI convention of atomic_ooo and
+// diatomic_ooo.
+//
+// HF (x_func == 0 && c_func == 0) is deferred; picking any HF method throws.
 
 #include "../general/cmdline.h"
 #include "../general/constants.h"
@@ -36,6 +37,7 @@
 #include "dftgrid.h"
 #include "solver.h"
 #include "configurations.h"
+#include "../atomic/basis.h"
 #include <ArmaEigen.h>
 #include <Eigen/Eigenvalues>
 #include <cfloat>
@@ -52,6 +54,10 @@ int main(int argc, char **argv) {
   parser.add<int>("nelem", 0, "number of elements", true);
   parser.add<std::string>("Z", 0, "nuclear charge", true);
   parser.add<int>("Q", 0, "charge of system", false, 0);
+  parser.add<int>("M", 0, "spin multiplicity (2S+1); mutually exclusive with nela/nelb", false, 0);
+  parser.add<int>("nela", 0, "number of alpha electrons (leave 0 to derive from Q/M)", false, 0);
+  parser.add<int>("nelb", 0, "number of beta electrons (leave 0 to derive from Q/M)", false, 0);
+  parser.add<int>("restricted", 0, "spin-restricted: 1 restricted, 0 unrestricted, -1 auto from nela/nelb", false, -1);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
   parser.add<std::string>("method", 0, "method to use", false, "lda_x");
@@ -65,7 +71,11 @@ int main(int argc, char **argv) {
   const double zexp = parser.get<double>("zexp");
   const int Nelem   = parser.get<int>("nelem");
   const int Z       = get_Z(parser.get<std::string>("Z"));
-  const int Q       = parser.get<int>("Q");
+        int Q       = parser.get<int>("Q");
+        int M       = parser.get<int>("M");
+        int nela    = parser.get<int>("nela");
+        int nelb    = parser.get<int>("nelb");
+        int restr   = parser.get<int>("restricted");
   const int Nnodes  = parser.get<int>("nnodes");
         int Nquad   = parser.get<int>("nquad");
   const std::string method = parser.get<std::string>("method");
@@ -76,9 +86,16 @@ int main(int argc, char **argv) {
   const int lmax      = parser.get<int>("lmax");
   const double Rmax   = parser.get<double>("Rmax");
 
-  // Parse xc parameters (Phase 5.15: scf::parse_xc_params returns
-  // helfem::Vector; bridge to arma once because grid.eval_Fxc still
-  // takes arma::vec params).
+  // Derive nela/nelb from Q, M via scf::parse_nela_nelb -- same CLI as
+  // atomic_ooo / diatomic_ooo (see PR #148, #147).
+  scf::parse_nela_nelb(nela, nelb, Q, M, Z);
+  if (restr == -1) restr = (nela == nelb) ? 1 : 0;
+  const bool restricted = (restr != 0);
+  if (restricted && nela != nelb)
+    throw std::logic_error("Restricted mode requires nela == nelb (closed shell). "
+                            "Use --restricted=0 (or leave -1 for auto) for open-shell.");
+  const int Ntot = nela + nelb;
+
   arma::vec x_pars, c_pars;
   if (xparf.size()) {
     x_pars = helfem::to_arma(scf::parse_xc_params(xparf));
@@ -89,8 +106,10 @@ int main(int argc, char **argv) {
     c_pars.t().print("Correlation functional parameters");
   }
 
-  printf("Running restricted %s calculation with Rmax=%e and %i elements.\n",
+  printf("Running %s %s calculation with Rmax=%e and %i elements.\n",
+          restricted ? "restricted" : "unrestricted",
           method.c_str(), Rmax, Nelem);
+  printf("nela=%d nelb=%d\n", nela, nelb);
 
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
       polynomial_basis::get_basis(primbas, Nnodes));
@@ -101,7 +120,6 @@ int main(int argc, char **argv) {
     throw std::logic_error("Insufficient radial quadrature.\n");
   printf("Using %i point quadrature rule.\n", Nquad);
 
-  // Functional
   int x_func, c_func;
   ::parse_xc_func(x_func, c_func, method);
   ::print_info(x_func, c_func);
@@ -109,11 +127,6 @@ int main(int argc, char **argv) {
     throw std::logic_error("The specified exchange functional is not currently supported in HelFEM.\n");
   if (!is_supported(c_func))
     throw std::logic_error("The specified correlation functional is not currently supported in HelFEM.\n");
-  // Hartree-Fock (x_func == 0 && c_func == 0) is NOT supported in this
-  // first-cut driver: the Fock builder below computes J via
-  // basis.coulomb() but does not add HF exchange. Follow-up work needs
-  // basis.exchange() and a bridge into the callback. For now, error
-  // out so users don't get a silent Hartree-only answer.
   if (x_func == 0 && c_func == 0)
     throw std::logic_error("HF is not yet implemented in sadatom_ooo -- pick a DFT functional.\n");
 
@@ -126,8 +139,6 @@ int main(int argc, char **argv) {
                                           poly, zeroder, Nquad, bval, lmax);
   printf("Basis set has %i radial functions\n", (int) basis.Nbf());
 
-  // Phase 5: overlap / kinetic / kinetic_l / nuclear now return Eigen.
-  // Sinvh still arma; bridge it once to Eigen up front.
   const helfem::Matrix S    = basis.overlap();
   const helfem::Matrix Sinvh = helfem::to_eigen(basis.Sinvh());
   const helfem::Matrix T    = basis.kinetic();
@@ -137,100 +148,121 @@ int main(int argc, char **argv) {
   auto grid = helfem::sadatom::dftgrid::DFTGrid(&basis);
   basis.compute_tei();
 
-  // OOO input: block structure (one block per l).
-  using OOO_Real  = double;
-  using OOO_Index = OpenOrbitalOptimizer::Index;
-  OpenOrbitalOptimizer::IndexVector number_of_blocks_per_particle_type(1);
-  number_of_blocks_per_particle_type(0) = lmax + 1;
-  Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> maximum_occupation(lmax + 1);
-  Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> number_of_particles(1);
-  number_of_particles(0) = static_cast<OOO_Real>(Z - Q);
-  std::vector<std::string> block_descriptions(lmax + 1);
-  for (int l = 0; l <= lmax; ++l) {
-    maximum_occupation(l) = 2 * (2 * l + 1);
-    std::ostringstream oss; oss << "l=" << l;
-    block_descriptions[l] = oss.str();
+  // OOO block layout: per-l blocks.
+  using OOO_Real = double;
+  const size_t nblock = static_cast<size_t>(lmax + 1);
+  const size_t nparttype = restricted ? 1 : 2;
+  OpenOrbitalOptimizer::IndexVector number_of_blocks_per_particle_type(nparttype);
+  Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> maximum_occupation(nblock * nparttype);
+  Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> number_of_particles(nparttype);
+  std::vector<std::string> block_descriptions(nblock * nparttype);
+
+  for (size_t t = 0; t < nparttype; ++t) {
+    number_of_blocks_per_particle_type(t) = static_cast<int>(nblock);
+    number_of_particles(t) = static_cast<OOO_Real>(restricted ? Ntot : (t == 0 ? nela : nelb));
+    for (size_t l = 0; l < nblock; ++l) {
+      // Per-l shell capacity: restricted = 2*(2l+1), unrestricted alpha or beta = (2l+1).
+      maximum_occupation(t * nblock + l) = restricted ? 2 * (2 * l + 1) : (2 * l + 1);
+      std::ostringstream oss;
+      if (nparttype == 2) oss << (t == 0 ? "a:" : "b:");
+      oss << "l=" << l;
+      block_descriptions[t * nblock + l] = oss.str();
+    }
   }
   std::cout << "Max occ: " << maximum_occupation.transpose() << "\n";
 
-  // Fock builder. Uses arma internally for the density / XC intermediate
-  // buffers (grid.eval_Fxc is still arma::cube-typed and basis.compute_tei
-  // caches feed basis.coulomb) and bridges at the OOO Eigen boundary.
+  const Eigen::Index Nrad = Sinvh.rows();
+  const double angfac = 4.0 * M_PI;
+
+  // Accumulate per-l density into the full radial density Prad and into
+  // the per-l cube Pl_cube for grid.eval_Fxc.
+  auto accumulate_density = [&](helfem::Matrix & Prad, arma::cube & Pl_cube,
+                                 size_t l, const helfem::Matrix & orb,
+                                 const helfem::Vector & occ, double & Ekin_out) {
+    if (occ.cwiseAbs().maxCoeff() == 0.0) return;
+    const helfem::Matrix C = Sinvh * orb;
+    const helfem::Matrix P_l = C * occ.asDiagonal() * C.transpose();
+    Prad += P_l;
+    Pl_cube.slice(l) = helfem::to_arma(P_l);
+    Ekin_out += (P_l * T).trace();
+    if (l > 0)
+      Ekin_out += l * (l + 1) * (P_l * Tl).trace();
+  };
+
   OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> fock_builder =
       [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm) {
-    const auto & orbitals = dm.first;      // std::vector<Eigen::MatrixXd>
-    const auto & occupations = dm.second;  // std::vector<Eigen::VectorXd>
+    const auto & orbitals    = dm.first;
+    const auto & occupations = dm.second;
 
-    const Eigen::Index Nrad = Sinvh.rows();
-
-    double Ekin = 0.0;
-    // Total radial density (summed over l) as Eigen for coulomb().
+    OpenOrbitalOptimizer::FockMatrix<OOO_Real> fock(nblock * nparttype);
     helfem::Matrix Prad = helfem::Matrix::Zero(Nrad, Nrad);
-    // Per-l density as arma::cube for grid.eval_Fxc.
-    arma::cube Pl(Nrad, Nrad, lmax + 1, arma::fill::zeros);
+    double Ekin = 0.0;
+    double Exc = 0.0;
+    double nelnum = 0.0;
+    arma::cube XCa, XCb;
 
-    for (int l = 0; l <= lmax; ++l) {
-      // Skip empty blocks.
-      if (occupations[l].cwiseAbs().maxCoeff() == 0.0)
-        continue;
-
-      // C in original AO basis: C = Sinvh * orbitals_l  (Eigen).
-      const helfem::Matrix C = Sinvh * orbitals[l];
-      // P_l = C * diag(occ_l) * C^T  (Eigen).
-      const helfem::Matrix Pblock = C * occupations[l].asDiagonal() * C.transpose();
-
-      Prad += Pblock;
-      Pl.slice(l) = helfem::to_arma(Pblock);
-
-      Ekin += (Pblock * T).trace();
-      if (l > 0)
-        Ekin += l * (l + 1) * (Pblock * Tl).trace();
+    if (restricted) {
+      arma::cube Pl(Nrad, Nrad, nblock, arma::fill::zeros);
+      for (size_t l = 0; l < nblock; ++l)
+        accumulate_density(Prad, Pl, l, orbitals[l], occupations[l], Ekin);
+      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pl / angfac,
+                     XCa, Exc, nelnum, dftthr);
+      XCa /= angfac;
+    } else {
+      helfem::Matrix Prad_a = helfem::Matrix::Zero(Nrad, Nrad);
+      helfem::Matrix Prad_b = helfem::Matrix::Zero(Nrad, Nrad);
+      arma::cube Pal(Nrad, Nrad, nblock, arma::fill::zeros);
+      arma::cube Pbl(Nrad, Nrad, nblock, arma::fill::zeros);
+      for (size_t l = 0; l < nblock; ++l) {
+        accumulate_density(Prad_a, Pal, l, orbitals[l],           occupations[l],           Ekin);
+        accumulate_density(Prad_b, Pbl, l, orbitals[nblock + l],  occupations[nblock + l],  Ekin);
+      }
+      Prad = Prad_a + Prad_b;
+      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pal / angfac, Pbl / angfac,
+                     XCa, XCb, Exc, nelnum, nelb > 0, dftthr);
+      XCa /= angfac;
+      if (nelb > 0) XCb /= angfac;
     }
 
     const double Enuc = (Prad * Vnuc).trace();
-
-    const double angfac = 4.0 * M_PI;
-
-    // Coulomb J: basis.coulomb takes helfem::Matrix (Eigen) after Phase 5.
     const helfem::Matrix J = basis.coulomb(Prad / angfac);
-
-    double Exc = 0.0;
-    double nelnum = 0.0;
-    arma::cube XC;
-    if (x_func > 0 || c_func > 0) {
-      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pl / angfac,
-                     XC, Exc, nelnum, dftthr);
-      XC /= angfac;
-    }
-
     const double Ecoul = 0.5 * (Prad * J).trace();
-    const double Etot  = Ekin + Enuc + Ecoul + Exc;
+    const double Etot = Ekin + Enuc + Ecoul + Exc;
 
-    printf("kinetic energy         % .10f\n", Ekin);
-    printf("nuclear attraction     % .10f\n", Enuc);
-    printf("Coulomb repulsion      % .10f\n", Ecoul);
-    printf("exchange-correlation   % .10f\n", Exc);
-    printf("total energy           % .10f\n", Etot);
+    printf("Ekin %.10f  Enuc %.10f  Ecoul %.10f  Exc %.10f  Etot %.10f\n",
+            Ekin, Enuc, Ecoul, Exc, Etot);
     fflush(stdout);
 
-    OpenOrbitalOptimizer::FockMatrix<OOO_Real> fock(lmax + 1);
-    for (int l = 0; l <= lmax; ++l) {
+    // Per-l Fock: F_l = T + Vnuc + J + l(l+1)*Tl + XC_l.
+    auto build_fock_block = [&](size_t l, const arma::cube & XC_cube,
+                                 bool have_xc) -> helfem::Matrix {
       helfem::Matrix Fl = T + Vnuc + J;
       if (l > 0) Fl += l * (l + 1) * Tl;
-      if (x_func > 0 || c_func > 0)
-        Fl += helfem::to_eigen(arma::mat(XC.slice(l)));
-      // Transform to orthonormal basis: F_orth = Sinvh^T F_ao Sinvh.
-      fock[l] = Sinvh.transpose() * Fl * Sinvh;
+      if (have_xc)
+        Fl += helfem::to_eigen(arma::mat(XC_cube.slice(l)));
+      return Sinvh.transpose() * Fl * Sinvh;
+    };
+
+    if (restricted) {
+      for (size_t l = 0; l < nblock; ++l)
+        fock[l] = build_fock_block(l, XCa, true);
+    } else {
+      for (size_t l = 0; l < nblock; ++l) {
+        fock[l]          = build_fock_block(l, XCa, true);
+        fock[nblock + l] = build_fock_block(l, XCb, nelb > 0);
+      }
     }
     return std::make_pair(Etot, fock);
   };
 
-  // Core Hamiltonian per l block (orthonormal basis) as initial guess.
-  OpenOrbitalOptimizer::FockMatrix<OOO_Real> CoreH(lmax + 1);
-  for (int l = 0; l <= lmax; ++l) {
-    helfem::Matrix Hl = T + Vnuc;
-    if (l > 0) Hl += l * (l + 1) * Tl;
-    CoreH[l] = Sinvh.transpose() * Hl * Sinvh;
+  // Core-Hamiltonian guess per l block per particle type.
+  OpenOrbitalOptimizer::FockMatrix<OOO_Real> CoreH(nblock * nparttype);
+  for (size_t t = 0; t < nparttype; ++t) {
+    for (size_t l = 0; l < nblock; ++l) {
+      helfem::Matrix Hl = T + Vnuc;
+      if (l > 0) Hl += l * (l + 1) * Tl;
+      CoreH[t * nblock + l] = Sinvh.transpose() * Hl * Sinvh;
+    }
   }
 
   OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(
