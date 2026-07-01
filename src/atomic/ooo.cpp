@@ -118,14 +118,17 @@ int main(int argc, char **argv) {
       igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf, false, 0.0);
 
   atomic::basis::TwoDBasis basis(Z, (modelpotential::nuclear_model_t) finitenuc,
-                                  Rrms, poly, zeroder, Nquad, bval, lval, mval,
+                                  Rrms, poly, zeroder, Nquad,
+                                  helfem::to_eigen(bval),
+                                  helfem::to_eigen(lval),
+                                  helfem::to_eigen(mval),
                                   Zl, Zr, Rhalf);
   printf("Basis set: %i angular shells x %i radial = %i basis functions\n",
           (int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
 
   // Phase 5: overlap / kinetic / nuclear return Eigen; Sinvh still arma.
   const helfem::Matrix S     = basis.overlap();
-  const helfem::Matrix Sinvh = helfem::to_eigen(basis.Sinvh(false, 0));
+  const helfem::Matrix Sinvh = basis.Sinvh(false, 0);
   const helfem::Matrix T     = basis.kinetic();
   const helfem::Matrix Vnuc  = basis.nuclear();
 

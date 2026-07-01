@@ -38,7 +38,14 @@ namespace helfem {
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_, double Rrms_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, bool zeroder_, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, int Zl_, int Zr_, double Rhalf_) {
+      TwoDBasis::TwoDBasis(int Z_, modelpotential::nuclear_model_t model_,
+                             double Rrms_,
+                             const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly,
+                             bool zeroder_, int n_quad,
+                             const helfem::Vector & bval_e,
+                             const Eigen::VectorXi & lval_e,
+                             const Eigen::VectorXi & mval_e,
+                             int Zl_, int Zr_, double Rhalf_) {
         // Nuclear charge
         Z=Z_;
         Zl=Zl_;
@@ -46,6 +53,16 @@ namespace helfem {
         Rhalf=Rhalf_;
         model=model_;
         Rrms=Rrms_;
+
+        // Bridge Eigen inputs to internal arma storage once.
+        arma::vec bval(bval_e.size());
+        std::memcpy(bval.memptr(), bval_e.data(), sizeof(double) * (size_t) bval_e.size());
+        arma::ivec lval_arma(lval_e.size());
+        for (Eigen::Index i = 0; i < lval_e.size(); ++i)
+          lval_arma(i) = static_cast<arma::sword>(lval_e(i));
+        arma::ivec mval_arma(mval_e.size());
+        for (Eigen::Index i = 0; i < mval_e.size(); ++i)
+          mval_arma(i) = static_cast<arma::sword>(mval_e(i));
 
         // Construct radial basis
         bool zero_func_left=true;
@@ -56,8 +73,8 @@ namespace helfem {
         radial=FEMRadialBasis(fem, n_quad);
 
         // Construct angular basis
-        lval=lval_;
-        mval=mval_;
+        lval=lval_arma;
+        mval=mval_arma;
       }
 
       TwoDBasis::~TwoDBasis() {
@@ -179,8 +196,9 @@ namespace helfem {
         return idx;
       }
 
-      arma::mat TwoDBasis::Shalf(bool chol, int sym) const {
-        // Phase 3: overlap() returns helfem::Matrix.
+      helfem::Matrix TwoDBasis::Shalf(bool chol, int sym) const {
+        // Phase 3: overlap() returns helfem::Matrix. The compute path
+        // below is still arma-native; bridge to Eigen at the return.
         arma::mat S(helfem::to_arma(overlap()));
 
         // Get the basis function norms
@@ -192,7 +210,8 @@ namespace helfem {
 
         if(chol && sym==0) {
           // Half-inverse is
-          return arma::diagmat(bfinvnormlz) * arma::chol(S);
+          arma::mat Shalf = arma::diagmat(bfinvnormlz) * arma::chol(S);
+          return helfem::to_eigen(Shalf);
 
         } else {
           arma::vec Sval;
@@ -217,16 +236,16 @@ namespace helfem {
           arma::mat Shalf(Svec*arma::diagmat(arma::pow(Sval,0.5))*arma::trans(Svec));
           Shalf=arma::diagmat(bfinvnormlz)*Shalf;
 
-          return Shalf;
+          return helfem::to_eigen(Shalf);
         }
       }
 
-      arma::mat TwoDBasis::Sinvh(bool chol, int sym) const {
+      helfem::Matrix TwoDBasis::Sinvh(bool chol, int sym) const {
         arma::mat S(helfem::to_arma(overlap()));
 
         // Half-inverse is
         if(sym==0) {
-          return helfem::to_arma(scf::form_Sinvh(helfem::to_eigen(S), chol));
+          return scf::form_Sinvh(helfem::to_eigen(S), chol);
         } else {
           // Get basis function indices
           std::vector<arma::uvec> midx(get_sym_idx(sym));
@@ -243,7 +262,7 @@ namespace helfem {
             // Increment offset
             ioff += midx[i].n_elem;
           }
-          return Sinvh;
+          return helfem::to_eigen(Sinvh);
         }
       }
 
@@ -259,7 +278,7 @@ namespace helfem {
         return M.submat(iang*radial.Nbf(),jang*radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*radial.Nbf()-1);
       }
 
-      arma::mat TwoDBasis::radial_integral(int Rexp) const {
+      helfem::Matrix TwoDBasis::radial_integral(int Rexp) const {
         // Build radial elements
         arma::mat Orad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
             [&](size_t iel) { return radial.radial_integral(Rexp, iel); }));
@@ -271,12 +290,12 @@ namespace helfem {
         for(size_t iang=0;iang<lval.n_elem;iang++)
           set_sub(O,iang,iang,Orad);
 
-        return remove_boundaries(O);
+        return helfem::to_eigen(remove_boundaries(O));
       }
 
       helfem::Matrix TwoDBasis::overlap() const {
-        // Phase 3: SCF surface returns Eigen; internals unchanged.
-        return helfem::to_eigen(radial_integral(0));
+        // radial_integral now returns helfem::Matrix directly.
+        return radial_integral(0);
       }
 
       arma::mat TwoDBasis::overlap(const TwoDBasis & rh) const {

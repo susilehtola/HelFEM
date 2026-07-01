@@ -22,6 +22,7 @@
 #include <cassert>
 #include <cfloat>
 #include <helfem.h>
+#include <ArmaEigen.h>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -49,20 +50,20 @@ namespace helfem {
       }
 
       arma::vec normal_grid(int num_el, double rmax, int igrid, double zexp) {
-        return utils::get_grid(rmax,num_el,igrid,zexp);
+        return helfem::to_arma(utils::get_grid(rmax,num_el,igrid,zexp));
       }
 
       arma::vec finite_nuclear_grid(int num_el, double rmax, int igrid, double zexp, int num_el_nuc, double rnuc, int igrid_nuc, double zexp_nuc) {
         if(num_el_nuc) {
           // Grid for the finite nucleus
-          arma::vec bnuc(utils::get_grid(rnuc,num_el_nuc,igrid_nuc,zexp_nuc));
+          arma::vec bnuc(helfem::to_arma(utils::get_grid(rnuc,num_el_nuc,igrid_nuc,zexp_nuc)));
           // and the one for the electrons
-          arma::vec belec(utils::get_grid(rmax-rnuc,num_el,igrid,zexp));
+          arma::vec belec(helfem::to_arma(utils::get_grid(rmax-rnuc,num_el,igrid,zexp)));
 
           arma::vec bnucel(concatenate_grid(bnuc,bnuc));
           return concatenate_grid(bnucel,belec);
         } else {
-          return utils::get_grid(rmax,num_el,igrid,zexp);
+          return helfem::to_arma(utils::get_grid(rmax,num_el,igrid,zexp));
         }
       }
 
@@ -84,19 +85,19 @@ namespace helfem {
         arma::vec bval0, bval1;
         if(b0used) {
           // 0 to b0
-          bval0=utils::get_grid(b0,num_el0,igrid,zexp);
+          bval0=helfem::to_arma(utils::get_grid(b0,num_el0,igrid,zexp));
         }
         if(b1used) {
           // b0 to b1
 
           // Reverse grid to get tighter spacing around nucleus
-          bval1=-arma::reverse(utils::get_grid(b1-b0,num_el0,igrid,zexp));
+          bval1=-arma::reverse(helfem::to_arma(utils::get_grid(b1-b0,num_el0,igrid,zexp)));
           bval1+=arma::ones<arma::vec>(bval1.n_elem)*(b1-b0);
           // Assert numerical exactness
           bval1(0)=0.0;
           bval1(bval1.n_elem-1)=b1-b0;
         }
-        arma::vec bval2=utils::get_grid(b2-b1,num_el,igrid,zexp);
+        arma::vec bval2=helfem::to_arma(utils::get_grid(b2-b1,num_el,igrid,zexp));
 
         arma::vec bval;
         if(b0used && b1used) {

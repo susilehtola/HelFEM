@@ -51,22 +51,13 @@
 #include <helfem/atomic/TwoDBasis.h>
 #include <Matrix.h>
 #include <PolynomialBasis.h>
+#include <helfem.h>
 #include <Eigen/Eigenvalues>
 
 #include <cmath>
 #include <cstdio>
 #include <memory>
 #include <vector>
-
-// Bring the arma::vec / arma::ivec ctor parameters of TwoDBasis into
-// scope only for the constructor call. This is the last remaining arma
-// surface on the public consumer path; a follow-up will convert the
-// constructor signature to Eigen and this include can go away.
-#include <armadillo>
-
-namespace helfem { namespace utils {
-  arma::vec get_grid(double Rmax, int num_el, int igrid, double zexp);
-}}
 
 using namespace helfem;
 
@@ -81,9 +72,9 @@ atomic::basis::TwoDBasis make_single_shell(int Z, int lval_int,
                                             const Defaults & d = DEF) {
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
       polynomial_basis::get_basis(d.primbas, d.Nnodes));
-  arma::vec bval = utils::get_grid(d.Rmax, d.Nelem, d.igrid, d.zexp);
-  arma::ivec lval = {lval_int};
-  arma::ivec mval = {0};
+  const helfem::Vector bval = utils::get_grid(d.Rmax, d.Nelem, d.igrid, d.zexp);
+  Eigen::VectorXi lval(1); lval(0) = lval_int;
+  Eigen::VectorXi mval(1); mval(0) = 0;
   return atomic::basis::TwoDBasis(
       Z, modelpotential::POINT_NUCLEUS, /*Rrms*/0.0,
       poly, /*zeroder*/false,
@@ -151,13 +142,7 @@ bool he_hf_test() {
   const helfem::Matrix Vnuc = basis.nuclear();
   const helfem::Matrix Hc   = T + Vnuc;
 
-  // Sinvh is still arma at the API boundary; wrap the arma::mat once
-  // via Eigen::Map into a helfem::Matrix. This is the only remaining
-  // arma type on the consumer path -- a follow-up will convert the
-  // return type to helfem::Matrix.
-  const arma::mat Sinvh_arma = basis.Sinvh(/*chol*/false, /*sym*/0);
-  const Eigen::Map<const helfem::Matrix> Sinvh(
-      Sinvh_arma.memptr(), Sinvh_arma.n_rows, Sinvh_arma.n_cols);
+  const helfem::Matrix Sinvh = basis.Sinvh(/*chol*/false, /*sym*/0);
 
   // Core Hamiltonian guess.
   helfem::Matrix Fao = Hc;

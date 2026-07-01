@@ -15,6 +15,7 @@
 
 #include "checkpoint.h"
 #include "PolynomialBasis.h"
+#include <ArmaEigen.h>
 #include <istream>
 
 // Helper macros
@@ -563,7 +564,7 @@ void Checkpoint::read(helfem::atomic::basis::TwoDBasis & basis) {
   read("mval", mval);
 
   auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(poly_id,poly_nnodes)));
-  basis=helfem::atomic::basis::TwoDBasis(Z, (helfem::modelpotential::nuclear_model_t) finitenuc, Rrms, poly, zeroder, n_quad, bval, lval, mval, Zl, Zr, Rhalf);
+  basis=helfem::atomic::basis::TwoDBasis(Z, (helfem::modelpotential::nuclear_model_t) finitenuc, Rrms, poly, zeroder, n_quad, helfem::to_eigen(bval), helfem::to_eigen(lval), helfem::to_eigen(mval), Zl, Zr, Rhalf);
   
   if(cl) close();
 }
