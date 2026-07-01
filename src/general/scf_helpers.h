@@ -37,15 +37,19 @@ namespace helfem {
     /// Solve eigenvalue problem in subspaces (Phase 5.12: Eigen matrices; m_idx kept arma::uvec).
     void eig_sym_sub(helfem::Vector & E, helfem::Matrix & C, const helfem::Matrix & F, const std::vector<arma::uvec> & m_idx);
 
-    /// Solve eigenvalue problem in subspace
-    void eig_sub_wrk(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, size_t Nact);
-    /// Sort eigenvectors
-    void sort_eig(arma::vec & Eorb, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & Fao, size_t Nact, int maxit, double convthr);
-    /// Solve subspace eigenproblem
-    void eig_sub(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, size_t nsub, int maxit, double convthr);
+    /// Solve eigenvalue problem in subspace (Phase 5.14: Eigen-typed).
+    void eig_sub_wrk(helfem::Vector & E, helfem::Matrix & Cocc, helfem::Matrix & Cvirt, const helfem::Matrix & F, size_t Nact);
+    /// Sort eigenvectors (Phase 5.14: Eigen-typed).
+    void sort_eig(helfem::Vector & Eorb, helfem::Matrix & Cocc, helfem::Matrix & Cvirt, const helfem::Matrix & Fao, size_t Nact, int maxit, double convthr);
+    /// Solve subspace eigenproblem (Phase 5.14: Eigen-typed).
+    void eig_sub(helfem::Vector & E, helfem::Matrix & Cocc, helfem::Matrix & Cvirt, const helfem::Matrix & F, size_t nsub, int maxit, double convthr);
 
-    /// Iterative eigenvalue solver
-    void eig_iter(arma::vec & E, arma::mat & Cocc, arma::mat & Cvirt, const arma::mat & F, const arma::mat & Sinvh, size_t nocc, size_t neig, size_t nsub, int maxit, double convthr);
+    /// Iterative eigenvalue solver (Phase 5.14: now a full-spectrum
+    /// SelfAdjointEigenSolver in the orthonormal basis; the arma::newarp
+    /// Arnoldi path is gone -- it had no callers in-tree and the
+    /// matrix dimensions we hit make a full solve cheaper than the
+    /// previous iterative path).
+    void eig_iter(helfem::Vector & E, helfem::Matrix & Cocc, helfem::Matrix & Cvirt, const helfem::Matrix & F, const helfem::Matrix & Sinvh, size_t nocc, size_t neig, size_t nsub, int maxit, double convthr);
 
     /// Random perturbation
     arma::mat perturbation_matrix(size_t N, double ampl);
