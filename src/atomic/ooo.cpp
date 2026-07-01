@@ -50,8 +50,9 @@ int main(int argc, char **argv) {
 
   parser.add<std::string>("Z", 0, "nuclear charge", true);
   parser.add<int>("Q", 0, "charge state", false, 0);
-  parser.add<int>("nela", 0, "number of alpha electrons (0 = auto from Z-Q)", false, 0);
-  parser.add<int>("nelb", 0, "number of beta electrons (0 = auto from Z-Q)", false, 0);
+  parser.add<int>("M", 0, "spin multiplicity (2S+1); mutually exclusive with nela/nelb", false, 0);
+  parser.add<int>("nela", 0, "number of alpha electrons (leave 0 to derive from Q/M)", false, 0);
+  parser.add<int>("nelb", 0, "number of beta electrons (leave 0 to derive from Q/M)", false, 0);
   parser.add<int>("lmax", 0, "maximum l quantum number", true);
   parser.add<int>("mmax", 0, "maximum m quantum number", true);
   parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
@@ -70,7 +71,7 @@ int main(int argc, char **argv) {
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
   parser.add<int>("finitenuc", 0, "finite nuclear model", false, 0);
   parser.add<double>("Rrms", 0, "finite nuclear rms radius", false, 0.0);
-  parser.add<int>("restricted", 0, "spin-restricted (1) or unrestricted (0)", false, 1);
+  parser.add<int>("restricted", 0, "spin-restricted: 1 restricted, 0 unrestricted, -1 auto from nela/nelb", false, -1);
   parser.add<int>("symmetry", 0, "orbital symmetry: 0 none, 1 per-m, 2 per-(l,m)", false, 1);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
@@ -78,7 +79,8 @@ int main(int argc, char **argv) {
   parser.parse_check(argc, argv);
 
   const int    Z          = get_Z(parser.get<std::string>("Z"));
-  const int    Q          = parser.get<int>("Q");
+        int    Q          = parser.get<int>("Q");
+        int    M          = parser.get<int>("M");
         int    nela       = parser.get<int>("nela");
         int    nelb       = parser.get<int>("nelb");
   const int    lmax       = parser.get<int>("lmax");
@@ -99,23 +101,27 @@ int main(int argc, char **argv) {
   const int    primbas    = parser.get<int>("primbas");
   const int    finitenuc  = parser.get<int>("finitenuc");
   const double Rrms       = parser.get<double>("Rrms");
-  const bool   restricted = parser.get<int>("restricted") != 0;
+        int    restr      = parser.get<int>("restricted");
   const int    symm       = parser.get<int>("symmetry");
   const std::string xparf = parser.get<std::string>("x_pars");
   const std::string cparf = parser.get<std::string>("c_pars");
   const bool   zeroder    = parser.get<bool>("zeroder");
 
-  const int Ntot = Z - Q;
-  if (nela == 0 && nelb == 0) {
-    // Closed-shell if even, else auto Ms=1 (nela = nelb + 1).
-    nela = (Ntot + 1) / 2;
-    nelb = Ntot / 2;
+  // Derive nela/nelb from Q, M -- same convention as the bespoke atomic
+  // driver, so --M is the natural way to specify open-shell states.
+  // parse_nela_nelb(nela, nelb, Q, M, Ztot) fills in nela/nelb when
+  // both are zero on entry (using Q and M); if nela/nelb are given,
+  // it recomputes Q from them.
+  scf::parse_nela_nelb(nela, nelb, Q, M, Z);
+  if (restr == -1) {
+    // Auto: closed shell -> restricted, else unrestricted.
+    restr = (nela == nelb) ? 1 : 0;
   }
-  if (nela + nelb != Ntot)
-    throw std::logic_error("nela + nelb must equal Z - Q.");
+  const bool restricted = (restr != 0);
+  const int Ntot = nela + nelb;
   if (restricted && nela != nelb)
     throw std::logic_error("Restricted mode requires nela == nelb (closed shell). "
-                            "Use --restricted=0 for open-shell.");
+                            "Use --restricted=0 (or leave -1 for auto) for open-shell.");
 
   arma::vec x_pars, c_pars;
   if (xparf.size()) x_pars = helfem::to_arma(scf::parse_xc_params(xparf));
