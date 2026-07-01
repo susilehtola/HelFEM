@@ -560,56 +560,10 @@ int main(int argc, char **argv) {
 	  // Helper
 	  arma::mat SSinvh(S*Sinvh);
 
-	  // Fock matrix
-	  arma::mat F;
-
-	  // Load Fock matrix
-	  loadchk.read("Fa",F);
-	  // Project onto the old orthogonal basis
-	  F=arma::trans(oldSinvh)*F*oldSinvh;
-	  // Project onto the new basis
-	  F=S12*F*arma::trans(S12);
-	  // Go back to original basis
-	  F=SSinvh*F*arma::trans(SSinvh);
-	  // Diagonalize
-	  if(symm)
-	    { // Phase 5.12 bridge: eig_gsym_sub is Eigen.
-	      helfem::Vector Ea_e; helfem::Matrix Ca_e;
-	      scf::eig_gsym_sub(Ea_e, Ca_e, helfem::to_eigen(F), helfem::to_eigen(Sinvh), dsym);
-	      Ea = helfem::to_arma(Ea_e);
-	      Ca = helfem::to_arma(Ca_e);
-	    }
-	  else
-	    { // Phase 5.11 bridge: eig_gsym is Eigen.
-	      helfem::Vector Ea_e; helfem::Matrix Ca_e;
-	      scf::eig_gsym(Ea_e, Ca_e, helfem::to_eigen(F), helfem::to_eigen(Sinvh));
-	      Ea = helfem::to_arma(Ea_e);
-	      Ca = helfem::to_arma(Ca_e);
-	    }
-
-	  // Load Fock matrix
-	  loadchk.read("Fb",F);
-	  // Project onto the old orthogonal basis
-	  F=arma::trans(oldSinvh)*F*oldSinvh;
-	  // Project onto the new basis
-	  F=S12*F*arma::trans(S12);
-	  // Go back to original basis
-	  F=SSinvh*F*arma::trans(SSinvh);
-	  // Diagonalize
-	  if(symm)
-	    { // Phase 5.12 bridge: eig_gsym_sub is Eigen.
-	      helfem::Vector Eb_e; helfem::Matrix Cb_e;
-	      scf::eig_gsym_sub(Eb_e, Cb_e, helfem::to_eigen(F), helfem::to_eigen(Sinvh), dsym);
-	      Eb = helfem::to_arma(Eb_e);
-	      Cb = helfem::to_arma(Cb_e);
-	    }
-	  else
-	    { // Phase 5.11 bridge: eig_gsym is Eigen.
-	      helfem::Vector Eb_e; helfem::Matrix Cb_e;
-	      scf::eig_gsym(Eb_e, Cb_e, helfem::to_eigen(F), helfem::to_eigen(Sinvh));
-	      Eb = helfem::to_arma(Eb_e);
-	      Cb = helfem::to_arma(Cb_e);
-	    }
+	  helfem::scf_driver::project_and_diagonalize(
+	      loadchk, "Fa", oldSinvh, S12, SSinvh, Sinvh, symm, dsym, Ea, Ca);
+	  helfem::scf_driver::project_and_diagonalize(
+	      loadchk, "Fb", oldSinvh, S12, SSinvh, Sinvh, symm, dsym, Eb, Cb);
 	}
         break;
 
