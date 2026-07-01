@@ -20,6 +20,17 @@ target_compile_features(helfem-common PUBLIC cxx_std_17)
 add_executable(gensap sadatom/main.cpp)
 target_link_libraries(gensap helfem-common legendre)
 
+# Sadatom driver using OpenOrbitalOptimizer for SCF convergence.
+# Proves OOO integration on the smallest of the three SCF-driver
+# suites; the atomic / diatomic OOO variants follow the same pattern.
+add_executable(sadatom_ooo sadatom/ooo.cpp)
+target_link_libraries(sadatom_ooo helfem-common legendre)
+if(TARGET OpenOrbitalOptimizer::OpenOrbitalOptimizer)
+    target_link_libraries(sadatom_ooo OpenOrbitalOptimizer::OpenOrbitalOptimizer)
+elseif(TARGET openorbitaloptimizer)
+    target_link_libraries(sadatom_ooo openorbitaloptimizer)
+endif()
+
 add_executable(1e_atom sadatom/1e.cpp)
 target_link_libraries(1e_atom helfem-common legendre)
 
