@@ -444,92 +444,72 @@ namespace helfem {
       return (Rvec * expiR.asDiagonal() * Rvec.adjoint()).real();
     }
 
-    void form_NOs(const arma::mat & P, const arma::mat & Sh, const arma::mat & Sinvh, arma::mat & AO_to_NO, arma::mat & NO_to_AO, arma::vec & occs) {
-      // P in orthonormal basis is
-      arma::mat P_orth=arma::trans(Sh)*P*Sh;
+    // Phase 5.16: Eigen-typed.
+    void form_NOs(const helfem::Matrix & P, const helfem::Matrix & Sh, const helfem::Matrix & Sinvh,
+                   helfem::Matrix & AO_to_NO, helfem::Matrix & NO_to_AO, helfem::Vector & occs) {
+      // P in orthonormal basis.
+      const helfem::Matrix P_orth = Sh.transpose() * P * Sh;
 
-      // Diagonalize P to get NOs in orthonormal basis.
-      arma::vec Pval;
-      arma::mat Pvec;
-      arma::eig_sym(Pval,Pvec,P_orth);
+      Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(P_orth);
+      if (es.info() != Eigen::Success)
+        throw std::logic_error("form_NOs: eigendecomposition failed!\n");
+      const helfem::Vector Pval = es.eigenvalues();
+      const helfem::Matrix Pvec = es.eigenvectors();
 
-      // Reverse ordering to get decreasing eigenvalues
-      occs.zeros(Pval.n_elem);
-      arma::mat Pv(Pvec.n_rows,Pvec.n_cols);
-      for(size_t i=0;i<Pval.n_elem;i++) {
-        size_t idx=Pval.n_elem-1-i;
-        occs(i)=Pval(idx);
-        Pv.col(i)=Pvec.col(idx);
+      // Reverse ordering to get decreasing eigenvalues.
+      const Eigen::Index n = Pval.size();
+      occs.resize(n);
+      helfem::Matrix Pv(Pvec.rows(), Pvec.cols());
+      for (Eigen::Index i = 0; i < n; ++i) {
+        const Eigen::Index idx = n - 1 - i;
+        occs(i)     = Pval(idx);
+        Pv.col(i)   = Pvec.col(idx);
       }
 
-      /* Get NOs in AO basis. The natural orbital is written in the
-         orthonormal basis as
-
-         |i> = x_ai |a> = x_ai s_ja |j>
-         = s_ja x_ai |j>
-      */
-
       // The matrix that takes us from AO to NO is
-      AO_to_NO=Sinvh*Pv;
+      AO_to_NO = Sinvh * Pv;
       // and the one that takes us from NO to AO is
-      NO_to_AO=arma::trans(Sh*Pv);
+      NO_to_AO = (Sh * Pv).transpose();
     }
 
-    void ROHF_update(arma::mat & Fa_AO, arma::mat & Fb_AO, const arma::mat & P_AO, const arma::mat & Sh, const arma::mat & Sinvh, int nocca, int noccb) {
-      /*
-       * T. Tsuchimochi and G. E. Scuseria, "Constrained active space
-       * unrestricted mean-field methods for controlling
-       * spin-contamination", J. Chem. Phys. 134, 064101 (2011).
-       */
-
+    // Phase 5.16: Eigen-typed.
+    // T. Tsuchimochi and G. E. Scuseria, "Constrained active space
+    // unrestricted mean-field methods for controlling spin-contamination",
+    // J. Chem. Phys. 134, 064101 (2011).
+    void ROHF_update(helfem::Matrix & Fa_AO, helfem::Matrix & Fb_AO,
+                      const helfem::Matrix & P_AO, const helfem::Matrix & Sh,
+                      const helfem::Matrix & Sinvh, int nocca, int noccb) {
       Timer t;
 
-      arma::vec occs;
-      arma::mat AO_to_NO;
-      arma::mat NO_to_AO;
-      form_NOs(P_AO,Sh,Sinvh,AO_to_NO,NO_to_AO,occs);
+      helfem::Vector occs;
+      helfem::Matrix AO_to_NO, NO_to_AO;
+      form_NOs(P_AO, Sh, Sinvh, AO_to_NO, NO_to_AO, occs);
 
-      // Construct \Delta matrix in AO basis
-      arma::mat Delta_AO=(Fa_AO-Fb_AO)/2.0;
+      // Delta in AO basis, then rotated into NO basis.
+      const helfem::Matrix Delta_AO = 0.5 * (Fa_AO - Fb_AO);
+      const helfem::Matrix Delta_NO = AO_to_NO.transpose() * Delta_AO * AO_to_NO;
 
-      // and take it to the NO basis.
-      arma::mat Delta_NO=arma::trans(AO_to_NO)*Delta_AO*AO_to_NO;
+      // form_NOs above returns NOs with decreasing occupation, so the
+      // highest Nc orbitals are the core, the next Na are active, the
+      // lowest Nv are virtual.
+      const Eigen::Index Nind = AO_to_NO.cols();
+      const Eigen::Index Nc   = std::min(nocca, noccb);
+      const Eigen::Index Na   = std::max(nocca, noccb) - Nc;
+      const Eigen::Index Nv   = Nind - Na - Nc;
 
-      // Amount of independent orbitals is
-      size_t Nind=AO_to_NO.n_cols;
-      // Amount of core orbitals is
-      size_t Nc=std::min(nocca,noccb);
-      // Amount of active space orbitals is
-      size_t Na=std::max(nocca,noccb)-Nc;
-      // Amount of virtual orbitals (in NO space) is
-      size_t Nv=Nind-Na-Nc;
-
-      // Form lambda by flipping the signs of the cv and vc blocks and
-      // zeroing out everything else.
-      arma::mat lambda_NO(Delta_NO);
-      /*
-        eig_sym_ordered puts the NOs in the order of increasing
-        occupation. Thus, the lowest Nv orbitals belong to the virtual
-        space, the following Na to the active space and the last Nc to the
-        core orbitals.
-      */
-      // Zero everything
-      lambda_NO.zeros();
-      // and flip signs of cv and vc blocks from Delta
-      for(size_t c=0;c<Nc;c++) // Loop over core orbitals
-        for(size_t v=Nind-Nv;v<Nind;v++) { // Loop over virtuals
-          lambda_NO(c,v)=-Delta_NO(c,v);
-          lambda_NO(v,c)=-Delta_NO(v,c);
+      helfem::Matrix lambda_NO = helfem::Matrix::Zero(Nind, Nind);
+      // Flip signs of cv and vc blocks (core rows 0..Nc, virt cols Nind-Nv..Nind).
+      for (Eigen::Index c = 0; c < Nc; ++c)
+        for (Eigen::Index v = Nind - Nv; v < Nind; ++v) {
+          lambda_NO(c, v) = -Delta_NO(c, v);
+          lambda_NO(v, c) = -Delta_NO(v, c);
         }
 
-      // Lambda in AO is
-      arma::mat lambda_AO=arma::trans(NO_to_AO)*lambda_NO*NO_to_AO;
+      const helfem::Matrix lambda_AO = NO_to_AO.transpose() * lambda_NO * NO_to_AO;
+      Fa_AO += lambda_AO;
+      Fb_AO -= lambda_AO;
 
-      // Update Fa and Fb
-      Fa_AO+=lambda_AO;
-      Fb_AO-=lambda_AO;
-
-      printf("Performed CUHF update of Fock operators in %s.\n",t.elapsed().c_str());
+      printf("Performed CUHF update of Fock operators in %s.\n", t.elapsed().c_str());
     }
 
 

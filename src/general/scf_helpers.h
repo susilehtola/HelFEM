@@ -54,15 +54,15 @@ namespace helfem {
     /// Random perturbation (Phase 5.15: Eigen-typed).
     helfem::Matrix perturbation_matrix(size_t N, double ampl);
 
-    /// Form natural orbitals
-    void form_NOs(const arma::mat & P, const arma::mat & Sh, const arma::mat & Sinvh, arma::mat & AO_to_NO, arma::mat & NO_to_AO, arma::vec & occs);
+    /// Form natural orbitals (Phase 5.16: Eigen-typed).
+    void form_NOs(const helfem::Matrix & P, const helfem::Matrix & Sh, const helfem::Matrix & Sinvh, helfem::Matrix & AO_to_NO, helfem::Matrix & NO_to_AO, helfem::Vector & occs);
     /// Form half-inverse overlap (Phase 5.10: Eigen-typed).
     inline helfem::Matrix form_Sinvh(helfem::Matrix S, bool chol=false) {
       return utils::invh(S, chol);
     }
 
-    /// ROHF update to Fock matrices
-    void ROHF_update(arma::mat & Fa_AO, arma::mat & Fb_AO, const arma::mat & P_AO, const arma::mat & Sh, const arma::mat & Sinvh, int nocca, int noccb);
+    /// ROHF update to Fock matrices (Phase 5.16: Eigen-typed).
+    void ROHF_update(helfem::Matrix & Fa_AO, helfem::Matrix & Fb_AO, const helfem::Matrix & P_AO, const helfem::Matrix & Sh, const helfem::Matrix & Sinvh, int nocca, int noccb);
 
     /// Human readable memory size
     std::string memory_size(size_t size);
