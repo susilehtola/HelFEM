@@ -4,6 +4,15 @@ project (helfem CXX)
 # C++ standard is set per-target via target_compile_features(... cxx_std_17)
 # rather than globally.
 
+# helfem-common / helfem / legendre / lib1dfem are all STATIC libraries.
+# When a downstream project links any of them into a shared library
+# (e.g. the pybind11 _helfem module, or an external libatomscf shared
+# lib), the static archives need position-independent code -- otherwise
+# `ld -shared` refuses with `R_X86_64_32 ... can not be used when
+# making a shared object; recompile with -fPIC`. Set PIC globally so
+# every static archive is safe to consume from a shared object.
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 # Ensure we are building out-of-source so that the tests work (issue 120)
 get_filename_component(srcdir "${CMAKE_SOURCE_DIR}" REALPATH)
 get_filename_component(bindir "${CMAKE_BINARY_DIR}" REALPATH)
