@@ -133,17 +133,23 @@ int main(int argc, char **argv) {
   if (!is_supported(x_func) || !is_supported(c_func))
     throw std::logic_error("The specified functional is not supported in HelFEM.\n");
 
-  // Range-separation parameters: kfrac for full-range HF exchange
-  // fraction (1 for pure HF, 0 for pure DFT, in-between for hybrids),
-  // kshort for the short-range fraction (nonzero only for range-
-  // separated hybrids). omega is the range-separation parameter itself,
-  // unused here because we don't wire an omega variant of rs_exchange.
+  // Range-separation parameters. Following libxc/HelFEM naming:
+  //   kfrac  = full-range HF exchange fraction   (alpha in CAM)
+  //   kshort = short-range HF exchange fraction  (beta in CAM)
+  //   omega  = range-separation parameter        (mu in erfc, lambda in Yukawa)
+  // For pure DFT: kfrac = kshort = 0. For pure HF: kfrac = 1, kshort = 0.
+  // For hybrids (B3LYP, PBE0): kfrac in (0,1), kshort = 0.
+  // For range-separated hybrids (CAM-B3LYP, LC-BLYP, wB97X): kfrac + kshort
+  // nonzero and omega > 0, with basis.rs_exchange(P) giving the SR piece
+  // using either erfc or Yukawa kernel (functional-dependent, discovered
+  // via is_range_separated).
   double kfrac, kshort, omega;
   range_separation(x_func, omega, kfrac, kshort);
   const bool have_exx = (kfrac != 0.0 || kshort != 0.0);
   const bool have_xc  = (x_func != 0 || c_func != 0);
-  if (have_exx && kshort != 0.0)
-    throw std::logic_error("Range-separated hybrids not yet supported in atomic_ooo (needs omega wiring).\n");
+  bool rs_erfc = false, rs_yukawa = false;
+  if (kshort != 0.0)
+    is_range_separated(x_func, rs_erfc, rs_yukawa);
 
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
       polynomial_basis::get_basis(primbas, Nnodes));
@@ -201,6 +207,11 @@ int main(int argc, char **argv) {
   const int mdft = mdft_arg > 0 ? mdft_arg : 4 * mmax + 12;
   auto grid = helfem::atomic::dftgrid::DFTGrid(&basis, ldft, mdft);
   basis.compute_tei(have_exx);
+  // Precompute the range-separated exchange kernel if the functional uses
+  // one. Yukawa (screened Coulomb) and erfc (complementary error-function)
+  // are the two kernels libxc's CAM functionals ask for.
+  if (rs_yukawa) basis.compute_yukawa(omega);
+  else if (rs_erfc) basis.compute_erfc(omega);
 
   // --- OOO block layout.
   using OOO_Real = double;
@@ -292,18 +303,24 @@ int main(int argc, char **argv) {
     const arma::mat J = helfem::to_arma(basis.coulomb(helfem::to_eigen(P)));
     const double Ecoul = 0.5 * arma::trace(P * J);
 
-    // --- HF exchange: K = kfrac * basis.exchange(spin density). Sign
-    //     convention is baked into basis.exchange (it returns the
+    // --- HF exchange: K = kfrac * basis.exchange(P) + kshort * basis.rs_exchange(P).
+    //     Sign convention is baked into basis.exchange (it returns the
     //     signed contribution that gets ADDED to the Fock matrix), so
     //     Exx = 0.5 * trace(P_spin * K_spin) per channel with a +
     //     sign matches the bespoke atomic driver's line 754.
+    //     For RS hybrids, rs_exchange uses the erfc or Yukawa kernel
+    //     precomputed above.
     arma::mat Ka, Kb;
     double Exx = 0.0;
     if (have_exx) {
-      Ka = kfrac * helfem::to_arma(basis.exchange(helfem::to_eigen(Pa)));
+      Ka.zeros(Nbf, Nbf);
+      if (kfrac  != 0.0) Ka += kfrac  * helfem::to_arma(basis.exchange(helfem::to_eigen(Pa)));
+      if (kshort != 0.0) Ka += kshort * helfem::to_arma(basis.rs_exchange(helfem::to_eigen(Pa)));
       Exx = 0.5 * arma::trace(Pa * Ka);
       if (!restricted) {
-        Kb = kfrac * helfem::to_arma(basis.exchange(helfem::to_eigen(Pb)));
+        Kb.zeros(Nbf, Nbf);
+        if (kfrac  != 0.0) Kb += kfrac  * helfem::to_arma(basis.exchange(helfem::to_eigen(Pb)));
+        if (kshort != 0.0) Kb += kshort * helfem::to_arma(basis.rs_exchange(helfem::to_eigen(Pb)));
         Exx += 0.5 * arma::trace(Pb * Kb);
       } else {
         // In restricted mode alpha == beta density, and we only assemble
