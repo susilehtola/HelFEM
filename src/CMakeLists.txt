@@ -14,6 +14,12 @@ diatomic/dftgrid.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp
 )
 target_link_libraries(helfem-common PUBLIC helfem wignernj::wignernj)
+# Propagate OpenMP to consumers of helfem-common. Without this, an
+# external consumer linking helfem::helfem misses -fopenmp / libgomp
+# and fails with undefined references like GOMP_parallel.
+if(TARGET OpenMP::OpenMP_CXX)
+    target_link_libraries(helfem-common PUBLIC OpenMP::OpenMP_CXX)
+endif()
 target_include_directories(helfem-common
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../libhelfem/src/>

@@ -201,11 +201,16 @@ else()
     message(STATUS "Using system OpenOrbitalOptimizer")
 endif()
 
-# Find OpenMP support
+# Find OpenMP support. Add flags to CXX flags so in-tree
+# targets get -fopenmp at compile time regardless of target chain.
+# ALSO record OpenMP::OpenMP_CXX so it can be added to the
+# INTERFACE_LINK_LIBRARIES of the exported libraries below, giving
+# downstream consumers of helfem::helfem the -fopenmp/libgomp
+# transitive linkage automatically (previously they had to remember
+# -fopenmp themselves).
 if(USE_OPENMP)
  find_package( OpenMP )
  if(OPENMP_FOUND)
-  # Add flags to CXX flags
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
  endif()
 endif()
