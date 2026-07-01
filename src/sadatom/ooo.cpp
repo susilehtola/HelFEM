@@ -127,8 +127,12 @@ int main(int argc, char **argv) {
     throw std::logic_error("The specified exchange functional is not currently supported in HelFEM.\n");
   if (!is_supported(c_func))
     throw std::logic_error("The specified correlation functional is not currently supported in HelFEM.\n");
-  if (x_func == 0 && c_func == 0)
-    throw std::logic_error("HF is not yet implemented in sadatom_ooo -- pick a DFT functional.\n");
+  double kfrac, kshort, omega;
+  range_separation(x_func, omega, kfrac, kshort);
+  const bool have_exx = (kfrac != 0.0 || kshort != 0.0);
+  const bool have_xc  = (x_func != 0 || c_func != 0);
+  if (have_exx && kshort != 0.0)
+    throw std::logic_error("Range-separated hybrids not yet supported in sadatom_ooo (needs omega wiring).\n");
 
   arma::vec bval = atomic::basis::form_grid(
       modelpotential::POINT_NUCLEUS, 0.0, Nelem, Rmax, igrid, zexp,
@@ -146,7 +150,7 @@ int main(int argc, char **argv) {
   const helfem::Matrix Vnuc = basis.nuclear();
 
   auto grid = helfem::sadatom::dftgrid::DFTGrid(&basis);
-  basis.compute_tei();
+  basis.compute_tei();  // sadatom compute_tei takes no flag; exchange path is always available.
 
   // OOO block layout: per-l blocks.
   using OOO_Real = double;
@@ -200,56 +204,95 @@ int main(int argc, char **argv) {
     double Exc = 0.0;
     double nelnum = 0.0;
     arma::cube XCa, XCb;
+    // Per-l density cubes, retained across the XC/exchange branches.
+    // For unrestricted: Pal = alpha, Pbl = beta. For restricted: Pal
+    // is the total density (there is no separate beta).
+    arma::cube Pal(Nrad, Nrad, nblock, arma::fill::zeros);
+    arma::cube Pbl;
 
     if (restricted) {
-      arma::cube Pl(Nrad, Nrad, nblock, arma::fill::zeros);
       for (size_t l = 0; l < nblock; ++l)
-        accumulate_density(Prad, Pl, l, orbitals[l], occupations[l], Ekin);
-      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pl / angfac,
-                     XCa, Exc, nelnum, dftthr);
-      XCa /= angfac;
+        accumulate_density(Prad, Pal, l, orbitals[l], occupations[l], Ekin);
+      if (have_xc) {
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pal / angfac,
+                       XCa, Exc, nelnum, dftthr);
+        XCa /= angfac;
+      }
     } else {
+      Pbl.zeros(Nrad, Nrad, nblock);
       helfem::Matrix Prad_a = helfem::Matrix::Zero(Nrad, Nrad);
       helfem::Matrix Prad_b = helfem::Matrix::Zero(Nrad, Nrad);
-      arma::cube Pal(Nrad, Nrad, nblock, arma::fill::zeros);
-      arma::cube Pbl(Nrad, Nrad, nblock, arma::fill::zeros);
       for (size_t l = 0; l < nblock; ++l) {
         accumulate_density(Prad_a, Pal, l, orbitals[l],           occupations[l],           Ekin);
         accumulate_density(Prad_b, Pbl, l, orbitals[nblock + l],  occupations[nblock + l],  Ekin);
       }
       Prad = Prad_a + Prad_b;
-      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pal / angfac, Pbl / angfac,
-                     XCa, XCb, Exc, nelnum, nelb > 0, dftthr);
-      XCa /= angfac;
-      if (nelb > 0) XCb /= angfac;
+      if (have_xc) {
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pal / angfac, Pbl / angfac,
+                       XCa, XCb, Exc, nelnum, nelb > 0, dftthr);
+        XCa /= angfac;
+        if (nelb > 0) XCb /= angfac;
+      }
     }
 
     const double Enuc = (Prad * Vnuc).trace();
     const helfem::Matrix J = basis.coulomb(Prad / angfac);
     const double Ecoul = 0.5 * (Prad * J).trace();
-    const double Etot = Ekin + Enuc + Ecoul + Exc;
 
-    printf("Ekin %.10f  Enuc %.10f  Ecoul %.10f  Exc %.10f  Etot %.10f\n",
-            Ekin, Enuc, Ecoul, Exc, Etot);
+    // HF exchange. basis.exchange takes an angular-normalized density
+    // cube (Pl / ShellCapacity) and returns a cube K such that Fock_l
+    // gets K.slice(l) and Exx = 0.5 * sum_l trace(K[l] * Pl[l]) with
+    // Pl the UNnormalized density -- matches bespoke solver.cpp:940.
+    // ShellCapacity(l) = 2*(2l+1) for restricted, (2l+1) per spin for UKS.
+    arma::cube Ka, Kb;
+    double Exx = 0.0;
+    if (have_exx) {
+      arma::cube ang_a = Pal;
+      for (size_t l = 0; l < nblock; ++l)
+        ang_a.slice(l) /= restricted ? 2.0 * (2 * l + 1) : (2 * l + 1);
+      Ka = kfrac * basis.exchange(ang_a);
+      for (size_t l = 0; l < nblock; ++l)
+        Exx += 0.5 * arma::trace(Ka.slice(l) * Pal.slice(l));
+      if (!restricted) {
+        arma::cube ang_b = Pbl;
+        for (size_t l = 0; l < nblock; ++l)
+          ang_b.slice(l) /= (2 * l + 1);
+        Kb = kfrac * basis.exchange(ang_b);
+        for (size_t l = 0; l < nblock; ++l)
+          Exx += 0.5 * arma::trace(Kb.slice(l) * Pbl.slice(l));
+      }
+      // No * 2 in restricted -- Pal here is the TOTAL per-l density
+      // (occupations up to 2*(2l+1)), unlike atomic/diatomic where Pa
+      // is the SPIN density. Matches bespoke solver.cpp:940 exactly.
+    }
+
+    const double Etot = Ekin + Enuc + Ecoul + Exc + Exx;
+
+    printf("Ekin %.10f  Enuc %.10f  Ecoul %.10f  Exc %.10f  Exx %.10f  Etot %.10f\n",
+            Ekin, Enuc, Ecoul, Exc, Exx, Etot);
     fflush(stdout);
 
-    // Per-l Fock: F_l = T + Vnuc + J + l(l+1)*Tl + XC_l.
+    // Per-l Fock: F_l = T + Vnuc + J + l(l+1)*Tl + XC_l + K_l.
     auto build_fock_block = [&](size_t l, const arma::cube & XC_cube,
-                                 bool have_xc) -> helfem::Matrix {
+                                 bool add_xc, const arma::cube & K_cube,
+                                 bool add_k) -> helfem::Matrix {
       helfem::Matrix Fl = T + Vnuc + J;
       if (l > 0) Fl += l * (l + 1) * Tl;
-      if (have_xc)
+      if (add_xc)
         Fl += helfem::to_eigen(arma::mat(XC_cube.slice(l)));
+      if (add_k)
+        Fl += helfem::to_eigen(arma::mat(K_cube.slice(l)));
       return Sinvh.transpose() * Fl * Sinvh;
     };
 
     if (restricted) {
       for (size_t l = 0; l < nblock; ++l)
-        fock[l] = build_fock_block(l, XCa, true);
+        fock[l] = build_fock_block(l, XCa, have_xc, Ka, have_exx);
     } else {
       for (size_t l = 0; l < nblock; ++l) {
-        fock[l]          = build_fock_block(l, XCa, true);
-        fock[nblock + l] = build_fock_block(l, XCb, nelb > 0);
+        fock[l]          = build_fock_block(l, XCa, have_xc, Ka, have_exx);
+        fock[nblock + l] = build_fock_block(l, XCb, have_xc && nelb > 0,
+                                             Kb, have_exx && nelb > 0);
       }
     }
     return std::make_pair(Etot, fock);
