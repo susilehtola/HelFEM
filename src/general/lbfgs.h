@@ -18,7 +18,9 @@
 #ifndef ERKALE_LBFGS
 #define ERKALE_LBFGS
 
-#include <armadillo>
+// Phase 5.17: LBFGS migrated to Eigen.
+#include <Matrix.h>
+#include <vector>
 
 class LBFGS {
  protected:
@@ -26,12 +28,12 @@ class LBFGS {
   size_t nmax;
 
   /// Coordinates x_k
-  std::vector<arma::vec> xk;
+  std::vector<helfem::Vector> xk;
   /// Gradients g_k
-  std::vector<arma::vec> gk;
+  std::vector<helfem::Vector> gk;
 
   /// Apply diagonal Hessian: r = H_0 q
-  virtual arma::vec apply_diagonal_hessian(const arma::vec & q) const;
+  virtual helfem::Vector apply_diagonal_hessian(const helfem::Vector & q) const;
 
  public:
   /// Constructor
@@ -40,9 +42,9 @@ class LBFGS {
   virtual ~LBFGS();
 
   /// Update
-  void update(const arma::vec & x, const arma::vec & g);
+  void update(const helfem::Vector & x, const helfem::Vector & g);
   /// Solve for new search direction
-  arma::vec solve() const;
+  helfem::Vector solve() const;
   /// Clear stack
   void clear();
 };
