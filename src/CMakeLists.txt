@@ -105,6 +105,16 @@ target_link_libraries(atomic_itest helfem-common legendre)
 add_executable(diatomic diatomic/main.cpp)
 target_link_libraries(diatomic helfem-common legendre)
 
+# Diatomic driver using OpenOrbitalOptimizer for SCF convergence.
+# Completes the OOO trio (sadatom_ooo / atomic_ooo / diatomic_ooo).
+add_executable(diatomic_ooo diatomic/ooo.cpp)
+target_link_libraries(diatomic_ooo helfem-common legendre)
+if(TARGET OpenOrbitalOptimizer::OpenOrbitalOptimizer)
+    target_link_libraries(diatomic_ooo OpenOrbitalOptimizer::OpenOrbitalOptimizer)
+elseif(TARGET openorbitaloptimizer)
+    target_link_libraries(diatomic_ooo openorbitaloptimizer)
+endif()
+
 add_executable(diatomic_cbasis diatomic/corebasis.cpp)
 target_link_libraries(diatomic_cbasis helfem-common legendre)
 
