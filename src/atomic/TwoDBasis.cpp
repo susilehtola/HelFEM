@@ -551,7 +551,8 @@ namespace helfem {
       }
 
 
-      std::vector<arma::cube> TwoDBasis::radial_df_factors(double tol) const {
+      std::vector<std::vector<helfem::Matrix>>
+      TwoDBasis::radial_df_factors(double tol) const {
         if (!prim_tei.size())
           throw std::logic_error(
               "Primitive teis have not been computed -- call "
@@ -561,7 +562,10 @@ namespace helfem {
         const size_t Nrad = radial.Nbf();
         const size_t Nel  = radial.Nel();
 
-        std::vector<arma::cube> B(N_L);
+        // Outer index = multipole L, inner index = Cholesky vector Q,
+        // each an Nrad x Nrad helfem::Matrix (arma-free at the public
+        // boundary; internal computation is arma-native for now).
+        std::vector<std::vector<helfem::Matrix>> B(N_L);
 
         for (int L = 0; L < N_L; ++L) {
           // -- 1. Cached accessor lambdas for the per-L J helper.
@@ -678,12 +682,10 @@ namespace helfem {
             B_L_vecs.push_back(std::move(v_new));
           }
 
-          // -- 4. Pack into cube (Nrad, Nrad, naux_L).
-          const size_t naux = B_L_vecs.size();
-          B[L].set_size(Nrad, Nrad, naux);
-          for (size_t q = 0; q < naux; ++q) {
-            B[L].slice(q) = B_L_vecs[q];
-          }
+          // -- 4. Bridge to helfem::Matrix at the public boundary.
+          B[L].reserve(B_L_vecs.size());
+          for (auto & M : B_L_vecs)
+            B[L].push_back(helfem::to_eigen(M));
         }
 
         return B;
