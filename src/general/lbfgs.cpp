@@ -15,70 +15,52 @@
  * for the full license text.
  */
 
+// Phase 5.17: LBFGS migrated arma -> Eigen. No external callers
+// outside diis.cpp, so no bridging is needed.
+
 #include "lbfgs.h"
 
-LBFGS::LBFGS(size_t nmax_) : nmax(nmax_) {
-}
+LBFGS::LBFGS(size_t nmax_) : nmax(nmax_) {}
+LBFGS::~LBFGS() {}
 
-LBFGS::~LBFGS() {
-}
-
-void LBFGS::update(const arma::vec & x, const arma::vec & g) {
+void LBFGS::update(const helfem::Vector & x, const helfem::Vector & g) {
   xk.push_back(x);
   gk.push_back(g);
-
-  if(xk.size()>nmax) {
+  if (xk.size() > nmax) {
     xk.erase(xk.begin());
     gk.erase(gk.begin());
   }
 }
 
-arma::vec LBFGS::apply_diagonal_hessian(const arma::vec & q) const {
-  if(xk.size()>=2) {
-    arma::vec s=xk[xk.size()-1]-xk[xk.size()-2];
-    arma::vec y=gk[gk.size()-1]-gk[gk.size()-2];
-
-    return arma::dot(s,y)/arma::dot(y,y)*q;
-
-  } else
-    // Unit diagonal Hessian
-    return q;
+helfem::Vector LBFGS::apply_diagonal_hessian(const helfem::Vector & q) const {
+  if (xk.size() >= 2) {
+    const helfem::Vector s = xk.back() - xk[xk.size() - 2];
+    const helfem::Vector y = gk.back() - gk[gk.size() - 2];
+    return (s.dot(y) / y.dot(y)) * q;
+  }
+  return q;
 }
 
-arma::vec LBFGS::solve() const {
-  // Algorithm 9.1 in Nocedal's book
-  size_t k=gk.size()-1;
-  arma::vec q(gk[k]);
+helfem::Vector LBFGS::solve() const {
+  // Algorithm 9.1 in Nocedal.
+  const size_t k = gk.size() - 1;
+  helfem::Vector q = gk[k];
 
-  std::vector<arma::vec> sk(k);
-  for(size_t i=0;i<k;i++)
-    sk[i]=xk[i+1]-xk[i];
-  std::vector<arma::vec> yk(k);
-  for(size_t i=0;i<k;i++)
-    yk[i]=gk[i+1]-gk[i];
+  std::vector<helfem::Vector> sk(k), yk(k);
+  for (size_t i = 0; i < k; ++i) sk[i] = xk[i + 1] - xk[i];
+  for (size_t i = 0; i < k; ++i) yk[i] = gk[i + 1] - gk[i];
 
-  // Alpha_i
   std::vector<double> alphai(k);
-
-  // First part
-  for(size_t i=k-1;i<k;i--) {
-    // Alpha_i
-    alphai[i]=arma::dot(sk[i],q)/arma::dot(yk[i],sk[i]);
-    // Update q
-    q-=alphai[i]*yk[i];
+  for (size_t i = k - 1; i < k; --i) {  // relies on size_t wraparound
+    alphai[i] = sk[i].dot(q) / yk[i].dot(sk[i]);
+    q -= alphai[i] * yk[i];
   }
 
-  // Apply diagonal Hessian
-  arma::vec r(apply_diagonal_hessian(q));
-
-  // Second part
-  for(size_t i=0;i<k;i++) {
-    // Beta
-    double beta=arma::dot(yk[i],r)/arma::dot(yk[i],sk[i]);
-    // Update r
-    r+=sk[i]*(alphai[i]-beta);
+  helfem::Vector r = apply_diagonal_hessian(q);
+  for (size_t i = 0; i < k; ++i) {
+    const double beta = yk[i].dot(r) / yk[i].dot(sk[i]);
+    r += sk[i] * (alphai[i] - beta);
   }
-
   return r;
 }
 
@@ -86,5 +68,3 @@ void LBFGS::clear() {
   xk.clear();
   gk.clear();
 }
-
-

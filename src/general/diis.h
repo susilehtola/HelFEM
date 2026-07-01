@@ -17,37 +17,30 @@
 #ifndef ERKALE_DIIS
 #define ERKALE_DIIS
 
+// Phase 5.17: internal state migrated to Eigen. Public API (constructors,
+// update, solve_F, solve_P) still takes arma::mat & for compat with
+// SCF drivers; bridging happens at the class boundary.
 #include <armadillo>
+#include <Matrix.h>
 #include <vector>
 
 /// Spin-polarized entry
 typedef struct {
-  /// Alpha density matrix
-  arma::mat Pa;
-  /// Alpha Fock matrix
-  arma::mat Fa;
-  /// Beta density matrix
-  arma::mat Pb;
-  /// Beta Fock matrix
-  arma::mat Fb;
-  /// Energy
+  helfem::Matrix Pa;
+  helfem::Matrix Fa;
+  helfem::Matrix Pb;
+  helfem::Matrix Fb;
   double E;
-
-  /// DIIS error matrix
-  arma::vec err;
+  /// DIIS error vector (vectorised error matrix)
+  helfem::Vector err;
 } diis_pol_entry_t;
 
 /// Spin-unpolarized entry
 typedef struct {
-  /// Density matrix
-  arma::mat P;
-  /// Fock matrix
-  arma::mat F;
-  /// Energy
+  helfem::Matrix P;
+  helfem::Matrix F;
   double E;
-
-  /// DIIS error matrix
-  arma::vec err;
+  helfem::Vector err;
 } diis_unpol_entry_t;
 
 /// Helper for sort
@@ -100,133 +93,79 @@ bool operator<(const diis_unpol_entry_t & lhs, const diis_unpol_entry_t & rhs);
 
 class DIIS {
  protected:
-  /// Overlap matrix
-  arma::mat S;
-  /// Half-inverse overlap matrix
-  arma::mat Sinvh;
+  helfem::Matrix S;
+  helfem::Matrix Sinvh;
 
-  /// Use DIIS?
   bool usediis;
-  /// Use ADIIS?
   bool useadiis;
-  /// Verbose operation?
   bool verbose;
 
-  /// When to start using DIIS weights
   double diiseps;
-  /// When to start using DIIS exclusively
   double diisthr;
-  /// Counter for not using DIIS
   int cooloff;
 
-  /// Maximum amount of matrices to store
   size_t imax;
-  /// Get energies
-  virtual arma::vec get_energies() const=0;
-  /// Get errors
-  virtual arma::mat get_diis_error() const=0;
-  /// Reduce size of stack by one
-  virtual void erase_last()=0;
+  virtual helfem::Vector get_energies() const = 0;
+  virtual helfem::Matrix get_diis_error() const = 0;
+  virtual void erase_last() = 0;
 
-  // Helpers for speeding up ADIIS evaluation
-  /// < P_i - P_n | F(D_n) >   or   < Pa_i - Pa_n | Fa(P_n) > + < Pb_i - Pb_n | Fb(P_n) >
-  arma::vec PiF;
-  /// < P_i - P_n | F(D_j) - F(D_n) >   or    < Pa_i - Pa_n | Fa(P_j) - Fa(P_n) > + < Pb_i - Pb_n | Fb(P_j) - Fb(P_n) >
-  arma::mat PiFj;
+  helfem::Vector PiF;
+  helfem::Matrix PiFj;
 
-  /// Compute weights
-  arma::vec get_w();
-  /// Compute DIIS weights
-  arma::vec get_w_diis() const;
-  /// Compute DIIS weights, worker routine
-  arma::vec get_w_diis_wrk(const arma::mat & err) const;
-  /// Compute ADIIS weights
-  arma::vec get_w_adiis() const;
-
-  /// Solve coefficients
-  arma::vec get_c_adiis(bool verbose=false) const;
+  helfem::Vector get_w();
+  helfem::Vector get_w_diis() const;
+  helfem::Vector get_w_diis_wrk(const helfem::Matrix & err) const;
+  helfem::Vector get_w_adiis() const;
 
  public:
-  /// Constructor
+  // Public API still arma-typed for compat with SCF drivers.
   DIIS(const arma::mat & S, const arma::mat & Sinvh, bool usediis, double diiseps, double diisthr, bool useadiis, bool verbose, size_t imax);
-  /// Destructor
   virtual ~DIIS();
 
-  /// Clear Fock matrices and errors
-  virtual void clear()=0;
+  virtual void clear() = 0;
 
-  /// Compute energy with contraction coefficients \f$ c_i = x_i^2 / \left[ \sum_j x_j^2 \right] \f$
-  double get_E_adiis(const arma::vec & x) const;
-  /// Compute derivative of energy wrt contraction coefficients
-  arma::vec get_dEdx_adiis(const arma::vec & x) const;
+  double get_E_adiis(const helfem::Vector & x) const;
+  helfem::Vector get_dEdx_adiis(const helfem::Vector & x) const;
 };
 
 /// Spin-restricted DIIS
 class rDIIS: protected DIIS {
-  /// Fock matrices in AO basis
   std::vector<diis_unpol_entry_t> stack;
 
-  /// Get energies
-  arma::vec get_energies() const;
-  /// Get errors
-  arma::mat get_diis_error() const;
-  /// Reduce size of stack by one
+  helfem::Vector get_energies() const;
+  helfem::Matrix get_diis_error() const;
   void erase_last();
-  /// ADIIS update
   void PiF_update();
 
  public:
-  /// Constructor
   rDIIS(const arma::mat & S, const arma::mat & Sinvh, bool usediis, double diiseps, double diisthr, bool useadiis, bool verbose, size_t imax);
-  /// Destructor
   ~rDIIS();
 
-  /// Add matrices to stack
+  // Public API still arma-typed.
   void update(const arma::mat & F, const arma::mat & P, double E, double & error);
-
-  /// Compute new Fock matrix
   void solve_F(arma::mat & F);
-
-  /// Compute new density matrix
   void solve_P(arma::mat & P);
-
-  /// Clear Fock matrices and errors
   void clear();
 };
 
 /// Spin-unrestricted DIIS
 class uDIIS: protected DIIS {
-  /// Fock matrices in AO basis - spin polarized
   std::vector<diis_pol_entry_t> stack;
 
-  /// Get energies
-  arma::vec get_energies() const;
-  /// Get errors
-  arma::mat get_diis_error() const;
-  /// Reduce size of stack by one
+  helfem::Vector get_energies() const;
+  helfem::Matrix get_diis_error() const;
   void erase_last();
-  /// ADIIS update
   void PiF_update();
 
-  /// Combine alpha and beta errors?
   bool combine;
 
  public:
-  /// Constructor
   uDIIS(const arma::mat & S, const arma::mat & Sinvh, bool combine, bool usediis, double diiseps, double diisthr, bool useadiis, bool verbose, size_t imax);
-  /// Destructor
   ~uDIIS();
 
-  /// Add matrices to stack
   void update(const arma::mat & Fa, const arma::mat & Fb, const arma::mat & Pa, const arma::mat & Pb, double E, double & error);
-
-  /// Compute new Fock matrix
   void solve_F(arma::mat & Fa, arma::mat & Fb);
-
-  /// Compute new density matrix
   void solve_P(arma::mat & Pa, arma::mat & Pb);
-
-  /// Clear Fock matrices and errors
   void clear();
 };
 
