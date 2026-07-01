@@ -76,6 +76,17 @@ target_link_libraries(softcoulomb helfem-common legendre)
 add_executable(atomic atomic/main.cpp)
 target_link_libraries(atomic helfem-common legendre)
 
+# Atomic driver using OpenOrbitalOptimizer for SCF convergence.
+# Same OOO pattern as sadatom_ooo, extended to the full 2D angular +
+# radial basis. DFT only in this first cut.
+add_executable(atomic_ooo atomic/ooo.cpp)
+target_link_libraries(atomic_ooo helfem-common legendre)
+if(TARGET OpenOrbitalOptimizer::OpenOrbitalOptimizer)
+    target_link_libraries(atomic_ooo OpenOrbitalOptimizer::OpenOrbitalOptimizer)
+elseif(TARGET openorbitaloptimizer)
+    target_link_libraries(atomic_ooo openorbitaloptimizer)
+endif()
+
 add_executable(atomic_itest atomic/inttest.cpp)
 target_link_libraries(atomic_itest helfem-common legendre)
 
