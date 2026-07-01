@@ -15,18 +15,20 @@
 #ifndef LCAO_H
 #define LCAO_H
 
-#include <armadillo>
+// Phase 5.18: lcao migrated arma -> Eigen. The vector overloads have
+// no in-tree callers; all callers use the scalar overloads.
+#include <Matrix.h>
 
 namespace helfem {
   namespace lcao {
-    /// Evaluate radial GTO
+    /// Evaluate radial GTO (scalar)
     double radial_GTO(double r, int l, double alpha);
-    /// Evaluate radial GTO
-    arma::mat radial_GTO(const arma::vec & r, int l, const arma::vec & alpha);
-    /// Evaluate radial STO
+    /// Evaluate radial GTO (vectorised over r and alpha)
+    helfem::Matrix radial_GTO(const helfem::Vector & r, int l, const helfem::Vector & alpha);
+    /// Evaluate radial STO (scalar)
     double radial_STO(double r, int l, double zeta);
-    /// Evaluate radial STO
-    arma::mat radial_STO(const arma::vec & r, int l, const arma::vec & zeta);
+    /// Evaluate radial STO (vectorised over r and zeta)
+    helfem::Matrix radial_STO(const helfem::Vector & r, int l, const helfem::Vector & zeta);
   }
 }
 
