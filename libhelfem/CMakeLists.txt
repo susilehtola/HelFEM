@@ -2,6 +2,16 @@ set(LIBHELFEM_VERSION "v0.0.1-alpha")
 
 # Version information. Landed at include/ so the header ships with the
 # rest of the public API when we install(DIRECTORY .../include/).
+#
+# Older configurations of this file placed the generated helfem.h at
+# CMAKE_CURRENT_BINARY_DIR/helfem.h (no `include/` prefix). Existing
+# build trees still have that stale copy sitting there, and the
+# include search path picks it up before the freshly configured file
+# under include/. Result: consumers see the OLD arma::vec get_grid
+# declaration and fail to link against the new helfem::Vector one.
+# Delete the stale copy at configure time so incremental rebuilds
+# into pre-existing build directories just work.
+file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/helfem.h")
 configure_file("include/helfem.source.h" "include/helfem.h")
 list(APPEND LIBHELFEM_PUBLIC_HEADERS
     "ModelPotential.h"
