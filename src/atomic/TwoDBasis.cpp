@@ -15,6 +15,7 @@
 #include "TwoDBasis.h"
 #include <ArmaEigen.h>
 #include <CoulombExchangeFE.h>
+#include "../general/radial_block_helper.h"
 #include "basis.h"
 #include "quadrature.h"
 #include "chebyshev.h"
@@ -294,18 +295,8 @@ namespace helfem {
 
       arma::mat TwoDBasis::radial_integral(int Rexp) const {
         // Build radial elements
-        size_t Nrad(radial.Nbf());
-        arma::mat Orad(Nrad,Nrad);
-        Orad.zeros();
-
-        // Loop over elements
-        for(size_t iel=0;iel<radial.Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
-	  // Phase 2a: radial_integral returns helfem::Matrix; bridge here.
-	  Orad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(Rexp,iel));
-        }
+        arma::mat Orad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(Rexp, iel); }));
 
         // Full overlap matrix
         arma::mat O(Ndummy(),Ndummy());
@@ -339,23 +330,11 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDBasis::kinetic() const {
-        // Build radial kinetic energy matrix
-        size_t Nrad(radial.Nbf());
-        arma::mat Trad(Nrad,Nrad);
-        Trad.zeros();
-        arma::mat Trad_l(Nrad,Nrad);
-        Trad_l.zeros();
-
-        // Loop over elements
-        for(size_t iel=0;iel<radial.Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
-          // Phase 2a: radial.kinetic(iel) / kinetic_l(iel) now return
-          // helfem::Matrix; bridge here -- TwoDBasis caches are still arma.
-          Trad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.kinetic(iel));
-          Trad_l.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.kinetic_l(iel));
-        }
+        // Build radial kinetic energy matrices
+        arma::mat Trad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.kinetic(iel); }));
+        arma::mat Trad_l = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.kinetic_l(iel); }));
 
         // Full kinetic energy matrix
         arma::mat T(Ndummy(),Ndummy());
@@ -383,20 +362,11 @@ namespace helfem {
           arma::mat V(Ndummy(),Ndummy());
           V.zeros();
 
-          if(Z!=0.0) {
-            size_t Nrad(radial.Nbf());
-            arma::mat Vrad(Nrad,Nrad);
-            Vrad.zeros();
-            // Loop over elements
-            for(size_t iel=0;iel<radial.Nel();iel++) {
-              // Where are we in the matrix?
-              size_t ifirst, ilast;
-              radial.get_idx(iel,ifirst,ilast);
-              Vrad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(-1,iel));
-            }
-            // Fill elements
-            for(size_t iang=0;iang<lval.n_elem;iang++)
-              set_sub(V,iang,iang,-Z*Vrad);
+          if (Z != 0.0) {
+            arma::mat Vrad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+                [&](size_t iel) { return radial.radial_integral(-1, iel); }));
+            for (size_t iang = 0; iang < lval.n_elem; iang++)
+              set_sub(V, iang, iang, -Z * Vrad);
           }
 
           if(Zl != 0.0 || Zr != 0.0) {
@@ -407,14 +377,9 @@ namespace helfem {
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-            for(int L=0;L<=Lmax;L++) {
-              Vaux[L].zeros(Nrad,Nrad);
-              for(size_t iel=0;iel<radial.Nel();iel++) {
-                // Where are we in the matrix?
-                size_t ifirst, ilast;
-                radial.get_idx(iel,ifirst,ilast);
-                Vaux[L].submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.nuclear_offcenter(iel,Rhalf,L));
-              }
+            for (int L = 0; L <= Lmax; L++) {
+              Vaux[L] = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+                  [&](size_t iel) { return radial.nuclear_offcenter(iel, Rhalf, L); }));
             }
 
             int gmax(std::max(arma::max(lval),arma::max(mval)));
@@ -458,16 +423,8 @@ namespace helfem {
         arma::mat V(Ndummy(),Ndummy());
         V.zeros();
 
-	size_t Nrad(radial.Nbf());
-	arma::mat Vrad(Nrad,Nrad);
-	Vrad.zeros();
-	// Loop over elements
-	for(size_t iel=0;iel<radial.Nel();iel++) {
-	  // Where are we in the matrix?
-	  size_t ifirst, ilast;
-	  radial.get_idx(iel,ifirst,ilast);
-	  Vrad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.model_potential(pot,iel));
-	}
+        arma::mat Vrad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.model_potential(pot, iel); }));
 	// Fill elements
 	for(size_t iang=0;iang<lval.n_elem;iang++)
 	  set_sub(V,iang,iang,Vrad);
@@ -483,18 +440,10 @@ namespace helfem {
 	if(iconf==0)
 	  return remove_boundaries(O);
 
-	// Build radial elements
-        size_t Nrad(radial.Nbf());
-        arma::mat Orad(Nrad,Nrad);
-        Orad.zeros();
-
-	// Loop over elements
-	for(size_t iel=0;iel<radial.Nel();iel++) {
-	  // Where are we in the matrix?
-	  size_t ifirst, ilast;
-	  radial.get_idx(iel,ifirst,ilast);
-	  Orad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.confinement_potential(iel,N,r_0,iconf,V,shift_pot));
-	}
+        arma::mat Orad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) {
+              return radial.confinement_potential(iel, N, r_0, iconf, V, shift_pot);
+            }));
 
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++)
@@ -505,21 +454,12 @@ namespace helfem {
 
       arma::mat TwoDBasis::dipole_z() const {
         // Build radial elements
-        size_t Nrad(radial.Nbf());
-        arma::mat Orad(Nrad,Nrad);
-        Orad.zeros();
+        arma::mat Orad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(1, iel); }));
 
         // Full electric couplings
         arma::mat V(Ndummy(),Ndummy());
         V.zeros();
-
-        // Loop over elements
-        for(size_t iel=0;iel<radial.Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
-          Orad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(1,iel));
-        }
 
         int gmax(std::max(arma::max(lval),arma::max(mval)));
         gaunt::Gaunt gaunt(gmax,1,gmax);
@@ -545,21 +485,12 @@ namespace helfem {
 
       arma::mat TwoDBasis::quadrupole_zz() const {
         // Build radial elements
-        size_t Nrad(radial.Nbf());
-        arma::mat Orad(Nrad,Nrad);
-        Orad.zeros();
+        arma::mat Orad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(2, iel); }));
 
         // Full electric couplings
         arma::mat V(Ndummy(),Ndummy());
         V.zeros();
-
-        // Loop over elements
-        for(size_t iel=0;iel<radial.Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
-          Orad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(2,iel));
-        }
 
         int gmax(std::max(arma::max(lval),arma::max(mval)));
         gaunt::Gaunt gaunt(gmax,2,gmax);
@@ -591,20 +522,10 @@ namespace helfem {
 
       arma::mat TwoDBasis::Bz_field(double B) const {
         // Build radial elements
-        size_t Nrad(radial.Nbf());
-        arma::mat O0rad(Nrad,Nrad);
-        O0rad.zeros();
-        arma::mat O2rad(Nrad,Nrad);
-        O2rad.zeros();
-
-        // Loop over elements
-        for(size_t iel=0;iel<radial.Nel();iel++) {
-          // Where are we in the matrix?
-          size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
-          O0rad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(0,iel));
-          O2rad.submat(ifirst,ifirst,ilast,ilast)+=helfem::to_arma(radial.radial_integral(2,iel));
-        }
+        arma::mat O0rad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(0, iel); }));
+        arma::mat O2rad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(2, iel); }));
 
         // Full coupling
         arma::mat V(Ndummy(),Ndummy());
