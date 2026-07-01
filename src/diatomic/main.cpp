@@ -21,6 +21,7 @@
 #include "utils.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
+#include "../general/scf_driver_common.h"
 #include "../general/model_potential.h"
 #include "basis.h"
 #include "dftgrid.h"
@@ -73,13 +74,10 @@ void classify_orbitals(const arma::mat & C, const arma::ivec & mvals, const std:
   }
 }
 
-void normalize_matrix(arma::mat & M, const arma::vec & norm) {
-  if(M.n_rows != norm.n_elem) throw std::logic_error("Incompatible dimensions!\n");
-  if(M.n_cols != norm.n_elem) throw std::logic_error("Incompatible dimensions!\n");
-  for(size_t i=0;i<M.n_rows;i++)
-    for(size_t j=0;j<M.n_cols;j++)
-      M(i,j)*=norm(i)*norm(j);
-}
+// normalize_matrix, gram_schmidt, report_ortho_deviation and
+// report_halfoverlap_error moved to helfem::scf_driver in
+// ../general/scf_driver_common.h.
+using helfem::scf_driver::normalize_matrix;
 
 int main(int argc, char **argv) {
   cmdline::parser parser;
@@ -469,19 +467,11 @@ int main(int argc, char **argv) {
   arma::mat Sinvh(basis.Sinvh(!diag,symm));
   chkpt.write("Sinvh",Sinvh);
   printf("Half-inverse formed in %.6f\n",timer.get());
-  {
-    arma::mat Smo(Sinvh.t()*S*Sinvh);
-    Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
-    printf("Orbital orthonormality deviation is %e\n",arma::norm(Smo,"fro"));
-  }
+  helfem::scf_driver::report_ortho_deviation(S, Sinvh);
   arma::mat Sh(basis.Shalf(!diag,symm));
   chkpt.write("Sh",Sh);
   printf("Half-overlap formed in %.6f\n",timer.get());
-  {
-    arma::mat Smo(Sh.t()*Sinvh);
-    Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
-    printf("Half-overlap error is %e\n",arma::norm(Smo,"fro"));
-  }
+  helfem::scf_driver::report_halfoverlap_error(Sh, Sinvh);
 
   // Form nuclear attraction energy matrix
   Timer tnuc;
@@ -644,17 +634,8 @@ int main(int argc, char **argv) {
         Cb=P*C;
 
         // Run Gram-Schmidt to make sure orbitals are orthonormal
-        for(int ia=0;ia<nela;ia++) {
-          for(int ja=0;ja<ia;ja++)
-            Ca.col(ia)-= Ca.col(ja)*(arma::trans(Ca.col(ja))*S*Ca.col(ia));
-          Ca.col(ia) /= sqrt(arma::as_scalar(arma::trans(Ca.col(ia))*S*Ca.col(ia)));
-        }
-
-        for(int ib=0;ib<nelb;ib++) {
-          for(int jb=0;jb<ib;jb++)
-            Cb.col(ib) -= Cb.col(jb)*(arma::trans(Cb.col(jb))*S*Cb.col(ib));
-          Cb.col(ib) /= sqrt(arma::as_scalar(arma::trans(Cb.col(ib))*S*Cb.col(ib)));
-        }
+        helfem::scf_driver::gram_schmidt(Ca, S, nela);
+        helfem::scf_driver::gram_schmidt(Cb, S, nelb);
 
         // Read in orbital energies
         loadchk.read("Ea",Ea);
