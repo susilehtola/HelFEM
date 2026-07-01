@@ -375,25 +375,34 @@ namespace helfem {
                 Lmax=std::max(Lmax,L);
                 Mmax=std::max(Mmax,std::abs(M));
 
-                // L|M|
+                // L|M|. lmind returns idx == lm_map.size() when the
+                // requested (L, |M|) sorts AFTER every existing entry
+                // (e.g. right after the first push_back). Do not touch
+                // lm_map[idx] in that case -- under GCC 16's hardened
+                // std::vector::operator[] that is a hard abort; under
+                // older libstdc++ it silently returned garbage that
+                // happened to compare unequal to p, so the map was
+                // built correctly by luck.
                 p.second=std::abs(M);
-                if(!lm_map.size())
+                if(!lm_map.size()) {
                   lm_map.push_back(p);
-                else {
+                } else {
                   size_t idx=lmind(L,M,false);
-                  if(!(lm_map[idx]==p))
-                    // Insert at lower bound
+                  if (idx == lm_map.size())
+                    lm_map.push_back(p);
+                  else if (!(lm_map[idx]==p))
                     lm_map.insert(lm_map.begin()+idx,p);
                 }
 
-                // LM
+                // LM (same guard as above).
                 p.second=M;
-                if(!LM_map.size())
+                if(!LM_map.size()) {
                   LM_map.push_back(p);
-                else {
+                } else {
                   size_t idx=LMind(L,M,false);
-                  if(!(LM_map[idx]==p))
-                    // Insert at lower bound
+                  if (idx == LM_map.size())
+                    LM_map.push_back(p);
+                  else if (!(LM_map[idx]==p))
                     LM_map.insert(LM_map.begin()+idx,p);
                 }
               }
