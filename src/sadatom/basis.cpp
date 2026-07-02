@@ -468,11 +468,11 @@ namespace helfem {
       }
 
       double TwoDBasis::nuclear_density(const arma::mat & P) const {
-        return radial.nuclear_density(P)/(4.0*M_PI);
+        return radial.nuclear_density(helfem::to_eigen(P))/(4.0*M_PI);
       }
 
       double TwoDBasis::nuclear_density_gradient(const arma::mat & P) const {
-        return radial.nuclear_density_gradient(P)/(4.0*M_PI);
+        return radial.nuclear_density_gradient(helfem::to_eigen(P))/(4.0*M_PI);
       }
 
       arma::vec TwoDBasis::quadrature_weights() const {
@@ -608,7 +608,11 @@ namespace helfem {
         Cv.zeros();
         // Values at the nucleus
         {
-          Cv.row(0)=radial.nuclear_orbital(C);
+          {
+            const Eigen::RowVectorXd nrow = radial.nuclear_orbital(helfem::to_eigen(C));
+            for (Eigen::Index j = 0; j < nrow.size(); ++j)
+              Cv(0, j) = nrow(j);
+          }
         }
         // Other points
         for(size_t iel=0;iel<radial.Nel();iel++) {

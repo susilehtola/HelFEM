@@ -130,7 +130,7 @@ int main(int argc, char **argv) {
       radial.get_idx(iel,ifirst,ilast);
       // Density matrix
       arma::mat Csub(C.rows(ifirst,ilast));
-      arma::mat bf(radial.get_bf(iel));
+      arma::mat bf(helfem::to_arma(radial.get_bf(iel)));
 
       c[iel]=bf*Csub;
     }

@@ -1308,7 +1308,7 @@ namespace helfem {
 #endif
         for(size_t iam=0;iam<lval.n_elem;iam++) {
           // Integration over angles yields extra factor 4 pi that must be removed
-          nucden+=radial.nuclear_density(P.submat(Nrad*iam,Nrad*iam,Nrad*(iam+1)-1,Nrad*(iam+1)-1))/(4.0*M_PI);
+          nucden+=radial.nuclear_density(helfem::to_eigen(arma::mat(P.submat(Nrad*iam,Nrad*iam,Nrad*(iam+1)-1,Nrad*(iam+1)-1))))/(4.0*M_PI);
         }
 
         arma::vec den(1);
@@ -1334,7 +1334,7 @@ namespace helfem {
 #endif
         for(size_t iam=0;iam<lval.n_elem;iam++) {
           // Integration over angles yields extra factor 4 pi that must be removed
-          nucden+=radial.nuclear_density_gradient(P.submat(Nrad*iam,Nrad*iam,Nrad*(iam+1)-1,Nrad*(iam+1)-1))/(4.0*M_PI);
+          nucden+=radial.nuclear_density_gradient(helfem::to_eigen(arma::mat(P.submat(Nrad*iam,Nrad*iam,Nrad*(iam+1)-1,Nrad*(iam+1)-1))))/(4.0*M_PI);
         }
 
         arma::vec den(1);

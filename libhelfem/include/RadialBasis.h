@@ -310,12 +310,13 @@ namespace helfem {
 	/// Get r value
         double get_r(double x, size_t iel) const;
 
-        /// Evaluate nuclear density
-        double nuclear_density(const arma::mat &P) const;
-        /// Evaluate nuclear density gradient
-        double nuclear_density_gradient(const arma::mat &P) const;
-        /// Evaluate orbitals at nucleus
-        arma::rowvec nuclear_orbital(const arma::mat &C) const;
+        /// Evaluate nuclear density (Phase 5.22: Eigen-typed argument).
+        double nuclear_density(const helfem::Matrix &P) const;
+        /// Evaluate nuclear density gradient (Phase 5.22: Eigen-typed argument).
+        double nuclear_density_gradient(const helfem::Matrix &P) const;
+        /// Evaluate orbitals at nucleus (Phase 5.22: Eigen-typed argument
+        /// and Eigen row-vector return).
+        Eigen::RowVectorXd nuclear_orbital(const helfem::Matrix &C) const;
       };
     } // namespace basis
   }   // namespace atomic
