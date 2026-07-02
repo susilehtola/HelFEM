@@ -92,10 +92,10 @@ namespace helfem {
 
         /// Get number of quadrature points
         int get_nquad() const;
-        /// Get quadrature points
-        arma::vec get_xq() const;
-        /// Get boundary values
-        arma::vec get_bval() const;
+        /// Get quadrature points (Phase 5.20: Eigen at the public boundary).
+        helfem::Vector get_xq() const;
+        /// Get boundary values (Phase 5.20: Eigen at the public boundary).
+        helfem::Vector get_bval() const;
         /// Get polynomial basis identifier
         int get_poly_id() const;
         /// Get number of nodes in polynomial basis
@@ -290,14 +290,18 @@ namespace helfem {
         /// Evaluate orbitals at a given point
         arma::vec eval_orbs(const arma::mat & C, double r) const override;
 
-        /// Get quadrature weights
-        arma::vec get_wrad(size_t iel) const;
-        /// Get quadrature weights
-        arma::vec get_wrad(const arma::vec & w, size_t iel) const;
-        /// Get r values
-        arma::vec get_r(size_t iel) const;
-        /// Get r values
-        arma::vec get_r(const arma::vec & x, size_t iel) const;
+        /// Get quadrature weights in element (Phase 5.20: Eigen return).
+        helfem::Vector get_wrad(size_t iel) const;
+        /// Get quadrature weights in element from user-supplied weight
+        /// vector (arma-typed input kept for chemistry-layer callers;
+        /// Eigen return per Phase 5.20).
+        helfem::Vector get_wrad(const arma::vec & w, size_t iel) const;
+        /// Get r values at quadrature points in element (Phase 5.20: Eigen return).
+        helfem::Vector get_r(size_t iel) const;
+        /// Get r values at user-supplied x points in element
+        /// (arma-typed input kept for chemistry-layer callers; Eigen
+        /// return per Phase 5.20).
+        helfem::Vector get_r(const arma::vec & x, size_t iel) const;
 	/// Get r value
         double get_r(double x, size_t iel) const;
 
