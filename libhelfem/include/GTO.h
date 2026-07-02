@@ -20,7 +20,8 @@
 #include "NAORadialBasis.h"
 #include "FiniteElementBasis.h"
 #include "PolynomialBasis.h"
-#include <armadillo>
+#include <lib1dfem/chebyshev.h>
+#include <Eigen/Cholesky>
 #include <cmath>
 #include <memory>
 #include <sstream>
@@ -28,9 +29,6 @@
 #include <vector>
 
 namespace helfem {
-  namespace chebyshev {
-    void chebyshev(int n, arma::vec & x, arma::vec & w);
-  }
   namespace atomic {
     namespace basis {
 
@@ -49,7 +47,10 @@ namespace helfem {
       /// A contracted GTO basis function: f(r) = sum_i c_i R_i(r).
       struct GTOContracted {
         std::vector<GTOPrimitive> primitives;
-        arma::vec                 contraction;
+        /// Phase 5.27: Eigen at the consumer boundary. Users can
+        /// construct via `helfem::Vector::Map(data, n)` from any
+        /// double* range without an armadillo dependency.
+        helfem::Vector            contraction;
       };
 
       namespace detail_gto {
@@ -66,7 +67,7 @@ namespace helfem {
         /// u(r) = r * R(r) for the contracted basis function.
         inline double eval_u(const GTOContracted & c, double r) {
           double sum = 0.0;
-          for (size_t i = 0; i < c.primitives.size(); ++i) {
+          for (Eigen::Index i = 0; i < static_cast<Eigen::Index>(c.primitives.size()); ++i) {
             const auto & p = c.primitives[i];
             sum += c.contraction(i) * primitive_norm(p) *
                    std::pow(r, p.n + 1) * std::exp(-p.alpha * r * r);
@@ -110,7 +111,7 @@ namespace helfem {
           throw std::logic_error("make_nao_gto: empty basis.\n");
         for (const auto & c : basis) {
           if (c.primitives.empty() ||
-              c.contraction.n_elem != c.primitives.size())
+              static_cast<size_t>(c.contraction.size()) != c.primitives.size())
             throw std::logic_error("make_nao_gto: malformed GTOContracted.\n");
           for (const auto & p : c.primitives) {
             if (p.n < 0)
@@ -123,7 +124,7 @@ namespace helfem {
         for (const auto & c : basis)
           for (const auto & p : c.primitives)
             r_max = std::max(r_max, detail_gto::primitive_r_extent(p, tol));
-        arma::vec bval(nelem + 1);
+        helfem::Vector bval(nelem + 1);
         const double denom = std::exp(2.0) - 1.0;
         for (int k = 0; k <= nelem; ++k)
           bval(k) = r_max * (std::exp(2.0 * k / nelem) - 1.0) / denom;
@@ -133,20 +134,26 @@ namespace helfem {
             /*zero_func_left*/true,  /*zero_deriv_left*/false,
             /*zero_func_right*/true, /*zero_deriv_right*/false);
         atomic::basis::FEMRadialBasis radial(fem, 5 * poly->get_nbf());
-        // Phase 2a: radial.overlap() returns helfem::Matrix.
-        const arma::mat S = helfem::to_arma(radial.overlap());
-        arma::vec xq, wq;
-        helfem::chebyshev::chebyshev(5 * poly->get_nbf(), xq, wq);
-        arma::mat C(S.n_rows, basis.size(), arma::fill::zeros);
+        const helfem::Matrix S = radial.overlap();
+        // Quadrature points + weights for the projection integrals. Go
+        // straight to lib1dfem's Eigen-typed templated chebyshev to skip
+        // libhelfem's legacy arma-shim.
+        helfem::Vector xq, wq;
+        helfem::lib1dfem::chebyshev::chebyshev<double>(
+            5 * poly->get_nbf(), xq, wq);
+        helfem::Matrix C = helfem::Matrix::Zero(S.rows(), basis.size());
+        // Overlap is symmetric positive definite -- one LDLT solves all.
+        Eigen::LDLT<helfem::Matrix> S_ldlt(S);
         for (size_t k = 0; k < basis.size(); ++k) {
           const GTOContracted & gto = basis[k];
           auto f = [&gto](double r) { return detail_gto::eval_u(gto, r); };
-          // Phase 5.4: fem.vector_element is Eigen-typed.
-          const helfem::Vector be = fem.vector_element(/*der=*/0,
-              helfem::to_eigen(xq), helfem::to_eigen(wq), f);
-          C.col(k) = arma::solve(S, helfem::to_arma(be));
+          const helfem::Vector be = fem.vector_element(/*der=*/0, xq, wq, f);
+          C.col(k) = S_ldlt.solve(be);
         }
-        return NAORadialBasis::from_owned_radial(std::move(radial), std::move(C));
+        // NAORadialBasis::from_owned_radial still takes arma::mat for
+        // its C_ storage; bridge once at the boundary.
+        return NAORadialBasis::from_owned_radial(std::move(radial),
+                                                  helfem::to_arma(C));
       }
 
     } // namespace basis
