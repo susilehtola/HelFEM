@@ -648,27 +648,19 @@ namespace helfem {
       }
 
       helfem::Vector FEMRadialBasis::get_wrad(size_t iel) const {
-        // Phase 5.20: internal wq is Eigen; scale in Eigen and return.
-        return fem.scaling_factor(iel) * wq;
+        return get_wrad(wq, iel);
       }
 
-      helfem::Vector FEMRadialBasis::get_wrad(const arma::vec & w, size_t iel) const {
-        // Chemistry-layer callers still pass arma::vec weights; bridge
-        // once to Eigen and scale. Return type is Eigen per Phase 5.20.
-        const double s = fem.scaling_factor(iel);
-        helfem::Vector out(w.n_elem);
-        for (arma::uword i = 0; i < w.n_elem; ++i) out(i) = s * w(i);
-        return out;
+      helfem::Vector FEMRadialBasis::get_wrad(const helfem::Vector & w, size_t iel) const {
+        return fem.scaling_factor(iel) * w;
       }
 
       helfem::Vector FEMRadialBasis::get_r(size_t iel) const {
-        // Phase 5.20: eval_coord returns Eigen; return directly.
-        return fem.eval_coord(xq, iel);
+        return get_r(xq, iel);
       }
 
-      helfem::Vector FEMRadialBasis::get_r(const arma::vec & x, size_t iel) const {
-        // Bridge input to Eigen once; return Eigen per Phase 5.20.
-        return fem.eval_coord(arma_to_eigen_vec(x), iel);
+      helfem::Vector FEMRadialBasis::get_r(const helfem::Vector & x, size_t iel) const {
+        return fem.eval_coord(x, iel);
       }
 
       double FEMRadialBasis::get_r(double x, size_t iel) const {

@@ -36,10 +36,6 @@ namespace helfem {
         virtual size_t Nbf() const = 0;
 
         /// Overlap matrix S_{ij} = integral u_i(r) u_j(r) dr.
-        /// Eigen-typed -- first method migrated from arma::mat as part
-        /// of Phase 2a of the v2 Eigen migration arc. The other base
-        /// virtuals (kinetic, kinetic_l, nuclear) follow in subsequent
-        /// PRs.
         virtual helfem::Matrix overlap() const = 0;
         /// Radial kinetic matrix (1/2) integral u'_i(r) u'_j(r) dr.
         /// EXCLUDES the centrifugal term -- caller adds l*(l+1) * kinetic_l().
@@ -289,18 +285,16 @@ namespace helfem {
         /// Evaluate orbitals at a given point (Phase 5.23: Eigen-typed).
         helfem::Vector eval_orbs(const helfem::Matrix & C, double r) const override;
 
-        /// Get quadrature weights in element (Phase 5.20: Eigen return).
+        /// Get quadrature weights in element.
         helfem::Vector get_wrad(size_t iel) const;
         /// Get quadrature weights in element from user-supplied weight
-        /// vector (arma-typed input kept for chemistry-layer callers;
-        /// Eigen return per Phase 5.20).
-        helfem::Vector get_wrad(const arma::vec & w, size_t iel) const;
-        /// Get r values at quadrature points in element (Phase 5.20: Eigen return).
+        /// vector (Phase 5.25: Eigen input + return).
+        helfem::Vector get_wrad(const helfem::Vector & w, size_t iel) const;
+        /// Get r values at quadrature points in element.
         helfem::Vector get_r(size_t iel) const;
         /// Get r values at user-supplied x points in element
-        /// (arma-typed input kept for chemistry-layer callers; Eigen
-        /// return per Phase 5.20).
-        helfem::Vector get_r(const arma::vec & x, size_t iel) const;
+        /// (Phase 5.25: Eigen input + return).
+        helfem::Vector get_r(const helfem::Vector & x, size_t iel) const;
 	/// Get r value
         double get_r(double x, size_t iel) const;
 
