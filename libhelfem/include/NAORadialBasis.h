@@ -65,9 +65,6 @@ namespace helfem {
         /// Underlying radial basis (typically a FEMRadialBasis).
         std::shared_ptr<const RadialBasis> underlying_;
         /// Orbital coefficient matrix, shape (Nbf_underlying x Nbf_NAO).
-        /// Phase 5.28: Eigen-typed storage; every matrix element flows
-        /// through helfem::Matrix from the underlying basis to the
-        /// downstream Fock builder without an arma round-trip.
         helfem::Matrix C_;
 
        public:

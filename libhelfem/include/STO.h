@@ -50,9 +50,8 @@ namespace helfem {
       /// will produce an L2-orthonormal NAO basis from them.
       struct STOContracted {
         std::vector<STOPrimitive> primitives;
-        /// Phase 5.27: Eigen at the consumer boundary. Users can
-        /// construct via `helfem::Vector::Map(data, n)` from any
-        /// double* range without an armadillo dependency.
+        /// Contraction coefficients. Construct via
+        /// `helfem::Vector::Map(data, n)` from any double* range.
         helfem::Vector            contraction;
       };
 
@@ -160,9 +159,7 @@ namespace helfem {
             /*zero_func_right*/true, /*zero_deriv_right*/false);
         atomic::basis::FEMRadialBasis radial(fem, 5 * poly->get_nbf());
         const helfem::Matrix S = radial.overlap();
-        // Quadrature points + weights for the projection integrals. Go
-        // straight to lib1dfem's Eigen-typed templated chebyshev to skip
-        // libhelfem's legacy arma-shim.
+        // Quadrature points + weights for the projection integrals.
         helfem::Vector xq, wq;
         helfem::lib1dfem::chebyshev::chebyshev<double>(
             5 * poly->get_nbf(), xq, wq);

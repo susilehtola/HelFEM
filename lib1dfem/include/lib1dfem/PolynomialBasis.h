@@ -30,7 +30,7 @@ namespace polynomial_basis {
 /// GeneralHIPBasis, LegendreBasis) implement eval_prim_dnf, copy,
 /// drop_first, drop_last and may override get_nodes.
 ///
-/// Templated on the scalar type T (Phase 5.2: lib1dfem migrated arma -> Eigen).
+/// Templated on the scalar type T.
 template <typename T>
 class PolynomialBasis {
  protected:
