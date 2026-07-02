@@ -686,68 +686,55 @@ namespace helfem {
         return fem.eval_coord(x, iel);
       }
 
-      double FEMRadialBasis::nuclear_density(const arma::mat &Prad) const {
-        if (Prad.n_rows != Nbf() || Prad.n_cols != Nbf())
+      // Nuclear coordinate: primitive basis polynomials belong to [-1,1],
+      // and the physical r=0 corresponds to x=-1 in the first element.
+      // Building this single-x-point vector as an Eigen 1-vector avoids
+      // the arma bridge that Phase 5.3-5.6 introduced.
+      static helfem::Vector nuclear_x() {
+        helfem::Vector x(1); x(0) = -1.0;
+        return x;
+      }
+
+      double FEMRadialBasis::nuclear_density(const helfem::Matrix &Prad) const {
+        if (static_cast<size_t>(Prad.rows()) != Nbf() ||
+            static_cast<size_t>(Prad.cols()) != Nbf())
           throw std::logic_error("nuclear_density expects a radial density matrix\n");
 
-        // Nuclear coordinate
-        arma::vec x(1);
-        // Remember that the primitive basis polynomials belong to [-1,1]
-        x(0) = -1.0;
-
-        // Evaluate derivative at nucleus
-        arma::mat der(eigen_mat_to_arma(fem.eval_df(arma_to_eigen_vec(x), (size_t) 0)));
-
-        // Radial functions in element
+        // Derivative at nucleus.
+        const helfem::Matrix der = fem.eval_df(nuclear_x(), (size_t) 0);
+        // First-element radial index range.
         size_t ifirst, ilast;
         get_idx(0, ifirst, ilast);
-        // Density submatrix
-        arma::mat Psub(Prad.submat(ifirst, ifirst, ilast, ilast));
-        // P_uv B_u'(0) B_v'(0)
-        double den(arma::as_scalar(der * Psub * arma::trans(der)));
-
-        return den;
+        const Eigen::Index n = static_cast<Eigen::Index>(ilast - ifirst + 1);
+        // Density submatrix.
+        const helfem::Matrix Psub = Prad.block(ifirst, ifirst, n, n);
+        // P_uv B_u'(0) B_v'(0) -- one number.
+        return (der * Psub * der.transpose()).value();
       }
 
-      double FEMRadialBasis::nuclear_density_gradient(const arma::mat &Prad) const {
-        if (Prad.n_rows != Nbf() || Prad.n_cols != Nbf())
+      double FEMRadialBasis::nuclear_density_gradient(const helfem::Matrix &Prad) const {
+        if (static_cast<size_t>(Prad.rows()) != Nbf() ||
+            static_cast<size_t>(Prad.cols()) != Nbf())
           throw std::logic_error("nuclear_density_gradient expects a radial density matrix\n");
 
-        // Nuclear coordinate
-        arma::vec x(1);
-        // Remember that the primitive basis polynomials belong to [-1,1]
-        x(0) = -1.0;
-
-        // Evaluate derivative at nucleus
-        arma::mat der(eigen_mat_to_arma(fem.eval_df(arma_to_eigen_vec(x), (size_t) 0)));
-        arma::mat lapl(eigen_mat_to_arma(fem.eval_d2f(arma_to_eigen_vec(x), (size_t) 0)));
-
-        // Radial functions in element
+        const helfem::Vector xn = nuclear_x();
+        const helfem::Matrix der  = fem.eval_df (xn, (size_t) 0);
+        const helfem::Matrix lapl = fem.eval_d2f(xn, (size_t) 0);
         size_t ifirst, ilast;
         get_idx(0, ifirst, ilast);
-        // Density submatrix
-        arma::mat Psub(Prad.submat(ifirst, ifirst, ilast, ilast));
-        // P_uv B_u'(0) B_v''(0)
-        double den(arma::as_scalar(der * Psub * arma::trans(lapl)));
-
-        return den;
+        const Eigen::Index n = static_cast<Eigen::Index>(ilast - ifirst + 1);
+        const helfem::Matrix Psub = Prad.block(ifirst, ifirst, n, n);
+        // P_uv B_u'(0) B_v''(0) -- one number.
+        return (der * Psub * lapl.transpose()).value();
       }
 
-      arma::rowvec FEMRadialBasis::nuclear_orbital(const arma::mat &C) const {
-        // Nuclear coordinate
-        arma::vec x(1);
-        // Remember that the primitive basis polynomials belong to [-1,1]
-        x(0) = -1.0;
-
-        // Derivative
-        arma::mat der(eigen_mat_to_arma(fem.eval_df(arma_to_eigen_vec(x), (size_t) 0)));
-        // Radial functions in element
+      Eigen::RowVectorXd FEMRadialBasis::nuclear_orbital(const helfem::Matrix &C) const {
+        const helfem::Matrix der = fem.eval_df(nuclear_x(), (size_t) 0);
         size_t ifirst, ilast;
         get_idx(0, ifirst, ilast);
-        // Density submatrix
-        arma::mat Csub(C.rows(ifirst, ilast));
-
-        // C_ui B_u'(0)
+        const Eigen::Index n = static_cast<Eigen::Index>(ilast - ifirst + 1);
+        const helfem::Matrix Csub = C.block(ifirst, 0, n, C.cols());
+        // C_ui B_u'(0) -- row vector of length C.cols().
         return der * Csub;
       }
     } // namespace basis
