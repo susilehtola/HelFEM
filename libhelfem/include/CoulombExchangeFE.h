@@ -86,19 +86,19 @@ namespace helfem {
 
       // -- Uncached entry points --------------------------------------
 
-      arma::mat assemble_J_FE_one_multipole(
-          const FEMRadialBasis & radial, int L, const arma::mat & P_FE);
+      helfem::Matrix assemble_J_FE_one_multipole(
+          const FEMRadialBasis & radial, int L, const helfem::Matrix & P_FE);
 
-      arma::mat assemble_K_FE_one_multipole(
-          const FEMRadialBasis & radial, int L, const arma::mat & P_FE);
+      helfem::Matrix assemble_K_FE_one_multipole(
+          const FEMRadialBasis & radial, int L, const helfem::Matrix & P_FE);
 
-      arma::mat assemble_J_FE_one_multipole_yukawa(
+      helfem::Matrix assemble_J_FE_one_multipole_yukawa(
           const FEMRadialBasis & radial, int L, double lambda,
-          const arma::mat & P_FE);
+          const helfem::Matrix & P_FE);
 
-      arma::mat assemble_K_FE_one_multipole_yukawa(
+      helfem::Matrix assemble_K_FE_one_multipole_yukawa(
           const FEMRadialBasis & radial, int L, double lambda,
-          const arma::mat & P_FE);
+          const helfem::Matrix & P_FE);
 
       // -- Cached entry points ----------------------------------------
 
@@ -109,24 +109,24 @@ namespace helfem {
       /// twoe_in_element (= twoe_integral(L, iel) or yukawa_integral) are
       /// supplied by the caller via accessors. Same assembly, no
       /// recomputation -- meant for SCF inner-loop callers.
-      arma::mat assemble_J_FE_one_multipole_cached(
+      helfem::Matrix assemble_J_FE_one_multipole_cached(
           const FEMRadialBasis & radial,
           const PerElementAccessor & r_small,
           const PerElementAccessor & r_big,
           const PerElementAccessor & twoe_in_element,
-          const arma::mat & P_FE);
+          const helfem::Matrix & P_FE);
 
       /// As above for K. Note `ktei_in_element` here returns the
       /// EXCHANGE-PERMUTED in-element tensor (i.e.
       ///   utils::exchange_tei(twoe_in_element(iel), Ni, Ni, Ni, Ni))
       /// so SCF-driven callers (TwoDBasis, which precomputes prim_ktei)
       /// can pass the cached permuted form directly with zero overhead.
-      arma::mat assemble_K_FE_one_multipole_cached(
+      helfem::Matrix assemble_K_FE_one_multipole_cached(
           const FEMRadialBasis & radial,
           const PerElementAccessor & r_small,
           const PerElementAccessor & r_big,
           const PerElementAccessor & ktei_in_element,
-          const arma::mat & P_FE);
+          const helfem::Matrix & P_FE);
 
       /// Per-(iel, jel) accessor variant of the above K helper, for
       /// kernels whose r1/r2 coupling does NOT factorise into a
@@ -137,10 +137,10 @@ namespace helfem {
       /// available -- O(Nel^2) per call.
       using PerElementPairAccessor =
           std::function<const helfem::Matrix & (size_t iel, size_t jel)>;
-      arma::mat assemble_K_FE_one_multipole_cached_pairwise(
+      helfem::Matrix assemble_K_FE_one_multipole_cached_pairwise(
           const FEMRadialBasis & radial,
           const PerElementPairAccessor & ktei_pairwise,
-          const arma::mat & P_FE);
+          const helfem::Matrix & P_FE);
 
       /// Cholesky-factored variants of the cached J / K helpers. Both
       /// take the SAME per-element J-ordered Cholesky factor of shape
@@ -174,19 +174,19 @@ namespace helfem {
       /// Cross-element pieces are unchanged -- still use the disjoint
       /// r_small / r_big factorisation. Only the in-element 4-index
       /// path is factored.
-      arma::mat assemble_J_FE_one_multipole_cached_chol(
+      helfem::Matrix assemble_J_FE_one_multipole_cached_chol(
           const FEMRadialBasis & radial,
           const PerElementAccessor & r_small,
           const PerElementAccessor & r_big,
           const PerElementAccessor & twoe_chol_J,
-          const arma::mat & P_FE);
+          const helfem::Matrix & P_FE);
 
-      arma::mat assemble_K_FE_one_multipole_cached_chol(
+      helfem::Matrix assemble_K_FE_one_multipole_cached_chol(
           const FEMRadialBasis & radial,
           const PerElementAccessor & r_small,
           const PerElementAccessor & r_big,
           const PerElementAccessor & twoe_chol_J,
-          const arma::mat & P_FE);
+          const helfem::Matrix & P_FE);
 
       // Inline implementations -- header-only to match the rest of the
       // libhelfem/include/ NAO surface. ~150 LOC total.
@@ -351,15 +351,15 @@ namespace helfem {
       // match the new Eigen-typed accessors and caches. P_FE input and
       // J/K output are still arma (the TwoDBasis SCF assembly is still
       // arma-typed) -- bridged at the entry/exit boundary.
-      inline arma::mat assemble_J_FE_one_multipole_cached(
+      inline helfem::Matrix assemble_J_FE_one_multipole_cached(
           const FEMRadialBasis & radial,
           const PerElementAccessor & r_small,
           const PerElementAccessor & r_big,
           const PerElementAccessor & twoe_in_element,
-          const arma::mat & P_FE) {
+          const helfem::Matrix & P_FE) {
         const size_t Nel  = radial.Nel();
         const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
-        const helfem::Matrix P_E = helfem::to_eigen(P_FE);
+        const helfem::Matrix & P_E = P_FE;
         helfem::Matrix J_E = helfem::Matrix::Zero(Nrad, Nrad);
         for (size_t jel = 0; jel < Nel; ++jel) {
           size_t jfirst, jlast;
@@ -390,18 +390,18 @@ namespace helfem {
           J_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj)
               += Eigen::Map<const Eigen::MatrixXd>(Jsub_v.data(), Nj, Nj);
         }
-        return helfem::to_arma(J_E);
+        return J_E;
       }
 
-      inline arma::mat assemble_K_FE_one_multipole_cached(
+      inline helfem::Matrix assemble_K_FE_one_multipole_cached(
           const FEMRadialBasis & radial,
           const PerElementAccessor & r_small,
           const PerElementAccessor & r_big,
           const PerElementAccessor & ktei_in_element,
-          const arma::mat & P_FE) {
+          const helfem::Matrix & P_FE) {
         const size_t Nel  = radial.Nel();
         const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
-        const helfem::Matrix P_E = helfem::to_eigen(P_FE);
+        const helfem::Matrix & P_E = P_FE;
         helfem::Matrix K_E = helfem::Matrix::Zero(Nrad, Nrad);
         for (size_t iel = 0; iel < Nel; ++iel) {
           size_t ifirst, ilast;
@@ -428,16 +428,16 @@ namespace helfem {
             }
           }
         }
-        return helfem::to_arma(K_E);
+        return K_E;
       }
 
-      inline arma::mat assemble_K_FE_one_multipole_cached_pairwise(
+      inline helfem::Matrix assemble_K_FE_one_multipole_cached_pairwise(
           const FEMRadialBasis & radial,
           const PerElementPairAccessor & ktei_pairwise,
-          const arma::mat & P_FE) {
+          const helfem::Matrix & P_FE) {
         const size_t Nel  = radial.Nel();
         const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
-        const helfem::Matrix P_E = helfem::to_eigen(P_FE);
+        const helfem::Matrix & P_E = P_FE;
         helfem::Matrix K_E = helfem::Matrix::Zero(Nrad, Nrad);
         for (size_t iel = 0; iel < Nel; ++iel) {
           size_t ifirst, ilast;
@@ -455,7 +455,7 @@ namespace helfem {
                 += Eigen::Map<const Eigen::MatrixXd>(Ksub_v.data(), Ni, Nj);
           }
         }
-        return helfem::to_arma(K_E);
+        return K_E;
       }
 
       // --- Cholesky-factored cached helpers -----------------------------
@@ -463,15 +463,15 @@ namespace helfem {
       // the in-element 4-index contraction is rewritten as a sum of
       // outer products over the Cholesky rank.
 
-      inline arma::mat assemble_J_FE_one_multipole_cached_chol(
+      inline helfem::Matrix assemble_J_FE_one_multipole_cached_chol(
           const FEMRadialBasis & radial,
           const PerElementAccessor & r_small,
           const PerElementAccessor & r_big,
           const PerElementAccessor & twoe_chol_J,
-          const arma::mat & P_FE) {
+          const helfem::Matrix & P_FE) {
         const size_t Nel  = radial.Nel();
         const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
-        const helfem::Matrix P_E = helfem::to_eigen(P_FE);
+        const helfem::Matrix & P_E = P_FE;
         helfem::Matrix J_E = helfem::Matrix::Zero(Nrad, Nrad);
         for (size_t jel = 0; jel < Nel; ++jel) {
           size_t jfirst, jlast;
@@ -506,18 +506,18 @@ namespace helfem {
           J_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj)
               += Eigen::Map<const Eigen::MatrixXd>(Jsub_v.data(), Nj, Nj);
         }
-        return helfem::to_arma(J_E);
+        return J_E;
       }
 
-      inline arma::mat assemble_K_FE_one_multipole_cached_chol(
+      inline helfem::Matrix assemble_K_FE_one_multipole_cached_chol(
           const FEMRadialBasis & radial,
           const PerElementAccessor & r_small,
           const PerElementAccessor & r_big,
           const PerElementAccessor & twoe_chol_J,
-          const arma::mat & P_FE) {
+          const helfem::Matrix & P_FE) {
         const size_t Nel  = radial.Nel();
         const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
-        const helfem::Matrix P_E = helfem::to_eigen(P_FE);
+        const helfem::Matrix & P_E = P_FE;
         helfem::Matrix K_E = helfem::Matrix::Zero(Nrad, Nrad);
         for (size_t iel = 0; iel < Nel; ++iel) {
           size_t ifirst, ilast;
@@ -553,7 +553,7 @@ namespace helfem {
             }
           }
         }
-        return helfem::to_arma(K_E);
+        return K_E;
       }
 
       // The uncached entry points just wire on-the-fly accessors that
@@ -561,8 +561,8 @@ namespace helfem {
 
       // Phase 2c: scratchpads are now std::vector<helfem::Matrix>; the
       // is_empty check becomes .size() == 0 (Eigen's empty-by-default).
-      inline arma::mat assemble_J_FE_one_multipole(
-          const FEMRadialBasis & radial, int L, const arma::mat & P_FE) {
+      inline helfem::Matrix assemble_J_FE_one_multipole(
+          const FEMRadialBasis & radial, int L, const helfem::Matrix & P_FE) {
         // Per-call temporaries to keep the accessor lambdas returning a
         // stable const reference (storing each computed matrix in a
         // capture-list scratchpad).
@@ -587,8 +587,8 @@ namespace helfem {
         return assemble_J_FE_one_multipole_cached(radial, rs, rb, tw, P_FE);
       }
 
-      inline arma::mat assemble_K_FE_one_multipole(
-          const FEMRadialBasis & radial, int L, const arma::mat & P_FE) {
+      inline helfem::Matrix assemble_K_FE_one_multipole(
+          const FEMRadialBasis & radial, int L, const helfem::Matrix & P_FE) {
         std::vector<helfem::Matrix> scratch_small(radial.Nel());
         std::vector<helfem::Matrix> scratch_big  (radial.Nel());
         std::vector<helfem::Matrix> scratch_ktei (radial.Nel());
@@ -616,9 +616,9 @@ namespace helfem {
         return assemble_K_FE_one_multipole_cached(radial, rs, rb, kt, P_FE);
       }
 
-      inline arma::mat assemble_J_FE_one_multipole_yukawa(
+      inline helfem::Matrix assemble_J_FE_one_multipole_yukawa(
           const FEMRadialBasis & radial, int L, double lambda,
-          const arma::mat & P_FE) {
+          const helfem::Matrix & P_FE) {
         std::vector<helfem::Matrix> scratch_small(radial.Nel());
         std::vector<helfem::Matrix> scratch_big  (radial.Nel());
         std::vector<helfem::Matrix> scratch_twoe (radial.Nel());
@@ -640,9 +640,9 @@ namespace helfem {
         return assemble_J_FE_one_multipole_cached(radial, rs, rb, tw, P_FE);
       }
 
-      inline arma::mat assemble_K_FE_one_multipole_yukawa(
+      inline helfem::Matrix assemble_K_FE_one_multipole_yukawa(
           const FEMRadialBasis & radial, int L, double lambda,
-          const arma::mat & P_FE) {
+          const helfem::Matrix & P_FE) {
         std::vector<helfem::Matrix> scratch_small(radial.Nel());
         std::vector<helfem::Matrix> scratch_big  (radial.Nel());
         std::vector<helfem::Matrix> scratch_ktei (radial.Nel());

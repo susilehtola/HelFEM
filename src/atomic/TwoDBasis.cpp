@@ -638,10 +638,10 @@ namespace helfem {
                   P(i, j) = 0.5;
                   P(j, i) = 0.5;
                 }
-                arma::mat J =
+                arma::mat J = ::helfem::to_arma(
                     helfem::atomic::basis::
                         assemble_J_FE_one_multipole_cached(
-                            radial, rs, rb, tw, P);
+                            radial, rs, rb, tw, ::helfem::to_eigen(P)));
                 D(i, j) = J(i, j);
                 D(j, i) = D(i, j);
               }
@@ -679,9 +679,9 @@ namespace helfem {
               P(i_star, j_star) = 0.5;
               P(j_star, i_star) = 0.5;
             }
-            arma::mat col =
+            arma::mat col = ::helfem::to_arma(
                 helfem::atomic::basis::assemble_J_FE_one_multipole_cached(
-                    radial, rs, rb, tw, P);
+                    radial, rs, rb, tw, ::helfem::to_eigen(P)));
 
             // Subtract projections onto already-found Cholesky vectors.
             for (const auto & V : B_L_vecs) {
@@ -829,9 +829,9 @@ namespace helfem {
             return prim_tei[Nel*Nel*L + iel*Nel + iel];
           };
           for(int M=-std::min(L,Mmax);M<=std::min(L,Mmax);M++) {
-            Jaux[L][M+Mmax] += Lfac *
+            Jaux[L][M+Mmax] += Lfac * ::helfem::to_arma(
               helfem::atomic::basis::assemble_J_FE_one_multipole_cached(
-                radial, rs, rb, tw, Paux[L][M+Mmax]);
+                radial, rs, rb, tw, ::helfem::to_eigen(Paux[L][M+Mmax])));
           }
         }
 
@@ -965,9 +965,9 @@ namespace helfem {
                 auto kt = [&,Lc](size_t iel) -> const helfem::Matrix & {
                   return prim_ktei[Nel*Nel*Lc + iel*Nel + iel];
                 };
-                K_block +=
+                K_block += ::helfem::to_arma(
                   helfem::atomic::basis::assemble_K_FE_one_multipole_cached(
-                    radial, rs, rb, kt, Rmat[Lc]);
+                    radial, rs, rb, kt, ::helfem::to_eigen(Rmat[Lc])));
               }
               K.submat(jang*Nrad, kang*Nrad,
                        (jang+1)*Nrad-1, (kang+1)*Nrad-1) -= K_block;
@@ -1080,9 +1080,9 @@ namespace helfem {
                   auto kt = [&,Lc](size_t iel) -> const helfem::Matrix & {
                     return rs_ktei[Nel*Nel*Lc + iel*Nel + iel];
                   };
-                  K_block +=
+                  K_block += ::helfem::to_arma(
                     helfem::atomic::basis::assemble_K_FE_one_multipole_cached(
-                      radial, rs, rb, kt, Rmat[Lc]);
+                      radial, rs, rb, kt, ::helfem::to_eigen(Rmat[Lc])));
                 }
                 K.submat(jang*Nrad, kang*Nrad,
                          (jang+1)*Nrad-1, (kang+1)*Nrad-1) -= K_block;
@@ -1097,9 +1097,9 @@ namespace helfem {
                   auto kt = [&,Lc](size_t iel, size_t jel) -> const helfem::Matrix & {
                     return rs_ktei[Nel*Nel*Lc + iel*Nel + jel];
                   };
-                  K_block +=
+                  K_block += ::helfem::to_arma(
                     helfem::atomic::basis::assemble_K_FE_one_multipole_cached_pairwise(
-                      radial, kt, Rmat[Lc]);
+                      radial, kt, ::helfem::to_eigen(Rmat[Lc])));
                 }
                 K.submat(jang*Nrad, kang*Nrad,
                          (jang+1)*Nrad-1, (kang+1)*Nrad-1) -= K_block;

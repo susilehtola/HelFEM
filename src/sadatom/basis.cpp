@@ -180,9 +180,8 @@ namespace helfem {
         auto tw = [&](size_t iel) -> const helfem::Matrix & {
           return prim_tei[Nel * Nel * L + iel * Nel + iel];
         };
-        return helfem::to_eigen(
-            arma::mat(Lfac * atomic::basis::assemble_J_FE_one_multipole_cached(
-                radial, rs, rb, tw, P)));
+        return Lfac * atomic::basis::assemble_J_FE_one_multipole_cached(
+            radial, rs, rb, tw, helfem::to_eigen(P));
       }
 
       arma::cube TwoDBasis::exchange(const arma::cube & P) const {
@@ -283,8 +282,9 @@ namespace helfem {
               auto kt = [&,Lint](size_t iel) -> const helfem::Matrix & {
                 return prim_ktei[Nel * Nel * Lint + iel * Nel + iel];
               };
-              K.slice(lout) -= atomic::basis::assemble_K_FE_one_multipole_cached(
-                  radial, rs, rb, kt, Prad.slice(L));
+              K.slice(lout) -= helfem::to_arma(
+                  atomic::basis::assemble_K_FE_one_multipole_cached(
+                      radial, rs, rb, kt, helfem::to_eigen(arma::mat(Prad.slice(L)))));
             }
           }
         }
@@ -389,9 +389,9 @@ namespace helfem {
                 auto kt = [&,Lc](size_t iel) -> const helfem::Matrix & {
                   return rs_ktei[Nel*Nel*Lc + iel*Nel + iel];
                 };
-                K.slice(lout) -=
+                K.slice(lout) -= helfem::to_arma(
                   atomic::basis::assemble_K_FE_one_multipole_cached(
-                    radial, rs, rb, kt, P_L);
+                    radial, rs, rb, kt, helfem::to_eigen(P_L)));
               } else {
                 // Erfc: rs_ktei has cross-element entries (iel != jel)
                 // because the erfc kernel does not factorise. Delegate
@@ -401,9 +401,9 @@ namespace helfem {
                 auto kt = [&,Lc](size_t iel, size_t jel) -> const helfem::Matrix & {
                   return rs_ktei[Nel*Nel*Lc + iel*Nel + jel];
                 };
-                K.slice(lout) -=
+                K.slice(lout) -= helfem::to_arma(
                   atomic::basis::assemble_K_FE_one_multipole_cached_pairwise(
-                    radial, kt, P_L);
+                    radial, kt, helfem::to_eigen(P_L)));
               }
             }
           }
@@ -585,8 +585,8 @@ namespace helfem {
           throw std::logic_error(oss.str());
         }
         const arma::mat P = c * c.t();
-        const arma::mat Jk =
-            atomic::basis::assemble_J_FE_one_multipole(radial, k, P);
+        const arma::mat Jk = helfem::to_arma(
+            atomic::basis::assemble_J_FE_one_multipole(radial, k, helfem::to_eigen(P)));
         return arma::trace(P * Jk);
       }
 
