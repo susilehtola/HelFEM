@@ -15,7 +15,6 @@
 #ifndef __HELFEM__
 #define __HELFEM__
 
-#include <armadillo>
 #include <Matrix.h>
 #include <string>
 
@@ -50,7 +49,6 @@ namespace helfem {
      *        2 for generalized polynomial grid with exponent zexp
      *        3 for generalized exponential grid with parameter zexp
      */
-    // Phase 5.19: Eigen-typed at public boundary; interior arma-native.
     ::helfem::Vector get_grid(double rmax, int num_el, int igrid, double zexp);
 
     /**

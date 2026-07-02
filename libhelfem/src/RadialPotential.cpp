@@ -13,6 +13,7 @@
  * for the full license text.
  */
 #include "RadialPotential.h"
+#include <cmath>
 
 namespace helfem {
   namespace modelpotential {
