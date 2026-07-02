@@ -22,10 +22,9 @@ namespace helfem {
 namespace lib1dfem {
 namespace chebyshev {
 
-// Phase 5.1: lib1dfem primitives migrated arma -> Eigen using the
-// Vec<T> / Mat<T> shorthand from <lib1dfem/types.h>. The libhelfem
-// double-only shim (libhelfem/src/chebyshev.h) bridges arma::vec on
-// the boundary so existing callers compile unchanged.
+// Templated Gauss-Chebyshev quadrature primitives. libhelfem keeps a
+// thin double-only shim at libhelfem/src/chebyshev.h for callers that
+// still spell the output vectors as arma::vec.
 
 /// Modified Gauss-Chebyshev quadrature of the second kind for
 ///     integral_{-1}^{1} f(x) dx

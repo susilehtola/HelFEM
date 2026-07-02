@@ -26,11 +26,12 @@ namespace helfem {
   // public include path; the symbol is resolved at link time -- callers
   // of these helpers link against libhelfem anyway).
   namespace utils {
+    /// Arma-typed (ij|kl) -> (jk|il) permutation. Used by the diatomic
+    /// prim_ktei build path.
     arma::mat exchange_tei(const arma::mat & tei, size_t Ni, size_t Nj,
                             size_t Nk, size_t Nl);
-    /// Eigen overload (Phase 2c wrap-up): same (ij|kl) -> (jk|il) permutation
-    /// for helfem::Matrix-typed in-element TEIs, avoids the
-    /// to_eigen(to_arma(...)) round-trip the helpers used to do.
+    /// Eigen overload of the same permutation for helfem::Matrix-typed
+    /// in-element TEIs.
     helfem::Matrix exchange_tei(const helfem::Matrix & tei, size_t Ni, size_t Nj,
                                  size_t Nk, size_t Nl);
   }
@@ -297,9 +298,6 @@ namespace helfem {
         for (int L = 0; L < N_L; ++L) {
           for (size_t iel = 0; iel < Nel; ++iel) {
             const size_t Ni = radial.Nprim(iel);
-            // Phase 2c wrap-up: utils::exchange_tei now has an Eigen
-            // overload, so prim_tei (Eigen) -> prim_ktei (Eigen) is
-            // direct -- no arma round-trip.
             prim_ktei[Nel * Nel * (size_t) L + iel * Nel + iel] =
                 helfem::utils::exchange_tei(
                     prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel],
@@ -347,10 +345,6 @@ namespace helfem {
       // NAO use) and cached (look-up-from-SCF-cache, TwoDBasis use)
       // entry points.
 
-      // Phase 2c: assemble helpers migrated to Eigen internals so they
-      // match the new Eigen-typed accessors and caches. P_FE input and
-      // J/K output are still arma (the TwoDBasis SCF assembly is still
-      // arma-typed) -- bridged at the entry/exit boundary.
       inline helfem::Matrix assemble_J_FE_one_multipole_cached(
           const FEMRadialBasis & radial,
           const PerElementAccessor & r_small,
