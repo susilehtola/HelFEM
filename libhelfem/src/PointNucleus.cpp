@@ -13,6 +13,7 @@
  * for the full license text.
  */
 #include "PointNucleus.h"
+#include <cmath>
 
 namespace helfem {
   namespace modelpotential {

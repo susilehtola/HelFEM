@@ -13,6 +13,7 @@
  * for the full license text.
  */
 #include "GaussianNucleus.h"
+#include <cmath>
 #include <cfloat>
 
 namespace helfem {
