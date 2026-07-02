@@ -16,7 +16,6 @@
 #define POLYNOMIAL_BASIS_FINITEELEMENTBASIS_H
 
 #include <functional>
-#include <armadillo>
 #include <memory>
 #include "PolynomialBasis.h"
 #include "Matrix.h"
@@ -58,9 +57,11 @@ namespace helfem {
     public:
       /// Dummy constructor
       FiniteElementBasis();
-      /// Constructor
+      /// Constructor. Phase 5.26: bval is Eigen at the public boundary
+      /// (matches the internal helfem::Vector storage introduced in
+      /// Phase 5.5).
       FiniteElementBasis(const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly,
-                         const arma::vec &bval, bool zero_func_left, bool zero_deriv_left, bool zero_func_right, bool zero_deriv_right);
+                         const helfem::Vector &bval, bool zero_func_left, bool zero_deriv_left, bool zero_func_right, bool zero_deriv_right);
       /// Destructor
       ~FiniteElementBasis();
 
@@ -78,9 +79,6 @@ namespace helfem {
       /// Get the number of nodes in the polynomial basis
       int get_poly_nnodes() const;
 
-      /// Get the used subset of primitives in the element
-      arma::mat get_basis(const arma::mat &bas, size_t iel) const;
-
       /// Get the element boundaries
       helfem::Vector get_bval() const;
       /// Element begins at
@@ -95,7 +93,6 @@ namespace helfem {
       /// Find the element the point is at
       size_t find_element(double x) const;
 
-      // Phase 5.3: per-element evaluators migrated arma -> Eigen.
       /// Evaluate real coordinate values from primitive coordinates
       helfem::Vector eval_coord(const helfem::Vector & xprim, size_t iel) const;
       /// Evaluate real coordinate values from primitive coordinates

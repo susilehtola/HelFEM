@@ -18,7 +18,6 @@
 #include "ModelPotential.h"
 #include "FiniteElementBasis.h"
 #include "Matrix.h"
-#include <armadillo>
 
 namespace helfem {
   namespace atomic {

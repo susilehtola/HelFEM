@@ -16,6 +16,7 @@
 #include "PolynomialBasis.h"
 #include "FiniteElementBasis.h"
 #include "chebyshev.h"
+#include <ArmaEigen.h>
 #include <cstring>
 
 using namespace helfem;
@@ -81,7 +82,7 @@ int main(int argc, char **argv) {
   bool zero_deriv_left=true;
   bool zero_func_right=true;
   bool zero_deriv_right=true;
-  helfem::polynomial_basis::FiniteElementBasis fem(poly, r, zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
+  helfem::polynomial_basis::FiniteElementBasis fem(poly, helfem::to_eigen(r), zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
 
   // Quadrature rule
   arma::vec xq, wq;

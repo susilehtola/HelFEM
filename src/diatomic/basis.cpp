@@ -338,7 +338,7 @@ namespace helfem {
         bool zero_deriv_left=false;
         bool zero_func_right=true;
         bool zero_deriv_right=true;
-        polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
+        polynomial_basis::FiniteElementBasis fem(poly, helfem::to_eigen(bval), zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
         radial=RadialBasis(fem, n_quad);
         // Angular basis
         lval=lval_;
