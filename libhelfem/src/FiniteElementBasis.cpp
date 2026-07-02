@@ -14,6 +14,7 @@
  */
 
 #include "FiniteElementBasis.h"
+#include <armadillo>
 #include <cfloat>
 #include <cstring>
 
@@ -23,10 +24,10 @@ namespace helfem {
     }
 
     FiniteElementBasis::FiniteElementBasis(const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly_,
-                                           const arma::vec &bval_, bool zero_func_left_, bool zero_deriv_left_, bool zero_func_right_, bool zero_deriv_right_) : zero_func_left(zero_func_left_), zero_deriv_left(zero_deriv_left_), zero_func_right(zero_func_right_), zero_deriv_right(zero_deriv_right_) {
-      // Phase 5.5: bval is now Eigen; bridge constructor input arma::vec.
-      bval.resize(bval_.n_elem);
-      std::memcpy(bval.data(), bval_.memptr(), sizeof(double) * bval_.n_elem);
+                                           const helfem::Vector &bval_, bool zero_func_left_, bool zero_deriv_left_, bool zero_func_right_, bool zero_deriv_right_) : zero_func_left(zero_func_left_), zero_deriv_left(zero_deriv_left_), zero_func_right(zero_func_right_), zero_deriv_right(zero_deriv_right_) {
+      // Phase 5.26: bval is Eigen at both the public boundary and the
+      // internal storage; direct assignment, no bridge.
+      bval = bval_;
       poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(poly_->copy());
       // Update list of basis functions
       update_bf_list();
@@ -252,16 +253,6 @@ namespace helfem {
       // Phase 5.5: native Eigen pass-through.
       std::shared_ptr<polynomial_basis::PolynomialBasis> p(get_basis(iel));
       return p->get_enabled();
-    }
-
-    arma::mat FiniteElementBasis::get_basis(const arma::mat &bas, size_t iel) const {
-      // Phase 5.5: basis_indices is IVec; bridge to arma::uvec for the
-      // arma::mat::cols selector.
-      const helfem::lib1dfem::IVec idx = basis_indices(iel);
-      arma::uvec u(idx.size());
-      for (Eigen::Index i = 0; i < idx.size(); ++i)
-        u(i) = static_cast<arma::uword>(idx(i));
-      return bas.cols(u);
     }
 
     std::shared_ptr<polynomial_basis::PolynomialBasis>

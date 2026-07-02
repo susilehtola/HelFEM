@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
   bool zero_func_left=true;
   bool zero_deriv_left=false;
   bool zero_func_right=true;
-  polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zeroder);
+  polynomial_basis::FiniteElementBasis fem(poly, helfem::to_eigen(bval), zero_func_left, zero_deriv_left, zero_func_right, zeroder);
   atomic::basis::FEMRadialBasis radial(fem, Nquad);
 
   // Compute matrices. Phase 2a: radial.overlap() returns
