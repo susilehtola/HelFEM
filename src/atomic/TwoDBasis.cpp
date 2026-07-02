@@ -117,7 +117,7 @@ namespace helfem {
       }
 
       arma::vec TwoDBasis::get_bval() const {
-        return radial.get_bval();
+        return helfem::to_arma(radial.get_bval());
       }
 
       int TwoDBasis::get_poly_id() const {
@@ -1230,7 +1230,7 @@ namespace helfem {
           sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
         // Evaluate radial functions
-        arma::vec r(radial.get_r(iel));
+        arma::vec r(helfem::to_arma(radial.get_r(iel)));
         arma::mat frad(radial.get_bf(iel));
         arma::mat drad(radial.get_df(iel));
         arma::mat lrad(radial.get_lf(iel));
@@ -1284,11 +1284,11 @@ namespace helfem {
       }
 
       arma::vec TwoDBasis::get_wrad(size_t iel) const {
-        return radial.get_wrad(iel);
+        return helfem::to_arma(radial.get_wrad(iel));
       }
 
       arma::vec TwoDBasis::get_r(size_t iel) const {
-        return radial.get_r(iel);
+        return helfem::to_arma(radial.get_r(iel));
       }
 
       arma::vec TwoDBasis::nuclear_density(const arma::mat & P0) const {

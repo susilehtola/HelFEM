@@ -70,9 +70,9 @@ namespace helfem {
         return (int) xq.size();
       }
 
-      arma::vec FEMRadialBasis::get_xq() const {
-        // Phase 5.6: xq is Eigen; bridge to arma for the public accessor.
-        return eigen_vec_to_arma(xq);
+      helfem::Vector FEMRadialBasis::get_xq() const {
+        // Phase 5.20: xq storage is Eigen; return it directly at the public boundary.
+        return xq;
       }
 
       size_t FEMRadialBasis::Nbf() const {
@@ -95,10 +95,9 @@ namespace helfem {
         fem.get_idx(iel, ifirst, ilast);
       }
 
-      arma::vec FEMRadialBasis::get_bval() const {
-        // Phase 5.4: fem.get_bval() is Eigen; bridge here -- RadialBasis
-        // keeps its arma::vec surface for downstream chemistry-layer code.
-        return eigen_vec_to_arma(fem.get_bval());
+      helfem::Vector FEMRadialBasis::get_bval() const {
+        // Phase 5.20: fem.get_bval() is Eigen; return directly.
+        return fem.get_bval();
       }
 
       int FEMRadialBasis::get_poly_id() const {
@@ -403,7 +402,7 @@ namespace helfem {
 	    throw std::logic_error("Junquera confinement potential requires N >= 1!");
 	  if(V<=0)
 	    throw std::logic_error("Cannot have attractive Junquera potential!\n");
-	  return junq_confinement(iel, N, V, arma::max(get_bval()), shift_pot);
+	  return junq_confinement(iel, N, V, get_bval().maxCoeff(), shift_pot);
 	} else
 	  throw std::logic_error("Case not implemented!\n");
       }
@@ -655,23 +654,28 @@ namespace helfem {
         return lapl;
       }
 
-      arma::vec FEMRadialBasis::get_wrad(size_t iel) const {
-        return get_wrad(eigen_vec_to_arma(wq), iel);
+      helfem::Vector FEMRadialBasis::get_wrad(size_t iel) const {
+        // Phase 5.20: internal wq is Eigen; scale in Eigen and return.
+        return fem.scaling_factor(iel) * wq;
       }
 
-      arma::vec FEMRadialBasis::get_wrad(const arma::vec & w, size_t iel) const {
-        // This is just the radial rule, no r^2 factor included here
-        return fem.scaling_factor(iel) * w;
+      helfem::Vector FEMRadialBasis::get_wrad(const arma::vec & w, size_t iel) const {
+        // Chemistry-layer callers still pass arma::vec weights; bridge
+        // once to Eigen and scale. Return type is Eigen per Phase 5.20.
+        const double s = fem.scaling_factor(iel);
+        helfem::Vector out(w.n_elem);
+        for (arma::uword i = 0; i < w.n_elem; ++i) out(i) = s * w(i);
+        return out;
       }
 
-      arma::vec FEMRadialBasis::get_r(size_t iel) const {
-        return get_r(eigen_vec_to_arma(xq), iel);
+      helfem::Vector FEMRadialBasis::get_r(size_t iel) const {
+        // Phase 5.20: eval_coord returns Eigen; return directly.
+        return fem.eval_coord(xq, iel);
       }
 
-      arma::vec FEMRadialBasis::get_r(const arma::vec & x, size_t iel) const {
-        const helfem::Vector r_e = fem.eval_coord(arma_to_eigen_vec(x), iel);
-        arma::vec r(r_e.size()); std::memcpy(r.memptr(), r_e.data(), sizeof(double) * r_e.size());
-        return r;
+      helfem::Vector FEMRadialBasis::get_r(const arma::vec & x, size_t iel) const {
+        // Bridge input to Eigen once; return Eigen per Phase 5.20.
+        return fem.eval_coord(arma_to_eigen_vec(x), iel);
       }
 
       double FEMRadialBasis::get_r(double x, size_t iel) const {

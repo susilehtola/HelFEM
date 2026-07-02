@@ -460,11 +460,11 @@ namespace helfem {
       }
 
       arma::vec TwoDBasis::get_wrad(size_t iel) const {
-        return radial.get_wrad(iel);
+        return helfem::to_arma(radial.get_wrad(iel));
       }
 
       arma::vec TwoDBasis::get_r(size_t iel) const {
-        return radial.get_r(iel);
+        return helfem::to_arma(radial.get_r(iel));
       }
 
       double TwoDBasis::nuclear_density(const arma::mat & P) const {
@@ -479,7 +479,7 @@ namespace helfem {
         std::vector<arma::vec> w(radial.Nel());
         size_t ntot=1;
         for(size_t iel=0;iel<radial.Nel();iel++) {
-          w[iel]=radial.get_wrad(iel);
+          w[iel]=helfem::to_arma(radial.get_wrad(iel));
           ntot+=w[iel].n_elem;
         }
         arma::vec wt(ntot);
@@ -519,7 +519,7 @@ namespace helfem {
         // Form potential
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Initialize potential
-          r[iel]=radial.get_r(iel);
+          r[iel]=helfem::to_arma(radial.get_r(iel));
           V[iel].zeros(r[iel].n_elem);
 
           // Get the density in the element
@@ -557,7 +557,7 @@ namespace helfem {
       arma::vec TwoDBasis::radii() const {
         std::vector<arma::vec> r(radial.Nel());
         for(size_t iel=0;iel<radial.Nel();iel++) {
-          r[iel]=radial.get_r(iel);
+          r[iel]=helfem::to_arma(radial.get_r(iel));
         }
 
         size_t Npts=r[0].n_elem;
@@ -684,12 +684,12 @@ namespace helfem {
 
         arma::vec density = arma::diagvec(bf*Psub*bf.t());
         if(rsqweight)
-          density %= arma::square(radial.get_r(x, iel));
+          density %= arma::square(helfem::to_arma(radial.get_r(x, iel)));
         return density;
       }
 
       arma::vec TwoDBasis::electron_density(size_t iel, const arma::mat & Prad, bool rsqweight) const {
-        return electron_density(radial.get_xq(), iel, Prad, rsqweight);
+        return electron_density(helfem::to_arma(radial.get_xq()), iel, Prad, rsqweight);
       }
 
       arma::vec TwoDBasis::electron_density(const arma::mat & Prad, bool rsqweight) const {
@@ -719,7 +719,7 @@ namespace helfem {
         }
 
         // Quadrature points
-        arma::vec xq = radial.get_xq();
+        arma::vec xq = helfem::to_arma(radial.get_xq());
 
         // Find the element with the maximum density
         arma::uword iel;
@@ -770,7 +770,7 @@ namespace helfem {
             throw std::logic_error(oss.str());
           }
           // Position of maximum is
-          rmax = arma::as_scalar(radial.get_r((a+b)/2,iel));
+          rmax = radial.get_r((a+b)/2, iel)(0);
         }
 
         return rmax;
@@ -799,7 +799,7 @@ namespace helfem {
         // Now find the position in the element where the density is = vdw_threshold.
         // Evaluate the difference in density from the threshold value.
         // Quadrature points
-        arma::vec xq = radial.get_xq();
+        arma::vec xq = helfem::to_arma(radial.get_xq());
         arma::vec diff = angfac*electron_density(xq, iel, Prad, rsqweight);
         diff-=vdw_threshold*arma::ones<arma::vec>(diff.n_elem);
         diff=arma::abs(diff);
@@ -846,7 +846,7 @@ namespace helfem {
           // Coordinate is
           arma::vec cen=((a+b)/2);
           // Position of maximum is
-          rvdw = arma::as_scalar(radial.get_r(cen,iel));
+          rvdw = arma::as_scalar(helfem::to_arma(radial.get_r(cen,iel)));
         }
 
         return rvdw;
@@ -898,7 +898,7 @@ namespace helfem {
 	    break;
 	}
 
-	return arma::as_scalar(radial.get_r(m, ielement));
+	return radial.get_r(m, ielement);
       }
 
       arma::vec TwoDBasis::electron_density_gradient(const arma::mat & Prad) const {
@@ -941,7 +941,7 @@ namespace helfem {
           arma::mat bf(radial.get_bf(iel));
           arma::mat df(radial.get_df(iel));
           arma::mat lf(radial.get_lf(iel));
-          arma::vec r(radial.get_r(iel));
+          arma::vec r(helfem::to_arma(radial.get_r(iel)));
 
           // Laplacian is df^2/dr^2 + 2/r df/dr
           l[iel]=2.0*(arma::diagvec(df*Psub*df.t()) + arma::diagvec(bf*Psub*lf.t())) + 4.0*arma::diagvec(bf*Psub*df.t())/r;
@@ -975,7 +975,7 @@ namespace helfem {
           radial.get_idx(iel,ifirst,ilast);
 
           // Radii
-          arma::vec r(radial.get_r(iel));
+          arma::vec r(helfem::to_arma(radial.get_r(iel)));
 
           // Density matrix
           arma::mat Psub(P.submat(ifirst,ifirst,ilast,ilast));
