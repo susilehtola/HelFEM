@@ -194,11 +194,8 @@ namespace helfem {
           require_shared_fe_(other, "coulomb_radial");
           require_density_shape_(other, D, "coulomb_radial");
           const FEMRadialBasis & fem = underlying_fem_();
-          // The FE-side assembly helpers are still arma; bridge here.
-          const arma::mat P_FE = helfem::to_arma(
-              helfem::Matrix(other.C_ * D * other.C_.transpose()));
-          const helfem::Matrix J_FE = helfem::to_eigen(
-              assemble_J_FE_one_multipole(fem, k, P_FE));
+          const helfem::Matrix P_FE = other.C_ * D * other.C_.transpose();
+          const helfem::Matrix J_FE = assemble_J_FE_one_multipole(fem, k, P_FE);
           return C_.transpose() * J_FE * C_;
         }
 
@@ -210,10 +207,8 @@ namespace helfem {
           require_shared_fe_(other, "exchange_radial");
           require_density_shape_(other, D, "exchange_radial");
           const FEMRadialBasis & fem = underlying_fem_();
-          const arma::mat P_FE = helfem::to_arma(
-              helfem::Matrix(other.C_ * D * other.C_.transpose()));
-          const helfem::Matrix K_FE = helfem::to_eigen(
-              assemble_K_FE_one_multipole(fem, k, P_FE));
+          const helfem::Matrix P_FE = other.C_ * D * other.C_.transpose();
+          const helfem::Matrix K_FE = assemble_K_FE_one_multipole(fem, k, P_FE);
           return C_.transpose() * K_FE * C_;
         }
 
@@ -229,10 +224,9 @@ namespace helfem {
           if (lambda <= 0.0)
             throw std::logic_error("coulomb_radial_yukawa: lambda must be positive.\n");
           const FEMRadialBasis & fem = underlying_fem_();
-          const arma::mat P_FE = helfem::to_arma(
-              helfem::Matrix(other.C_ * D * other.C_.transpose()));
-          const helfem::Matrix J_FE = helfem::to_eigen(
-              assemble_J_FE_one_multipole_yukawa(fem, k, lambda, P_FE));
+          const helfem::Matrix P_FE = other.C_ * D * other.C_.transpose();
+          const helfem::Matrix J_FE =
+              assemble_J_FE_one_multipole_yukawa(fem, k, lambda, P_FE);
           return C_.transpose() * J_FE * C_;
         }
 
@@ -245,10 +239,9 @@ namespace helfem {
           if (lambda <= 0.0)
             throw std::logic_error("exchange_radial_yukawa: lambda must be positive.\n");
           const FEMRadialBasis & fem = underlying_fem_();
-          const arma::mat P_FE = helfem::to_arma(
-              helfem::Matrix(other.C_ * D * other.C_.transpose()));
-          const helfem::Matrix K_FE = helfem::to_eigen(
-              assemble_K_FE_one_multipole_yukawa(fem, k, lambda, P_FE));
+          const helfem::Matrix P_FE = other.C_ * D * other.C_.transpose();
+          const helfem::Matrix K_FE =
+              assemble_K_FE_one_multipole_yukawa(fem, k, lambda, P_FE);
           return C_.transpose() * K_FE * C_;
         }
 
