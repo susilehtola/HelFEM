@@ -18,7 +18,6 @@
 #include "RadialBasis.h"
 #include "ArmaEigen.h"
 #include "CoulombExchangeFE.h"
-#include <armadillo>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -58,32 +57,35 @@ namespace helfem {
       /// outlive the constructing scope, and so the same underlying FE
       /// basis can back multiple NAO projections (e.g. one per (n, l)).
       ///
-      /// Currently non-templated (operates on arma::mat = double) to
-      /// match the non-templated RadialBasis base; the broader
+      /// Currently non-templated (operates on double = helfem::Matrix)
+      /// to match the non-templated RadialBasis base; the broader
       /// templated-precision migration is a follow-up.
       class NAORadialBasis : public RadialBasis {
        protected:
         /// Underlying radial basis (typically a FEMRadialBasis).
         std::shared_ptr<const RadialBasis> underlying_;
         /// Orbital coefficient matrix, shape (Nbf_underlying x Nbf_NAO).
-        arma::mat C_;
+        /// Phase 5.28: Eigen-typed storage; every matrix element flows
+        /// through helfem::Matrix from the underlying basis to the
+        /// downstream Fock builder without an arma round-trip.
+        helfem::Matrix C_;
 
        public:
         /// Constructor. `C` must have `underlying->Nbf()` rows and at
         /// least one column (one column = one NAO).
         NAORadialBasis(std::shared_ptr<const RadialBasis> underlying,
-                       arma::mat C)
+                       helfem::Matrix C)
             : underlying_(std::move(underlying)), C_(std::move(C)) {
           if (!underlying_)
             throw std::logic_error("NAORadialBasis: null underlying basis.\n");
-          if (C_.n_rows != underlying_->Nbf()) {
+          if (static_cast<size_t>(C_.rows()) != underlying_->Nbf()) {
             std::ostringstream oss;
-            oss << "NAORadialBasis: C has " << C_.n_rows
+            oss << "NAORadialBasis: C has " << C_.rows()
                 << " rows but underlying basis has " << underlying_->Nbf()
                 << " basis functions.\n";
             throw std::logic_error(oss.str());
           }
-          if (C_.n_cols == 0)
+          if (C_.cols() == 0)
             throw std::logic_error("NAORadialBasis: C has zero columns (no NAOs).\n");
         }
 
@@ -95,7 +97,7 @@ namespace helfem {
         /// holds the underlying basis by value and does not want to
         /// manage the shared_ptr themselves.
         template <typename RB>
-        static NAORadialBasis from_owned_radial(RB underlying, arma::mat C) {
+        static NAORadialBasis from_owned_radial(RB underlying, helfem::Matrix C) {
           return NAORadialBasis(
               std::make_shared<RB>(std::move(underlying)), std::move(C));
         }
@@ -103,37 +105,28 @@ namespace helfem {
         /// Access the underlying basis.
         const RadialBasis & underlying() const { return *underlying_; }
         /// Access the orbital coefficient matrix.
-        const arma::mat & coeffs() const { return C_; }
+        const helfem::Matrix & coeffs() const { return C_; }
 
-        size_t Nbf() const override { return C_.n_cols; }
+        size_t Nbf() const override { return static_cast<size_t>(C_.cols()); }
 
-        /// S_NAO = C^T S_underlying C.
+        /// S_NAO = C^T S_underlying C. All-Eigen now that C_ is Eigen too.
         helfem::Matrix overlap() const override {
-          // Bridge: underlying_->overlap() is Eigen (Phase 2a); C_ is
-          // still arma. Convert at the boundary; subsequent Phase 2
-          // PR migrates C_ to Eigen and drops the round-trip. Force
-          // evaluation of the arma expression template into a concrete
-          // mat before to_eigen to avoid ADL ambiguity.
-          arma::mat S_arma = C_.t() * helfem::to_arma(underlying_->overlap()) * C_;
-          return helfem::to_eigen(S_arma);
+          return C_.transpose() * underlying_->overlap() * C_;
         }
 
-        /// T_NAO = C^T T_underlying C (Phase 2a: underlying returns Eigen).
+        /// T_NAO = C^T T_underlying C.
         helfem::Matrix kinetic() const override {
-          arma::mat T_arma = C_.t() * helfem::to_arma(underlying_->kinetic()) * C_;
-          return helfem::to_eigen(T_arma);
+          return C_.transpose() * underlying_->kinetic() * C_;
         }
 
         /// (Centrifugal-per-l(l+1))_NAO = C^T (...)_underlying C.
         helfem::Matrix kinetic_l() const override {
-          arma::mat Tl_arma = C_.t() * helfem::to_arma(underlying_->kinetic_l()) * C_;
-          return helfem::to_eigen(Tl_arma);
+          return C_.transpose() * underlying_->kinetic_l() * C_;
         }
 
         /// V_NAO = C^T V_underlying C (Z=1; caller multiplies by +Z).
         helfem::Matrix nuclear() const override {
-          arma::mat V_arma = C_.t() * helfem::to_arma(underlying_->nuclear()) * C_;
-          return helfem::to_eigen(V_arma);
+          return C_.transpose() * underlying_->nuclear() * C_;
         }
 
         /// Evaluate the NAO orbitals (columns of C_orb in the NAO basis)
@@ -146,10 +139,8 @@ namespace helfem {
                 << " rows but NAO Nbf() = " << Nbf() << "\n";
             throw std::logic_error(oss.str());
           }
-          // Promote C to the underlying basis via C_ * C_orb (arma
-          // stays for the C_ storage), then bridge to Eigen for the
-          // Phase 5.23 eval_orbs interface.
-          return underlying_->eval_orbs(helfem::to_eigen(arma::mat(C_ * helfem::to_arma(C_orb))), r);
+          const helfem::Matrix C_promoted = C_ * C_orb;
+          return underlying_->eval_orbs(C_promoted, r);
         }
 
         // ---------------------------------------------------------------
@@ -198,56 +189,67 @@ namespace helfem {
         /// J^k_NAO(D) := sum_{mn} D_{mn} R^k(a_i a_j, b_m b_n) (bare radial,
         /// no 4 pi / (2k+1)). `other` is the l_b channel; both NAO bases
         /// must share the same underlying FEMRadialBasis.
-        arma::mat coulomb_radial(int k, const NAORadialBasis & other,
-                                 const arma::mat & D) const {
+        helfem::Matrix coulomb_radial(int k, const NAORadialBasis & other,
+                                       const helfem::Matrix & D) const {
           require_shared_fe_(other, "coulomb_radial");
           require_density_shape_(other, D, "coulomb_radial");
           const FEMRadialBasis & fem = underlying_fem_();
-          const arma::mat P_FE = other.C_ * D * other.C_.t();
-          return C_.t() * assemble_J_FE_one_multipole(fem, k, P_FE) * C_;
+          // The FE-side assembly helpers are still arma; bridge here.
+          const arma::mat P_FE = helfem::to_arma(
+              helfem::Matrix(other.C_ * D * other.C_.transpose()));
+          const helfem::Matrix J_FE = helfem::to_eigen(
+              assemble_J_FE_one_multipole(fem, k, P_FE));
+          return C_.transpose() * J_FE * C_;
         }
 
         /// K^k_NAO(D) := sum_{mn} D_{mn} R^k(a_i b_m, a_j b_n) (bare radial).
         /// Sign convention: returns the POSITIVE bare integral; callers
         /// driving Hartree-Fock should flip sign on their end.
-        arma::mat exchange_radial(int k, const NAORadialBasis & other,
-                                  const arma::mat & D) const {
+        helfem::Matrix exchange_radial(int k, const NAORadialBasis & other,
+                                        const helfem::Matrix & D) const {
           require_shared_fe_(other, "exchange_radial");
           require_density_shape_(other, D, "exchange_radial");
           const FEMRadialBasis & fem = underlying_fem_();
-          const arma::mat P_FE = other.C_ * D * other.C_.t();
-          return C_.t() * assemble_K_FE_one_multipole(fem, k, P_FE) * C_;
+          const arma::mat P_FE = helfem::to_arma(
+              helfem::Matrix(other.C_ * D * other.C_.transpose()));
+          const helfem::Matrix K_FE = helfem::to_eigen(
+              assemble_K_FE_one_multipole(fem, k, P_FE));
+          return C_.transpose() * K_FE * C_;
         }
 
         /// Yukawa-screened Coulomb at multipole k, screening lambda > 0:
         ///   kernel = (2k+1) i_k(lambda r_<) k_k(lambda r_>)
         /// (the same kernel used in HelFEM's TwoDBasis::compute_yukawa /
         /// FEMRadialBasis::yukawa_integral).
-        arma::mat coulomb_radial_yukawa(int k, double lambda,
-                                        const NAORadialBasis & other,
-                                        const arma::mat & D) const {
+        helfem::Matrix coulomb_radial_yukawa(int k, double lambda,
+                                              const NAORadialBasis & other,
+                                              const helfem::Matrix & D) const {
           require_shared_fe_(other, "coulomb_radial_yukawa");
           require_density_shape_(other, D, "coulomb_radial_yukawa");
           if (lambda <= 0.0)
             throw std::logic_error("coulomb_radial_yukawa: lambda must be positive.\n");
           const FEMRadialBasis & fem = underlying_fem_();
-          const arma::mat P_FE = other.C_ * D * other.C_.t();
-          return C_.t() *
-                 assemble_J_FE_one_multipole_yukawa(fem, k, lambda, P_FE) * C_;
+          const arma::mat P_FE = helfem::to_arma(
+              helfem::Matrix(other.C_ * D * other.C_.transpose()));
+          const helfem::Matrix J_FE = helfem::to_eigen(
+              assemble_J_FE_one_multipole_yukawa(fem, k, lambda, P_FE));
+          return C_.transpose() * J_FE * C_;
         }
 
         /// Yukawa-screened exchange at multipole k.
-        arma::mat exchange_radial_yukawa(int k, double lambda,
-                                         const NAORadialBasis & other,
-                                         const arma::mat & D) const {
+        helfem::Matrix exchange_radial_yukawa(int k, double lambda,
+                                               const NAORadialBasis & other,
+                                               const helfem::Matrix & D) const {
           require_shared_fe_(other, "exchange_radial_yukawa");
           require_density_shape_(other, D, "exchange_radial_yukawa");
           if (lambda <= 0.0)
             throw std::logic_error("exchange_radial_yukawa: lambda must be positive.\n");
           const FEMRadialBasis & fem = underlying_fem_();
-          const arma::mat P_FE = other.C_ * D * other.C_.t();
-          return C_.t() *
-                 assemble_K_FE_one_multipole_yukawa(fem, k, lambda, P_FE) * C_;
+          const arma::mat P_FE = helfem::to_arma(
+              helfem::Matrix(other.C_ * D * other.C_.transpose()));
+          const helfem::Matrix K_FE = helfem::to_eigen(
+              assemble_K_FE_one_multipole_yukawa(fem, k, lambda, P_FE));
+          return C_.transpose() * K_FE * C_;
         }
 
        protected:
@@ -266,12 +268,13 @@ namespace helfem {
         }
 
         void require_density_shape_(const NAORadialBasis & other,
-                                    const arma::mat & D,
+                                    const helfem::Matrix & D,
                                     const char * site) const {
-          if (D.n_rows != other.Nbf() || D.n_cols != other.Nbf()) {
+          if (static_cast<size_t>(D.rows()) != other.Nbf() ||
+              static_cast<size_t>(D.cols()) != other.Nbf()) {
             std::ostringstream oss;
             oss << "NAORadialBasis::" << site << ": density matrix is "
-                << D.n_rows << "x" << D.n_cols << " but other.Nbf() = "
+                << D.rows() << "x" << D.cols() << " but other.Nbf() = "
                 << other.Nbf() << ".\n";
             throw std::logic_error(oss.str());
           }
