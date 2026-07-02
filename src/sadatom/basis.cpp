@@ -1221,8 +1221,10 @@ namespace helfem {
           }
           const arma::mat Ckeep = (keep < 0) ? Cl
                                              : arma::mat(Cl.cols(0, keep - 1));
+          // Phase 5.28: NAORadialBasis stores its C matrix as
+          // helfem::Matrix; bridge from the caller's arma cube once.
           out.emplace_back(l, atomic::basis::NAORadialBasis::from_owned_radial(
-              sad_basis.get_radial(), Ckeep));
+              sad_basis.get_radial(), helfem::to_eigen(Ckeep)));
         }
         return out;
       }

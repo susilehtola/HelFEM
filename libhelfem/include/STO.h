@@ -177,10 +177,8 @@ namespace helfem {
           const helfem::Vector be = fem.vector_element(/*der=*/0, xq, wq, f);
           C.col(k) = S_ldlt.solve(be);
         }
-        // NAORadialBasis::from_owned_radial still takes arma::mat for
-        // its C_ storage; bridge once at the boundary.
         return NAORadialBasis::from_owned_radial(std::move(radial),
-                                                  helfem::to_arma(C));
+                                                  std::move(C));
       }
 
     } // namespace basis
