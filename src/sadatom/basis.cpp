@@ -422,15 +422,15 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::eval_bf(size_t iel) const {
-        return radial.get_bf(iel);
+        return helfem::to_arma(radial.get_bf(iel));
       }
 
       arma::mat TwoDBasis::eval_df(size_t iel) const {
-        return radial.get_df(iel);
+        return helfem::to_arma(radial.get_df(iel));
       }
 
       arma::mat TwoDBasis::eval_lf(size_t iel) const {
-        return radial.get_lf(iel);
+        return helfem::to_arma(radial.get_lf(iel));
       }
 
       arma::uvec TwoDBasis::bf_list(size_t iel) const {
@@ -598,7 +598,7 @@ namespace helfem {
           radial.get_idx(iel,ifirst,ilast);
           // Density matrix
           arma::mat Csub(C.rows(ifirst,ilast));
-          arma::mat bf(radial.get_bf(iel));
+          arma::mat bf(helfem::to_arma(radial.get_bf(iel)));
 
           c[iel]=bf*Csub;
         }
@@ -626,7 +626,7 @@ namespace helfem {
           radial.get_idx(iel,ifirst,ilast);
           // Density matrix
           arma::mat Csub(C.rows(ifirst,ilast));
-          arma::mat bf(radial.get_df(iel));
+          arma::mat bf(helfem::to_arma(radial.get_df(iel)));
 
           c[iel]=bf*Csub;
         }
@@ -654,7 +654,7 @@ namespace helfem {
           radial.get_idx(iel,ifirst,ilast);
           // Density matrix
           arma::mat Csub(C.rows(ifirst,ilast));
-          arma::mat bf(radial.get_lf(iel));
+          arma::mat bf(helfem::to_arma(radial.get_lf(iel)));
 
           c[iel]=bf*Csub;
         }
@@ -680,7 +680,7 @@ namespace helfem {
         radial.get_idx(iel,ifirst,ilast);
         // Density matrix
         arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
-        arma::mat bf(radial.get_bf(x, iel));
+        arma::mat bf(helfem::to_arma(radial.get_bf(x, iel)));
 
         arma::vec density = arma::diagvec(bf*Psub*bf.t());
         if(rsqweight)
@@ -909,8 +909,8 @@ namespace helfem {
           radial.get_idx(iel,ifirst,ilast);
           // Density matrix
           arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
-          arma::mat bf(radial.get_bf(iel));
-          arma::mat df(radial.get_df(iel));
+          arma::mat bf(helfem::to_arma(radial.get_bf(iel)));
+          arma::mat df(helfem::to_arma(radial.get_df(iel)));
 
           d[iel]=2.0*arma::diagvec(bf*Psub*df.t());
         }
@@ -938,9 +938,9 @@ namespace helfem {
           radial.get_idx(iel,ifirst,ilast);
           // Density matrix
           arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
-          arma::mat bf(radial.get_bf(iel));
-          arma::mat df(radial.get_df(iel));
-          arma::mat lf(radial.get_lf(iel));
+          arma::mat bf(helfem::to_arma(radial.get_bf(iel)));
+          arma::mat df(helfem::to_arma(radial.get_df(iel)));
+          arma::mat lf(helfem::to_arma(radial.get_lf(iel)));
           arma::vec r(helfem::to_arma(radial.get_r(iel)));
 
           // Laplacian is df^2/dr^2 + 2/r df/dr
@@ -982,9 +982,9 @@ namespace helfem {
           arma::mat Psubl(Pl.submat(ifirst,ifirst,ilast,ilast));
 
           // Basis function
-          arma::mat bf(radial.get_bf(iel));
+          arma::mat bf(helfem::to_arma(radial.get_bf(iel)));
           // Basis function derivative
-          arma::mat bf_rho(radial.get_df(iel));
+          arma::mat bf_rho(helfem::to_arma(radial.get_df(iel)));
 
           arma::vec term1(arma::diagvec(bf_rho * Psub * bf_rho.t()));
           arma::vec term2(arma::diagvec(bf * Psubl * bf.t())/arma::square(r));
