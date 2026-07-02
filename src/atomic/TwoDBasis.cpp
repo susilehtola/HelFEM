@@ -1168,7 +1168,7 @@ namespace helfem {
           sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
         // Evaluate radial functions
-        arma::mat rad(radial.get_bf(iel));
+        arma::mat rad(helfem::to_arma(radial.get_bf(iel)));
 
         // Form supermatrix
         arma::cx_mat bf(rad.n_rows,lval.n_elem*rad.n_cols);
@@ -1185,8 +1185,8 @@ namespace helfem {
           sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
         // Evaluate radial functions
-        arma::mat frad(radial.get_bf(iel));
-        arma::mat drad(radial.get_df(iel));
+        arma::mat frad(helfem::to_arma(radial.get_bf(iel)));
+        arma::mat drad(helfem::to_arma(radial.get_df(iel)));
 
         // Form supermatrices
         dr.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
@@ -1231,9 +1231,9 @@ namespace helfem {
 
         // Evaluate radial functions
         arma::vec r(helfem::to_arma(radial.get_r(iel)));
-        arma::mat frad(radial.get_bf(iel));
-        arma::mat drad(radial.get_df(iel));
-        arma::mat lrad(radial.get_lf(iel));
+        arma::mat frad(helfem::to_arma(radial.get_bf(iel)));
+        arma::mat drad(helfem::to_arma(radial.get_df(iel)));
+        arma::mat lrad(helfem::to_arma(radial.get_lf(iel)));
 
         // Form supermatrix
         arma::cx_mat lf(frad.n_rows,lval.n_elem*frad.n_cols,arma::fill::zeros);
