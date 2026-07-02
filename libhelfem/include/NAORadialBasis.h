@@ -139,14 +139,17 @@ namespace helfem {
         /// Evaluate the NAO orbitals (columns of C_orb in the NAO basis)
         /// at radius r. Internally promotes to the underlying basis via
         /// C_promoted = C * C_orb and delegates to underlying.eval_orbs.
-        arma::vec eval_orbs(const arma::mat & C_orb, double r) const override {
-          if (C_orb.n_rows != Nbf()) {
+        helfem::Vector eval_orbs(const helfem::Matrix & C_orb, double r) const override {
+          if (static_cast<size_t>(C_orb.rows()) != Nbf()) {
             std::ostringstream oss;
-            oss << "NAORadialBasis::eval_orbs: C_orb has " << C_orb.n_rows
+            oss << "NAORadialBasis::eval_orbs: C_orb has " << C_orb.rows()
                 << " rows but NAO Nbf() = " << Nbf() << "\n";
             throw std::logic_error(oss.str());
           }
-          return underlying_->eval_orbs(C_ * C_orb, r);
+          // Promote C to the underlying basis via C_ * C_orb (arma
+          // stays for the C_ storage), then bridge to Eigen for the
+          // Phase 5.23 eval_orbs interface.
+          return underlying_->eval_orbs(helfem::to_eigen(arma::mat(C_ * helfem::to_arma(C_orb))), r);
         }
 
         // ---------------------------------------------------------------

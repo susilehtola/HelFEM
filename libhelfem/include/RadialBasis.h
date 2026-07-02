@@ -57,7 +57,8 @@ namespace helfem {
         virtual helfem::Matrix nuclear() const = 0;
 
         /// Evaluate orbitals (columns of C) at a given r.
-        virtual arma::vec eval_orbs(const arma::mat & C, double r) const = 0;
+        /// Phase 5.23: Eigen-typed argument + return.
+        virtual helfem::Vector eval_orbs(const helfem::Matrix & C, double r) const = 0;
       };
 
       /// Finite-element radial basis set.
@@ -292,8 +293,8 @@ namespace helfem {
         /// Evaluate second derivatives of basis functions at given points
         /// (Phase 5.21: Eigen return).
         helfem::Matrix get_lf(const arma::vec & x, size_t iel) const;
-        /// Evaluate orbitals at a given point
-        arma::vec eval_orbs(const arma::mat & C, double r) const override;
+        /// Evaluate orbitals at a given point (Phase 5.23: Eigen-typed).
+        helfem::Vector eval_orbs(const helfem::Matrix & C, double r) const override;
 
         /// Get quadrature weights in element (Phase 5.20: Eigen return).
         helfem::Vector get_wrad(size_t iel) const;
