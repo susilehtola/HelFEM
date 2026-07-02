@@ -452,7 +452,7 @@ namespace helfem {
       }
 
       arma::vec TwoDBasis::eval_orbs(const arma::mat & C, double r) const {
-        return radial.eval_orbs(C,r);
+        return helfem::to_arma(radial.eval_orbs(helfem::to_eigen(C), r));
       }
 
       size_t TwoDBasis::get_rad_Nel() const {

@@ -577,29 +577,29 @@ namespace helfem {
 
       // get_taylor() has been removed in favour of fem.eval_over_r().
 
-      arma::vec FEMRadialBasis::eval_orbs(const arma::mat & C, double r) const {
+      helfem::Vector FEMRadialBasis::eval_orbs(const helfem::Matrix & C, double r) const {
         if(r > fem.element_end(fem.get_nelem()-1)) {
-          // The wave function is zero here
-          arma::vec val(C.n_cols, arma::fill::zeros);
-          return val;
-        } else {
-          // Find the element we are in
-          size_t iel = fem.find_element(r);
-          // Find the value of the primitive coordinate
-          helfem::Vector r_e(1); r_e(0) = r;
-          helfem::Vector xe = fem.eval_prim(r_e, iel);
-          arma::vec x(xe.size()); std::memcpy(x.memptr(), xe.data(), sizeof(double) * xe.size());
-
-          // Evaluate the basis functions in the element (Phase 5.21:
-          // get_bf returns Eigen; bridge here because the rest of
-          // eval_orbs is arma-typed).
-          arma::mat val(eigen_mat_to_arma(get_bf(x, iel)));
-          // Figure out the corresponding indices of the basis functions
-          size_t ifirst, ilast;
-          get_idx(iel, ifirst, ilast);
-          arma::mat Csub(C.rows(ifirst, ilast));
-          return (val*Csub).t();
+          // Wave function is zero beyond the practical infinity.
+          return helfem::Vector::Zero(C.cols());
         }
+        // Find the element and evaluate the primitive coordinate.
+        const size_t iel = fem.find_element(r);
+        helfem::Vector r_e(1); r_e(0) = r;
+        const helfem::Vector xe = fem.eval_prim(r_e, iel);
+
+        // Basis functions in the element (get_bf still takes an arma::vec
+        // input; bridge once at the call site).
+        arma::vec x(xe.size());
+        std::memcpy(x.memptr(), xe.data(), sizeof(double) * (size_t) xe.size());
+        const helfem::Matrix val = get_bf(x, iel);
+
+        // Slice C over the element's basis-function index range and
+        // return the row-vector product transposed to a column.
+        size_t ifirst, ilast;
+        get_idx(iel, ifirst, ilast);
+        const Eigen::Index n = static_cast<Eigen::Index>(ilast - ifirst + 1);
+        const helfem::Matrix Csub = C.block(ifirst, 0, n, C.cols());
+        return (val * Csub).transpose();
       }
 
       helfem::Matrix FEMRadialBasis::get_bf(const arma::vec & x, size_t iel) const {
