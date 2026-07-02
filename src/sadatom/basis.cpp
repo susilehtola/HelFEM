@@ -684,7 +684,10 @@ namespace helfem {
         radial.get_idx(iel,ifirst,ilast);
         // Density matrix
         arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
-        arma::mat bf(helfem::to_arma(radial.get_bf(x, iel)));
+        // Phase 5.24: radial.get_bf / get_r per-x-point overloads now
+        // take an Eigen vector; bridge once at the call boundary.
+        const helfem::Vector xe = helfem::to_eigen(x);
+        arma::mat bf(helfem::to_arma(radial.get_bf(xe, iel)));
 
         arma::vec density = arma::diagvec(bf*Psub*bf.t());
         if(rsqweight)

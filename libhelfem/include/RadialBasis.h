@@ -117,10 +117,6 @@ namespace helfem {
         void get_idx(size_t iel, size_t &ifirst, size_t &ilast) const;
 
         /// Compute radial matrix elements <r^n> in element (overlap is n=0,
-        /// nuclear is n=-1)
-        arma::mat radial_integral(const arma::mat &bf_c, int n,
-                                  size_t iel) const;
-        /// Compute radial matrix elements <r^n> in element (overlap is n=0,
         /// nuclear is n=-1). Eigen-typed (Phase 2a migration).
         helfem::Matrix radial_integral(int n, size_t iel, double x_left = -1.0, double x_right = 1.0) const;
 
@@ -276,23 +272,20 @@ namespace helfem {
         /// Compute projection (Eigen; Phase 2a).
         helfem::Matrix overlap(const FEMRadialBasis &rh) const;
 
-        /// Evaluate basis functions at quadrature points (Phase 5.21: Eigen return).
+        /// Evaluate basis functions at quadrature points (Eigen return).
         helfem::Matrix get_bf(size_t iel) const;
-        /// Evaluate basis functions at given points (arma-typed input kept
-        /// for chemistry-layer callers; Eigen return per Phase 5.21).
-        helfem::Matrix get_bf(const arma::vec & x, size_t iel) const;
-        /// Evaluate derivatives of basis functions at quadrature points
-        /// (Phase 5.21: Eigen return).
+        /// Evaluate basis functions at given points (Phase 5.24: Eigen input + return).
+        helfem::Matrix get_bf(const helfem::Vector & x, size_t iel) const;
+        /// Evaluate derivatives of basis functions at quadrature points (Eigen return).
         helfem::Matrix get_df(size_t iel) const;
         /// Evaluate derivatives of basis functions at given points
-        /// (Phase 5.21: Eigen return).
-        helfem::Matrix get_df(const arma::vec & x, size_t iel) const;
-        /// Evaluate second derivatives of basis functions at quadrature points
-        /// (Phase 5.21: Eigen return).
+        /// (Phase 5.24: Eigen input + return).
+        helfem::Matrix get_df(const helfem::Vector & x, size_t iel) const;
+        /// Evaluate second derivatives of basis functions at quadrature points (Eigen return).
         helfem::Matrix get_lf(size_t iel) const;
         /// Evaluate second derivatives of basis functions at given points
-        /// (Phase 5.21: Eigen return).
-        helfem::Matrix get_lf(const arma::vec & x, size_t iel) const;
+        /// (Phase 5.24: Eigen input + return).
+        helfem::Matrix get_lf(const helfem::Vector & x, size_t iel) const;
         /// Evaluate orbitals at a given point (Phase 5.23: Eigen-typed).
         helfem::Vector eval_orbs(const helfem::Matrix & C, double r) const override;
 
