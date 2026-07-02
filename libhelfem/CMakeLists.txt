@@ -17,7 +17,6 @@ list(APPEND LIBHELFEM_PUBLIC_HEADERS
     "ModelPotential.h"
     "GaussianNucleus.h"
     "HollowNucleus.h"
-    "ModelPotential.h"
     "PointNucleus.h"
     "PolynomialBasis.h"
     "FiniteElementBasis.h"
@@ -26,6 +25,16 @@ list(APPEND LIBHELFEM_PUBLIC_HEADERS
     "RegularizedNucleus.h"
     "Matrix.h"
     "ArmaEigen.h"
+    # NAO surface -- installed for libatomscf-style consumers that
+    # build atom-centred numerical-orbital bases in their own SCF
+    # driver, using libhelfem's FE-projection factories:
+    "NAORadialBasis.h"
+    "GTO.h"
+    "STO.h"
+    # One-multipole J/K assembly helpers used by the NAO two-electron
+    # methods and by any consumer driving its own Fock build over an
+    # FE-backed atomic basis.
+    "CoulombExchangeFE.h"
 )
 foreach(header IN LISTS LIBHELFEM_PUBLIC_HEADERS)
     configure_file("include/${header}" "include/${header}" COPYONLY)
