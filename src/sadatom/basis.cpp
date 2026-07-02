@@ -684,14 +684,14 @@ namespace helfem {
         radial.get_idx(iel,ifirst,ilast);
         // Density matrix
         arma::mat Psub(Prad.submat(ifirst,ifirst,ilast,ilast));
-        // Phase 5.24: radial.get_bf / get_r per-x-point overloads now
-        // take an Eigen vector; bridge once at the call boundary.
+        // Phase 5.24/5.25: radial.get_bf / get_r per-x-point overloads
+        // take Eigen vectors; bridge once at the call boundary.
         const helfem::Vector xe = helfem::to_eigen(x);
         arma::mat bf(helfem::to_arma(radial.get_bf(xe, iel)));
 
         arma::vec density = arma::diagvec(bf*Psub*bf.t());
         if(rsqweight)
-          density %= arma::square(helfem::to_arma(radial.get_r(x, iel)));
+          density %= arma::square(helfem::to_arma(radial.get_r(xe, iel)));
         return density;
       }
 
@@ -777,7 +777,7 @@ namespace helfem {
             throw std::logic_error(oss.str());
           }
           // Position of maximum is
-          rmax = radial.get_r((a+b)/2, iel)(0);
+          rmax = radial.get_r(helfem::to_eigen(arma::vec((a+b)/2)), iel)(0);
         }
 
         return rmax;
@@ -853,7 +853,7 @@ namespace helfem {
           // Coordinate is
           arma::vec cen=((a+b)/2);
           // Position of maximum is
-          rvdw = arma::as_scalar(helfem::to_arma(radial.get_r(cen,iel)));
+          rvdw = radial.get_r(helfem::to_eigen(cen), iel)(0);
         }
 
         return rvdw;
