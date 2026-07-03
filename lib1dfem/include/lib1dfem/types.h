@@ -17,6 +17,18 @@
 
 #include <Eigen/Core>
 
+// Eigen 5 moved the indexing placeholders `all`, `last`, `lastp1`
+// from namespace `Eigen` into `Eigen::placeholders`. Everything in
+// HelFEM was written against the 3.x location, so re-expose them at
+// the old spelling for any Eigen >= 4.9 (i.e. 5.x prereleases and up).
+#if EIGEN_VERSION_AT_LEAST(4, 90, 0)
+namespace Eigen {
+  using placeholders::all;
+  using placeholders::last;
+  using placeholders::lastp1;
+}
+#endif
+
 // Shorthand aliases for the dynamic-size Eigen types used throughout
 // lib1dfem (and re-exported by libhelfem). The full
 // `Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>` spelling is

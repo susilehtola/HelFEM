@@ -143,7 +143,11 @@ endif()
 # converters in libhelfem/include without yet replacing Armadillo
 # anywhere. Subsequent phases migrate libhelfem and src/ leaf-by-leaf.
 # Prefer a system-installed Eigen3 >= 3.4, otherwise fetch v3.4.0.
-find_package(Eigen3 3.4 QUIET NO_MODULE)
+# Use the CMake range form `3.4...99` so that any 3.4-or-newer install
+# is accepted. A bare `3.4` request is treated by Eigen's stock
+# Eigen3ConfigVersion.cmake as the exclusive range [3.4, 3.5) and
+# rejects e.g. Fedora's Eigen 5.0.1.
+find_package(Eigen3 3.4...99 QUIET NO_MODULE)
 if(NOT Eigen3_FOUND)
     message(STATUS "Eigen3 >= 3.4 not found via find_package; fetching v3.4.0")
     include(FetchContent)
