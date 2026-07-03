@@ -16,7 +16,10 @@ include(CMakeFindDependencyMacro)
 # Transitive deps -- these must be resolvable by the consumer's
 # find_package chain so the IMPORTED targets in helfemTargets.cmake
 # find their linkage.
-find_dependency(Eigen3 3.4 CONFIG)
+# Range form `3.4...99` so any Eigen >= 3.4 is accepted. A bare `3.4`
+# is treated by Eigen's ConfigVersion.cmake as the exclusive range
+# [3.4, 3.5) and rejects e.g. Fedora's Eigen 5.0.1.
+find_dependency(Eigen3 3.4...99 CONFIG)
 find_dependency(wignernj 0.5.0)
 # OpenMP is included in helfem-common's INTERFACE_LINK_LIBRARIES so
 # consumers inherit -fopenmp / libgomp automatically. We must be able
