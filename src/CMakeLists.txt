@@ -24,6 +24,13 @@ target_include_directories(helfem-common
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../libhelfem/src/>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        # `chebyshev.h` and `lobatto.h` are thin arma::vec shims over
+        # lib1dfem's Eigen-typed Gauss-Chebyshev / Gauss-Lobatto
+        # quadrature. They live next to their arma-consuming callers
+        # in src/general/ so libhelfem itself ships no arma-typed
+        # code. Callers include them as `#include "chebyshev.h"` /
+        # `#include "lobatto.h"`, which resolve through this path.
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/general>
         # Installed headers live at include/helfem/{atomic,general}/;
         # consumers include as <helfem/atomic/TwoDBasis.h>.
         $<INSTALL_INTERFACE:include>
