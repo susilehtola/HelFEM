@@ -14,9 +14,8 @@
  */
 
 #include "FiniteElementBasis.h"
-#include <armadillo>
 #include <cfloat>
-#include <cstring>
+#include <iostream>
 
 namespace helfem {
   namespace polynomial_basis {
@@ -57,68 +56,61 @@ namespace helfem {
         return;
       int noverlap(poly->get_noverlap());
 
-      arma::vec dnorm(get_nelem()-1);
+      helfem::Vector dnorm(get_nelem()-1);
       for(size_t iel=0; iel+1<get_nelem(); iel++) {
         // Points that correspond to lh and rh elements
-        // Phase 5.3: eval_coord / eval_dnf now Eigen; build the
-        // 1-element x vectors as Eigen for direct use, materialise
-        // arma copies only for the existing logging code.
-        helfem::Vector xlh_e(1), xrh_e(1);
-        xlh_e(0) = 1.0;
-        xrh_e(0) = -1.0;
+        helfem::Vector xlh(1), xrh(1);
+        xlh(0) = 1.0;
+        xrh(0) = -1.0;
 
         /// Check that coordinates match
-        helfem::Vector rlh_e = eval_coord(xlh_e, iel);
-        helfem::Vector rrh_e = eval_coord(xrh_e, iel + 1);
-        arma::vec rlh(rlh_e.size()); std::memcpy(rlh.memptr(), rlh_e.data(), sizeof(double) * rlh_e.size());
-        arma::vec rrh(rrh_e.size()); std::memcpy(rrh.memptr(), rrh_e.data(), sizeof(double) * rrh_e.size());
-        double dr(arma::norm(rlh-rrh,2));
-        if(dr > 10*DBL_EPSILON*(1+arma::norm(rlh,2))) {
-          rlh.print("rlh");
-          rrh.print("rrh");
-          (rrh-rlh).print("rrh-rlh");
+        const helfem::Vector rlh = eval_coord(xlh, iel);
+        const helfem::Vector rrh = eval_coord(xrh, iel + 1);
+        const double dr = (rlh - rrh).norm();
+        if(dr > 10*DBL_EPSILON*(1+rlh.norm())) {
+          std::cout << "rlh:\n"     << rlh.transpose()       << "\n";
+          std::cout << "rrh:\n"     << rrh.transpose()       << "\n";
+          std::cout << "rrh-rlh:\n" << (rrh-rlh).transpose() << "\n";
           std::ostringstream oss;
-          oss << "Coordinates do not match between elements " << iel << " and " << iel+1 << ", difference " << dr << " tolerance " << 100*DBL_EPSILON*arma::norm(rlh,2) << "!\n";
+          oss << "Coordinates do not match between elements " << iel << " and " << iel+1 << ", difference " << dr << " tolerance " << 100*DBL_EPSILON*rlh.norm() << "!\n";
           throw std::logic_error(oss.str());
         }
 
-        // Evaluate bordering value in lh element
-        arma::mat lh(noverlap, noverlap);
+        // Evaluate bordering value in lh element (last noverlap functions)
+        helfem::Matrix lh(noverlap, noverlap);
         for(int ider=0;ider<noverlap;ider++) {
-          // We want the last noverlap functions evaluated at the r
-          helfem::Matrix fval_e = eval_dnf(xlh_e, ider, iel);
-          arma::rowvec fval(fval_e.cols());
-          std::memcpy(fval.memptr(), fval_e.data(), sizeof(double) * fval_e.size());
-          lh.col(ider) = fval.subvec(fval.n_elem-noverlap, fval.n_elem-1).t();
+          const helfem::Matrix fval = eval_dnf(xlh, ider, iel);
+          lh.col(ider) = fval.row(0).tail(noverlap).transpose();
         }
 
-        // Evaluate bordering value in rh element
-        arma::mat rh(noverlap, noverlap);
+        // Evaluate bordering value in rh element (first noverlap functions)
+        helfem::Matrix rh(noverlap, noverlap);
         for(int ider=0;ider<noverlap;ider++) {
-          // We want the first noverlap functions
-          helfem::Matrix fval_e = eval_dnf(xrh_e, ider, iel + 1);
-          arma::rowvec fval(fval_e.cols());
-          std::memcpy(fval.memptr(), fval_e.data(), sizeof(double) * fval_e.size());
-          rh.col(ider) = fval.subvec(0, noverlap-1).t();
+          const helfem::Matrix fval = eval_dnf(xrh, ider, iel + 1);
+          rh.col(ider) = fval.row(0).head(noverlap).transpose();
         }
 
         // The function values should go to zero at the boundaries,
         // except the overlaid functions. The derivatives should also
         // go to zero, except the overlaid ones. The scaling does not
         // matter.
-        arma::mat diff(lh-rh);
-        dnorm(iel) = arma::norm(diff,2);
+        // Note: arma::norm(M, 2) was the spectral norm; Eigen's .norm()
+        // is Frobenius. For the noverlap x noverlap matrices here the
+        // two agree to a small constant factor and the threshold
+        // sqrt(DBL_EPSILON) ~ 1.5e-8 is many orders looser than that,
+        // so the change in norm choice is not observable.
+        const helfem::Matrix diff = lh - rh;
+        dnorm(iel) = diff.norm();
         if(dnorm(iel) > sqrt(DBL_EPSILON)) {
           printf("Discontinuity between elements %i and %i (C indexing)\n",(int) iel,(int) iel+1);
-          lh.print("lh values");
-          rh.print("rh values");
-          diff.print("difference");
-          printf("Difference norm %e\n",arma::norm(diff,2));
+          std::cout << "lh values:\n" << lh   << "\n";
+          std::cout << "rh values:\n" << rh   << "\n";
+          std::cout << "difference:\n" << diff << "\n";
+          printf("Difference norm %e\n", dnorm(iel));
         }
       }
-      //dnorm.t().print("Difference norms");
-      arma::uword imax;
-      dnorm.max(imax);
+      Eigen::Index imax;
+      dnorm.maxCoeff(&imax);
       printf("Finite element basis set max discontinuity %e between elements %i and %i\n",dnorm(imax),(int) imax,(int) imax+1);
       fflush(stdout);
       if(dnorm(imax) > sqrt(DBL_EPSILON)) {
@@ -211,7 +203,6 @@ namespace helfem {
       return bval;
     }
 
-    // Phase 5.3: per-element evaluators migrated arma -> Eigen.
     helfem::Vector FiniteElementBasis::eval_coord(const helfem::Vector & x, size_t iel) const {
       return helfem::Vector::Constant(x.size(), element_midpoint(iel)) + scaling_factor(iel) * x;
     }
