@@ -19,6 +19,7 @@
 #include <armadillo>
 #include "../atomic/basis.h"
 #include "../diatomic/basis.h"
+#include "Matrix.h"
 
 // Use C routines, since C++ routines don't seem to add any ease of use.
 extern "C" {
@@ -83,6 +84,18 @@ class Checkpoint {
   void write(const std::string & name, const arma::mat & mat);
   /// Read matrix
   void read(const std::string & name, arma::mat & mat);
+
+  /// Eigen overload: writes/reads a helfem::Matrix by bridging through
+  /// arma::mat at the HDF5 boundary. Layout on disk is unchanged so
+  /// checkpoints stay round-trippable between arma-typed and
+  /// Eigen-typed callers.
+  void write(const std::string & name, const helfem::Matrix & mat);
+  void read(const std::string & name, helfem::Matrix & mat);
+
+  /// Eigen overload for helfem::Vector: writes as a single-column
+  /// arma::mat and reads back the first column.
+  void write(const std::string & name, const helfem::Vector & v);
+  void read(const std::string & name, helfem::Vector & v);
 
   /// Save complex matrix
   void cwrite(const std::string & name, const arma::cx_mat & mat);

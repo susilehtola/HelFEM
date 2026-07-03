@@ -136,10 +136,10 @@ int main(int argc, char **argv) {
 
     std::ostringstream oss;
     oss << "orbs_" << l;
-    chkpt.write(oss.str(), helfem::to_arma(Cv));
+    chkpt.write(oss.str(), Cv);
     oss.str("");
     oss << "E_" << l;
-    chkpt.write(oss.str(), helfem::to_arma(E));
+    chkpt.write(oss.str(), E);
   }
 
   // Concatenate per-element radii and quadrature weights into flat
@@ -152,8 +152,8 @@ int main(int argc, char **argv) {
     weights.segment(iel * Npts, Npts) = radial.get_wrad(iel);
   }
 
-  chkpt.write("r",  helfem::to_arma(radii));
-  chkpt.write("wr", helfem::to_arma(weights));
+  chkpt.write("r",  radii);
+  chkpt.write("wr", weights);
 
   return 0;
 }

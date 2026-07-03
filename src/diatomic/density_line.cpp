@@ -47,16 +47,14 @@ int main(int argc, char **argv) {
   const std::string savedens = parser.get<std::string>("savedens");
   const int Nz           = parser.get<int>("Nz");
 
-  // Load checkpoint. Basis + density matrices are still arma-typed on
-  // the diatomic side; bridge to Eigen at the read boundary.
+  // Basis is still arma-typed internally (its serialised layout);
+  // Pa / Pb read straight into helfem::Matrix via the Eigen overload.
   Checkpoint loadchk(load, false);
   diatomic::basis::TwoDBasis basis;
   loadchk.read(basis);
-  arma::mat Pa_a, Pb_a;
-  loadchk.read("Pa", Pa_a);
-  loadchk.read("Pb", Pb_a);
-  const helfem::Matrix Pa = helfem::to_eigen(Pa_a);
-  const helfem::Matrix Pb = helfem::to_eigen(Pb_a);
+  helfem::Matrix Pa, Pb;
+  loadchk.read("Pa", Pa);
+  loadchk.read("Pb", Pb);
   double Rhalf;
   loadchk.read("Rhalf", Rhalf);
 

@@ -1063,6 +1063,39 @@ void change_dir(std::string dir, bool create) {
   }
 }
 
+// Eigen overloads: bridge through arma::mat at the HDF5 boundary so
+// on-disk layout is unchanged and checkpoints written by an Eigen-typed
+// caller can be read back by an arma-typed caller (and vice versa).
+void Checkpoint::write(const std::string & name, const helfem::Matrix & mat) {
+  write(name, helfem::to_arma(mat));
+}
+
+void Checkpoint::read(const std::string & name, helfem::Matrix & mat) {
+  arma::mat tmp;
+  read(name, tmp);
+  mat = helfem::to_eigen(tmp);
+}
+
+void Checkpoint::write(const std::string & name, const helfem::Vector & v) {
+  write(name, helfem::to_arma(v));
+}
+
+void Checkpoint::read(const std::string & name, helfem::Vector & v) {
+  arma::vec tmp;
+  {
+    arma::mat m;
+    read(name, m);
+    if (m.n_cols != 1) {
+      std::ostringstream oss;
+      oss << "Cannot read \"" << name << "\" as a helfem::Vector: "
+          << "expected 1 column, got " << m.n_cols << "\n";
+      throw std::runtime_error(oss.str());
+    }
+    tmp = m.col(0);
+  }
+  v = helfem::to_eigen(tmp);
+}
+
 std::string tempname() {
   // Get random file name
   char *tmpname=tempnam("./",".chk");
