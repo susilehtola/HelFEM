@@ -15,150 +15,123 @@
 
 #include "PolynomialBasis.h"
 #include "FiniteElementBasis.h"
-#include "chebyshev.h"
-#include <ArmaEigen.h>
-#include <cstring>
+#include "Matrix.h"
+#include <lib1dfem/chebyshev.h>
+#include <Eigen/Eigenvalues>
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <fstream>
+#include <memory>
 
 using namespace helfem;
 
 namespace {
-  inline helfem::Vector to_e(const arma::vec & v) {
-    helfem::Vector e(v.n_elem);
-    std::memcpy(e.data(), v.memptr(), sizeof(double) * v.n_elem);
-    return e;
+  helfem::Matrix overlap(const polynomial_basis::FiniteElementBasis & fem,
+                         const helfem::Vector & x, const helfem::Vector & wx) {
+    return fem.matrix_element(false, false, x, wx, nullptr);
   }
-  inline arma::mat to_a(const helfem::Matrix & m) {
-    arma::mat out(m.rows(), m.cols());
-    std::memcpy(out.memptr(), m.data(), sizeof(double) * (size_t) m.size());
-    return out;
+
+  double square_potential(double r) { return r * r; }
+
+  helfem::Matrix potential(const polynomial_basis::FiniteElementBasis & fem,
+                           const helfem::Vector & x, const helfem::Vector & wx) {
+    return fem.matrix_element(false, false, x, wx, square_potential);
   }
-} // namespace
 
-arma::mat overlap(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
-  return to_a(fem.matrix_element(false, false, to_e(x), to_e(wx), nullptr));
-}
+  helfem::Matrix kinetic(const polynomial_basis::FiniteElementBasis & fem,
+                         const helfem::Vector & x, const helfem::Vector & wx) {
+    return fem.matrix_element(true, true, x, wx, nullptr);
+  }
 
-double square_potential(double r) {
-  return r*r;
-}
-
-arma::mat potential(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
-  return to_a(fem.matrix_element(false, false, to_e(x), to_e(wx), square_potential));
-}
-
-arma::mat kinetic(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
-  return to_a(fem.matrix_element(true, true, to_e(x), to_e(wx), nullptr));
+  void write_raw_ascii(const std::string & path, const helfem::Vector & v) {
+    std::ofstream out(path);
+    for (Eigen::Index i = 0; i < v.size(); ++i)
+      out << v(i) << "\n";
+  }
+  void write_raw_ascii(const std::string & path, const helfem::Matrix & m) {
+    std::ofstream out(path);
+    for (Eigen::Index i = 0; i < m.rows(); ++i) {
+      for (Eigen::Index j = 0; j < m.cols(); ++j) {
+        if (j) out << " ";
+        out << m(i, j);
+      }
+      out << "\n";
+    }
+  }
 }
 
 int main(int argc, char **argv) {
-  if(argc!=6) {
-    printf("Usage: %s xmax Nel Nnode primbas Nquad\n",argv[0]);
+  if (argc != 6) {
+    printf("Usage: %s xmax Nel Nnode primbas Nquad\n", argv[0]);
     return 1;
   }
 
-  // Maximum R
-  double xmax=atof(argv[1]);
-  // Number of elements
-  int Nelem=atoi(argv[2]);
+  const double xmax   = std::atof(argv[1]);
+  const int    Nelem  = std::atoi(argv[2]);
+  const int    Nnodes = std::atoi(argv[3]);
+  const int    primbas = std::atoi(argv[4]);
+  const int    Nquad  = std::atoi(argv[5]);
 
-  // Number of nodes
-  int Nnodes=atoi(argv[3]);
-  // Derivative order
-  int primbas=atoi(argv[4]);
-  // Order of quadrature rule
-  int Nquad=atoi(argv[5]);
+  printf("Running calculation with xmax=%e and %i elements.\n", xmax, Nelem);
+  printf("Using %i point quadrature rule.\n", Nquad);
 
-  printf("Running calculation with xmax=%e and %i elements.\n",xmax,Nelem);
-  printf("Using %i point quadrature rule.\n",Nquad);
+  auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
+      polynomial_basis::get_basis(primbas, Nnodes));
 
-  // Get polynomial basis
-  auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(primbas, Nnodes)));
+  // Radial grid: linspace(-xmax, xmax, Nelem+1) on helfem::Vector.
+  const helfem::Vector r = helfem::Vector::LinSpaced(Nelem + 1, -xmax, xmax);
 
-  // Radial grid
-  arma::vec r(arma::linspace<arma::vec>(-xmax,xmax,Nelem+1));
+  polynomial_basis::FiniteElementBasis fem(poly, r,
+      /*zero_func_left=*/true,  /*zero_deriv_left=*/true,
+      /*zero_func_right=*/true, /*zero_deriv_right=*/true);
 
-  // Finite element basis
-  bool zero_func_left=true;
-  bool zero_deriv_left=true;
-  bool zero_func_right=true;
-  bool zero_deriv_right=true;
-  helfem::polynomial_basis::FiniteElementBasis fem(poly, helfem::to_eigen(r), zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
+  helfem::Vector xq, wq;
+  helfem::lib1dfem::chebyshev::chebyshev<double>(Nquad, xq, wq);
 
-  // Quadrature rule
-  arma::vec xq, wq;
-  chebyshev::chebyshev(Nquad,xq,wq);
+  helfem::Matrix bf, dbf;
+  poly->eval_dnf(xq, bf,  0, 1.0);
+  poly->eval_dnf(xq, dbf, 1, 1.0);
 
-  // Evaluate polynomials at quadrature points (Phase 5.2: bridge to
-  // lib1dfem Eigen API).
-  arma::mat bf, dbf;
-  {
-    helfem::lib1dfem::Vec<double> xe(xq.n_elem);
-    std::memcpy(xe.data(), xq.memptr(), sizeof(double) * xq.n_elem);
-    helfem::lib1dfem::Mat<double> bfe, dbfe;
-    poly->eval_dnf(xe, bfe,  0, 1.0);
-    poly->eval_dnf(xe, dbfe, 1, 1.0);
-    bf.set_size(bfe.rows(), bfe.cols());
-    dbf.set_size(dbfe.rows(), dbfe.cols());
-    std::memcpy(bf.memptr(), bfe.data(),
-                sizeof(double) * static_cast<size_t>(bfe.size()));
-    std::memcpy(dbf.memptr(), dbfe.data(),
-                sizeof(double) * static_cast<size_t>(dbfe.size()));
-  }
+  write_raw_ascii("x.dat",  xq);
+  write_raw_ascii("bf.dat", bf);
+  write_raw_ascii("dbf.dat", dbf);
 
-  xq.save("x.dat",arma::raw_ascii);
-  bf.save("bf.dat",arma::raw_ascii);
-  dbf.save("dbf.dat",arma::raw_ascii);
+  const size_t Nbf = fem.get_nbf();
+  printf("Basis set contains %i functions\n", (int) Nbf);
 
-  size_t Nbf(fem.get_nbf());
-  printf("Basis set contains %i functions\n",(int) Nbf);
+  const helfem::Matrix S = overlap  (fem, xq, wq);
+  const helfem::Matrix V = potential(fem, xq, wq);
+  const helfem::Matrix T = kinetic  (fem, xq, wq);
+  const helfem::Matrix H = T + V;
 
-  // Form overlap matrix
-  arma::mat S(overlap(fem, xq, wq));
-  // Form potential matrix
-  arma::mat V(potential(fem, xq, wq));
-  // Form kinetic energy matrix
-  arma::mat T(kinetic(fem, xq, wq));
+  // Symmetric orthonormalisation: Sinvh = Svec * diag(Sval^{-1/2}) * Svec^T.
+  Eigen::SelfAdjointEigenSolver<helfem::Matrix> Ses(S);
+  const helfem::Vector Sval = Ses.eigenvalues();
+  const helfem::Matrix Svec = Ses.eigenvectors();
+  printf("Smallest value of overlap matrix is % e, condition number is %e\n",
+         Sval(0), Sval(Sval.size() - 1) / Sval(0));
+  const helfem::Vector Sdiag = S.diagonal().cwiseAbs();
+  printf("Smallest and largest bf norms are %e and %e\n",
+         Sdiag.minCoeff(), Sdiag.maxCoeff());
 
-  // Form Hamiltonian
-  arma::mat H(T+V);
+  const helfem::Matrix Sinvh =
+      Svec * Sval.array().pow(-0.5).matrix().asDiagonal() * Svec.transpose();
 
-  //S.print("Overlap");
-  //T.print("Kinetic");
-  //V.print("Potential");
-  //H.print("Hamiltonian");
+  const helfem::Matrix Horth = Sinvh.transpose() * H * Sinvh;
 
-  // Form orthonormal basis
-  arma::vec Sval;
-  arma::mat Svec;
-  arma::eig_sym(Sval,Svec,S);
-
-  //Sval.print("S eigenvalues");
-  printf("Smallest value of overlap matrix is % e, condition number is %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
-  printf("Smallest and largest bf norms are %e and %e\n",arma::min(arma::abs(arma::diagvec(S))),arma::max(arma::abs(arma::diagvec(S))));
-
-  // Form half-inverse
-  arma::mat Sinvh(Svec * arma::diagmat(arma::pow(Sval, -0.5)) * arma::trans(Svec));
-
-  // Form orthonormal Hamiltonian
-  arma::mat Horth(arma::trans(Sinvh)*H*Sinvh);
-
-  // Diagonalize Hamiltonian
-  arma::vec E;
-  arma::mat C;
-  arma::eig_sym(E,C,Horth);
-
-  // Go back to non-orthonormal basis
-  C=Sinvh*C;
+  Eigen::SelfAdjointEigenSolver<helfem::Matrix> Hes(Horth);
+  const helfem::Vector E = Hes.eigenvalues();
+  helfem::Matrix C = Sinvh * Hes.eigenvectors();
 
   printf("Eigenvalues\n");
-  size_t neig=std::min(E.n_elem,(arma::uword) 8);
-  for(size_t i=0;i<neig;i++)
-    printf("%i % 10.6f % 10.6f\n",(int) i, E(i),E(i)-(2*i+1));
+  const Eigen::Index neig = std::min<Eigen::Index>(E.size(), 8);
+  for (Eigen::Index i = 0; i < neig; ++i)
+    printf("%i % 10.6f % 10.6f\n", (int) i, E(i), E(i) - (2 * i + 1));
 
-  // Test orthonormality
-  arma::mat Smo(C.t()*S*C);
-  Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
-  printf("Orbital orthonormality devation is %e\n",arma::norm(Smo,"fro"));
+  helfem::Matrix Smo = C.transpose() * S * C;
+  Smo -= helfem::Matrix::Identity(Smo.rows(), Smo.cols());
+  printf("Orbital orthonormality devation is %e\n", Smo.norm());
 
   return 0;
 }
