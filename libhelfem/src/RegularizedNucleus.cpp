@@ -13,7 +13,8 @@
  * for the full license text.
  */
 #include "RegularizedNucleus.h"
-#include "chebyshev.h"
+#include "Matrix.h"
+#include <lib1dfem/chebyshev.h>
 #include <cfloat>
 #include <cmath>
 
@@ -26,13 +27,13 @@ namespace helfem {
 
     static double normalization_slice(int N, std::function<double(double)> & phif) {
       // Get quadrature rule
-      arma::vec x, w;
-      chebyshev::chebyshev(N,x,w);
+      helfem::Vector x, w;
+      helfem::lib1dfem::chebyshev::chebyshev<double>(N, x, w);
 
       // Evaluate normalization by adaptive quadrature
       double h = 1e-1; // Slice size
       // Integrand
-      arma::vec f(N);
+      helfem::Vector f(N);
 
       double norm=0.0;
       size_t islice=0;
@@ -45,7 +46,7 @@ namespace helfem {
           f(i) = r*phif(r);
         }
         // Do quadrature
-        double slice = 2.0*h*M_PI*arma::dot(arma::square(f),w);
+        double slice = 2.0*h*M_PI*f.cwiseProduct(f).dot(w);
         norm += slice;
         if(slice == 0.0) {
           //printf("No contribution at r_middle = %e\n",r_middle);
@@ -59,16 +60,16 @@ namespace helfem {
 
     static double normalization_chebyshev(int N, std::function<double(double)> & phif) {
       // Get quadrature rule
-      arma::vec r, wr;
-      chebyshev::radial_chebyshev(N,r,wr);
+      helfem::Vector r, wr;
+      helfem::lib1dfem::chebyshev::radial_chebyshev<double>(N, r, wr);
 
       // Integrand
-      arma::vec f(N);
+      helfem::Vector f(N);
       for(int i=0;i<N;i++) {
         f(i) = r(i)*phif(r(i));
       }
 
-      return 4.0*M_PI*arma::dot(arma::square(f),wr);
+      return 4.0*M_PI*f.cwiseProduct(f).dot(wr);
     }
 
     static double normalization(int N, std::function<double(double)> & phif) {
@@ -94,16 +95,18 @@ namespace helfem {
       // first bracket the location of the targeted value with a brute
       // force search
       size_t Npts=1000;
-      arma::mat norm(Npts,2);
-      norm.col(0) = arma::logspace<arma::vec>(-3,1,Npts);
+      helfem::Matrix norm(Npts,2);
+      // logspace(-3, 1, Npts): Npts points logarithmically spaced between
+      // 10^-3 and 10^1. Eigen has no logspace, so build via linspace * ln(10).
+      norm.col(0) = (helfem::Vector::LinSpaced(Npts, -3.0, 1.0).array()
+                        * std::log(10.0)).exp().matrix();
       for(size_t ip=0; ip<Npts; ip++)
         norm(ip,1) = phi_normalization(a,norm(ip,0),N);
-      //norm.save("gyginorm.dat",arma::raw_ascii);
 
       // Find the value that is closest to the target
-      arma::vec dnorm(arma::abs(norm.col(1)-target));
-      arma::uword idx;
-      dnorm.min(idx);
+      const helfem::Vector dnorm = (norm.col(1).array() - target).abs().matrix();
+      Eigen::Index idx;
+      dnorm.minCoeff(&idx);
 
       double b_right=norm(idx+1,0);
       if(phi_normalization(a,b_right,N) > target)
