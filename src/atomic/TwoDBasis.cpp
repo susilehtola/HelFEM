@@ -417,13 +417,13 @@ namespace helfem {
         return remove_boundaries(V);
       }
 
-      arma::mat TwoDBasis::confinement(const int N, double r_0, const int iconf, const double V, const double shift_pot) const {
+      helfem::Matrix TwoDBasis::confinement(const int N, double r_0, const int iconf, const double V, const double shift_pot) const {
         // Full matrix
         arma::mat O(Ndummy(),Ndummy());
         O.zeros();
 
 	if(iconf==0)
-	  return remove_boundaries(O);
+	  return helfem::to_eigen(remove_boundaries(O));
 
         arma::mat Orad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
             [&](size_t iel) {
@@ -434,10 +434,10 @@ namespace helfem {
         for(size_t iang=0;iang<lval.n_elem;iang++)
           set_sub(O,iang,iang,Orad);
 
-        return remove_boundaries(O);
+        return helfem::to_eigen(remove_boundaries(O));
       }
 
-      arma::mat TwoDBasis::dipole_z() const {
+      helfem::Matrix TwoDBasis::dipole_z() const {
         // Build radial elements
         arma::mat Orad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
             [&](size_t iel) { return radial.radial_integral(1, iel); }));
@@ -465,10 +465,10 @@ namespace helfem {
           }
         }
 
-        return remove_boundaries(V);
+        return helfem::to_eigen(remove_boundaries(V));
       }
 
-      arma::mat TwoDBasis::quadrupole_zz() const {
+      helfem::Matrix TwoDBasis::quadrupole_zz() const {
         // Build radial elements
         arma::mat Orad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
             [&](size_t iel) { return radial.radial_integral(2, iel); }));
@@ -502,10 +502,10 @@ namespace helfem {
           }
         }
 
-        return remove_boundaries(V);
+        return helfem::to_eigen(remove_boundaries(V));
       }
 
-      arma::mat TwoDBasis::Bz_field(double B) const {
+      helfem::Matrix TwoDBasis::Bz_field(double B) const {
         // Build radial elements
         arma::mat O0rad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
             [&](size_t iel) { return radial.radial_integral(0, iel); }));
@@ -540,7 +540,7 @@ namespace helfem {
           }
         }
 
-        return remove_boundaries(V);
+        return helfem::to_eigen(remove_boundaries(V));
       }
 
       size_t TwoDBasis::mem_1el() const {

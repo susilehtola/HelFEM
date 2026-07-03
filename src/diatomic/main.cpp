@@ -219,10 +219,10 @@ int main(int argc, char **argv) {
   //   nucquad = (Z1 + Z2) * Rhalf^2
   //   Enucfield = -Ez * nucdip - Qzz * nucquad / 3
   // Vel/Vmag are the electron-side matrix contributions folded into H0.
-  const arma::mat dip  = basis.dipole_z();
-  const arma::mat quad = basis.quadrupole_zz();
+  const arma::mat dip  = helfem::to_arma(basis.dipole_z());
+  const arma::mat quad = helfem::to_arma(basis.quadrupole_zz());
   const arma::mat Vel  = Ez * dip + Qzz * quad / 3.0;
-  const arma::mat Vmag = basis.Bz_field(Bz);
+  const arma::mat Vmag = helfem::to_arma(basis.Bz_field(Bz));
   const double nucdip  = (Z2 - Z1) * Rhalf;
   const double nucquad = (Z1 + Z2) * Rhalf * Rhalf;
   const double Enucfield = -Ez * nucdip - Qzz * nucquad / 3.0;

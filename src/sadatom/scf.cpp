@@ -58,9 +58,8 @@ namespace helfem {
 
         helfem::Matrix Vconf = helfem::Matrix::Zero(basis.Nbf(), basis.Nbf());
         if (opts.iconf) {
-          Vconf = helfem::to_eigen(basis.confinement(
-              opts.conf_N, opts.conf_R, opts.iconf,
-              opts.conf_barrier, opts.shift_conf));
+          Vconf = basis.confinement(opts.conf_N, opts.conf_R, opts.iconf,
+                                     opts.conf_barrier, opts.shift_conf);
         }
         const bool have_conf = (opts.iconf != 0);
 

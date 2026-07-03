@@ -166,19 +166,19 @@ namespace helfem {
         /// Form nuclear attraction matrix
         helfem::Matrix nuclear() const;
 	/// Form confinement potential matrix
-	arma::mat confinement(const int N, const double r_0, const int iconf, const double V, const double shift_pot) const;
+	helfem::Matrix confinement(const int N, const double r_0, const int iconf, const double V, const double shift_pot) const;
 	/// Form model potential matrix
 	arma::mat model_potential(const modelpotential::ModelPotential * model) const;
         /// Form dipole coupling matrix
-        arma::mat dipole_z() const;
+        helfem::Matrix dipole_z() const;
         /// Form quadrupole coupling matrix
-        arma::mat quadrupole_zz() const;
+        helfem::Matrix quadrupole_zz() const;
 
         /// Compute overlap matrix
         arma::mat overlap(const TwoDBasis & rh) const;
 
         /// Coupling to magnetic field in z direction
-        arma::mat Bz_field(double B) const;
+        helfem::Matrix Bz_field(double B) const;
 
         /// Form density matrix
         arma::mat form_density(const arma::mat & C, size_t nocc) const;
