@@ -128,10 +128,10 @@ int main(int argc, char **argv) {
   Timer timer;
 
   // Form overlap matrix
-  arma::mat S(basis.overlap());
+  arma::mat S(helfem::to_arma(basis.overlap()));
   chkpt.write("S",S);
   // Form kinetic energy matrix
-  arma::mat T(basis.kinetic());
+  arma::mat T(helfem::to_arma(basis.kinetic()));
   chkpt.write("T",T);
 
   // Get half-inverse
@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
 
   // Form nuclear attraction energy matrix
   Timer tnuc;
-  arma::mat Vnuc=basis.nuclear();
+  arma::mat Vnuc=helfem::to_arma(basis.nuclear());
   chkpt.write("Vnuc",Vnuc);
 
   // Form Hamiltonian

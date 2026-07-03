@@ -226,13 +226,13 @@ namespace helfem {
         /// Form half-inverse overlap matrix
         arma::mat Sinvh(bool chol, int sym) const;
         /// Form radial integral
-        arma::mat radial_integral(int n) const;
+        helfem::Matrix radial_integral(int n) const;
         /// Form overlap matrix
-        arma::mat overlap() const;
+        helfem::Matrix overlap() const;
         /// Form kinetic energy matrix
-        arma::mat kinetic() const;
+        helfem::Matrix kinetic() const;
         /// Form nuclear attraction matrix
-        arma::mat nuclear() const;
+        helfem::Matrix nuclear() const;
         /// Form dipole coupling matrix
         helfem::Matrix dipole_z() const;
         /// Form dipole coupling matrix

@@ -15,6 +15,7 @@
 
 #include "../general/cmdline.h"
 #include "../general/checkpoint.h"
+#include <ArmaEigen.h>
 #include "../general/constants.h"
 #include "../general/spherical_harmonics.h"
 #include "../general/timer.h"
@@ -129,7 +130,7 @@ int main(int argc, char **argv) {
   if(nelb>0)
     Sb.zeros(nelb,nelb);
 
-  arma::mat T(basis.kinetic());
+  arma::mat T(helfem::to_arma(basis.kinetic()));
   arma::mat STCa = Sinv*T*Ca;
   arma::mat STCb = Sinv*T*Cb;
 
