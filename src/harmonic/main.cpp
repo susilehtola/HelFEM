@@ -16,12 +16,12 @@
 #include "PolynomialBasis.h"
 #include "FiniteElementBasis.h"
 #include "Matrix.h"
+#include "../general/eigen_io.h"
 #include <lib1dfem/chebyshev.h>
 #include <Eigen/Eigenvalues>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include <fstream>
 #include <memory>
 
 using namespace helfem;
@@ -42,22 +42,6 @@ namespace {
   helfem::Matrix kinetic(const polynomial_basis::FiniteElementBasis & fem,
                          const helfem::Vector & x, const helfem::Vector & wx) {
     return fem.matrix_element(true, true, x, wx, nullptr);
-  }
-
-  void write_raw_ascii(const std::string & path, const helfem::Vector & v) {
-    std::ofstream out(path);
-    for (Eigen::Index i = 0; i < v.size(); ++i)
-      out << v(i) << "\n";
-  }
-  void write_raw_ascii(const std::string & path, const helfem::Matrix & m) {
-    std::ofstream out(path);
-    for (Eigen::Index i = 0; i < m.rows(); ++i) {
-      for (Eigen::Index j = 0; j < m.cols(); ++j) {
-        if (j) out << " ";
-        out << m(i, j);
-      }
-      out << "\n";
-    }
   }
 }
 
@@ -93,9 +77,9 @@ int main(int argc, char **argv) {
   poly->eval_dnf(xq, bf,  0, 1.0);
   poly->eval_dnf(xq, dbf, 1, 1.0);
 
-  write_raw_ascii("x.dat",  xq);
-  write_raw_ascii("bf.dat", bf);
-  write_raw_ascii("dbf.dat", dbf);
+  io::write_raw_ascii("x.dat",  xq);
+  io::write_raw_ascii("bf.dat", bf);
+  io::write_raw_ascii("dbf.dat", dbf);
 
   const size_t Nbf = fem.get_nbf();
   printf("Basis set contains %i functions\n", (int) Nbf);

@@ -16,41 +16,15 @@
 #include "PolynomialBasis.h"
 #include "LIPBasis.h"
 #include "Matrix.h"
+#include "../general/eigen_io.h"
 #include <lib1dfem/chebyshev.h>
 #include <lib1dfem/lobatto.h>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <fstream>
 #include <memory>
 
 using namespace helfem;
-
-namespace {
-  void write_raw_ascii(const std::string & path, const helfem::Vector & v) {
-    std::ofstream out(path);
-    for (Eigen::Index i = 0; i < v.size(); ++i)
-      out << v(i) << "\n";
-  }
-  void write_raw_ascii(const std::string & path, const helfem::Matrix & m) {
-    std::ofstream out(path);
-    for (Eigen::Index i = 0; i < m.rows(); ++i) {
-      for (Eigen::Index j = 0; j < m.cols(); ++j) {
-        if (j) out << " ";
-        out << m(i, j);
-      }
-      out << "\n";
-    }
-  }
-  void print_matrix(const std::string & name, const helfem::Matrix & m) {
-    printf("%s\n", name.c_str());
-    for (Eigen::Index i = 0; i < m.rows(); ++i) {
-      for (Eigen::Index j = 0; j < m.cols(); ++j)
-        printf(" %8.4f", m(i, j));
-      printf("\n");
-    }
-  }
-}
 
 void run(double R, int n_quad) {
   // Basis functions on [0, R]: x/R, (R-x)/R.
@@ -83,9 +57,9 @@ void run(double R, int n_quad) {
     teiishould(i, 3) = (ri * ri) / (3.0 * R2);
   }
 
-  write_raw_ascii("r.dat",     r);
-  write_raw_ascii("teii_q.dat", teiinner);
-  write_raw_ascii("teii.dat",   teiishould);
+  io::write_raw_ascii("r.dat",     r);
+  io::write_raw_ascii("teii_q.dat", teiinner);
+  io::write_raw_ascii("teii.dat",   teiishould);
 
   const helfem::Matrix teiidiff = teiishould - teiinner;
   printf("Error in inner integral is %e\n", teiidiff.norm());
@@ -123,9 +97,9 @@ void run(double R, int n_quad) {
   tei(3, 3) = 1.0 / 15.0;
   tei = 4.0 * M_PI * (tei + tei.transpose().eval()) * R;
 
-  print_matrix("Analytical", tei);
-  print_matrix("Quadrature", teiq);
-  print_matrix("Difference", helfem::Matrix(teiq - tei));
+  io::print_matrix("Analytical", tei);
+  io::print_matrix("Quadrature", teiq);
+  io::print_matrix("Difference", helfem::Matrix(teiq - tei));
 }
 
 int main(int argc, char **argv) {
