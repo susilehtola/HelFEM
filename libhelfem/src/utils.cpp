@@ -18,67 +18,18 @@
 #include <Eigen/Eigenvalues>
 #include <Eigen/LU>
 #include <cmath>
-#include <cstring>
 
 namespace helfem {
   namespace utils {
-    // v2 refactor (Phase 1): the pure-math helpers (arcosh, arsinh,
-    // bessel_il, bessel_kl) now live in lib1dfem and are templated on the
-    // scalar type. The functions below are thin double-only compatibility
-    // shims that forward to the templated implementations.
-
+    // Scalar-only wrappers around the templated lib1dfem math helpers.
     double arcosh(double x) {
       return helfem::lib1dfem::math::arcosh<double>(x);
     }
-
-    // Phase 5.1: lib1dfem math helpers are Eigen-typed. The arma::vec
-    // shims convert one direction at the boundary.
-    arma::vec arcosh(const arma::vec & x) {
-      Eigen::Matrix<double, Eigen::Dynamic, 1> xe(x.n_elem);
-      std::memcpy(xe.data(), x.memptr(), sizeof(double) * x.n_elem);
-      auto ye = helfem::lib1dfem::math::arcosh<double>(xe);
-      arma::vec y(ye.size());
-      std::memcpy(y.memptr(), ye.data(), sizeof(double) * (size_t) ye.size());
-      return y;
-    }
-
-    double arsinh(double x) {
-      return helfem::lib1dfem::math::arsinh<double>(x);
-    }
-
-    arma::vec arsinh(const arma::vec & x) {
-      Eigen::Matrix<double, Eigen::Dynamic, 1> xe(x.n_elem);
-      std::memcpy(xe.data(), x.memptr(), sizeof(double) * x.n_elem);
-      auto ye = helfem::lib1dfem::math::arsinh<double>(xe);
-      arma::vec y(ye.size());
-      std::memcpy(y.memptr(), ye.data(), sizeof(double) * (size_t) ye.size());
-      return y;
-    }
-
     double bessel_il(double r, int L) {
       return helfem::lib1dfem::math::bessel_il<double>(r, L);
     }
-
-    arma::vec bessel_il(const arma::vec & r, int L) {
-      Eigen::Matrix<double, Eigen::Dynamic, 1> re(r.n_elem);
-      std::memcpy(re.data(), r.memptr(), sizeof(double) * r.n_elem);
-      auto ye = helfem::lib1dfem::math::bessel_il<double>(re, L);
-      arma::vec y(ye.size());
-      std::memcpy(y.memptr(), ye.data(), sizeof(double) * (size_t) ye.size());
-      return y;
-    }
-
     double bessel_kl(double r, int L) {
       return helfem::lib1dfem::math::bessel_kl<double>(r, L);
-    }
-
-    arma::vec bessel_kl(const arma::vec & r, int L) {
-      Eigen::Matrix<double, Eigen::Dynamic, 1> re(r.n_elem);
-      std::memcpy(re.data(), r.memptr(), sizeof(double) * r.n_elem);
-      auto ye = helfem::lib1dfem::math::bessel_kl<double>(re, L);
-      arma::vec y(ye.size());
-      std::memcpy(y.memptr(), ye.data(), sizeof(double) * (size_t) ye.size());
-      return y;
     }
 
     arma::mat product_tei(const arma::mat & ijint, const arma::mat & klint) {
