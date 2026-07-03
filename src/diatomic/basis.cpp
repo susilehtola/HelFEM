@@ -581,7 +581,7 @@ namespace helfem {
 
       arma::mat TwoDBasis::Shalf(bool chol, int sym) const {
         // Form overlap matrix
-        arma::mat S(overlap());
+        arma::mat S(helfem::to_arma(overlap()));
 
         // Get the basis function norms
         arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
@@ -623,7 +623,7 @@ namespace helfem {
 
       arma::mat TwoDBasis::Sinvh(bool chol, int sym) const {
         // Form overlap matrix
-        arma::mat S(overlap());
+        arma::mat S(helfem::to_arma(overlap()));
 
         // Half-inverse is
         if(sym==0) {
@@ -660,7 +660,7 @@ namespace helfem {
         return M.submat(iang*radial.Nbf(),jang*radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*radial.Nbf()-1);
       }
 
-      arma::mat TwoDBasis::radial_integral(int Rexp) const {
+      helfem::Matrix TwoDBasis::radial_integral(int Rexp) const {
         // Full overlap matrix
         arma::mat O(Ndummy(),Ndummy());
         O.zeros();
@@ -668,10 +668,10 @@ namespace helfem {
         (void) Rexp;
         throw std::logic_error("not implemented.!\n");
 
-        return remove_boundaries(O);
+        return helfem::to_eigen(remove_boundaries(O));
       }
 
-      arma::mat TwoDBasis::overlap() const {
+      helfem::Matrix TwoDBasis::overlap() const {
         // Build radial matrix elements
         arma::mat I10(radial.radial_integral(1,0));
         arma::mat I12(radial.radial_integral(1,2));
@@ -704,7 +704,7 @@ namespace helfem {
         // Plug in prefactor
         S*=std::pow(Rhalf,3);
 
-        return remove_boundaries(S);
+        return helfem::to_eigen(remove_boundaries(S));
       }
 
       arma::mat TwoDBasis::overlap(const TwoDBasis & rh) const {
@@ -746,7 +746,7 @@ namespace helfem {
         return S;
       }
 
-      arma::mat TwoDBasis::kinetic() const {
+      helfem::Matrix TwoDBasis::kinetic() const {
         // Build radial kinetic energy matrix
         arma::mat Trad(radial.kinetic());
         arma::mat Ip1(radial.radial_integral(1,0));
@@ -771,10 +771,10 @@ namespace helfem {
         // Plug in prefactor
         T*=Rhalf/2.0;
 
-        return remove_boundaries(T);
+        return helfem::to_eigen(remove_boundaries(T));
       }
 
-      arma::mat TwoDBasis::nuclear() const {
+      helfem::Matrix TwoDBasis::nuclear() const {
         // Build radial matrices
         arma::mat I10(radial.radial_integral(1,0));
         arma::mat I11(radial.radial_integral(1,1));
@@ -810,7 +810,7 @@ namespace helfem {
         // Plug in prefactor
         V*=-std::pow(Rhalf,2);
 
-        return remove_boundaries(V);
+        return helfem::to_eigen(remove_boundaries(V));
       }
 
       helfem::Matrix TwoDBasis::dipole_z() const {

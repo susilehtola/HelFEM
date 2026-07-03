@@ -44,16 +44,16 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
   std::vector<arma::uvec> dsym=basis.get_sym_idx(symm);
 
   // Form overlap matrix
-  arma::mat S(basis.overlap());
+  arma::mat S(helfem::to_arma(basis.overlap()));
   // Form kinetic energy matrix
-  arma::mat T(basis.kinetic());
+  arma::mat T(helfem::to_arma(basis.kinetic()));
   // Get half-inverse
   arma::mat Sinvh(basis.Sinvh(!diag,symm));
   // Form nuclear attraction energy matrix
   arma::mat Vnuc;
 
   if(imodel==0) {
-    Vnuc=basis.nuclear();
+    Vnuc=helfem::to_arma(basis.nuclear());
   } else {
     modelpotential::ModelPotential * p1, * p2;
     if(imodel == 1) {

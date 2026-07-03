@@ -208,9 +208,9 @@ int main(int argc, char **argv) {
           restricted ? "restricted" : "unrestricted", symm, nela, nelb);
 
   // Diatomic chemistry-layer methods are still arma-native.
-  const arma::mat S    = basis.overlap();
-  const arma::mat T    = basis.kinetic();
-  const arma::mat Vnuc = basis.nuclear();
+  const arma::mat S    = helfem::to_arma(basis.overlap());
+  const arma::mat T    = helfem::to_arma(basis.kinetic());
+  const arma::mat Vnuc = helfem::to_arma(basis.nuclear());
 
   // External static-field one-electron matrices. Diatomic has two
   // nuclei at (0, 0, +/- Rhalf); nuclear dipole/quadrupole moments are
