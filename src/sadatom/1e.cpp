@@ -20,6 +20,10 @@
 #include "../general/scf_helpers.h"
 #include "utils.h"
 #include "dftgrid.h"
+#include "../atomic/basis.h"
+#include "Matrix.h"
+#include "ArmaEigen.h"
+#include <Eigen/Eigenvalues>
 #include <cfloat>
 
 using namespace helfem;
@@ -87,85 +91,69 @@ int main(int argc, char **argv) {
   // Order of quadrature rule
   printf("Using %i point quadrature rule.\n",Nquad);
 
-  // Radial basis
-  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0);
+  // Radial basis. atomic::basis::form_grid still returns arma::vec;
+  // bridge once at the FiniteElementBasis constructor.
+  const arma::vec bval = atomic::basis::form_grid(
+      (modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax,
+      igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0);
 
-  // Construct radial basis
-  bool zero_func_left=true;
-  bool zero_deriv_left=false;
-  bool zero_func_right=true;
-  polynomial_basis::FiniteElementBasis fem(poly, helfem::to_eigen(bval), zero_func_left, zero_deriv_left, zero_func_right, zeroder);
+  const bool zero_func_left  = true;
+  const bool zero_deriv_left = false;
+  const bool zero_func_right = true;
+  polynomial_basis::FiniteElementBasis fem(poly, helfem::to_eigen(bval),
+      zero_func_left, zero_deriv_left, zero_func_right, zeroder);
   atomic::basis::FEMRadialBasis radial(fem, Nquad);
 
-  // Compute matrices. Phase 2a: radial.overlap() returns
-  // helfem::Matrix (Eigen); rest of sadatom 1e is still arma -- bridge
-  // at the boundary via to_arma until the chemistry layer migrates.
-  arma::mat S(helfem::to_arma(radial.overlap()));
-  arma::mat Sinvh=helfem::to_arma(scf::form_Sinvh(helfem::to_eigen(S),false));
+  // FE-side matrices are already helfem::Matrix; no arma bridge needed.
+  const helfem::Matrix S     = radial.overlap();
+  const helfem::Matrix Sinvh = scf::form_Sinvh(S, /*chol=*/false);
+  const helfem::Matrix T     = radial.kinetic();
+  const helfem::Matrix Tl    = radial.kinetic_l();
+  const helfem::Matrix V     = radial.nuclear();
 
-  // Phase 2a: radial.kinetic / kinetic_l / nuclear return helfem::Matrix.
-  arma::mat T(helfem::to_arma(radial.kinetic()));
-  arma::mat Tl(helfem::to_arma(radial.kinetic_l()));
-  arma::mat V(helfem::to_arma(radial.nuclear()));
+  for (int l = 0; l <= lmax; ++l) {
+    const helfem::Matrix H0 =
+        Sinvh.transpose() * (T + Z * V + l * (l + 1) * Tl) * Sinvh;
+    Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(H0);
+    const helfem::Vector E = es.eigenvalues();
+    helfem::Matrix C = Sinvh * es.eigenvectors();
 
-  // Compute orbitals
-  for(int l=0;l<=lmax;l++) {
-    arma::mat H0 = Sinvh.t() * (T+Z*V+l*(l+1)*Tl) * Sinvh;
-    arma::vec E;
-    arma::mat C;
-    arma::eig_sym(E,C,H0);
-    C = Sinvh*C;
+    printf("l=%i eigenvalues\n", l);
+    for (Eigen::Index i = 0; i < E.size(); ++i)
+      printf("  %.15e\n", E(i));
+
+    // Evaluate orbitals on the quadrature grid.
+    const Eigen::Index Ncols = C.cols();
+    const Eigen::Index Npts  = radial.get_bf(0).rows();
+    helfem::Matrix Cv = helfem::Matrix::Zero(radial.Nel() * Npts, Ncols);
+    for (size_t iel = 0; iel < radial.Nel(); ++iel) {
+      size_t ifirst, ilast;
+      radial.get_idx(iel, ifirst, ilast);
+      const helfem::Matrix Csub = C.middleRows(ifirst, ilast - ifirst + 1);
+      const helfem::Matrix bf   = radial.get_bf(iel);
+      Cv.middleRows(iel * Npts, Npts) = bf * Csub;
+    }
 
     std::ostringstream oss;
-    oss << "l=" << l << " eigenvalues";
-    E.print(oss.str());
-
-    // Evaluate orbitals on grid
-    std::vector<arma::mat> c(radial.Nel());
-    for(size_t iel=0;iel<radial.Nel();iel++) {
-      // Radial functions in element
-      size_t ifirst, ilast;
-      radial.get_idx(iel,ifirst,ilast);
-      // Density matrix
-      arma::mat Csub(C.rows(ifirst,ilast));
-      arma::mat bf(helfem::to_arma(radial.get_bf(iel)));
-
-      c[iel]=bf*Csub;
-    }
-    size_t Npts=c[0].n_rows;
-
-    // Orbital values
-    arma::mat Cv(radial.Nel()*Npts,C.n_cols,arma::fill::zeros);
-    for(size_t iel=0;iel<radial.Nel();iel++) {
-      Cv.rows(iel*Npts,(iel+1)*Npts-1)=c[iel];
-    }
-
-    oss.str("");
     oss << "orbs_" << l;
-    chkpt.write(oss.str(), Cv);
+    chkpt.write(oss.str(), helfem::to_arma(Cv));
     oss.str("");
     oss << "E_" << l;
-    chkpt.write(oss.str(), E);
+    chkpt.write(oss.str(), helfem::to_arma(E));
   }
 
-  // Get the radii and quadrature weights as well
-  std::vector<arma::vec> r(radial.Nel()), wr(radial.Nel());
-  for(size_t iel=0;iel<radial.Nel();iel++) {
-    r[iel]=helfem::to_arma(radial.get_r(iel));
-    wr[iel]=helfem::to_arma(radial.get_wrad(iel));
-  }
-  size_t Npts=r[0].n_rows;
-
-  // Value of radii and weights
-  arma::vec radii(radial.Nel()*Npts,arma::fill::zeros);
-  arma::vec weights(radial.Nel()*Npts,arma::fill::zeros);
-  for(size_t iel=0;iel<radial.Nel();iel++) {
-    radii.subvec(iel*Npts,(iel+1)*Npts-1)=r[iel];
-    weights.subvec(iel*Npts,(iel+1)*Npts-1)=wr[iel];
+  // Concatenate per-element radii and quadrature weights into flat
+  // vectors and write them to the checkpoint.
+  const Eigen::Index Npts = radial.get_r(0).size();
+  helfem::Vector radii   = helfem::Vector::Zero(radial.Nel() * Npts);
+  helfem::Vector weights = helfem::Vector::Zero(radial.Nel() * Npts);
+  for (size_t iel = 0; iel < radial.Nel(); ++iel) {
+    radii  .segment(iel * Npts, Npts) = radial.get_r   (iel);
+    weights.segment(iel * Npts, Npts) = radial.get_wrad(iel);
   }
 
-  chkpt.write("r",radii);
-  chkpt.write("wr",weights);
+  chkpt.write("r",  helfem::to_arma(radii));
+  chkpt.write("wr", helfem::to_arma(weights));
 
   return 0;
 }

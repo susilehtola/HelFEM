@@ -18,15 +18,18 @@
 #include "../general/timer.h"
 #include "utils.h"
 #include "basis.h"
+#include "Matrix.h"
+#include "ArmaEigen.h"
 #include <cfloat>
 #include <climits>
+#include <complex>
+#include <fstream>
 
 using namespace helfem;
 
 int main(int argc, char **argv) {
   cmdline::parser parser;
 
-  // full option name, no short option, description, argument required
   parser.add<std::string>("load", 0, "load guess from checkpoint", false, "");
   parser.add<double>("x", 0, "value of x", false, 0.0);
   parser.add<double>("y", 0, "value of y", false, 0.0);
@@ -36,71 +39,69 @@ int main(int argc, char **argv) {
   parser.add<std::string>("savedens", 0, "save density to file", false, "density.dat");
   parser.parse_check(argc, argv);
 
-  // Get parameters
-  std::string load(parser.get<std::string>("load"));
-  double x(parser.get<double>("x"));
-  double y(parser.get<double>("y"));
-  double zmin(parser.get<double>("zmin"));
-  double zmax(parser.get<double>("zmax"));
-  std::string savedens(parser.get<std::string>("savedens"));
-  int Nz(parser.get<int>("Nz"));
-  
-  // Load checkpoint
-  Checkpoint loadchk(load,false);
-  // Basis set
+  const std::string load = parser.get<std::string>("load");
+  const double x         = parser.get<double>("x");
+  const double y         = parser.get<double>("y");
+  const double zmin      = parser.get<double>("zmin");
+  const double zmax      = parser.get<double>("zmax");
+  const std::string savedens = parser.get<std::string>("savedens");
+  const int Nz           = parser.get<int>("Nz");
+
+  // Load checkpoint. Basis + density matrices are still arma-typed on
+  // the diatomic side; bridge to Eigen at the read boundary.
+  Checkpoint loadchk(load, false);
   diatomic::basis::TwoDBasis basis;
   loadchk.read(basis);
-  // Density matrix
-  arma::mat Pa, Pb;
-  loadchk.read("Pa",Pa);
-  loadchk.read("Pb",Pb);
-  // Rhalf
+  arma::mat Pa_a, Pb_a;
+  loadchk.read("Pa", Pa_a);
+  loadchk.read("Pb", Pb_a);
+  const helfem::Matrix Pa = helfem::to_eigen(Pa_a);
+  const helfem::Matrix Pb = helfem::to_eigen(Pb_a);
   double Rhalf;
-  loadchk.read("Rhalf",Rhalf);
+  loadchk.read("Rhalf", Rhalf);
 
-  const arma::vec z(arma::linspace<arma::vec>(zmin,zmax,Nz));
-  
-  // Solve for phi angle
-  const double phi(atan2(y,x));
-  const double xysq(x*x+y*y);
+  const helfem::Vector z = helfem::Vector::LinSpaced(Nz, zmin, zmax);
 
-  // Densities
-  arma::mat den(Nz,4);
-  den.zeros();
-  for(size_t iz=0;iz<z.n_elem;iz++) {
-    // Compute distances of point from the two nuclei
-    double ra(sqrt(std::pow(z(iz)+Rhalf,2)+xysq));
-    double rb(sqrt(std::pow(z(iz)-Rhalf,2)+xysq));
+  const double phi  = std::atan2(y, x);
+  const double xysq = x * x + y * y;
 
-    // xi and eta are
-    double xi((ra+rb)/(2*Rhalf));
-    double eta((ra-rb)/(2*Rhalf));
-
-    // Sanity check
-    if(eta<-1.0)
-      eta=-1.0;
-    if(eta>1.0)
-      eta=1.0;
-
-    // so mu is
-    double mu(utils::arcosh(xi));
-
-    // Check range: is mu outside of basis set?
-    if(mu>basis.get_mumax())
+  // Density on the line (z col + alpha col + beta col + total col).
+  helfem::Matrix den = helfem::Matrix::Zero(Nz, 4);
+  for (Eigen::Index iz = 0; iz < z.size(); ++iz) {
+    const double zi = z(iz);
+    const double ra = std::sqrt(std::pow(zi + Rhalf, 2) + xysq);
+    const double rb = std::sqrt(std::pow(zi - Rhalf, 2) + xysq);
+    const double xi = (ra + rb) / (2.0 * Rhalf);
+    double eta      = (ra - rb) / (2.0 * Rhalf);
+    if (eta < -1.0) eta = -1.0;
+    if (eta >  1.0) eta =  1.0;
+    const double mu = utils::arcosh(xi);
+    if (mu > basis.get_mumax()) {
+      den(iz, 0) = zi;
       continue;
-
-    // Evaluate basis functions
-    arma::cx_vec bf(basis.eval_bf(mu, eta, phi));
-
-    // Evaluate density at the point
-    den(iz,0)=z(iz);
-    den(iz,1)=std::real(arma::as_scalar(bf.t()*Pa*bf));
-    den(iz,2)=std::real(arma::as_scalar(bf.t()*Pb*bf));
-    den(iz,3)=den(iz,1)+den(iz,2);
+    }
+    // basis.eval_bf returns arma::cx_vec; bridge to Eigen VectorXcd.
+    const arma::cx_vec bf_a = basis.eval_bf(mu, eta, phi);
+    Eigen::VectorXcd bf(bf_a.n_elem);
+    for (arma::uword i = 0; i < bf_a.n_elem; ++i) bf(i) = bf_a(i);
+    // rho_spin = Re(bf^* . P . bf) with P symmetric real.
+    const double rhoa = (bf.adjoint() * Pa * bf).real().value();
+    const double rhob = (bf.adjoint() * Pb * bf).real().value();
+    den(iz, 0) = zi;
+    den(iz, 1) = rhoa;
+    den(iz, 2) = rhob;
+    den(iz, 3) = rhoa + rhob;
   }
 
-  printf("Saving density to file %s\n",savedens.c_str());
-  den.save(savedens,arma::raw_ascii);
+  printf("Saving density to file %s\n", savedens.c_str());
+  std::ofstream out(savedens);
+  for (Eigen::Index i = 0; i < den.rows(); ++i) {
+    for (Eigen::Index j = 0; j < den.cols(); ++j) {
+      if (j) out << " ";
+      out << den(i, j);
+    }
+    out << "\n";
+  }
 
   return 0;
 }
