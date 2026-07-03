@@ -93,6 +93,12 @@ int main(int argc, char **argv) {
   // Fock symmetry averaging over m values (parity with bespoke atomic).
   parser.add<bool>("maverage", 0, "average Fock matrix over m values", false, false);
 
+  // Frozen per-block occupations read from occs.dat (parity with bespoke
+  // atomic's --readocc, but as a bool since OOO's fixed-per-block
+  // occupation API applies for the whole SCF, not for the first N
+  // Fock builds only).
+  parser.add<bool>("readocc", 0, "read frozen per-block occupations from occs.dat", false, false);
+
   parser.parse_check(argc, argv);
 
   const int    Z          = get_Z(parser.get<std::string>("Z"));
@@ -134,6 +140,7 @@ int main(int argc, char **argv) {
   const double shift_conf   = parser.get<double>("shift_conf");
   const bool   add_conf     = parser.get<bool>("add_conf");
   const bool   maverage     = parser.get<bool>("maverage");
+  const bool   readocc      = parser.get<bool>("readocc");
 
   // Derive nela/nelb from Q, M -- same convention as the bespoke atomic
   // driver, so --M is the natural way to specify open-shell states.
@@ -502,6 +509,70 @@ int main(int argc, char **argv) {
   OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(
       number_of_blocks_per_particle_type, maximum_occupation,
       number_of_particles, fock_builder, block_descriptions);
+
+  // --readocc: parse occs.dat and hand OOO a fixed per-block particle
+  // count, bypassing Aufbau for the whole SCF. Bespoke atomic reads
+  // three columns (nocca, noccb, m) under symm=1 and four columns
+  // (nocca, noccb, l, m) under symm=2 (symm=0 is not supported since
+  // there is no per-block index to key on).
+  //
+  // Semantic difference from bespoke: this is a bool -- OOO's
+  // fixed_number_of_particles_per_block API cannot be released
+  // mid-SCF, so we freeze for the entire run instead of the first N
+  // Fock builds only. In practice readocc is nearly always used to
+  // pin a specific configuration for the whole SCF so this matches
+  // the common case exactly.
+  if (readocc) {
+    if (symm_eff == 0)
+      throw std::logic_error("--readocc requires --symmetry=1 or 2 (need per-block index).");
+    arma::imat occs;
+    occs.load("occs.dat", arma::raw_ascii);
+    if (symm_eff == 1 && occs.n_cols != 3)
+      throw std::logic_error("occs.dat: expected 3 columns (nocca, noccb, m) for symmetry=1.");
+    if (symm_eff == 2 && occs.n_cols != 4)
+      throw std::logic_error("occs.dat: expected 4 columns (nocca, noccb, l, m) for symmetry=2.");
+
+    // Match each occs row to a dsym block by comparing BF-index sets.
+    // The dsym[k] arrays come from basis.get_sym_idx(symm), so an m-key
+    // row hits basis.m_indices(m) which is exactly one of the dsym entries.
+    Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> fixed_particles =
+        Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1>::Zero(nsym * nparttype);
+    int total_a = 0, total_b = 0;
+    for (arma::uword i = 0; i < occs.n_rows; ++i) {
+      const int nocca_i = static_cast<int>(occs(i, 0));
+      const int noccb_i = static_cast<int>(occs(i, 1));
+      arma::uvec row_idx;
+      if (symm_eff == 1)
+        row_idx = basis.m_indices(occs(i, 2));
+      else
+        row_idx = basis.lm_indices(occs(i, 2), occs(i, 3));
+      if (!row_idx.n_elem)
+        throw std::logic_error("occs.dat: row references a symmetry block with no basis functions.");
+      int matched_block = -1;
+      for (size_t k = 0; k < nsym; ++k) {
+        if (dsym[k].n_elem == row_idx.n_elem &&
+            arma::all(dsym[k] == row_idx)) { matched_block = static_cast<int>(k); break; }
+      }
+      if (matched_block < 0)
+        throw std::logic_error("occs.dat: row does not match any current symmetry block.");
+      total_a += nocca_i;
+      total_b += noccb_i;
+      if (restricted) {
+        if (nocca_i != noccb_i)
+          throw std::logic_error("occs.dat: nocca != noccb on a row is incompatible with restricted mode.");
+        fixed_particles(matched_block) = static_cast<OOO_Real>(nocca_i + noccb_i);
+      } else {
+        fixed_particles(matched_block)         = static_cast<OOO_Real>(nocca_i);
+        fixed_particles(nsym + matched_block)  = static_cast<OOO_Real>(noccb_i);
+      }
+    }
+    if (total_a != nela)
+      throw std::logic_error("occs.dat: sum of nocca does not match --nela.");
+    if (total_b != nelb)
+      throw std::logic_error("occs.dat: sum of noccb does not match --nelb.");
+    scfsolver.fixed_number_of_particles_per_block(fixed_particles);
+  }
+
   scfsolver.initialize_with_fock(CoreH);
   scfsolver.run();
 
