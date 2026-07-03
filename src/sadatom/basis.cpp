@@ -103,15 +103,15 @@ namespace helfem {
             [&](size_t iel) { return radial.radial_integral(-1, iel); });
       }
 
-      arma::mat TwoDBasis::confinement(int N, double r_0, int iconf, double V, double shift_pot) const {
+      helfem::Matrix TwoDBasis::confinement(int N, double r_0, int iconf, double V, double shift_pot) const {
         if (!iconf) {
-          const size_t Nrad = radial.Nbf();
-          return arma::zeros<arma::mat>(Nrad, Nrad);
+          const Eigen::Index Nrad = static_cast<Eigen::Index>(radial.Nbf());
+          return helfem::Matrix::Zero(Nrad, Nrad);
         }
-        return helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+        return helfem::assemble_radial_diagonal(radial,
             [&](size_t iel) {
               return radial.confinement_potential(iel, N, r_0, iconf, V, shift_pot);
-            }));
+            });
       }
 
       arma::mat TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {

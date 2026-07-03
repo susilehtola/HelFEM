@@ -241,12 +241,12 @@ int main(int argc, char **argv) {
   arma::mat Vconf(Nbf, Nbf, arma::fill::zeros);
   if (iconf) {
     printf("Computing confinement potential\n");
-    Vconf = basis.confinement(conf_N, conf_R, iconf, conf_barrier, shift_conf);
+    Vconf = helfem::to_arma(basis.confinement(conf_N, conf_R, iconf, conf_barrier, shift_conf));
   }
-  const arma::mat dip  = basis.dipole_z();
-  const arma::mat quad = basis.quadrupole_zz();
+  const arma::mat dip  = helfem::to_arma(basis.dipole_z());
+  const arma::mat quad = helfem::to_arma(basis.quadrupole_zz());
   const arma::mat Vel  = Ez * dip + Qzz * quad / 3.0;
-  const arma::mat Vmag = basis.Bz_field(Bz);
+  const arma::mat Vmag = helfem::to_arma(basis.Bz_field(Bz));
   const bool have_efield = (Ez != 0.0 || Qzz != 0.0);
   const bool have_bfield = (Bz != 0.0);
   const bool have_conf   = (iconf != 0);

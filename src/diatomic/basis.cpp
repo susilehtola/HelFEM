@@ -813,7 +813,7 @@ namespace helfem {
         return remove_boundaries(V);
       }
 
-      arma::mat TwoDBasis::dipole_z() const {
+      helfem::Matrix TwoDBasis::dipole_z() const {
         // Full electric couplings
         arma::mat V(Ndummy(),Ndummy());
         V.zeros();
@@ -849,10 +849,10 @@ namespace helfem {
         // Plug in prefactors
         V*=std::pow(Rhalf,4);
 
-        return remove_boundaries(V);
+        return helfem::to_eigen(remove_boundaries(V));
       }
 
-      arma::mat TwoDBasis::quadrupole_zz() const {
+      helfem::Matrix TwoDBasis::quadrupole_zz() const {
         // Full electric couplings
         arma::mat V(Ndummy(),Ndummy());
         V.zeros();
@@ -893,10 +893,10 @@ namespace helfem {
         // Plug in prefactors
         V*=std::pow(Rhalf,5)/2;
 
-        return remove_boundaries(V);
+        return helfem::to_eigen(remove_boundaries(V));
       }
 
-      arma::mat TwoDBasis::Bz_field(double B) const {
+      helfem::Matrix TwoDBasis::Bz_field(double B) const {
         // Full couplings
         arma::mat V(Ndummy(),Ndummy());
         V.zeros();
@@ -946,7 +946,7 @@ namespace helfem {
           }
         }
 
-        return remove_boundaries(V);
+        return helfem::to_eigen(remove_boundaries(V));
       }
 
       arma::mat TwoDBasis::radial_moments(const arma::mat & P0) const {

@@ -87,14 +87,14 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
   // Form Hamiltonian
   arma::mat H0(T+Vnuc);
   if(Ez!=0.0)
-    H0+=Ez*basis.dipole_z();
+    H0+=Ez*helfem::to_arma(basis.dipole_z());
   // Quadrupole coupling
   if(Qzz!=0.0)
-    H0+=Qzz*basis.quadrupole_zz()/3.0;
+    H0+=Qzz*helfem::to_arma(basis.quadrupole_zz())/3.0;
   // Magnetic field coupling
   if(Bz!=0.0) {
     printf("Bz=%e\n",Bz);
-    H0+=basis.Bz_field(Bz)-Bz*S/2.0;
+    H0+=helfem::to_arma(basis.Bz_field(Bz))-Bz*S/2.0;
   }
   // Use core guess
   arma::vec Ev;
