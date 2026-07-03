@@ -38,18 +38,15 @@ target_include_directories(helfem-common
 )
 target_compile_features(helfem-common PUBLIC cxx_std_17)
 
+# Sadatom driver -- the OpenOrbitalOptimizer-based implementation
+# replaces the bespoke SCF loop that used to live here (retired in
+# favour of feature-complete OOO parity).
 add_executable(gensap sadatom/main.cpp)
 target_link_libraries(gensap helfem-common legendre)
-
-# Sadatom driver using OpenOrbitalOptimizer for SCF convergence.
-# Proves OOO integration on the smallest of the three SCF-driver
-# suites; the atomic / diatomic OOO variants follow the same pattern.
-add_executable(sadatom_ooo sadatom/ooo.cpp)
-target_link_libraries(sadatom_ooo helfem-common legendre)
 if(TARGET OpenOrbitalOptimizer::OpenOrbitalOptimizer)
-    target_link_libraries(sadatom_ooo OpenOrbitalOptimizer::OpenOrbitalOptimizer)
+    target_link_libraries(gensap OpenOrbitalOptimizer::OpenOrbitalOptimizer)
 elseif(TARGET openorbitaloptimizer)
-    target_link_libraries(sadatom_ooo openorbitaloptimizer)
+    target_link_libraries(gensap openorbitaloptimizer)
 endif()
 
 add_executable(1e_atom sadatom/1e.cpp)
@@ -99,34 +96,25 @@ target_link_libraries(harmonic helfem-common legendre)
 add_executable(softcoulomb harmonic/softcoulomb.cpp)
 target_link_libraries(softcoulomb helfem-common legendre)
 
+# Atomic driver -- OpenOrbitalOptimizer-based (bespoke SCF retired).
 add_executable(atomic atomic/main.cpp)
 target_link_libraries(atomic helfem-common legendre)
-
-# Atomic driver using OpenOrbitalOptimizer for SCF convergence.
-# Same OOO pattern as sadatom_ooo, extended to the full 2D angular +
-# radial basis. DFT only in this first cut.
-add_executable(atomic_ooo atomic/ooo.cpp)
-target_link_libraries(atomic_ooo helfem-common legendre)
 if(TARGET OpenOrbitalOptimizer::OpenOrbitalOptimizer)
-    target_link_libraries(atomic_ooo OpenOrbitalOptimizer::OpenOrbitalOptimizer)
+    target_link_libraries(atomic OpenOrbitalOptimizer::OpenOrbitalOptimizer)
 elseif(TARGET openorbitaloptimizer)
-    target_link_libraries(atomic_ooo openorbitaloptimizer)
+    target_link_libraries(atomic openorbitaloptimizer)
 endif()
 
 add_executable(atomic_itest atomic/inttest.cpp)
 target_link_libraries(atomic_itest helfem-common legendre)
 
+# Diatomic driver -- OpenOrbitalOptimizer-based (bespoke SCF retired).
 add_executable(diatomic diatomic/main.cpp)
 target_link_libraries(diatomic helfem-common legendre)
-
-# Diatomic driver using OpenOrbitalOptimizer for SCF convergence.
-# Completes the OOO trio (sadatom_ooo / atomic_ooo / diatomic_ooo).
-add_executable(diatomic_ooo diatomic/ooo.cpp)
-target_link_libraries(diatomic_ooo helfem-common legendre)
 if(TARGET OpenOrbitalOptimizer::OpenOrbitalOptimizer)
-    target_link_libraries(diatomic_ooo OpenOrbitalOptimizer::OpenOrbitalOptimizer)
+    target_link_libraries(diatomic OpenOrbitalOptimizer::OpenOrbitalOptimizer)
 elseif(TARGET openorbitaloptimizer)
-    target_link_libraries(diatomic_ooo openorbitaloptimizer)
+    target_link_libraries(diatomic openorbitaloptimizer)
 endif()
 
 add_executable(diatomic_cbasis diatomic/corebasis.cpp)
