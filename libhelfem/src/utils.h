@@ -15,8 +15,8 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <armadillo>
 #include "../include/Matrix.h"
+#include <string>
 
 namespace helfem {
   namespace utils {
@@ -28,17 +28,7 @@ namespace helfem {
     /// Modified Bessel function
     double bessel_kl(double x, int L);
 
-    /// Form two-electron integrals from product of large-r and small-r radial moment matrices
-    arma::mat product_tei(const arma::mat & big, const arma::mat & small);
-
-    /// Check that the two-electron integral has proper symmetry i<->j and k<->l
-    void check_tei_symmetry(const arma::mat & tei, size_t Ni, size_t Nj, size_t Nk, size_t Nl);
-
-    /// Permute indices (ij|kl) -> (jk|il)
-    arma::mat exchange_tei(const arma::mat & tei, size_t Ni, size_t Nj, size_t Nk, size_t Nl);
-    /// Eigen overload of the same permutation (Phase 2c cleanup -- lets
-    /// the libhelfem 2e helpers skip the to_eigen(to_arma(...)) round-
-    /// trip that bridged the old arma-only function).
+    /// Permute indices (ij|kl) -> (jk|il).
     helfem::Matrix exchange_tei(const helfem::Matrix & tei,
                                  size_t Ni, size_t Nj, size_t Nk, size_t Nl);
 
