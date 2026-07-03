@@ -18,7 +18,6 @@
 #include "PolynomialBasis.h"
 #include "FiniteElementBasis.h"
 #include "Matrix.h"
-#include "ArmaEigen.h"
 #include <lib1dfem/chebyshev.h>
 #include <Eigen/Eigenvalues>
 #include <algorithm>
@@ -145,13 +144,12 @@ int main(int argc, char **argv) {
   Sgrid -= helfem::Matrix::Identity(Sgrid.rows(), Sgrid.cols());
   printf("Orbital orthonormality devation on grid is %e\n", Sgrid.norm());
 
-  // Checkpoint I/O is still arma-typed; bridge at the write boundary.
   Checkpoint chkpt(save, true);
-  chkpt.write("bf",     helfem::to_arma(bfval));
-  chkpt.write("C",      helfem::to_arma(C));
-  chkpt.write("phi",    helfem::to_arma(phival));
-  chkpt.write("coords", helfem::to_arma(coords));
-  chkpt.write("weights", helfem::to_arma(weights));
+  chkpt.write("bf",      bfval);
+  chkpt.write("C",       C);
+  chkpt.write("phi",     phival);
+  chkpt.write("coords",  coords);
+  chkpt.write("weights", weights);
 
   return 0;
 }
