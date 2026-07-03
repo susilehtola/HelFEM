@@ -16,8 +16,6 @@
 #define ATOMIC_BASIS_COULOMB_EXCHANGE_FE_H
 
 #include "RadialBasis.h"
-#include "ArmaEigen.h"
-#include <armadillo>
 #include <functional>
 
 namespace helfem {
@@ -26,12 +24,9 @@ namespace helfem {
   // public include path; the symbol is resolved at link time -- callers
   // of these helpers link against libhelfem anyway).
   namespace utils {
-    /// Arma-typed (ij|kl) -> (jk|il) permutation. Used by the diatomic
-    /// prim_ktei build path.
-    arma::mat exchange_tei(const arma::mat & tei, size_t Ni, size_t Nj,
-                            size_t Nk, size_t Nl);
-    /// Eigen overload of the same permutation for helfem::Matrix-typed
-    /// in-element TEIs.
+    /// (ij|kl) -> (jk|il) permutation on the helfem::Matrix-typed
+    /// in-element TEI. Used internally by the assemble_K_FE_one_multipole
+    /// helpers below.
     helfem::Matrix exchange_tei(const helfem::Matrix & tei, size_t Ni, size_t Nj,
                                  size_t Nk, size_t Nl);
   }
