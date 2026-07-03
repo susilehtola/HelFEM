@@ -90,6 +90,9 @@ int main(int argc, char **argv) {
   parser.add<double>("shift_conf",   0, "Where does confinement start?",       false, 0.0);
   parser.add<bool>  ("add_conf",     0, "Add element boundary at shifted confinement radius?", false, true);
 
+  // Fock symmetry averaging over m values (parity with bespoke atomic).
+  parser.add<bool>("maverage", 0, "average Fock matrix over m values", false, false);
+
   parser.parse_check(argc, argv);
 
   const int    Z          = get_Z(parser.get<std::string>("Z"));
@@ -130,6 +133,7 @@ int main(int argc, char **argv) {
   const double conf_barrier = parser.get<double>("conf_barrier");
   const double shift_conf   = parser.get<double>("shift_conf");
   const bool   add_conf     = parser.get<bool>("add_conf");
+  const bool   maverage     = parser.get<bool>("maverage");
 
   // Derive nela/nelb from Q, M -- same convention as the bespoke atomic
   // driver, so --M is the natural way to specify open-shell states.
@@ -239,6 +243,33 @@ int main(int argc, char **argv) {
   const bool have_efield = (Ez != 0.0 || Qzz != 0.0);
   const bool have_bfield = (Bz != 0.0);
   const bool have_conf   = (iconf != 0);
+
+  // l_idx groups AO basis-function index sets by (l, m): the l-th outer
+  // entry contains the BF-index arrays for the m values that are
+  // actually present in the basis (|m| <= min(l, mmax)). The Fock
+  // symmetry-average step below averages each l-block's Fock over that
+  // m subset, enforcing degenerate orbital energies for orbitals of the
+  // same l but different m (a physical symmetry of the atomic
+  // Hamiltonian that finite-precision SCF can drift out of).
+  //
+  // Note: the bespoke atomic driver builds an m = -l..+l range
+  // unconditionally, which crashes fock_symmetry_average when the basis
+  // has mmax < lmax (empty index arrays hit a 0x0 = NxN assignment).
+  // Filtering by lm_indices(l, m).n_elem > 0 keeps parity when
+  // mmax == lmax and degrades gracefully when mmax < lmax (partial
+  // m-average over the represented m subset -- a no-op when only m=0
+  // is present, which is what you want).
+  std::vector<std::vector<arma::uvec>> l_idx;
+  if (maverage) {
+    const arma::ivec l_all = basis.get_l();
+    const int lmax_bf = arma::max(l_all);
+    l_idx.assign(lmax_bf + 1, {});
+    for (int l = 0; l <= lmax_bf; ++l)
+      for (int m = -l; m <= l; ++m) {
+        arma::uvec idx = basis.lm_indices(l, m);
+        if (idx.n_elem) l_idx[l].push_back(idx);
+      }
+  }
 
   // --- Symmetry decomposition. symm==0 collapses to one block containing
   //     all basis functions.
@@ -412,10 +443,16 @@ int main(int argc, char **argv) {
     // their coupling is off so this is unchanged from H0 = T + Vnuc in
     // the no-field case.
     const arma::mat H1 = T + Vnuc + Vel + Vmag + Vconf;
+    // Apply the maverage post-processor once per channel; noop otherwise.
+    auto apply_mavg = [&](arma::mat & F) {
+      if (maverage)
+        F = helfem::to_arma(scf::fock_symmetry_average(helfem::to_eigen(F), l_idx));
+    };
     if (restricted) {
       arma::mat F_ao = H1 + J;
       if (have_xc)  F_ao += XCa;
       if (have_exx) F_ao += Ka;
+      apply_mavg(F_ao);
       for (size_t k = 0; k < nsym; ++k)
         orthonormalize_block(fock, k, F_ao, k);
     } else {
@@ -430,6 +467,8 @@ int main(int argc, char **argv) {
         Fa_ao -= 0.5 * Bz * S;
         Fb_ao += 0.5 * Bz * S;
       }
+      apply_mavg(Fa_ao);
+      apply_mavg(Fb_ao);
       for (size_t k = 0; k < nsym; ++k) {
         orthonormalize_block(fock, k,        Fa_ao, k);
         orthonormalize_block(fock, nsym + k, Fb_ao, k);

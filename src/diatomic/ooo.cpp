@@ -84,6 +84,9 @@ int main(int argc, char **argv) {
   parser.add<double>("Qzz", 0, "electric quadrupole field", false, 0.0);
   parser.add<double>("Bz",  0, "magnetic dipole field",     false, 0.0);
 
+  // Fock symmetry averaging over m values (parity with bespoke diatomic).
+  parser.add<bool>("maverage", 0, "average Fock matrix over m values", false, false);
+
   parser.parse_check(argc, argv);
 
   const int Z1        = get_Z(parser.get<std::string>("Z1"));
@@ -113,6 +116,7 @@ int main(int argc, char **argv) {
   const double Ez     = parser.get<double>("Ez");
   const double Qzz    = parser.get<double>("Qzz");
   const double Bz     = parser.get<double>("Bz");
+  const bool   maverage = parser.get<bool>("maverage");
 
   // Derive nela/nelb from Q, M -- same convention as the bespoke diatomic
   // driver. Total nuclear charge is Z1 + Z2.
@@ -218,6 +222,22 @@ int main(int argc, char **argv) {
   const double Enucfield = -Ez * nucdip - Qzz * nucquad / 3.0;
   const bool have_efield = (Ez != 0.0 || Qzz != 0.0);
   const bool have_bfield = (Bz != 0.0);
+
+  // For diatomic m-averaging: each outer entry groups the (+m, -m) pair
+  // of BF-index sets so scf::fock_symmetry_average enforces
+  // f(+m) == f(-m). At m == 0 there is no partner so the group has a
+  // single member and the "average" is a no-op on that block. Matches
+  // src/diatomic/main.cpp lines 318..328.
+  std::vector<std::vector<arma::uvec>> mavg_idx;
+  if (maverage) {
+    const int mmax_bf = arma::max(arma::abs(basis.get_mval()));
+    for (int m = 0; m <= mmax_bf; ++m) {
+      std::vector<arma::uvec> entry;
+      entry.push_back(basis.m_indices(m));
+      if (m > 0) entry.push_back(basis.m_indices(-m));
+      mavg_idx.push_back(entry);
+    }
+  }
 
   // Symmetry decomposition.
   std::vector<arma::uvec> dsym;
@@ -367,10 +387,15 @@ int main(int argc, char **argv) {
     // their coupling is off so this matches T + Vnuc + J exactly in the
     // no-field case.
     const arma::mat H1 = T + Vnuc + Vel + Vmag;
+    auto apply_mavg = [&](arma::mat & F) {
+      if (maverage)
+        F = helfem::to_arma(scf::fock_symmetry_average(helfem::to_eigen(F), mavg_idx));
+    };
     if (restricted) {
       arma::mat F_ao = H1 + J;
       if (have_xc)  F_ao += XCa;
       if (have_exx) F_ao += Ka;
+      apply_mavg(F_ao);
       for (size_t k = 0; k < nsym; ++k)
         orthonormalize_block(fock, k, F_ao, k);
     } else {
@@ -384,6 +409,8 @@ int main(int argc, char **argv) {
         Fa_ao -= 0.5 * Bz * S;
         Fb_ao += 0.5 * Bz * S;
       }
+      apply_mavg(Fa_ao);
+      apply_mavg(Fb_ao);
       for (size_t k = 0; k < nsym; ++k) {
         orthonormalize_block(fock, k,        Fa_ao, k);
         orthonormalize_block(fock, nsym + k, Fb_ao, k);
