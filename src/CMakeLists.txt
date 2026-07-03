@@ -1,6 +1,6 @@
 add_library(helfem-common
-general/gaunt.cpp general/diis.cpp
-general/lbfgs.cpp general/spherical_harmonics.cpp
+general/gaunt.cpp
+general/spherical_harmonics.cpp
 general/timer.cpp general/elements.cpp
 general/angular.cpp general/scf_helpers.cpp general/lcao.cpp
 general/dftgrid_common.cpp
@@ -8,13 +8,21 @@ general/gsz.cpp general/sap.cpp general/dftfuncs.cpp
 general/checkpoint.cpp atomic/basis.cpp
 atomic/TwoDBasis.cpp
 atomic/dftgrid.cpp sadatom/basis.cpp
-sadatom/dftgrid.cpp sadatom/solver.cpp sadatom/configurations.cpp
+sadatom/dftgrid.cpp sadatom/scf.cpp
 general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
 diatomic/dftgrid.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp
 general/tei_utils.cpp
 )
 target_link_libraries(helfem-common PUBLIC helfem wignernj::wignernj)
+# sadatom/scf.cpp uses OOO's header-only SCFSolver both from the
+# gensap driver and from diatomic/twodquadrature.cpp's atomic-orbital
+# guess. Propagate the header include path via the PUBLIC link.
+if(TARGET OpenOrbitalOptimizer::OpenOrbitalOptimizer)
+    target_link_libraries(helfem-common PUBLIC OpenOrbitalOptimizer::OpenOrbitalOptimizer)
+elseif(TARGET openorbitaloptimizer)
+    target_link_libraries(helfem-common PUBLIC openorbitaloptimizer)
+endif()
 # Propagate OpenMP to consumers of helfem-common. Without this, an
 # external consumer linking helfem::helfem misses -fopenmp / libgomp
 # and fails with undefined references like GOMP_parallel.

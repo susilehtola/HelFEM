@@ -17,6 +17,7 @@
 #include "chebyshev.h"
 #include "../general/lcao.h"
 #include "../general/model_potential.h"
+#include "../sadatom/scf.h"
 #include "utils.h"
 #include <algorithm>
 #include <cmath>
@@ -528,76 +529,69 @@ namespace helfem {
       }
 
       void TwoDGrid::compute_atoms(int Zl, int Zr) {
-        int primbas=4;
-        int Nnodes=15;
-        auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::get_basis(primbas,Nnodes)));
-        int Nquad=5*poly->get_nbf();
+        // Atomic-orbital guess for the two nuclei via the shared
+        // sadatom OOO SCF helper (helfem::sadatom::scf::run_atomic_scf).
+        // PBE (x_func = 101, c_func = 130), restricted-only, with the
+        // per-l occupation frozen to the tabulated PBE ground-state
+        // configuration in `pbe_ground_states`. This drops the
+        // dependency on the bespoke SCFSolver / DIIS / L-BFGS
+        // machinery that used to live in src/sadatom/solver.cpp.
+        constexpr int primbas = 4;
+        constexpr int Nnodes  = 15;
+        constexpr int x_func  = 101; // libxc: gga_x_pbe
+        constexpr int c_func  = 130; // libxc: gga_c_pbe
+        constexpr int Nelem   = 5;
+        constexpr double Rmax = 40.0;
+        constexpr int igrid   = 4;
+        constexpr double zexp = 2.0;
+        constexpr double dftthr = 1e-12;
 
-        // PBE xc
-        int x_func = 101;
-        int c_func = 130;
+        auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
+            polynomial_basis::get_basis(primbas, Nnodes));
+        const int Nquad = 5 * poly->get_nbf();
 
-        // Radial basis
-        modelpotential::nuclear_model_t finitenuc = modelpotential::POINT_NUCLEUS;
-        double Rrms = 0.0;
-        int Nelem = 5;
-        double Rmax = 40.0;
-        int igrid = 4;
-        double zexp = 2.0;
-        int Nelem0 = 0;
-        int igrid0 = 4;
-        double zexp0 = 2.0;
-        bool zeroder = false;
-
-        arma::vec blval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Zl, 0, 0, 0.0);
-        arma::vec brval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Zr, 0, 0, 0.0);
-
-        double shift = 1.0;
-        double convthr = 1e-7;
-        double dftthr = 1e-12;
-        double diiseps = 1e-2;
-        double diisthr = 1e-3;
-        int diisorder = 10;
-        int maxit = 128;
-
-        std::function<int(int)> lmax = [](int Z){
-          for(int l=3;l>=0;l--)
-            if(pbe_ground_states[Z-1][l]>0)
-              return l;
+        auto lmax_for_Z = [](int Z){
+          for (int l = 3; l >= 0; --l)
+            if (pbe_ground_states[Z-1][l] > 0) return l;
           return -1;
         };
-
-        std::function<arma::ivec(int)> get_occs = [lmax](int Z){
-          arma::ivec occs(lmax(Z)+1);
-          for(size_t l=0;l<occs.n_elem;l++)
-            occs(l) = pbe_ground_states[Z-1][l];
-          return occs;
+        auto per_l_occ = [&lmax_for_Z](int Z) {
+          arma::ivec o(lmax_for_Z(Z) + 1);
+          for (size_t l = 0; l < o.n_elem; ++l)
+            o(l) = pbe_ground_states[Z-1][l];
+          return o;
         };
 
-        int iguess=2;
+        auto run_side = [&](int Z, sadatom::basis::TwoDBasis & basis_out,
+                             arma::cube & orbs_out, arma::ivec & occs_out) {
+          const int lmax = lmax_for_Z(Z);
+          const arma::ivec occ = per_l_occ(Z);
+          const int Ntot = static_cast<int>(arma::sum(occ));
 
-        if(Zl>0) {
-          sadatom::solver::SCFSolver lsolver(Zl, finitenuc, Rrms, lmax(Zl), poly, zeroder, Nquad, blval, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
-          helfem::sadatom::solver::rconf_t lconf;
-          lconf.orbs=sadatom::solver::OrbitalChannel(true);
-          lsolver.Initialize(lconf.orbs,iguess);
-          lconf.orbs.SetOccs(get_occs(Zl));
-          lsolver.Solve(lconf);
-          lh_basis = lsolver.Basis();
-          lh_orbs = lconf.orbs.Coeffs();
-          lh_occs = lconf.orbs.Occs();
-        }
-        if(Zr>0) {
-          sadatom::solver::SCFSolver rsolver(Zr, finitenuc, Rrms, lmax(Zr), poly, zeroder, Nquad, brval, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder);
-          helfem::sadatom::solver::rconf_t rconf;
-          rconf.orbs=sadatom::solver::OrbitalChannel(true);
-          rsolver.Initialize(rconf.orbs,iguess);
-          rconf.orbs.SetOccs(get_occs(Zr));
-          rsolver.Solve(rconf);
-          rh_basis = rsolver.Basis();
-          rh_orbs = rconf.orbs.Coeffs();
-          rh_occs = rconf.orbs.Occs();
-        }
+          sadatom::scf::AtomicSCFOptions opts;
+          opts.Z              = Z;
+          opts.lmax           = lmax;
+          opts.poly           = poly;
+          opts.Nquad          = Nquad;
+          opts.bval           = atomic::basis::form_grid(
+              modelpotential::POINT_NUCLEUS, 0.0, Nelem, Rmax, igrid, zexp,
+              0, 0, 0.0, Z, 0, 0, 0.0);
+          opts.nela           = Ntot / 2;  // restricted closed-shell (PBE ground occs
+          opts.nelb           = Ntot / 2;  // are always even totals per l).
+          opts.restricted     = true;
+          opts.x_func         = x_func;
+          opts.c_func         = c_func;
+          opts.dftthr         = dftthr;
+          opts.fixed_per_l_a  = occ;
+          opts.verbosity      = 0;
+          auto res = sadatom::scf::run_atomic_scf(opts);
+          basis_out = res.basis;
+          orbs_out  = res.orbs_a;
+          occs_out  = res.occs_a;
+        };
+
+        if (Zl > 0) run_side(Zl, lh_basis, lh_orbs, lh_occs);
+        if (Zr > 0) run_side(Zr, rh_basis, rh_orbs, rh_occs);
       }
     }
   }
