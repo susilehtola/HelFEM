@@ -13,11 +13,10 @@
  * for the full license text.
  */
 #include "RadialBasis.h"
-#include "ArmaEigen.h"
 #include "RadialPotential.h"
-#include "chebyshev.h"
 #include "quadrature.h"
 #include "utils.h"
+#include <lib1dfem/chebyshev.h>
 #include <cfloat>
 
 #ifdef _OPENMP
@@ -27,34 +26,10 @@
 namespace helfem {
   namespace atomic {
     namespace basis {
-      namespace {
-        // Phase 5.3/5.4 helpers: FiniteElementBasis methods are now
-        // Eigen-typed. RadialBasis keeps its arma::vec/arma::mat surface
-        // for downstream chemistry code; bridge inline at every fem.*
-        // call site via these one-line memcpy converters.
-        inline helfem::Vector arma_to_eigen_vec(const arma::vec & v) {
-          helfem::Vector e(v.n_elem);
-          std::memcpy(e.data(), v.memptr(), sizeof(double) * v.n_elem);
-          return e;
-        }
-        inline arma::mat eigen_mat_to_arma(const helfem::Matrix & m) {
-          arma::mat out(m.rows(), m.cols());
-          std::memcpy(out.memptr(), m.data(),
-                      sizeof(double) * static_cast<size_t>(m.size()));
-          return out;
-        }
-        inline arma::vec eigen_vec_to_arma(const helfem::Vector & v) {
-          arma::vec out(v.size());
-          std::memcpy(out.memptr(), v.data(), sizeof(double) * v.size());
-          return out;
-        }
-      } // namespace
 
       FEMRadialBasis::FEMRadialBasis() {}
 
       FEMRadialBasis::FEMRadialBasis(const polynomial_basis::FiniteElementBasis & fem_, int n_quad) : fem(fem_) {
-        // Phase 5.6: xq/wq are Eigen. Call lib1dfem::chebyshev directly
-        // (the libhelfem chebyshev shim only has an arma::vec overload).
         helfem::lib1dfem::chebyshev::chebyshev<double>(n_quad, xq, wq);
         for (Eigen::Index i = 0; i < xq.size(); ++i) {
           if (!std::isfinite(xq(i)))
@@ -121,8 +96,6 @@ namespace helfem {
         return ret;
       }
 
-      // Phase 5.4: matrix_element fn-pointer is now Eigen-typed.
-      // get_bf/df/lf are still arma; bridge there per call.
       static std::function<helfem::Matrix(helfem::Vector, size_t)>
       make_evaluator(const FEMRadialBasis * rb, FEMRadialBasis::BasisKind k) {
         using BK = FEMRadialBasis::BasisKind;
@@ -152,8 +125,6 @@ namespace helfem {
       helfem::Matrix FEMRadialBasis::matrix_element(
           size_t iel, BasisKind bra, BasisKind ket,
           const std::function<double(double)> & weight) const {
-        // Phase 5.4: fem.matrix_element is Eigen; xq, wq members
-        // are still arma -- bridge.
         auto lhs = make_evaluator(this, bra);
         auto rhs = make_evaluator(this, ket);
         return fem.matrix_element(iel, lhs, rhs, xq, wq, weight);
@@ -300,11 +271,6 @@ namespace helfem {
       static const std::function<double(double)> kNoWeight;  // default-constructed = identity
       static const std::function<double(double)> kRWeight = [](double r){ return r; };
 
-      // Phase 2a: matrix_element returns helfem::Matrix natively, so the
-      // four virtuals are now one-line direct expressions (Eigen scalar
-      // arithmetic works on the return value with no manual wrapping).
-      // Per-element variants stay arma-typed; bridge with to_arma at the
-      // matrix_element call site.
       helfem::Matrix FEMRadialBasis::overlap()      const { return matrix_element(BasisKind::B0, BasisKind::B0, kNoWeight); }
       helfem::Matrix FEMRadialBasis::overlap(size_t iel) const { return matrix_element(iel, BasisKind::B0, BasisKind::B0, kNoWeight); }
 
@@ -596,7 +562,6 @@ namespace helfem {
       }
 
       helfem::Matrix FEMRadialBasis::get_bf(const helfem::Vector & x, size_t iel) const {
-        // Phase 5.24: input is Eigen; no arma bridge at either end.
         if (iel == 0)
           return fem.eval_over_r(x, 0, iel);
         helfem::Matrix val = fem.eval_f(x, iel);
@@ -669,8 +634,6 @@ namespace helfem {
 
       // Nuclear coordinate: primitive basis polynomials belong to [-1,1],
       // and the physical r=0 corresponds to x=-1 in the first element.
-      // Building this single-x-point vector as an Eigen 1-vector avoids
-      // the arma bridge that Phase 5.3-5.6 introduced.
       static helfem::Vector nuclear_x() {
         helfem::Vector x(1); x(0) = -1.0;
         return x;
