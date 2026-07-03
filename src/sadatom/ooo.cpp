@@ -65,6 +65,15 @@ int main(int argc, char **argv) {
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
+
+  // Confinement potential (parity with bespoke sadatom driver).
+  parser.add<int>   ("iconf",        0, "Confinement potential: 1 polynomial, 2 exponential, 3 barrier, 4 Junquera et al.", false, 0);
+  parser.add<int>   ("conf_N",       0, "Exponent in confinement potential", false, 0);
+  parser.add<double>("conf_R",       0, "Confinement radius",                false, 0.0);
+  parser.add<double>("conf_barrier", 0, "Confinement barrier height",        false, 0.0);
+  parser.add<double>("shift_conf",   0, "Where does confinement start?",     false, 0.0);
+  parser.add<bool>  ("add_conf",     0, "Add element boundary at shifted confinement radius?", false, true);
+
   parser.parse_check(argc, argv);
 
   const int igrid   = parser.get<int>("grid");
@@ -85,6 +94,13 @@ int main(int argc, char **argv) {
   const std::string cparf = parser.get<std::string>("c_pars");
   const int lmax      = parser.get<int>("lmax");
   const double Rmax   = parser.get<double>("Rmax");
+
+  const int    iconf        = parser.get<int>("iconf");
+  const int    conf_N       = parser.get<int>("conf_N");
+  const double conf_R       = parser.get<double>("conf_R");
+  const double conf_barrier = parser.get<double>("conf_barrier");
+  const double shift_conf   = parser.get<double>("shift_conf");
+  const bool   add_conf     = parser.get<bool>("add_conf");
 
   // Derive nela/nelb from Q, M via scf::parse_nela_nelb -- same CLI as
   // atomic_ooo / diatomic_ooo (see PR #148, #147).
@@ -141,7 +157,8 @@ int main(int argc, char **argv) {
 
   arma::vec bval = atomic::basis::form_grid(
       modelpotential::POINT_NUCLEUS, 0.0, Nelem, Rmax, igrid, zexp,
-      0, 0, 0.0, Z, 0, 0, 0.0, false, 0.0);
+      0, 0, 0.0, Z, 0, 0, 0.0,
+      iconf ? add_conf : false, shift_conf);
 
   const bool zeroder = false;
   auto basis = sadatom::basis::TwoDBasis(Z, modelpotential::POINT_NUCLEUS, 0.0,
@@ -153,6 +170,18 @@ int main(int argc, char **argv) {
   const helfem::Matrix T    = basis.kinetic();
   const helfem::Matrix Tl   = basis.kinetic_l();
   const helfem::Matrix Vnuc = basis.nuclear();
+
+  // Confinement potential (parity with bespoke sadatom): a
+  // spherically-symmetric radial 1e matrix added to every l-block Fock.
+  // Contributes Econf = trace(Prad * Vconf) to the energy. Left as a
+  // zero matrix (never computed) when iconf == 0.
+  helfem::Matrix Vconf = helfem::Matrix::Zero(basis.Nbf(), basis.Nbf());
+  if (iconf) {
+    printf("Computing confinement potential\n");
+    Vconf = helfem::to_eigen(
+        basis.confinement(conf_N, conf_R, iconf, conf_barrier, shift_conf));
+  }
+  const bool have_conf = (iconf != 0);
 
   auto grid = helfem::sadatom::dftgrid::DFTGrid(&basis);
   basis.compute_tei();  // sadatom compute_tei takes no flag; exchange path is always available.
@@ -245,6 +274,7 @@ int main(int argc, char **argv) {
     }
 
     const double Enuc = (Prad * Vnuc).trace();
+    const double Econf = have_conf ? (Prad * Vconf).trace() : 0.0;
     const helfem::Matrix J = basis.coulomb(Prad / angfac);
     const double Ecoul = 0.5 * (Prad * J).trace();
 
@@ -281,17 +311,20 @@ int main(int argc, char **argv) {
       // is the SPIN density. Matches bespoke solver.cpp:940 exactly.
     }
 
-    const double Etot = Ekin + Enuc + Ecoul + Exc + Exx;
+    const double Etot = Ekin + Enuc + Econf + Ecoul + Exc + Exx;
 
-    printf("Ekin %.10f  Enuc %.10f  Ecoul %.10f  Exc %.10f  Exx %.10f  Etot %.10f\n",
-            Ekin, Enuc, Ecoul, Exc, Exx, Etot);
+    printf("Ekin %.10f  Enuc %.10f  Ecoul %.10f  Exc %.10f  Exx %.10f",
+            Ekin, Enuc, Ecoul, Exc, Exx);
+    if (have_conf) printf("  Econf %.10f", Econf);
+    printf("  Etot %.10f\n", Etot);
     fflush(stdout);
 
-    // Per-l Fock: F_l = T + Vnuc + J + l(l+1)*Tl + XC_l + K_l.
+    // Per-l Fock: F_l = T + Vnuc + Vconf + J + l(l+1)*Tl + XC_l + K_l.
     auto build_fock_block = [&](size_t l, const arma::cube & XC_cube,
                                  bool add_xc, const arma::cube & K_cube,
                                  bool add_k) -> helfem::Matrix {
       helfem::Matrix Fl = T + Vnuc + J;
+      if (have_conf) Fl += Vconf;
       if (l > 0) Fl += l * (l + 1) * Tl;
       if (add_xc)
         Fl += helfem::to_eigen(arma::mat(XC_cube.slice(l)));
@@ -313,11 +346,13 @@ int main(int argc, char **argv) {
     return std::make_pair(Etot, fock);
   };
 
-  // Core-Hamiltonian guess per l block per particle type.
+  // Core-Hamiltonian guess per l block per particle type. Include Vconf
+  // so the guess feels the confining potential from the start.
   OpenOrbitalOptimizer::FockMatrix<OOO_Real> CoreH(nblock * nparttype);
   for (size_t t = 0; t < nparttype; ++t) {
     for (size_t l = 0; l < nblock; ++l) {
       helfem::Matrix Hl = T + Vnuc;
+      if (have_conf) Hl += Vconf;
       if (l > 0) Hl += l * (l + 1) * Tl;
       CoreH[t * nblock + l] = Sinvh.transpose() * Hl * Sinvh;
     }
