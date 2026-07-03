@@ -12,793 +12,357 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
+
+// Sadatom driver using OpenOrbitalOptimizer. Supports:
+//   - Restricted (closed-shell) DFT: one particle type, per-l blocks,
+//     max_occupation = 2*(2l+1) per block.
+//   - Unrestricted DFT: two particle types (alpha, beta) each split
+//     into the same per-l blocks; max_occupation = 2l+1 per orbital.
+//
+// nela/nelb are derived from --Q and --M (spin multiplicity, 2S+1) via
+// scf::parse_nela_nelb, matching the CLI convention of atomic_ooo and
+// diatomic_ooo.
+//
+// HF (x_func == 0 && c_func == 0) is deferred; picking any HF method throws.
+
 #include "../general/cmdline.h"
 #include "../general/constants.h"
 #include "../general/dftfuncs.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
+
+#include "openorbitaloptimizer/scfsolver.hpp"
+
 #include "utils.h"
 #include "dftgrid.h"
 #include "solver.h"
 #include "configurations.h"
+#include "../atomic/basis.h"
+#include <ArmaEigen.h>
+#include <Eigen/Eigenvalues>
 #include <cfloat>
 
-arma::ivec initial_occs(int Z, int lmax) {
-  // Guess occupations
-  const int shell_order[]={0, 0, 1, 0, 1, 0, 2, 1, 0, 2, 1, 0, 3, 2, 1, 0, 3, 2, 1};
-
-  arma::ivec occs(lmax+1);
-  occs.zeros();
-  for(size_t i=0;i<sizeof(shell_order)/sizeof(shell_order[0]);i++) {
-    int l = shell_order[i];
-    if(l > lmax) {
-      std::ostringstream oss;
-      oss << "Insufficient lmax = " << lmax << "\n";
-      throw std::logic_error(oss.str());
-    }
-    int nocc = std::min(Z, 2*(2*l+1));
-    occs(l) += nocc;
-    Z -= nocc;
-    if(Z == 0)
-      break;
-  }
-
-  return occs;
-}
-
-void hund_rule(const arma::ivec & occs, arma::ivec & occa, arma::ivec & occb) {
-  occa.resize(occs.n_elem);
-  occb.resize(occs.n_elem);
-  // Loop over shells
-  for(size_t l=0;l<occs.n_elem;l++) {
-    // Number of electrons to distribute
-    int numel(occs(l));
-    while(numel>0) {
-      // Populate shell
-      int numsh = std::min(numel, (int) (2*(2*l+1)));
-      int na = std::min(numsh, (int) (2*l+1));
-      int nb = numsh-na;
-      occa(l) += na;
-      occb(l) += nb;
-      numel-=numsh;
-    }
-  }
-}
-
 using namespace helfem;
-
-sadatom::solver::OrbitalChannel restrict_configuration(const sadatom::solver::uconf_t & uconf) {
-  sadatom::solver::OrbitalChannel helper(uconf.orbsa);
-  helper.SetRestricted(true);
-  helper.SetOccs(uconf.orbsa.Occs()+uconf.orbsb.Occs());
-
-  return helper;
-}
-
-void unrestrict_occupations(const sadatom::solver::OrbitalChannel & orbs, sadatom::solver::uconf_t & conf) {
-  // Update occupations
-  arma::ivec occa, occb;
-  hund_rule(orbs.Occs(),occa,occb);
-  conf.orbsa.SetOccs(occa);
-  conf.orbsb.SetOccs(occb);
-}
-
-arma::irowvec translate_occs(const arma::irowvec & occin) {
-  arma::ivec occa, occb;
-  hund_rule(occin.t(),occa,occb);
-  arma::irowvec occs(occa.n_elem+occb.n_elem);
-  occs.subvec(0,occa.n_elem-1)=occa.t();
-  occs.subvec(occa.n_elem,occs.n_elem-1)=occb.t();
-  occs.print("Used Hund's rules to translate occupations into");
-  return occs;
-}
 
 int main(int argc, char **argv) {
   cmdline::parser parser;
 
-  // full option name, no short option, description, argument required
-  parser.add<std::string>("Z", 0, "nuclear charge", true);
-  parser.add<double>("Rmax", 0, "practical infinity in au", false, 40.0);
   parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
-  parser.add<int>("grid0", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 2.0);
-  parser.add<double>("zexp0", 0, "parameter in radial grid", false, 2.0);
+  parser.add<double>("Rmax", 0, "practical infinity", false, 40.0);
+  parser.add<int>("lmax", 0, "maximum angular momentum", true);
   parser.add<int>("nelem", 0, "number of elements", true);
-  parser.add<int>("nelem0", 0, "number of elements", false, 0);
-  parser.add<int>("finitenuc", 0, "finite nuclear model", false, 0);
-  parser.add<double>("Rrms", 0, "nuclear rms radius", false, 0.0);
+  parser.add<std::string>("Z", 0, "nuclear charge", true);
   parser.add<int>("Q", 0, "charge of system", false, 0);
-  parser.add<int>("lmax", 0, "maximum angular momentum to include", false, 3);
+  parser.add<int>("M", 0, "spin multiplicity (2S+1); mutually exclusive with nela/nelb", false, 0);
+  parser.add<int>("nela", 0, "number of alpha electrons (leave 0 to derive from Q/M)", false, 0);
+  parser.add<int>("nelb", 0, "number of beta electrons (leave 0 to derive from Q/M)", false, 0);
+  parser.add<int>("restricted", 0, "spin-restricted: 1 restricted, 0 unrestricted, -1 auto from nela/nelb", false, -1);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
-  parser.add<int>("maxit", 0, "maximum number of iterations", false, 200);
-  parser.add<double>("shift", 0, "level shift for initial SCF iterations", false, 1.0);
-  parser.add<double>("convthr", 0, "convergence threshold", false, 1e-7);
   parser.add<std::string>("method", 0, "method to use", false, "lda_x");
-  parser.add<std::string>("pot", 0, "method to use to compute potential", false, "none");
-  parser.add<std::string>("occs", 0, "occupations to use", false, "auto");
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
-  parser.add<int>("iguess", 0, "guess: 0 for core, 1 for GSZ, 2 for SAP, 3 for TF", false, 2);
-  parser.add<int>("restricted", 0, "spin-restricted orbitals", false, -1);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
-  parser.add<double>("diiseps", 0, "when to start mixing in diis", false, 1e-2);
-  parser.add<double>("diisthr", 0, "when to switch over fully to diis", false, 1e-3);
-  parser.add<int>("diisorder", 0, "length of diis history", false, 10);
-  parser.add<bool>("saveorb", 0, "save radial orbitals to disk?", false, false);
-  parser.add<bool>("savepot", 0, "save xc potential to disk?", false, false);
-  parser.add<bool>("saveing", 0, "save xc ingredients to disk?", false, false);
-  parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
-  parser.add<double>("vdwthr", 0, "Density threshold for van der Waals radius", false, 0.001);
-  parser.add<double>("eps_el", 0, "Density threshold for atomic size with electron density inclusion", false, 0.073416683704840394115); // H atom analytical solution gives same radius as vdW routine with 1e-3 threshold as used by Rahm 2016
-  parser.add<bool>("completeness", 0, "Compute completeness and importance profiles?", false, false);
-  parser.add<int>("iconf", 0, "Confinement potential: 1 for polynomial, 2 for exponential, 3 for barrier, 4 for Junquera et al.", false, 0);
-  parser.add<int>("conf_N", 0, "Exponent in confinement potential", false, 0);
-  parser.add<double>("conf_R", 0, "Confinement radius", false, 0.0);
-  parser.add<double>("conf_barrier", 0, "Confinement barrier height", false, 0.0);
-  parser.add<double>("shift_conf", 0, "Where does confinement start?", false, 0.0);
-  parser.add<bool>("add_conf", 0, "Add element boundary at shifted potential radius R?", false, true);
+
+  // Confinement potential (parity with bespoke sadatom driver).
+  parser.add<int>   ("iconf",        0, "Confinement potential: 1 polynomial, 2 exponential, 3 barrier, 4 Junquera et al.", false, 0);
+  parser.add<int>   ("conf_N",       0, "Exponent in confinement potential", false, 0);
+  parser.add<double>("conf_R",       0, "Confinement radius",                false, 0.0);
+  parser.add<double>("conf_barrier", 0, "Confinement barrier height",        false, 0.0);
+  parser.add<double>("shift_conf",   0, "Where does confinement start?",     false, 0.0);
+  parser.add<bool>  ("add_conf",     0, "Add element boundary at shifted confinement radius?", false, true);
+
   parser.parse_check(argc, argv);
-  /*
-    if(!parser.parse(argc, argv))
-    throw std::logic_error("Error parsing arguments!\n");
-  */
 
-  // Get parameters
-  double Rmax(parser.get<double>("Rmax"));
-  int igrid(parser.get<int>("grid"));
-  int igrid0(parser.get<int>("grid0"));
-  double zexp(parser.get<double>("zexp"));
-  double zexp0(parser.get<double>("zexp0"));
-  int maxit(parser.get<int>("maxit"));
-  int lmax(parser.get<int>("lmax"));
-  double convthr(parser.get<double>("convthr"));
-  int restr(parser.get<int>("restricted"));
-  int primbas(parser.get<int>("primbas"));
-  // Number of elements
-  int Nelem(parser.get<int>("nelem"));
-  int Nelem0(parser.get<int>("nelem0"));
-  // Number of nodes
-  int Nnodes(parser.get<int>("nnodes"));
+  const int igrid   = parser.get<int>("grid");
+  const double zexp = parser.get<double>("zexp");
+  const int Nelem   = parser.get<int>("nelem");
+  const int Z       = get_Z(parser.get<std::string>("Z"));
+        int Q       = parser.get<int>("Q");
+        int M       = parser.get<int>("M");
+        int nela    = parser.get<int>("nela");
+        int nelb    = parser.get<int>("nelb");
+        int restr   = parser.get<int>("restricted");
+  const int Nnodes  = parser.get<int>("nnodes");
+        int Nquad   = parser.get<int>("nquad");
+  const std::string method = parser.get<std::string>("method");
+  const double dftthr = parser.get<double>("dftthr");
+  const int primbas   = parser.get<int>("primbas");
+  const std::string xparf = parser.get<std::string>("x_pars");
+  const std::string cparf = parser.get<std::string>("c_pars");
+  const int lmax      = parser.get<int>("lmax");
+  const double Rmax   = parser.get<double>("Rmax");
 
-  double shift(parser.get<double>("shift"));
+  const int    iconf        = parser.get<int>("iconf");
+  const int    conf_N       = parser.get<int>("conf_N");
+  const double conf_R       = parser.get<double>("conf_R");
+  const double conf_barrier = parser.get<double>("conf_barrier");
+  const double shift_conf   = parser.get<double>("shift_conf");
+  const bool   add_conf     = parser.get<bool>("add_conf");
 
-  // Order of quadrature rule
-  int Nquad(parser.get<int>("nquad"));
-  double dftthr(parser.get<double>("dftthr"));
+  // Derive nela/nelb from Q, M via scf::parse_nela_nelb -- same CLI as
+  // atomic_ooo / diatomic_ooo (see PR #148, #147).
+  scf::parse_nela_nelb(nela, nelb, Q, M, Z);
+  if (restr == -1) restr = (nela == nelb) ? 1 : 0;
+  const bool restricted = (restr != 0);
+  if (restricted && nela != nelb)
+    throw std::logic_error("Restricted mode requires nela == nelb (closed shell). "
+                            "Use --restricted=0 (or leave -1 for auto) for open-shell.");
+  const int Ntot = nela + nelb;
 
-  int finitenuc(parser.get<int>("finitenuc"));
-  double Rrms(parser.get<double>("Rrms"));
+  arma::vec x_pars, c_pars;
+  if (xparf.size()) {
+    x_pars = helfem::to_arma(scf::parse_xc_params(xparf));
+    x_pars.t().print("Exchange functional parameters");
+  }
+  if (cparf.size()) {
+    c_pars = helfem::to_arma(scf::parse_xc_params(cparf));
+    c_pars.t().print("Correlation functional parameters");
+  }
 
-  // Nuclear charge
-  int Q(parser.get<int>("Q"));
-  int Z(get_Z(parser.get<std::string>("Z")));
-  double diiseps=parser.get<double>("diiseps");
-  double diisthr=parser.get<double>("diisthr");
-  int diisorder=parser.get<int>("diisorder");
-  int iguess(parser.get<int>("iguess"));
+  printf("Running %s %s calculation with Rmax=%e and %i elements.\n",
+          restricted ? "restricted" : "unrestricted",
+          method.c_str(), Rmax, Nelem);
+  printf("nela=%d nelb=%d\n", nela, nelb);
 
-  double vdw_thr=parser.get<double>("vdwthr");
+  auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
+      polynomial_basis::get_basis(primbas, Nnodes));
 
-  double eps_el=parser.get<double>("eps_el");
-
-  std::string method(parser.get<std::string>("method"));
-  std::string potmethod(parser.get<std::string>("pot"));
-  std::string occstr(parser.get<std::string>("occs"));
-  bool saveorb(parser.get<bool>("saveorb"));
-  bool savepot(parser.get<bool>("savepot"));
-  bool saveing(parser.get<bool>("saveing"));
-  bool zeroder(parser.get<bool>("zeroder"));
-  bool completeness(parser.get<bool>("completeness"));
-
-  std::string xparf(parser.get<std::string>("x_pars"));
-  std::string cparf(parser.get<std::string>("c_pars"));
-
-  std::vector<std::string> rcalc(2);
-  rcalc[0]="unrestricted";
-  rcalc[1]="restricted";
-
-  printf("Running %s %s calculation with Rmax=%e and %i elements.\n",rcalc[restr==1].c_str(),method.c_str(),Rmax,Nelem);
-
-  // Get primitive basis
-  auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::get_basis(primbas,Nnodes)));
-
-  if(Nquad==0)
-    // Set default value
-    Nquad=5*poly->get_nbf();
-  else if(Nquad<2*poly->get_nbf())
+  if (Nquad == 0)
+    Nquad = 5 * poly->get_nbf();
+  else if (Nquad < 2 * poly->get_nbf())
     throw std::logic_error("Insufficient radial quadrature.\n");
-  // Order of quadrature rule
-  printf("Using %i point quadrature rule.\n",Nquad);
+  printf("Using %i point quadrature rule.\n", Nquad);
 
-  // Total number of electrons is
-  arma::sword numel=Z-Q;
-
-  // Functional
   int x_func, c_func;
   ::parse_xc_func(x_func, c_func, method);
   ::print_info(x_func, c_func);
-  if(!is_supported(x_func))
+  if (!is_supported(x_func))
     throw std::logic_error("The specified exchange functional is not currently supported in HelFEM.\n");
-  if(!is_supported(c_func))
+  if (!is_supported(c_func))
     throw std::logic_error("The specified correlation functional is not currently supported in HelFEM.\n");
+  // Range-separation parameters (see atomic/ooo.cpp for the naming
+  // convention). RS hybrids use basis.rs_exchange with the erfc or
+  // Yukawa kernel selected via is_range_separated + compute_erfc /
+  // compute_yukawa.
+  double kfrac, kshort, omega;
+  range_separation(x_func, omega, kfrac, kshort);
+  const bool have_exx = (kfrac != 0.0 || kshort != 0.0);
+  const bool have_xc  = (x_func != 0 || c_func != 0);
+  bool rs_erfc = false, rs_yukawa = false;
+  if (kshort != 0.0)
+    is_range_separated(x_func, rs_erfc, rs_yukawa);
 
-  // Potential
-  int xp_func, cp_func;
-  ::parse_xc_func(xp_func, cp_func, potmethod);
-  {
-    bool gga, mgga_t, mgga_l;
-    if(x_func>0) {
-      is_gga_mgga(xp_func,  gga, mgga_t, mgga_l);
-      if(mgga_t || mgga_l)
-        throw std::logic_error("Meta-GGA functionals are not supported in the spherically symmetric program.\n");
-    }
-    if(c_func>0) {
-      is_gga_mgga(cp_func,  gga, mgga_t, mgga_l);
-      if(mgga_t || mgga_l)
-        throw std::logic_error("Meta-GGA functionals are not supported in the spherically symmetric program.\n");
-    }
+  arma::vec bval = atomic::basis::form_grid(
+      modelpotential::POINT_NUCLEUS, 0.0, Nelem, Rmax, igrid, zexp,
+      0, 0, 0.0, Z, 0, 0, 0.0,
+      iconf ? add_conf : false, shift_conf);
 
-    double o, a, b;
-    range_separation(xp_func, o, a, b);
-    if(o!=0.0 || a!=0.0 || b!=0.0)
-      throw std::logic_error("Optimized effective potential is not implemented in the spherically symmetric program.\n");
+  const bool zeroder = false;
+  auto basis = sadatom::basis::TwoDBasis(Z, modelpotential::POINT_NUCLEUS, 0.0,
+                                          poly, zeroder, Nquad, bval, lmax);
+  printf("Basis set has %i radial functions\n", (int) basis.Nbf());
+
+  const helfem::Matrix S    = basis.overlap();
+  const helfem::Matrix Sinvh = helfem::to_eigen(basis.Sinvh());
+  const helfem::Matrix T    = basis.kinetic();
+  const helfem::Matrix Tl   = basis.kinetic_l();
+  const helfem::Matrix Vnuc = basis.nuclear();
+
+  // Confinement potential (parity with bespoke sadatom): a
+  // spherically-symmetric radial 1e matrix added to every l-block Fock.
+  // Contributes Econf = trace(Prad * Vconf) to the energy. Left as a
+  // zero matrix (never computed) when iconf == 0.
+  helfem::Matrix Vconf = helfem::Matrix::Zero(basis.Nbf(), basis.Nbf());
+  if (iconf) {
+    printf("Computing confinement potential\n");
+    Vconf = helfem::to_eigen(
+        basis.confinement(conf_N, conf_R, iconf, conf_barrier, shift_conf));
   }
+  const bool have_conf = (iconf != 0);
 
-  // Confinement parameters
-  bool add_conf(parser.get<bool>("add_conf"));
-  int iconf(parser.get<int>("iconf"));
-  double conf_R(parser.get<double>("conf_R"));
-  int conf_N(parser.get<int>("conf_N"));
-  double conf_barrier(parser.get<double>("conf_barrier"));
-  double shift_conf(parser.get<double>("shift_conf"));
+  auto grid = helfem::sadatom::dftgrid::DFTGrid(&basis);
+  basis.compute_tei();  // sadatom compute_tei takes no flag; exchange path is always available.
+  // Precompute the range-separated exchange kernel if the functional
+  // uses one.
+  if (rs_yukawa) basis.compute_yukawa(omega);
+  else if (rs_erfc) basis.compute_erfc(omega);
 
-  // Radial basis
-  arma::vec bval=atomic::basis::form_grid((modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0, add_conf, shift_conf);
+  // OOO block layout: per-l blocks.
+  using OOO_Real = double;
+  const size_t nblock = static_cast<size_t>(lmax + 1);
+  const size_t nparttype = restricted ? 1 : 2;
+  OpenOrbitalOptimizer::IndexVector number_of_blocks_per_particle_type(nparttype);
+  Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> maximum_occupation(nblock * nparttype);
+  Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> number_of_particles(nparttype);
+  std::vector<std::string> block_descriptions(nblock * nparttype);
 
-  // Initialize solver
-  sadatom::solver::SCFSolver solver(Z, finitenuc, Rrms, lmax, poly, zeroder, Nquad, bval, x_func, c_func, maxit, shift, convthr, dftthr, diiseps, diisthr, diisorder, iconf, conf_N, conf_R, conf_barrier, shift_conf);
-
-  // Set parameters if necessary
-  arma::vec xpars, cpars;
-  if(xparf.size()) {
-    xpars = helfem::to_arma(scf::parse_xc_params(xparf));
-    xpars.t().print("Exchange functional parameters");
-  }
-  if(cparf.size()) {
-    cpars = helfem::to_arma(scf::parse_xc_params(cparf));
-    cpars.t().print("Correlation functional parameters");
-  }
-  solver.set_params(xpars,cpars);
-
-  // Final configuration (restricted case)
-  helfem::sadatom::solver::rconf_t rconf;
-  // Final configuration (unrestricted case)
-  helfem::sadatom::solver::uconf_t uconf;
-
-  if(helfem::utils::stricmp(occstr,"auto")==0) {
-    // Initialize with a sensible guess occupation
-    sadatom::solver::rconf_t initial;
-    initial.orbs=sadatom::solver::OrbitalChannel(true);
-    solver.Initialize(initial.orbs,iguess);
-    initial.orbs.SetOccs(initial_occs(numel,lmax));
-    if(initial.orbs.Nel()) {
-      initial.Econf=solver.Solve(initial);
-    } else {
-      initial.Econf=0.0;
-    }
-
-    if(restr==1) {
-      // List of configurations
-      std::vector<sadatom::solver::rconf_t> rlist;
-
-      // Restricted calculation
-      sadatom::solver::rconf_t conf(initial);
-      conf.Econf=solver.Solve(conf);
-      if(Q!=0) {
-        // Initial occupations are wrong for the state
-        conf.orbs.AufbauOccupations(numel);
-        conf.Econf=solver.Solve(conf);
-      }
-      rlist.push_back(conf);
-
-      // Brute force search for the lowest state
-      while(true) {
-        // Find the lowest energy configuration
-        std::sort(rlist.begin(),rlist.end());
-
-        // Do we have an Aufbau ground state?
-        conf.orbs=rlist[0].orbs;
-        conf.orbs.AufbauOccupations(numel);
-        while(std::find(rlist.begin(), rlist.end(), conf) == rlist.end()) {
-          conf.Econf=solver.Solve(conf);
-          rlist.push_back(conf);
-          conf.orbs.AufbauOccupations(numel);
-        }
-        printf("Aufbau search finished\n");
-
-        // Find the lowest energy configuration
-        std::sort(rlist.begin(),rlist.end());
-
-        // Generate new configurations
-        std::vector<sadatom::solver::OrbitalChannel> newconfs(rlist[0].orbs.MoveElectrons());
-
-        bool newconf=false;
-        for(size_t i=0;i<newconfs.size();i++) {
-          conf.orbs=newconfs[i];
-          if(std::find(rlist.begin(), rlist.end(), conf) == rlist.end()) {
-            newconf=true;
-            conf.Econf=solver.Solve(conf);
-            rlist.push_back(conf);
-          }
-        }
-        printf("Exhaustive search finished\n");
-        if(!newconf) {
-          break;
-        }
-      }
-
-      // Print occupations
-      printf("\nMinimal energy configurations for %s\n",element_symbols[Z].c_str());
-      for(size_t i=0;i<rlist.size();i++) {
-        arma::ivec occs(rlist[i].orbs.Occs());
-        for(size_t j=0;j<occs.n_elem;j++)
-          printf(" %2i",(int) occs(j));
-        printf(" % .10f",rlist[i].Econf);
-        if(i>0)
-          printf(" %11.6f",(rlist[i].Econf-rlist[0].Econf)*HARTREEINEV);
-        if(!rlist[i].converged)
-          printf(" convergence failure");
-        printf("\n");
-      }
-
-      // Save final configuration
-      rconf=rlist[0];
-
-    } else if(restr==-1) {
-      // List of configurations
-      std::vector<sadatom::solver::uconf_t> ulist;
-
-      // Initial configuration
-      arma::ivec inocc(initial_occs(numel,lmax));
-      arma::ivec inocca, inoccb;
-      hund_rule(inocc,inocca,inoccb);
-
-      sadatom::solver::uconf_t conf;
-      conf.orbsa=initial.orbs;
-      conf.orbsb=initial.orbs;
-      conf.orbsa.SetRestricted(false);
-      conf.orbsb.SetRestricted(false);
-      conf.orbsa.SetOccs(inocca);
-      conf.orbsb.SetOccs(inoccb);
-      solver.Solve(conf);
-      if(Q!=0) {
-        // Initial occupations are wrong for the state
-        sadatom::solver::OrbitalChannel helper;
-        helper=restrict_configuration(conf);
-        helper.AufbauOccupations(numel);
-        unrestrict_occupations(helper,conf);
-        conf.Econf=solver.Solve(conf);
-      }
-      ulist.push_back(conf);
-
-      // Brute force search for the lowest state
-      while(true) {
-        // Find the lowest energy configuration
-        std::sort(ulist.begin(),ulist.end());
-
-        // Form a helper
-        sadatom::solver::OrbitalChannel helper;
-        helper=restrict_configuration(ulist[0]);
-        helper.AufbauOccupations(numel);
-        unrestrict_occupations(helper,conf);
-
-        // Do we have an Aufbau ground state? Test
-        while(std::find(ulist.begin(), ulist.end(), conf) == ulist.end()) {
-          conf.Econf=solver.Solve(conf);
-          ulist.push_back(conf);
-
-          // Update
-          helper=restrict_configuration(ulist[0]);
-          helper.AufbauOccupations(numel);
-          unrestrict_occupations(helper,conf);
-        }
-        printf("Aufbau search finished\n");
-
-        // Find the lowest energy configuration
-        std::sort(ulist.begin(),ulist.end());
-
-        // Generate new configurations
-        helper=restrict_configuration(ulist[0]);
-        std::vector<sadatom::solver::OrbitalChannel> newconfs(helper.MoveElectrons());
-
-        bool newconf=false;
-        for(size_t i=0;i<newconfs.size();i++) {
-          unrestrict_occupations(newconfs[i],conf);
-          if(std::find(ulist.begin(), ulist.end(), conf) == ulist.end()) {
-            newconf=true;
-            conf.Econf=solver.Solve(conf);
-            ulist.push_back(conf);
-          }
-        }
-        printf("Exhaustive search finished\n");
-        if(!newconf) {
-          break;
-        }
-      }
-
-      // Print occupations
-      printf("\nMinimal energy configurations for %s\n",element_symbols[Z].c_str());
-      for(size_t i=0;i<ulist.size();i++) {
-        arma::ivec occa(ulist[i].orbsa.Occs());
-        arma::ivec occb(ulist[i].orbsb.Occs());
-        printf("%2i:",(int) (ulist[i].orbsa.Nel()-ulist[i].orbsb.Nel()+1));
-        for(size_t j=0;j<occa.n_elem;j++)
-          printf(" %2i",(int) occa(j));
-        for(size_t j=0;j<occb.n_elem;j++)
-          printf(" %2i",(int) occb(j));
-        printf(" % .10f",ulist[i].Econf);
-        if(i>0)
-          printf(" %11.6f",(ulist[i].Econf-ulist[0].Econf)*HARTREEINEV);
-        if(!ulist[i].converged)
-          printf(" convergence failure");
-        printf("\n");
-      }
-
-      // Save final configuration
-      uconf=ulist[0];
-
-    } else {
-      // List of configurations
-      std::vector<sadatom::solver::uconf_t> totlist;
-
-      // Restricted calculation
-      sadatom::solver::uconf_t conf;
-      conf.orbsa=initial.orbs;
-      conf.orbsb=initial.orbs;
-      conf.orbsa.SetRestricted(false);
-      conf.orbsb.SetRestricted(false);
-
-      // Difference in number of electrons
-      for(int dx=0; dx <= 5; dx++) {
-        arma::sword numelb=numel/2 - dx;
-        arma::sword numela=numel-numelb;
-        if(numelb<0)
-          break;
-
-        printf("\n ************ M = %i ************\n",(int) (numela-numelb+1));
-
-        std::vector<sadatom::solver::uconf_t> ulist;
-        conf.orbsa.AufbauOccupations(numela);
-        conf.orbsb.AufbauOccupations(numelb);
-        conf.Econf=solver.Solve(conf);
-        ulist.push_back(conf);
-
-        // Brute force search for the lowest state
-        while(true) {
-          // Find the lowest energy configuration
-          std::sort(ulist.begin(),ulist.end());
-          // Did we find an Aufbau ground state?
-          conf.orbsa=ulist[0].orbsa;
-          conf.orbsb=ulist[0].orbsb;
-          conf.orbsa.AufbauOccupations(numela);
-          conf.orbsb.AufbauOccupations(numelb);
-          while(std::find(ulist.begin(), ulist.end(), conf) == ulist.end()) {
-            conf.Econf=solver.Solve(conf);
-            ulist.push_back(conf);
-            // Did we find the Aufbau ground state?
-            conf.orbsa.AufbauOccupations(numela);
-            conf.orbsb.AufbauOccupations(numelb);
-          }
-          printf("Aufbau search finished\n");
-
-          // Generate new configurations
-          std::vector<sadatom::solver::OrbitalChannel> newconfa(ulist[0].orbsa.MoveElectrons());
-          std::vector<sadatom::solver::OrbitalChannel> newconfb(ulist[0].orbsb.MoveElectrons());
-
-          bool newconf=false;
-          for(size_t i=0;i<newconfa.size();i++) {
-            for(size_t j=0;j<newconfb.size();j++) {
-              conf.orbsa=newconfa[i];
-              conf.orbsb=newconfb[j];
-              if(std::find(ulist.begin(), ulist.end(), conf) == ulist.end()) {
-                newconf=true;
-                conf.Econf=solver.Solve(conf);
-                ulist.push_back(conf);
-              }
-            }
-          }
-          printf("Exhaustive search finished\n");
-          if(!newconf) {
-            break;
-          }
-        }
-
-        // Add lowest state to collection
-        //totlist.push_back(ulist[0]);
-        totlist.insert(totlist.end(), ulist.begin(), ulist.end());
-      }
-
-      // Sort list
-      std::sort(totlist.begin(), totlist.end());
-
-      // Print occupations
-      printf("\nMinimal energy spin states for %s\n",element_symbols[Z].c_str());
-      for(size_t i=0;i<totlist.size();i++) {
-        printf("%2i:",(int) (totlist[i].orbsa.Nel()-totlist[i].orbsb.Nel()+1));
-        arma::ivec occa(totlist[i].orbsa.Occs());
-        arma::ivec occb(totlist[i].orbsb.Occs());
-        for(size_t j=0;j<occa.n_elem;j++)
-          printf(" %2i",(int) occa(j));
-        for(size_t j=0;j<occb.n_elem;j++)
-          printf(" %2i",(int) occb(j));
-        printf(" % .10f",totlist[i].Econf);
-        if(i>0)
-          printf(" %7.2f",(totlist[i].Econf-totlist[0].Econf)*HARTREEINEV);
-        if(!totlist[i].converged)
-          printf(" convergence failure");
-        printf("\n");
-      }
-
-      // Print the minimal energy configuration
-      printf("\nMinimum energy state is M = %i\n",(int) (totlist[0].orbsa.Nel()-totlist[0].orbsb.Nel()+1));
-
-      // Save final configuration
-      uconf=totlist[0];
-    }
-
-  } else {
-    arma::irowvec occs;
-
-    if(helfem::utils::stricmp(occstr,"hf")==0) {
-      arma::irowvec hfoccs(helfem::sadatom::get_configuration(Z).t());
-      if(hfoccs.n_elem != (arma::uword) (lmax+1))
-        throw std::logic_error("Run with lmax=3 for HF occupation mode.\n");
-      hfoccs.print("Saito 2009 table's occupation for "+element_symbols[Z]);
-
-      // restr=0 and restr=-1 work the same way in this case
-      if(restr==-1)
-        restr=0;
-
-      if(restr) {
-        occs=hfoccs;
-      } else {
-        // Use Hund's rule to determine occupations
-        occs=translate_occs(hfoccs);
-      }
-
-    } else {
-      std::istringstream istream(occstr);
-      arma::irowvec inocc;
-      inocc.load(istream);
-      // Check length
-      arma::uword expected = (std::abs(restr)==1) ? lmax+1 : 2*(lmax+1);
-      if(inocc.n_elem != expected) {
-        std::ostringstream oss;
-        oss << "Invalid occupations: expected length " << expected << ", got " << inocc.n_elem << ".\n";
-        throw std::logic_error(oss.str());
-      }
-
-      // Use Hund's rule to determine occupations
-      if(restr == -1) {
-        occs=translate_occs(inocc);
-        if(restr==-1)
-          // Switch to unrestricted mode
-          restr=0;
-      } else
-        occs=inocc;
-    }
-
-    // Verbose operation for single configuration
-    solver.set_verbose(true);
-    if(restr) {
-      rconf.orbs=sadatom::solver::OrbitalChannel(true);
-      solver.Initialize(rconf.orbs,iguess);
-      rconf.orbs.SetOccs(occs.t());
-      solver.Solve(rconf);
-
-    } else {
-      uconf.orbsa=sadatom::solver::OrbitalChannel(false);
-      uconf.orbsb=sadatom::solver::OrbitalChannel(false);
-      solver.Initialize(uconf.orbsa,iguess);
-      solver.Initialize(uconf.orbsb,iguess);
-      uconf.orbsa.SetOccs(occs.subvec(0,lmax).t());
-      uconf.orbsb.SetOccs(occs.subvec(lmax+1,2*lmax+1).t());
-      solver.Solve(uconf);
-    }
-  }
-
-  if(restr==1) {
-    // Print the minimal energy configuration
-    printf("\nOccupations for wanted configuration\n");
-    rconf.orbs.Occs().t().print();
-    printf("Electronic configuration is\n");
-    printf("%s\n",rconf.orbs.Characterize().c_str());
-
-    double nucd=solver.nuclear_density(rconf);
-    double gnucd=solver.nuclear_density_gradient(rconf);
-    printf("\nElectron density          at the nucleus is % e\n",nucd);
-    printf("Electron density gradient at the nucleus is % e\n",gnucd);
-    printf("Cusp condition is %.10f\n",-1.0/(2*Z)*gnucd/nucd);
-
-    double rvdw(solver.vdw_radius(rconf,vdw_thr));
-    printf("\nEstimated vdW radius with density threshold %e is %.6f bohr = %.6f A\n",vdw_thr,rvdw,rvdw*BOHRINANGSTROM);
-    printf("Note that this criterion is sensitive to numerical noise.\n");
-
-    double rincl(solver.electron_count_radius(rconf,eps_el));
-    printf("Estimated vdW radius with electron count threshold %e is %.6f bohr = %.6f A\n",eps_el,rincl,rincl*BOHRINANGSTROM);
-
-    printf("\nResult in NIST format\n");
-    printf("Etot  = % 18.9f\n",rconf.Econf);
-    printf("Ekin  = % 18.9f\n",rconf.Ekin);
-    printf("Ecoul = % 18.9f\n",rconf.Ecoul);
-    printf("Eenuc = % 18.9f\n",rconf.Epot);
-    printf("Econf = % 18.9f\n",rconf.Econfinement);
-    printf("Exc   = % 18.9f\n",rconf.Exc);
-
-    // Hund-rule correction: sadatom computes the spherically-averaged
-    // (barycentre) energy. The actual ground-state term -- the
-    // high-L/high-S Hund-rule single Slater determinant -- is lower by
-    // a specific combination of Slater F^k integrals.
-    {
-      double dE_hund = sadatom::solver::hund_rule_correction(
-          rconf.orbs, solver.Basis());
-      if (dE_hund != 0.0) {
-        printf("Hund corr  = % 18.9f  (E(barycentre) -> E(ground term))\n",
-               dE_hund);
-        printf("Etot(Hund) = % 18.9f\n", rconf.Econf + dE_hund);
-      }
-    }
-
-    rconf.orbs.Print(solver.Basis());
-    (HARTREEINEV*rconf.orbs.GetGap()).t().print("HOMO-LUMO gap (eV)");
-
-    if(completeness) {
-      solver.gto_completeness_profile();
-      printf("Evaluated GTO completeness profile\n");
-      solver.sto_completeness_profile();
-      printf("Evaluated STO completeness profile\n");
-      solver.gto_importance_profile(rconf);
-      printf("Evaluated GTO importance profile\n");
-      solver.sto_importance_profile(rconf);
-      printf("Evaluated STO importance profile\n");
-    }
-
-    // Evaluate xc ingredients
-    if(saveing) {
-      arma::mat ing(solver.XCIngredients(rconf));
-      ing.save("xcing.dat",arma::raw_ascii);
-    }
-    // Evaluate the XC potential
-    if(savepot) {
-      arma::mat pot(solver.XCPotential(rconf));
-      pot.save("xcpot.dat",arma::raw_ascii);
-    }
-
-    // Get the effective potential
-    if(xp_func > 0 || cp_func > 0) {
-      solver.set_func(xp_func, cp_func);
-      arma::mat pot(solver.RestrictedPotential(rconf));
-
+  for (size_t t = 0; t < nparttype; ++t) {
+    number_of_blocks_per_particle_type(t) = static_cast<int>(nblock);
+    number_of_particles(t) = static_cast<OOO_Real>(restricted ? Ntot : (t == 0 ? nela : nelb));
+    for (size_t l = 0; l < nblock; ++l) {
+      // Per-l shell capacity: restricted = 2*(2l+1), unrestricted alpha or beta = (2l+1).
+      maximum_occupation(t * nblock + l) = restricted ? 2 * (2 * l + 1) : (2 * l + 1);
       std::ostringstream oss;
-      oss << "result_" << element_symbols[Z] << ".dat";
-      pot.save(oss.str(),arma::raw_ascii);
+      if (nparttype == 2) oss << (t == 0 ? "a:" : "b:");
+      oss << "l=" << l;
+      block_descriptions[t * nblock + l] = oss.str();
     }
+  }
+  std::cout << "Max occ: " << maximum_occupation.transpose() << "\n";
 
-    // Save the orbitals
-    if(saveorb) {
-      rconf.orbs.Save(solver.Basis(), element_symbols[Z]);
-    }
+  const Eigen::Index Nrad = Sinvh.rows();
+  const double angfac = 4.0 * M_PI;
 
-    // Evaluate HF energy
-    if(c_func != 0 || x_func != -1) {
-      solver.set_func(-1, 0);
-      printf("\nHartree-Fock energy is % .10f\n",solver.FockBuild(rconf));
-    }
-  } else {
+  // Accumulate per-l density into the full radial density Prad and into
+  // the per-l cube Pl_cube for grid.eval_Fxc.
+  auto accumulate_density = [&](helfem::Matrix & Prad, arma::cube & Pl_cube,
+                                 size_t l, const helfem::Matrix & orb,
+                                 const helfem::Vector & occ, double & Ekin_out) {
+    if (occ.cwiseAbs().maxCoeff() == 0.0) return;
+    const helfem::Matrix C = Sinvh * orb;
+    const helfem::Matrix P_l = C * occ.asDiagonal() * C.transpose();
+    Prad += P_l;
+    Pl_cube.slice(l) = helfem::to_arma(P_l);
+    Ekin_out += (P_l * T).trace();
+    if (l > 0)
+      Ekin_out += l * (l + 1) * (P_l * Tl).trace();
+  };
 
-    printf("Electronic configuration is\n");
-    printf("alpha: %s\n",uconf.orbsa.Characterize().c_str());
-    printf(" beta: %s\n",uconf.orbsb.Characterize().c_str());
+  OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> fock_builder =
+      [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm) {
+    const auto & orbitals    = dm.first;
+    const auto & occupations = dm.second;
 
-    double nucd=solver.nuclear_density(uconf);
-    double gnucd=solver.nuclear_density_gradient(uconf);
-    printf("\nElectron density          at the nucleus is % e\n",nucd);
-    printf("Electron density gradient at the nucleus is % e\n",gnucd);
-    printf("Cusp condition is %.10f\n",-1.0/(2*Z)*gnucd/nucd);
+    OpenOrbitalOptimizer::FockMatrix<OOO_Real> fock(nblock * nparttype);
+    helfem::Matrix Prad = helfem::Matrix::Zero(Nrad, Nrad);
+    double Ekin = 0.0;
+    double Exc = 0.0;
+    double nelnum = 0.0;
+    arma::cube XCa, XCb;
+    // Per-l density cubes, retained across the XC/exchange branches.
+    // For unrestricted: Pal = alpha, Pbl = beta. For restricted: Pal
+    // is the total density (there is no separate beta).
+    arma::cube Pal(Nrad, Nrad, nblock, arma::fill::zeros);
+    arma::cube Pbl;
 
-    double rvdw(solver.vdw_radius(uconf,vdw_thr));
-    printf("\nEstimated vdW radius with density threshold %e is %.6f bohr = %.6f A\n",vdw_thr,rvdw,rvdw*BOHRINANGSTROM);
-    printf("Note that this criterion is sensitive to numerical noise.\n");
-
-    double rincl(solver.electron_count_radius(uconf,eps_el));
-    printf("Estimated vdW radius with electron count threshold %e is %.6f bohr = %.6f A\n",eps_el,rincl,rincl*BOHRINANGSTROM);
-
-    printf("\nResult in NIST format\n");
-    printf("Etot  = % 18.9f\n",uconf.Econf);
-    printf("Ekin  = % 18.9f\n",uconf.Ekin);
-    printf("Ecoul = % 18.9f\n",uconf.Ecoul);
-    printf("Eenuc = % 18.9f\n",uconf.Epot);
-    printf("Econf = % 18.9f\n",uconf.Econfinement);
-    printf("Exc   = % 18.9f\n",uconf.Exc);
-
-    // Hund-rule correction (UHF). Combines orbsa + orbsb occupations
-    // for the total atomic configuration; uses alpha orbital
-    // coefficients for F^k (Hund-rule puts the open-shell electrons
-    // in the high-spin / alpha channel).
-    {
-      double dE_hund = sadatom::solver::hund_rule_correction(
-          uconf.orbsa, uconf.orbsb, solver.Basis());
-      if (dE_hund != 0.0) {
-        printf("Hund corr  = % 18.9f  (E(barycentre) -> E(ground term))\n",
-               dE_hund);
-        printf("Etot(Hund) = % 18.9f\n", uconf.Econf + dE_hund);
+    if (restricted) {
+      for (size_t l = 0; l < nblock; ++l)
+        accumulate_density(Prad, Pal, l, orbitals[l], occupations[l], Ekin);
+      if (have_xc) {
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pal / angfac,
+                       XCa, Exc, nelnum, dftthr);
+        XCa /= angfac;
+      }
+    } else {
+      Pbl.zeros(Nrad, Nrad, nblock);
+      helfem::Matrix Prad_a = helfem::Matrix::Zero(Nrad, Nrad);
+      helfem::Matrix Prad_b = helfem::Matrix::Zero(Nrad, Nrad);
+      for (size_t l = 0; l < nblock; ++l) {
+        accumulate_density(Prad_a, Pal, l, orbitals[l],           occupations[l],           Ekin);
+        accumulate_density(Prad_b, Pbl, l, orbitals[nblock + l],  occupations[nblock + l],  Ekin);
+      }
+      Prad = Prad_a + Prad_b;
+      if (have_xc) {
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pal / angfac, Pbl / angfac,
+                       XCa, XCb, Exc, nelnum, nelb > 0, dftthr);
+        XCa /= angfac;
+        if (nelb > 0) XCb /= angfac;
       }
     }
 
-    printf("Alpha orbitals\n");
-    uconf.orbsa.Print(solver.Basis());
-    (HARTREEINEV*uconf.orbsa.GetGap()).t().print("Alpha HOMO-LUMO gap (eV)");
-    printf("Beta  orbitals\n");
-    uconf.orbsb.Print(solver.Basis());
-    (HARTREEINEV*uconf.orbsb.GetGap()).t().print("Beta  HOMO-LUMO gap (eV)");
+    const double Enuc = (Prad * Vnuc).trace();
+    const double Econf = have_conf ? (Prad * Vconf).trace() : 0.0;
+    const helfem::Matrix J = basis.coulomb(Prad / angfac);
+    const double Ecoul = 0.5 * (Prad * J).trace();
 
-    // Evaluate xc ingredients
-    if(saveing) {
-      arma::mat ing(solver.XCIngredients(uconf));
-      ing.save("xcing.dat",arma::raw_ascii);
-    }
-    // Evaluate the XC potential
-    if(savepot) {
-      arma::mat pot(solver.XCPotential(uconf));
-      pot.save("xcpot.dat",arma::raw_ascii);
-    }
-
-    // Get the potential
-    if(xp_func > 0 || cp_func > 0) {
-      solver.set_func(xp_func, cp_func);
-      arma::mat potU(solver.UnrestrictedPotential(uconf));
-      arma::mat potM(solver.AveragePotential(uconf));
-      arma::mat potW(solver.WeightedPotential(uconf));
-      arma::mat potS(solver.HighSpinPotential(uconf));
-      arma::mat pots(solver.LowSpinPotential(uconf));
-
-      std::ostringstream oss;
-
-      oss.str("");
-      oss << "resultU_" << element_symbols[Z] << ".dat";
-      potU.save(oss.str(),arma::raw_ascii);
-
-      oss.str("");
-      oss << "resultM_" << element_symbols[Z] << ".dat";
-      potM.save(oss.str(),arma::raw_ascii);
-
-      oss.str("");
-      oss << "resultW_" << element_symbols[Z] << ".dat";
-      potW.save(oss.str(),arma::raw_ascii);
-
-      oss.str("");
-      oss << "resultS_" << element_symbols[Z] << ".dat";
-      potS.save(oss.str(),arma::raw_ascii);
-
-      oss.str("");
-      oss << "results_" << element_symbols[Z] << ".dat";
-      pots.save(oss.str(),arma::raw_ascii);
+    // HF exchange. basis.exchange takes an angular-normalized density
+    // cube (Pl / ShellCapacity) and returns a cube K such that Fock_l
+    // gets K.slice(l) and Exx = 0.5 * sum_l trace(K[l] * Pl[l]) with
+    // Pl the UNnormalized density -- matches bespoke solver.cpp:940.
+    // ShellCapacity(l) = 2*(2l+1) for restricted, (2l+1) per spin for UKS.
+    // RS hybrids add kshort * basis.rs_exchange with the erfc/Yukawa
+    // kernel precomputed above.
+    arma::cube Ka, Kb;
+    double Exx = 0.0;
+    if (have_exx) {
+      arma::cube ang_a = Pal;
+      for (size_t l = 0; l < nblock; ++l)
+        ang_a.slice(l) /= restricted ? 2.0 * (2 * l + 1) : (2 * l + 1);
+      Ka.zeros(Nrad, Nrad, nblock);
+      if (kfrac  != 0.0) Ka += kfrac  * basis.exchange(ang_a);
+      if (kshort != 0.0) Ka += kshort * basis.rs_exchange(ang_a);
+      for (size_t l = 0; l < nblock; ++l)
+        Exx += 0.5 * arma::trace(Ka.slice(l) * Pal.slice(l));
+      if (!restricted) {
+        arma::cube ang_b = Pbl;
+        for (size_t l = 0; l < nblock; ++l)
+          ang_b.slice(l) /= (2 * l + 1);
+        Kb.zeros(Nrad, Nrad, nblock);
+        if (kfrac  != 0.0) Kb += kfrac  * basis.exchange(ang_b);
+        if (kshort != 0.0) Kb += kshort * basis.rs_exchange(ang_b);
+        for (size_t l = 0; l < nblock; ++l)
+          Exx += 0.5 * arma::trace(Kb.slice(l) * Pbl.slice(l));
+      }
+      // No * 2 in restricted -- Pal here is the TOTAL per-l density
+      // (occupations up to 2*(2l+1)), unlike atomic/diatomic where Pa
+      // is the SPIN density. Matches bespoke solver.cpp:940 exactly.
     }
 
-    // Save the orbitals
-    if(saveorb) {
-      uconf.orbsa.Save(solver.Basis(), element_symbols[Z] + "_alpha");
-      uconf.orbsb.Save(solver.Basis(), element_symbols[Z] + "_beta");
-    }
+    const double Etot = Ekin + Enuc + Econf + Ecoul + Exc + Exx;
 
-    // Evaluate HF energy
-    if(c_func != 0 || x_func != -1) {
-      solver.set_func(-1, 0);
-      printf("\nHartree-Fock energy is % .10f\n",solver.FockBuild(uconf));
+    printf("Ekin %.10f  Enuc %.10f  Ecoul %.10f  Exc %.10f  Exx %.10f",
+            Ekin, Enuc, Ecoul, Exc, Exx);
+    if (have_conf) printf("  Econf %.10f", Econf);
+    printf("  Etot %.10f\n", Etot);
+    fflush(stdout);
+
+    // Per-l Fock: F_l = T + Vnuc + Vconf + J + l(l+1)*Tl + XC_l + K_l.
+    auto build_fock_block = [&](size_t l, const arma::cube & XC_cube,
+                                 bool add_xc, const arma::cube & K_cube,
+                                 bool add_k) -> helfem::Matrix {
+      helfem::Matrix Fl = T + Vnuc + J;
+      if (have_conf) Fl += Vconf;
+      if (l > 0) Fl += l * (l + 1) * Tl;
+      if (add_xc)
+        Fl += helfem::to_eigen(arma::mat(XC_cube.slice(l)));
+      if (add_k)
+        Fl += helfem::to_eigen(arma::mat(K_cube.slice(l)));
+      return Sinvh.transpose() * Fl * Sinvh;
+    };
+
+    if (restricted) {
+      for (size_t l = 0; l < nblock; ++l)
+        fock[l] = build_fock_block(l, XCa, have_xc, Ka, have_exx);
+    } else {
+      for (size_t l = 0; l < nblock; ++l) {
+        fock[l]          = build_fock_block(l, XCa, have_xc, Ka, have_exx);
+        fock[nblock + l] = build_fock_block(l, XCb, have_xc && nelb > 0,
+                                             Kb, have_exx && nelb > 0);
+      }
+    }
+    return std::make_pair(Etot, fock);
+  };
+
+  // Core-Hamiltonian guess per l block per particle type. Include Vconf
+  // so the guess feels the confining potential from the start.
+  OpenOrbitalOptimizer::FockMatrix<OOO_Real> CoreH(nblock * nparttype);
+  for (size_t t = 0; t < nparttype; ++t) {
+    for (size_t l = 0; l < nblock; ++l) {
+      helfem::Matrix Hl = T + Vnuc;
+      if (have_conf) Hl += Vconf;
+      if (l > 0) Hl += l * (l + 1) * Tl;
+      CoreH[t * nblock + l] = Sinvh.transpose() * Hl * Sinvh;
     }
   }
+
+  OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(
+      number_of_blocks_per_particle_type, maximum_occupation,
+      number_of_particles, fock_builder, block_descriptions);
+  scfsolver.initialize_with_fock(CoreH);
+  scfsolver.run();
 
   return 0;
 }
