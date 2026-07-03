@@ -14,108 +14,127 @@
  */
 #include "quadrature.h"
 #include "PolynomialBasis.h"
-#include "chebyshev.h"
-#include "lobatto.h"
 #include "LIPBasis.h"
-#include <ArmaEigen.h>
-#include <cstring>
+#include "Matrix.h"
+#include <lib1dfem/chebyshev.h>
+#include <lib1dfem/lobatto.h>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <memory>
 
 using namespace helfem;
+
+namespace {
+  void write_raw_ascii(const std::string & path, const helfem::Vector & v) {
+    std::ofstream out(path);
+    for (Eigen::Index i = 0; i < v.size(); ++i)
+      out << v(i) << "\n";
+  }
+  void write_raw_ascii(const std::string & path, const helfem::Matrix & m) {
+    std::ofstream out(path);
+    for (Eigen::Index i = 0; i < m.rows(); ++i) {
+      for (Eigen::Index j = 0; j < m.cols(); ++j) {
+        if (j) out << " ";
+        out << m(i, j);
+      }
+      out << "\n";
+    }
+  }
+  void print_matrix(const std::string & name, const helfem::Matrix & m) {
+    printf("%s\n", name.c_str());
+    for (Eigen::Index i = 0; i < m.rows(); ++i) {
+      for (Eigen::Index j = 0; j < m.cols(); ++j)
+        printf(" %8.4f", m(i, j));
+      printf("\n");
+    }
+  }
+}
 
 void run(double R, int n_quad) {
   // Basis functions on [0, R]: x/R, (R-x)/R.
 
   // Get primitive polynomial representation for LIP
-  arma::vec x, w;
-  ::lobatto_compute(2,x,w);
-  helfem::lib1dfem::Vec<double> xe(x.n_elem);
-  std::memcpy(xe.data(), x.memptr(), sizeof(double) * x.n_elem);
-  auto pbas(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(new helfem::polynomial_basis::LIPBasis(xe,0)));
+  helfem::Vector x, w;
+  helfem::lib1dfem::lobatto::lobatto_compute<double>(2, x, w);
+  auto pbas = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
+      new polynomial_basis::LIPBasis(x, 0));
 
-  // Get quadrature rule
-  arma::vec xq, wq;
-  chebyshev::chebyshev(n_quad,xq,wq);
+  // Gauss-Chebyshev nodes for the outer TEI quadrature.
+  helfem::Vector xq, wq;
+  helfem::lib1dfem::chebyshev::chebyshev<double>(n_quad, xq, wq);
 
-  // Get inner integral by quadrature (Phase 5.7: quadrature is Eigen).
-  arma::mat teiinner(helfem::to_arma(
-      quadrature::twoe_inner_integral(0, R, helfem::to_eigen(xq), helfem::to_eigen(wq), pbas, 0)));
+  // Inner integral by quadrature.
+  const helfem::Matrix teiinner =
+      quadrature::twoe_inner_integral(0, R, xq, wq, pbas, 0);
 
-  // Test against analytical integrals. r values are
-  arma::vec r(0.5*R*arma::ones<arma::vec>(xq.n_elem)+0.5*R*xq);
+  // Radial points at which the inner integral is sampled.
+  helfem::Vector r = 0.5 * R * (helfem::Vector::Ones(xq.size()) + xq);
 
-  // The inner integral should give the following
-  arma::mat teiishould(r.n_elem,4);
-  teiishould.col(0)=(arma::ones<arma::vec>(r.n_elem) - r/R + 1.0/3.0*arma::square(r)/(R*R));
-  teiishould.col(1)=r%(-2.0*r + 3*R*arma::ones<arma::vec>(r.n_elem))/(6.0*R*R);
-  teiishould.col(2)=teiishould.col(1);
-  teiishould.col(3)=arma::square(r)/(3.0*R*R);
+  // Analytical inner integrals for L=0 on this element.
+  helfem::Matrix teiishould(r.size(), 4);
+  for (Eigen::Index i = 0; i < r.size(); ++i) {
+    const double ri  = r(i);
+    const double R2  = R * R;
+    teiishould(i, 0) = 1.0 - ri / R + (ri * ri) / (3.0 * R2);
+    teiishould(i, 1) = ri * (-2.0 * ri + 3.0 * R) / (6.0 * R2);
+    teiishould(i, 2) = teiishould(i, 1);
+    teiishould(i, 3) = (ri * ri) / (3.0 * R2);
+  }
 
-  r.save("r.dat",arma::raw_ascii);
-  teiinner.save("teii_q.dat",arma::raw_ascii);
-  teiishould.save("teii.dat",arma::raw_ascii);
+  write_raw_ascii("r.dat",     r);
+  write_raw_ascii("teii_q.dat", teiinner);
+  write_raw_ascii("teii.dat",   teiishould);
 
-  teiishould-=teiinner;
-  printf("Error in inner integral is %e\n",arma::norm(teiishould,"fro"));
+  const helfem::Matrix teiidiff = teiishould - teiinner;
+  printf("Error in inner integral is %e\n", teiidiff.norm());
 
-  arma::mat teiq(helfem::to_arma(
-      quadrature::twoe_integral(0, R, helfem::to_eigen(xq), helfem::to_eigen(wq), pbas, 0)));
+  // Full inner+outer integral.
+  helfem::Matrix teiq = quadrature::twoe_integral(0, R, xq, wq, pbas, 0);
 
-  arma::mat tei(4,4);
-  // Maple gives the following integrals for L=0, in units of R
-
+  // Maple analytical values for the eight independent (ij|kl) entries.
+  helfem::Matrix tei = helfem::Matrix::Zero(4, 4);
   // 1111
-  tei(0,0) = 47.0/180.0;
-  // 1112
-  tei(0,1) = 11/360.0;
-  // 1121
-  tei(0,2) = tei(0,1);
+  tei(0, 0) = 47.0 / 180.0;
+  // 111{2} = 1121
+  tei(0, 1) = 11.0 / 360.0;
+  tei(0, 2) = tei(0, 1);
   // 1122
-  tei(0,3) = 1.0/90.0;
-
+  tei(0, 3) = 1.0 / 90.0;
   // 1211
-  tei(1,0) = 1.0/10.0;
-  // 1212
-  tei(1,1) = 1.0/40.0;
-  // 1221
-  tei(1,2) = tei(1,1);
+  tei(1, 0) = 1.0 / 10.0;
+  // 1212 = 1221
+  tei(1, 1) = 1.0 / 40.0;
+  tei(1, 2) = tei(1, 1);
   // 1222
-  tei(1,3) = 1.0/60.0;
-
-  // 2111
-  tei(2,0) = tei(1,0);
-  // 2112
-  tei(2,1) = tei(1,1);
-  // 2121
-  tei(2,2) = tei(1,2);
-  // 2122
-  tei(2,3) = tei(1,3);
-
+  tei(1, 3) = 1.0 / 60.0;
+  // 2111 = 1211, 2112 = 1212, 2121 = 1221, 2122 = 1222 by symmetry.
+  tei(2, 0) = tei(1, 0);
+  tei(2, 1) = tei(1, 1);
+  tei(2, 2) = tei(1, 2);
+  tei(2, 3) = tei(1, 3);
   // 2211
-  tei(3,0) = 3.0/20.0;
-  // 2212
-  tei(3,1) = 7.0/120.0;
-  // 2221
-  tei(3,2) = tei(3,1);
+  tei(3, 0) = 3.0 / 20.0;
+  // 2212 = 2221
+  tei(3, 1) = 7.0 / 120.0;
+  tei(3, 2) = tei(3, 1);
   // 2222
-  tei(3,3) = 1.0/15.0;
+  tei(3, 3) = 1.0 / 15.0;
+  tei = 4.0 * M_PI * (tei + tei.transpose().eval()) * R;
 
-  // Symmetrization and coefficient
-  tei=4.0*M_PI*(tei+tei.t())*R;
-
-  tei.print("Analytical");
-  teiq.print("Quadrature");
-  teiq-=tei;
-  teiq.print("Difference");
+  print_matrix("Analytical", tei);
+  print_matrix("Quadrature", teiq);
+  print_matrix("Difference", helfem::Matrix(teiq - tei));
 }
 
 int main(int argc, char **argv) {
-  if(argc!=3) {
-    printf("Usage: %s nquad R\n",argv[0]);
+  if (argc != 3) {
+    printf("Usage: %s nquad R\n", argv[0]);
     return 1;
   }
-
-  int nquad(atoi(argv[1]));
-  double R(atof(argv[2]));
-  run(R,nquad);
+  const int    nquad = std::atoi(argv[1]);
+  const double R     = std::atof(argv[2]);
+  run(R, nquad);
   return 0;
 }
