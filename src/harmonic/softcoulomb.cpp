@@ -1,4 +1,3 @@
-#include <ArmaEigen.h>
 /*
  *                This source code is part of
  *
@@ -18,174 +17,141 @@
 #include "../general/checkpoint.h"
 #include "PolynomialBasis.h"
 #include "FiniteElementBasis.h"
-#include "chebyshev.h"
-#include <cstring>
+#include "Matrix.h"
+#include "ArmaEigen.h"
+#include <lib1dfem/chebyshev.h>
+#include <Eigen/Eigenvalues>
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <functional>
+#include <memory>
 
 using namespace helfem;
 
 namespace {
-  // Phase 5.4 bridge.
-  inline helfem::Vector to_e(const arma::vec & v) {
-    helfem::Vector e(v.n_elem);
-    std::memcpy(e.data(), v.memptr(), sizeof(double) * v.n_elem);
-    return e;
+  helfem::Matrix overlap(const polynomial_basis::FiniteElementBasis & fem,
+                         const helfem::Vector & x, const helfem::Vector & wx) {
+    return fem.matrix_element(false, false, x, wx, nullptr);
   }
-  inline arma::mat to_a(const helfem::Matrix & m) {
-    arma::mat out(m.rows(), m.cols());
-    std::memcpy(out.memptr(), m.data(), sizeof(double) * (size_t) m.size());
-    return out;
+
+  helfem::Matrix potential(const polynomial_basis::FiniteElementBasis & fem,
+                           const helfem::Vector & x, const helfem::Vector & wx,
+                           double z, double x0, double alpha, bool abs) {
+    std::function<double(double)> soft_coulomb;
+    if (abs)
+      soft_coulomb = [z, x0, alpha](double x) { return -z / (std::abs(x - x0) + alpha); };
+    else
+      soft_coulomb = [z, x0, alpha](double x) {
+        return -z / std::sqrt((x - x0) * (x - x0) + alpha * alpha);
+      };
+    return fem.matrix_element(false, false, x, wx, soft_coulomb);
   }
-} // namespace
 
-arma::mat overlap(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
-  return to_a(fem.matrix_element(false, false, to_e(x), to_e(wx), nullptr));
-}
-
-arma::mat potential(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx, double z, double x0, double alpha, bool abs) {
-  std::function<double(double)> soft_coulomb;
-  if(abs) {
-    soft_coulomb = [z, x0, alpha](double x) {
-      return -z/(std::abs(x-x0)+alpha);
-    };
-  } else {
-    soft_coulomb = [z, x0, alpha](double x) {
-      return -z/sqrt((x-x0)*(x-x0)+alpha*alpha);
-    };
+  helfem::Matrix kinetic(const polynomial_basis::FiniteElementBasis & fem,
+                         const helfem::Vector & x, const helfem::Vector & wx) {
+    return 0.5 * fem.matrix_element(true, true, x, wx, nullptr);
   }
-  return to_a(fem.matrix_element(false, false, to_e(x), to_e(wx), soft_coulomb));
-}
-
-arma::mat kinetic(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
-  return 0.5*to_a(fem.matrix_element(true, true, to_e(x), to_e(wx), nullptr));
 }
 
 int main(int argc, char **argv) {
   cmdline::parser parser;
 
-  // full option name, no short option, description, argument required
-  parser.add<double>("xmax", 0, "practical infinity in au", false, 40.0);
-  parser.add<int>("nelem", 0, "number of elements", false, 5);
-  parser.add<int>("nnodes", 0, "number of elements", false, 15);
-  parser.add<int>("primbas", 0, "primitive basis", false, 4);
-  parser.add<int>("nquad", 0, "primitive basis", false, -1);
-  parser.add<int>("Z1", 0, "primitive basis", true);
-  parser.add<int>("Z2", 0, "primitive basis", true);
-  parser.add<double>("R", 0, "Bond length", true);
-  parser.add<double>("alpha", 0, "Coulomb regularization parameter", true);
-  parser.add<bool>("abs", 0, "Use 1/(|x-x0|+alpha) instead of 1/sqrt( (x-x0)^2 + alpha^2 ) as potential", false, 0);
+  parser.add<double>("xmax",   0, "practical infinity in au",   false, 40.0);
+  parser.add<int>("nelem",     0, "number of elements",         false, 5);
+  parser.add<int>("nnodes",    0, "number of elements",         false, 15);
+  parser.add<int>("primbas",   0, "primitive basis",            false, 4);
+  parser.add<int>("nquad",     0, "primitive basis",            false, -1);
+  parser.add<int>("Z1",        0, "primitive basis",            true);
+  parser.add<int>("Z2",        0, "primitive basis",            true);
+  parser.add<double>("R",      0, "Bond length",                true);
+  parser.add<double>("alpha",  0, "Coulomb regularization parameter", true);
+  parser.add<bool>("abs",      0, "Use 1/(|x-x0|+alpha) instead of 1/sqrt( (x-x0)^2 + alpha^2 ) as potential", false, 0);
   parser.add<std::string>("save", 0, "Checkpoint to save results to", false, "softcoulomb.chk");
 
   parser.parse_check(argc, argv);
-  double xmax = parser.get<double>("xmax");
-  int Nelem = parser.get<int>("nelem");
-  int Nnodes = parser.get<int>("nnodes");
-  int primbas = parser.get<int>("primbas");
-  int Nquad = parser.get<int>("nquad");
-  int Z1 = parser.get<int>("Z1");
-  int Z2 = parser.get<int>("Z2");
-  double R = parser.get<double>("R");
-  double alpha = parser.get<double>("alpha");
-  bool abs = parser.get<bool>("abs");
-  std::string save = parser.get<std::string>("save");
+  const double xmax   = parser.get<double>("xmax");
+  const int    Nelem  = parser.get<int>("nelem");
+  const int    Nnodes = parser.get<int>("nnodes");
+  const int    primbas = parser.get<int>("primbas");
+        int    Nquad  = parser.get<int>("nquad");
+  const int    Z1     = parser.get<int>("Z1");
+  const int    Z2     = parser.get<int>("Z2");
+  const double R      = parser.get<double>("R");
+  const double alpha  = parser.get<double>("alpha");
+  const bool   abs    = parser.get<bool>("abs");
+  const std::string save = parser.get<std::string>("save");
 
-  if(abs)
+  if (abs)
     printf("Using potential V(x) = -Z / ( |x-x0| + alpha )\n");
   else
     printf("Using potential V(x) = -Z / sqrt( (x-x0)^2 + alpha^2 )\n");
 
-  // Get polynomial basis
-  auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(primbas, Nnodes)));
-  if(Nquad<0)
-    Nquad=5*poly->get_nbf();
+  auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
+      polynomial_basis::get_basis(primbas, Nnodes));
+  if (Nquad < 0) Nquad = 5 * poly->get_nbf();
 
-  // Radial grid
-  arma::vec x(arma::linspace<arma::vec>(-xmax,xmax,Nelem+1));
+  const helfem::Vector x = helfem::Vector::LinSpaced(Nelem + 1, -xmax, xmax);
 
-  // Finite element basis
-  bool zero_func_left=true;
-  bool zero_deriv_left=true;
-  bool zero_func_right=true;
-  bool zero_deriv_right=true;
-  helfem::polynomial_basis::FiniteElementBasis fem(poly, helfem::to_eigen(x), zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
+  polynomial_basis::FiniteElementBasis fem(poly, x,
+      /*zero_func_left=*/true,  /*zero_deriv_left=*/true,
+      /*zero_func_right=*/true, /*zero_deriv_right=*/true);
 
-  // Quadrature rule
-  arma::vec xq, wq;
-  chebyshev::chebyshev(Nquad,xq,wq);
+  helfem::Vector xq, wq;
+  helfem::lib1dfem::chebyshev::chebyshev<double>(Nquad, xq, wq);
 
-  size_t Nbf(fem.get_nbf());
-  printf("Basis set contains %i functions\n",(int) Nbf);
+  const size_t Nbf = fem.get_nbf();
+  printf("Basis set contains %i functions\n", (int) Nbf);
 
-  // Form overlap matrix
-  arma::mat S(overlap(fem, xq, wq));
-  // Form potential matrix
-  arma::mat V(potential(fem, xq, wq, Z1, -0.5*R, alpha, abs)+potential(fem, xq, wq, Z2, 0.5*R, alpha, abs));
-  // Form kinetic energy matrix
-  arma::mat T(kinetic(fem, xq, wq));
+  const helfem::Matrix S = overlap(fem, xq, wq);
+  const helfem::Matrix V = potential(fem, xq, wq, Z1, -0.5 * R, alpha, abs)
+                         + potential(fem, xq, wq, Z2,  0.5 * R, alpha, abs);
+  const helfem::Matrix T = kinetic(fem, xq, wq);
+  const helfem::Matrix H = T + V;
 
-  // Form Hamiltonian
-  arma::mat H(T+V);
+  Eigen::SelfAdjointEigenSolver<helfem::Matrix> Ses(S);
+  const helfem::Vector Sval = Ses.eigenvalues();
+  const helfem::Matrix Svec = Ses.eigenvectors();
+  printf("Smallest value of overlap matrix is % e, condition number is %e\n",
+         Sval(0), Sval(Sval.size() - 1) / Sval(0));
+  const helfem::Vector Sdiag = S.diagonal().cwiseAbs();
+  printf("Smallest and largest bf norms are %e and %e\n",
+         Sdiag.minCoeff(), Sdiag.maxCoeff());
 
-  //S.print("Overlap");
-  //T.print("Kinetic");
-  //V.print("Potential");
-  //H.print("Hamiltonian");
+  const helfem::Matrix Sinvh =
+      Svec * Sval.array().pow(-0.5).matrix().asDiagonal() * Svec.transpose();
 
-  // Form orthonormal basis
-  arma::vec Sval;
-  arma::mat Svec;
-  arma::eig_sym(Sval,Svec,S);
+  const helfem::Matrix Horth = Sinvh.transpose() * H * Sinvh;
 
-  //Sval.print("S eigenvalues");
-  printf("Smallest value of overlap matrix is % e, condition number is %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
-  printf("Smallest and largest bf norms are %e and %e\n",arma::min(arma::abs(arma::diagvec(S))),arma::max(arma::abs(arma::diagvec(S))));
+  Eigen::SelfAdjointEigenSolver<helfem::Matrix> Hes(Horth);
+  const helfem::Vector E = Hes.eigenvalues();
+  helfem::Matrix C = Sinvh * Hes.eigenvectors();
 
-  // Form half-inverse
-  arma::mat Sinvh(Svec * arma::diagmat(arma::pow(Sval, -0.5)) * arma::trans(Svec));
+  for (int i = 0; i < 10 && i < E.size(); ++i)
+    printf("E[%i] = % .15e\n", i, E(i));
 
-  // Form orthonormal Hamiltonian
-  arma::mat Horth(arma::trans(Sinvh)*H*Sinvh);
+  helfem::Matrix Smo = C.transpose() * S * C;
+  Smo -= helfem::Matrix::Identity(Smo.rows(), Smo.cols());
+  printf("Orbital orthonormality devation is %e\n", Smo.norm());
 
-  // Diagonalize Hamiltonian
-  arma::vec E;
-  arma::mat C;
-  arma::eig_sym(E,C,Horth);
+  // Evaluate the basis set: 0th derivative -- native Eigen through the
+  // FE interface.
+  const helfem::Matrix bfval = fem.eval_dnf(xq, 0);
+  const helfem::Matrix phival = bfval * C;
+  const helfem::Vector coords = fem.eval_coord(xq);
+  const helfem::Vector weights = fem.eval_weights(wq);
 
-  // Go back to non-orthonormal basis
-  C=Sinvh*C;
+  helfem::Matrix Sgrid = phival.transpose() * weights.asDiagonal() * phival;
+  Sgrid -= helfem::Matrix::Identity(Sgrid.rows(), Sgrid.cols());
+  printf("Orbital orthonormality devation on grid is %e\n", Sgrid.norm());
 
-  for(size_t i=0;i<10;i++)
-    printf("E[%i] = % .15e\n",(int) i, E[i]);
-
-  // Test orthonormality
-  arma::mat Smo(C.t()*S*C);
-  Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
-  printf("Orbital orthonormality devation is %e\n",arma::norm(Smo,"fro"));
-
-  // Evaluate the basis set: 0th derivative (Phase 5.3 bridge).
-  helfem::Vector xq_e(xq.n_elem);
-  std::memcpy(xq_e.data(), xq.memptr(), sizeof(double) * xq.n_elem);
-  helfem::Matrix bfval_e = fem.eval_dnf(xq_e, 0);
-  arma::mat bfval(bfval_e.rows(), bfval_e.cols());
-  std::memcpy(bfval.memptr(), bfval_e.data(), sizeof(double) * (size_t) bfval_e.size());
-  arma::mat phival(bfval*C);
-  helfem::Vector coords_e = fem.eval_coord(xq_e);
-  arma::vec coords(coords_e.size());
-  std::memcpy(coords.memptr(), coords_e.data(), sizeof(double) * coords_e.size());
-  helfem::Vector weights_e(fem.eval_weights(to_e(wq)));
-  arma::vec weights(weights_e.size());
-  std::memcpy(weights.memptr(), weights_e.data(), sizeof(double) * weights_e.size());
-
-  // Test orbitals are still orthonormal
-  arma::mat Sgrid(phival.t()*arma::diagmat(weights)*phival);
-  Sgrid-=arma::eye<arma::mat>(Sgrid.n_rows,Sgrid.n_cols);
-  printf("Orbital orthonormality devation on grid is %e\n",arma::norm(Sgrid,"fro"));
-
+  // Checkpoint I/O is still arma-typed; bridge at the write boundary.
   Checkpoint chkpt(save, true);
-  chkpt.write("bf",bfval);
-  chkpt.write("C",C);
-  chkpt.write("phi",phival);
-  chkpt.write("coords",coords);
-  chkpt.write("weights",weights);
+  chkpt.write("bf",     helfem::to_arma(bfval));
+  chkpt.write("C",      helfem::to_arma(C));
+  chkpt.write("phi",    helfem::to_arma(phival));
+  chkpt.write("coords", helfem::to_arma(coords));
+  chkpt.write("weights", helfem::to_arma(weights));
 
   return 0;
 }
