@@ -16,7 +16,6 @@
 #include "../general/cmdline.h"
 #include "../general/checkpoint.h"
 #include "../general/constants.h"
-#include "../general/diis.h"
 #include "../general/dftfuncs.h"
 #include "../general/timer.h"
 #include "utils.h"

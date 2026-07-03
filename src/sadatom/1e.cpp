@@ -20,8 +20,6 @@
 #include "../general/scf_helpers.h"
 #include "utils.h"
 #include "dftgrid.h"
-#include "solver.h"
-#include "configurations.h"
 #include <cfloat>
 
 using namespace helfem;

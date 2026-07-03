@@ -18,7 +18,7 @@
 
 #include "basis.h"
 #include "../general/model_potential.h"
-#include "../sadatom/solver.h"
+#include "../sadatom/basis.h"
 
 namespace helfem {
   namespace diatomic {
