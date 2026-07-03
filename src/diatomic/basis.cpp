@@ -43,7 +43,7 @@ namespace {
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
 #include "../general/gsz.h"
-#include "utils.h"
+#include "tei_utils.h"
 #include "../general/timer.h"
 #include "../general/scf_helpers.h"
 #include <algorithm>

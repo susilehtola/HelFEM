@@ -12,6 +12,7 @@ sadatom/dftgrid.cpp sadatom/solver.cpp sadatom/configurations.cpp
 general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
 diatomic/dftgrid.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp
+general/tei_utils.cpp
 )
 target_link_libraries(helfem-common PUBLIC helfem wignernj::wignernj)
 # Propagate OpenMP to consumers of helfem-common. Without this, an
