@@ -87,6 +87,11 @@ int main(int argc, char **argv) {
   // Fock symmetry averaging over m values (parity with bespoke diatomic).
   parser.add<bool>("maverage", 0, "average Fock matrix over m values", false, false);
 
+  // Frozen per-block occupations from occs.dat (parity with bespoke
+  // diatomic's --readocc, but a bool since OOO's fixed-per-block
+  // occupations apply for the whole SCF, not just N Fock builds).
+  parser.add<bool>("readocc", 0, "read frozen per-block occupations from occs.dat", false, false);
+
   parser.parse_check(argc, argv);
 
   const int Z1        = get_Z(parser.get<std::string>("Z1"));
@@ -117,6 +122,7 @@ int main(int argc, char **argv) {
   const double Qzz    = parser.get<double>("Qzz");
   const double Bz     = parser.get<double>("Bz");
   const bool   maverage = parser.get<bool>("maverage");
+  const bool   readocc  = parser.get<bool>("readocc");
 
   // Derive nela/nelb from Q, M -- same convention as the bespoke diatomic
   // driver. Total nuclear charge is Z1 + Z2.
@@ -440,6 +446,68 @@ int main(int argc, char **argv) {
   OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(
       number_of_blocks_per_particle_type, maximum_occupation,
       number_of_particles, fock_builder, block_descriptions);
+
+  // --readocc: parse occs.dat and hand OOO a fixed per-block particle
+  // count. Bespoke diatomic reads (nocca, noccb, m) rows for both
+  // hetero- and homonuclear cases (symm=0/1), and adds a fourth
+  // `parity in {+1,-1}` column when symm=2 (homonuclear g/u split).
+  //
+  // Same bool-vs-int semantic difference as atomic_ooo: OOO's frozen
+  // per-block particles cannot be released mid-SCF, so we freeze for
+  // the entire run instead of the first N Fock builds only.
+  if (readocc) {
+    if (symm == 0)
+      throw std::logic_error("--readocc requires --symmetry>=1 (need per-block index).");
+    arma::imat occs;
+    occs.load("occs.dat", arma::raw_ascii);
+    if (Z1 != Z2 && occs.n_cols != 3)
+      throw std::logic_error("occs.dat: heteronuclear molecule requires 3 columns (nocca, noccb, m).");
+    if (Z1 == Z2 && occs.n_cols != 3 && occs.n_cols != 4)
+      throw std::logic_error("occs.dat: homonuclear molecule requires 3 or 4 columns.");
+    if (occs.n_cols == 4 && symm != 2)
+      throw std::logic_error("occs.dat: 4-column form (with parity) requires --symmetry=2.");
+
+    Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> fixed_particles =
+        Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1>::Zero(nsym * nparttype);
+    int total_a = 0, total_b = 0;
+    for (arma::uword i = 0; i < occs.n_rows; ++i) {
+      const int nocca_i = static_cast<int>(occs(i, 0));
+      const int noccb_i = static_cast<int>(occs(i, 1));
+      arma::uvec row_idx;
+      if (occs.n_cols == 3) {
+        row_idx = basis.m_indices(occs(i, 2));
+      } else {
+        if (occs(i, 3) != 1 && occs(i, 3) != -1)
+          throw std::logic_error("occs.dat: parity column must be +1 or -1.");
+        row_idx = basis.m_indices(occs(i, 2), (occs(i, 3) == -1));
+      }
+      if (!row_idx.n_elem)
+        throw std::logic_error("occs.dat: row references a symmetry block with no basis functions.");
+      int matched_block = -1;
+      for (size_t k = 0; k < nsym; ++k) {
+        if (dsym[k].n_elem == row_idx.n_elem &&
+            arma::all(dsym[k] == row_idx)) { matched_block = static_cast<int>(k); break; }
+      }
+      if (matched_block < 0)
+        throw std::logic_error("occs.dat: row does not match any current symmetry block.");
+      total_a += nocca_i;
+      total_b += noccb_i;
+      if (restricted) {
+        if (nocca_i != noccb_i)
+          throw std::logic_error("occs.dat: nocca != noccb on a row is incompatible with restricted mode.");
+        fixed_particles(matched_block) = static_cast<OOO_Real>(nocca_i + noccb_i);
+      } else {
+        fixed_particles(matched_block)         = static_cast<OOO_Real>(nocca_i);
+        fixed_particles(nsym + matched_block)  = static_cast<OOO_Real>(noccb_i);
+      }
+    }
+    if (total_a != nela)
+      throw std::logic_error("occs.dat: sum of nocca does not match --nela.");
+    if (total_b != nelb)
+      throw std::logic_error("occs.dat: sum of noccb does not match --nelb.");
+    scfsolver.fixed_number_of_particles_per_block(fixed_particles);
+  }
+
   scfsolver.initialize_with_fock(CoreH);
   scfsolver.run();
 
