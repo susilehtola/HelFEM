@@ -78,6 +78,12 @@ int main(int argc, char **argv) {
   parser.add<int>("symmetry", 0, "orbital symmetry: 0 none, 1 per-m, 2 per-(m,parity) (homonuclear only)", false, 1);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
+
+  // External static fields (parity with bespoke diatomic driver).
+  parser.add<double>("Ez",  0, "electric dipole field",     false, 0.0);
+  parser.add<double>("Qzz", 0, "electric quadrupole field", false, 0.0);
+  parser.add<double>("Bz",  0, "magnetic dipole field",     false, 0.0);
+
   parser.parse_check(argc, argv);
 
   const int Z1        = get_Z(parser.get<std::string>("Z1"));
@@ -104,6 +110,9 @@ int main(int argc, char **argv) {
         int symm      = parser.get<int>("symmetry");
   const std::string xparf = parser.get<std::string>("x_pars");
   const std::string cparf = parser.get<std::string>("c_pars");
+  const double Ez     = parser.get<double>("Ez");
+  const double Qzz    = parser.get<double>("Qzz");
+  const double Bz     = parser.get<double>("Bz");
 
   // Derive nela/nelb from Q, M -- same convention as the bespoke diatomic
   // driver. Total nuclear charge is Z1 + Z2.
@@ -169,6 +178,17 @@ int main(int argc, char **argv) {
     printf("Warning - asked for homonuclear symmetry for heteronuclear molecule. Relaxing to symmetry=1.\n");
     symm = 1;
   }
+  // symm=2 (per-(m, parity)) also breaks in the presence of an external
+  // electric or magnetic field along z -- the field mixes parity or m
+  // sectors. Match the bespoke diatomic driver's relaxation to symm=1.
+  if (symm == 2 && (Ez != 0.0 || Qzz != 0.0)) {
+    printf("Warning - asked for full orbital symmetry in presence of electric field. Relaxing restriction.\n");
+    symm = 1;
+  }
+  if (symm == 2 && Bz != 0.0) {
+    printf("Warning - asked for full orbital symmetry in presence of magnetic field. Relaxing restriction.\n");
+    symm = 1;
+  }
 
   diatomic::basis::TwoDBasis basis(Z1, Z2, Rhalf, poly, Nquad, bval, lval, mval);
   const size_t Nbf = basis.Nbf();
@@ -181,6 +201,23 @@ int main(int argc, char **argv) {
   const arma::mat S    = basis.overlap();
   const arma::mat T    = basis.kinetic();
   const arma::mat Vnuc = basis.nuclear();
+
+  // External static-field one-electron matrices. Diatomic has two
+  // nuclei at (0, 0, +/- Rhalf); nuclear dipole/quadrupole moments are
+  // non-zero and add a constant scalar Enucfield to the total energy.
+  //   nucdip  = (Z2 - Z1) * Rhalf       (points along +z from Z1->Z2)
+  //   nucquad = (Z1 + Z2) * Rhalf^2
+  //   Enucfield = -Ez * nucdip - Qzz * nucquad / 3
+  // Vel/Vmag are the electron-side matrix contributions folded into H0.
+  const arma::mat dip  = basis.dipole_z();
+  const arma::mat quad = basis.quadrupole_zz();
+  const arma::mat Vel  = Ez * dip + Qzz * quad / 3.0;
+  const arma::mat Vmag = basis.Bz_field(Bz);
+  const double nucdip  = (Z2 - Z1) * Rhalf;
+  const double nucquad = (Z1 + Z2) * Rhalf * Rhalf;
+  const double Enucfield = -Ez * nucdip - Qzz * nucquad / 3.0;
+  const bool have_efield = (Ez != 0.0 || Qzz != 0.0);
+  const bool have_bfield = (Bz != 0.0);
 
   // Symmetry decomposition.
   std::vector<arma::uvec> dsym;
@@ -289,6 +326,11 @@ int main(int argc, char **argv) {
 
     const double Ekin = arma::trace(P * T);
     const double Enuc = arma::trace(P * Vnuc);
+    // External-field trace contributions. Vel/Vmag are zero when their
+    // coupling is off; Enucfield is a scalar independent of the density.
+    const double Eefield = have_efield ? arma::trace(P * Vel) + Enucfield : 0.0;
+    const double Emfield = have_bfield
+        ? arma::trace(P * Vmag) - 0.5 * Bz * (nela - nelb) : 0.0;
 
     const arma::mat J = basis.coulomb(P);
     const double Ecoul = 0.5 * arma::trace(P * J);
@@ -309,24 +351,39 @@ int main(int argc, char **argv) {
       }
     }
 
-    const double Etot = Ekin + Enuc + Ecoul + Exc + Exx + Enucr;
-    printf("kinetic %.10f nuclear %.10f Enucr %.10f Coulomb %.10f XC %.10f Exx %.10f  total %.10f  (nel err %.3e)\n",
-            Ekin, Enuc, Enucr, Ecoul, Exc, Exx, Etot, nelnum - static_cast<double>(Ntot));
+    const double Etot = Ekin + Enuc + Eefield + Emfield
+                       + Ecoul + Exc + Exx + Enucr;
+    printf("kinetic %.10f nuclear %.10f Enucr %.10f Coulomb %.10f XC %.10f Exx %.10f",
+            Ekin, Enuc, Enucr, Ecoul, Exc, Exx);
+    if (have_efield) printf(" Eefield %.10f", Eefield);
+    if (have_bfield) printf(" Emfield %.10f", Emfield);
+    printf("  total %.10f  (nel err %.3e)\n",
+            Etot, nelnum - static_cast<double>(Ntot));
     fflush(stdout);
 
     // Fock assembly. Restricted: one AO Fock matrix per block.
     // Unrestricted: separate alpha/beta AO Fock matrices.
+    // Pre-assembled 1-electron core. Vel/Vmag are zero matrices when
+    // their coupling is off so this matches T + Vnuc + J exactly in the
+    // no-field case.
+    const arma::mat H1 = T + Vnuc + Vel + Vmag;
     if (restricted) {
-      arma::mat F_ao = T + Vnuc + J;
+      arma::mat F_ao = H1 + J;
       if (have_xc)  F_ao += XCa;
       if (have_exx) F_ao += Ka;
       for (size_t k = 0; k < nsym; ++k)
         orthonormalize_block(fock, k, F_ao, k);
     } else {
-      arma::mat Fa_ao = T + Vnuc + J;
-      arma::mat Fb_ao = T + Vnuc + J;
+      arma::mat Fa_ao = H1 + J;
+      arma::mat Fb_ao = H1 + J;
       if (have_xc)  { Fa_ao += XCa; Fb_ao += XCb; }
       if (have_exx) { Fa_ao += Ka;  Fb_ao += Kb;  }
+      // Spin-Zeeman splitting Fa -= Bz/2 * S, Fb += Bz/2 * S. In
+      // restricted mode alpha == beta so no split is applied.
+      if (have_bfield) {
+        Fa_ao -= 0.5 * Bz * S;
+        Fb_ao += 0.5 * Bz * S;
+      }
       for (size_t k = 0; k < nsym; ++k) {
         orthonormalize_block(fock, k,        Fa_ao, k);
         orthonormalize_block(fock, nsym + k, Fb_ao, k);
@@ -335,8 +392,9 @@ int main(int argc, char **argv) {
     return std::make_pair(Etot, fock);
   };
 
-  // Core-H guess per block per particle type.
-  const arma::mat H0 = T + Vnuc;
+  // Core-H guess per block per particle type. Fold in the external-field
+  // 1e matrices so the very first Fock reflects the perturbing potential.
+  const arma::mat H0 = T + Vnuc + Vel + Vmag;
   OpenOrbitalOptimizer::FockMatrix<OOO_Real> CoreH(nsym * nparttype);
   for (size_t t = 0; t < nparttype; ++t) {
     for (size_t k = 0; k < nsym; ++k) {
@@ -344,7 +402,9 @@ int main(int argc, char **argv) {
         CoreH[t * nsym + k] = helfem::Matrix::Zero(0, 0);
         continue;
       }
-      const arma::mat H_sub = H0(dsym[k], dsym[k]);
+      arma::mat H_sub = H0(dsym[k], dsym[k]);
+      if (have_bfield && nparttype == 2)
+        H_sub += (t == 0 ? -0.5 : 0.5) * Bz * arma::mat(S(dsym[k], dsym[k]));
       const arma::mat H_orth = Sinvh_arma[k].t() * H_sub * Sinvh_arma[k];
       CoreH[t * nsym + k] = helfem::to_eigen(H_orth);
     }
