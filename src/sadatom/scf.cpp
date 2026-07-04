@@ -51,7 +51,7 @@ namespace helfem {
                                          opts.bval, lmax);
 
         const helfem::Matrix S    = basis.overlap();
-        const helfem::Matrix Sinvh = helfem::to_eigen(basis.Sinvh());
+        const helfem::Matrix Sinvh = basis.Sinvh();
         const helfem::Matrix T    = basis.kinetic();
         const helfem::Matrix Tl   = basis.kinetic_l();
         const helfem::Matrix Vnuc = basis.nuclear();

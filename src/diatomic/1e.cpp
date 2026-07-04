@@ -138,7 +138,7 @@ int main(int argc, char **argv) {
   timer.set();
   bool diag=true;
   bool symm=false;
-  arma::mat Sinvh(basis.Sinvh(!diag,symm));
+  arma::mat Sinvh(helfem::to_arma(basis.Sinvh(!diag,symm)));
   chkpt.write("Sinvh",Sinvh);
   printf("Half-inverse formed in %.6f\n",timer.get());
   {

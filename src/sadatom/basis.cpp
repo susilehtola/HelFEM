@@ -66,15 +66,13 @@ namespace helfem {
         return Z;
       }
 
-      arma::mat TwoDBasis::Sinvh() const {
-        arma::mat S(helfem::to_arma(overlap()));
-        return helfem::to_arma(scf::form_Sinvh(helfem::to_eigen(S), false));
+      helfem::Matrix TwoDBasis::Sinvh() const {
+        return scf::form_Sinvh(overlap(), /*chol=*/false);
       }
 
-      arma::mat TwoDBasis::radial_integral(int Rexp) const {
-        // Bridge to arma at the public API boundary.
-        return helfem::to_arma(helfem::assemble_radial_diagonal(radial,
-            [&](size_t iel) { return radial.radial_integral(Rexp, iel); }));
+      helfem::Matrix TwoDBasis::radial_integral(int Rexp) const {
+        return helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(Rexp, iel); });
       }
 
       helfem::Matrix TwoDBasis::overlap() const {
@@ -1018,7 +1016,7 @@ namespace helfem {
         std::vector< std::pair<int, arma::mat> > rmat;
         for(int i=-2;i<=3;i++) {
           if(i==0) continue;
-          std::pair<int, arma::mat> p(i, radial_integral(i));
+          std::pair<int, arma::mat> p(i, helfem::to_arma(radial_integral(i)));
           rmat.push_back(p);
         }
         return rmat;
