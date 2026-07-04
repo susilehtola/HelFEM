@@ -124,95 +124,6 @@ namespace helfem {
         return eigen_mat_to_arma(fem.matrix_element(false, false, arma_to_eigen_vec(xq), arma_to_eigen_vec(wq), chsh));
       }
 
-      arma::mat RadialBasis::overlap(const RadialBasis & rh, int n) const {
-	// Use the larger number of quadrature points to assure
-	// projection is computed ok
-	size_t n_quad(std::max(xq.n_elem,rh.xq.n_elem));
-
-	arma::vec xproj, wproj;
-	chebyshev::chebyshev(n_quad,xproj,wproj);
-
-        // Form list of overlapping elements
-        std::vector< std::vector<size_t> > overlap(fem.get_nelem());
-        for(size_t iel=0;iel<fem.get_nelem();iel++) {
-          // Range of element i
-          double istart(fem.element_begin(iel));
-          double iend(fem.element_end(iel));
-
-          for(size_t jel=0;jel<rh.fem.get_nelem();jel++) {
-            // Range of element j
-            double jstart(rh.fem.element_begin(jel));
-            double jend(rh.fem.element_end(jel));
-
-            // Is there overlap?
-            if((jstart >= istart && jstart<iend) || (istart >= jstart && istart < jend)) {
-              overlap[iel].push_back(jel);
-	      //printf("New element %i overlaps with old element %i\n",iel,jel);
-	    }
-          }
-        }
-
-        // Form overlap matrix
-        arma::mat S(Nbf(),rh.Nbf());
-        S.zeros();
-        for(size_t iel=0;iel<fem.get_nelem();iel++) {
-          // Loop over overlapping elements
-          for(size_t jj=0;jj<overlap[iel].size();jj++) {
-            // Index of element is
-            size_t jel=overlap[iel][jj];
-
-	    // Because the functions are only defined within a single
-	    // element, the product can be very raggedy. However,
-	    // since we *know* where the overlap is non-zero, we can
-	    // restrict the quadrature to just that zone.
-
-	    // Limits
-	    double imin(fem.element_begin(iel));
-	    double imax(fem.element_end(iel));
-            // Range of element
-            double jmin(rh.fem.element_begin(jel));
-            double jmax(rh.fem.element_end(jel));
-
-	    // Range of integral is thus
-	    double intstart(std::max(imin,jmin));
-	    double intend(std::min(imax,jmax));
-	    // Inteval mid-point is at
-            double intmid(0.5*(intend+intstart));
-            double intlen(0.5*(intend-intstart));
-
-	    // mu values we're going to use are then
-	    arma::vec mu(intmid*arma::ones<arma::vec>(xproj.n_elem)+intlen*xproj);
-
-            // Calculate x values the polynomials should be evaluated at
-            arma::vec xi(eigen_vec_to_arma(fem.eval_prim(arma_to_eigen_vec(mu), iel)));
-	    arma::vec xj(eigen_vec_to_arma(rh.fem.eval_prim(arma_to_eigen_vec(mu), jel)));
-
-	    // Where are we in the matrix?
-	    size_t ifirst, ilast;
-	    get_idx(iel,ifirst,ilast);
-            size_t jfirst, jlast;
-            rh.get_idx(jel,jfirst,jlast);
-
-	    // Calculate total weight per point
-	    arma::vec wtot(wproj*intlen);
-	    wtot%=arma::sinh(mu);
-	    if(n!=0)
-	      wtot%=arma::pow(arma::cosh(mu),n);
-	    // Put in weight
-	    arma::mat ibf(eigen_mat_to_arma(fem.eval_f(arma_to_eigen_vec(xi), iel)));
-	    arma::mat jbf(eigen_mat_to_arma(rh.fem.eval_f(arma_to_eigen_vec(xj), jel)));
-
-	    // Perform quadrature
-            arma::mat s(arma::trans(ibf)*arma::diagmat(wtot)*jbf);
-
-            // Increment overlap matrix
-            S.submat(ifirst,jfirst,ilast,jlast) += s;
-          }
-        }
-
-        return S;
-      }
-
       arma::mat RadialBasis::Plm_integral(int k, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
         std::function<double(double)> Plm;
         if(k!=0) {
@@ -660,17 +571,6 @@ namespace helfem {
         return M.submat(iang*radial.Nbf(),jang*radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*radial.Nbf()-1);
       }
 
-      helfem::Matrix TwoDBasis::radial_integral(int Rexp) const {
-        // Full overlap matrix
-        arma::mat O(Ndummy(),Ndummy());
-        O.zeros();
-
-        (void) Rexp;
-        throw std::logic_error("not implemented.!\n");
-
-        return helfem::to_eigen(remove_boundaries(O));
-      }
-
       helfem::Matrix TwoDBasis::overlap() const {
         // Build radial matrix elements
         arma::mat I10(radial.radial_integral(1,0));
@@ -705,45 +605,6 @@ namespace helfem {
         S*=std::pow(Rhalf,3);
 
         return helfem::to_eigen(remove_boundaries(S));
-      }
-
-      arma::mat TwoDBasis::overlap(const TwoDBasis & rh) const {
-        // Build radial matrix elements
-        arma::mat I10(radial.overlap(rh.radial,0));
-        arma::mat I12(radial.overlap(rh.radial,2));
-
-        // Full overlap matrix
-        arma::mat S(Ndummy(),rh.Ndummy());
-        S.zeros();
-        // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
-          int li(lval(iang));
-          int mi(mval(iang));
-
-          for(size_t jang=0;jang<rh.lval.n_elem;jang++) {
-            int lj(rh.lval(jang));
-            int mj(rh.mval(jang));
-
-            // Calculate coupling
-            if(mi==mj) {
-              if(li==lj)
-                S.submat(iang*radial.Nbf(),jang*rh.radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*rh.radial.Nbf()-1)=I12;
-
-              // We can also couple through the cos^2 term
-              double cpl(gaunt.cosine2_coupling(lj,mj,li,mi));
-              if(cpl!=0.0)
-                S.submat(iang*radial.Nbf(),jang*rh.radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*rh.radial.Nbf()-1)-=I10*cpl;
-            }
-          }
-        }
-
-        // Plug in prefactor
-        S*=std::pow(Rhalf,3);
-
-        // Matrix with the boundary conditions removed
-        S=S(pure_indices(),rh.pure_indices());
-
-        return S;
       }
 
       helfem::Matrix TwoDBasis::kinetic() const {

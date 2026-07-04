@@ -156,9 +156,6 @@ namespace helfem {
         helfem::Matrix Shalf(bool chol, int sym) const;
         /// Form half-inverse overlap matrix (Phase 5.19: Eigen-typed).
         helfem::Matrix Sinvh(bool chol, int sym) const;
-        /// Form radial integral (Phase 5.19: Eigen-typed).
-        helfem::Matrix radial_integral(int n) const;
-        // Phase 3: SCF surface migrated to Eigen.
         /// Form overlap matrix
         helfem::Matrix overlap() const;
         /// Form kinetic energy matrix
@@ -174,14 +171,8 @@ namespace helfem {
         /// Form quadrupole coupling matrix
         helfem::Matrix quadrupole_zz() const;
 
-        /// Compute overlap matrix
-        arma::mat overlap(const TwoDBasis & rh) const;
-
         /// Coupling to magnetic field in z direction
         helfem::Matrix Bz_field(double B) const;
-
-        /// Form density matrix
-        arma::mat form_density(const arma::mat & C, size_t nocc) const;
 
         /// Form Coulomb matrix
         helfem::Matrix coulomb(const helfem::Matrix & P) const;
