@@ -75,8 +75,6 @@ namespace helfem {
 
         /// Form half-inverse overlap matrix
         helfem::Matrix Sinvh() const;
-        /// Form radial integral
-        helfem::Matrix radial_integral(int n) const;
         // Phase 3: SCF surface migrated to Eigen.
         /// Form overlap matrix
         helfem::Matrix overlap() const;
@@ -133,9 +131,6 @@ namespace helfem {
         arma::vec quadrature_weights() const;
         /// Compute the Coulomb screening of the nucleus
         arma::vec coulomb_screening(const arma::mat & Prad) const;
-
-        /// Get the radial matrices
-        std::vector< std::pair<int, arma::mat> > Rmatrices() const;
 
         /// Radii
         arma::vec radii() const;

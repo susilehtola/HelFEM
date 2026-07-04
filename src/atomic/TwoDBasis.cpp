@@ -278,40 +278,18 @@ namespace helfem {
         return M.submat(iang*radial.Nbf(),jang*radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*radial.Nbf()-1);
       }
 
-      helfem::Matrix TwoDBasis::radial_integral(int Rexp) const {
-        // Build radial elements
+      helfem::Matrix TwoDBasis::overlap() const {
+        // Full overlap matrix built by scattering the radial R=0 integrals
+        // along the angular diagonal.
         arma::mat Orad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
-            [&](size_t iel) { return radial.radial_integral(Rexp, iel); }));
+            [&](size_t iel) { return radial.radial_integral(0, iel); }));
 
-        // Full overlap matrix
         arma::mat O(Ndummy(),Ndummy());
         O.zeros();
-        // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++)
           set_sub(O,iang,iang,Orad);
 
         return helfem::to_eigen(remove_boundaries(O));
-      }
-
-      helfem::Matrix TwoDBasis::overlap() const {
-        // radial_integral now returns helfem::Matrix directly.
-        return radial_integral(0);
-      }
-
-      arma::mat TwoDBasis::overlap(const TwoDBasis & rh) const {
-        // Full overlap matrix
-        arma::mat S(Ndummy(),rh.Ndummy());
-        S.zeros();
-        // Form radial overlap
-        arma::mat Srad(helfem::to_arma(radial.overlap(rh.radial)));
-
-        // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++)
-          for(size_t jang=0;jang<rh.lval.n_elem;jang++)
-            if(lval(iang) == rh.lval(jang) && mval(iang) == rh.mval(jang))
-              S.submat(iang*radial.Nbf(),jang*rh.radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*rh.radial.Nbf()-1)=Srad;
-
-        return S;
       }
 
       helfem::Matrix TwoDBasis::kinetic() const {

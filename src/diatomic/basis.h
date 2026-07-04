@@ -63,18 +63,12 @@ namespace helfem {
         /// Get function indices
         void get_idx(size_t iel, size_t & ifirst, size_t & ilast) const;
 
-        /// Form density matrix
-        arma::mat form_density(const arma::mat & Cl, const arma::mat & Cr, size_t nocc) const;
-
         /// Compute radial matrix elements
         arma::mat radial_integral(int m, int n) const;
         /// Compute primitive kinetic energy matrix in element (excluding l and m parts)
         arma::mat kinetic(size_t iel) const;
         /// Compute primitive kinetic energy matrix
         arma::mat kinetic() const;
-
-        /// Form overlap matrix
-        arma::mat overlap(const RadialBasis & rh, int n) const;
 
         /// Compute Plm integral
         arma::mat Plm_integral(int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
@@ -225,8 +219,6 @@ namespace helfem {
         helfem::Matrix Shalf(bool chol, int sym) const;
         /// Form half-inverse overlap matrix
         helfem::Matrix Sinvh(bool chol, int sym) const;
-        /// Form radial integral
-        helfem::Matrix radial_integral(int n) const;
         /// Form overlap matrix
         helfem::Matrix overlap() const;
         /// Form kinetic energy matrix
@@ -238,17 +230,11 @@ namespace helfem {
         /// Form dipole coupling matrix
         helfem::Matrix quadrupole_zz() const;
 
-        /// Form overlap matrix
-        arma::mat overlap(const TwoDBasis & rh) const;
-
         /// Coupling to magnetic field in z direction
         helfem::Matrix Bz_field(double B) const;
 
         /// <r^2> matrix
         arma::mat radial_moments(const arma::mat & P) const;
-
-        /// Form density matrix
-        arma::mat form_density(const arma::mat & C, size_t nocc) const;
 
         /// Form Coulomb matrix
         arma::mat coulomb(const arma::mat & P) const;
