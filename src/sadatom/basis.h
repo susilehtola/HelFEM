@@ -74,9 +74,9 @@ namespace helfem {
         int charge() const;
 
         /// Form half-inverse overlap matrix
-        arma::mat Sinvh() const;
+        helfem::Matrix Sinvh() const;
         /// Form radial integral
-        arma::mat radial_integral(int n) const;
+        helfem::Matrix radial_integral(int n) const;
         // Phase 3: SCF surface migrated to Eigen.
         /// Form overlap matrix
         helfem::Matrix overlap() const;

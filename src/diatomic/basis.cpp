@@ -579,7 +579,7 @@ namespace helfem {
         return idx;
       }
 
-      arma::mat TwoDBasis::Shalf(bool chol, int sym) const {
+      helfem::Matrix TwoDBasis::Shalf(bool chol, int sym) const {
         // Form overlap matrix
         arma::mat S(helfem::to_arma(overlap()));
 
@@ -592,7 +592,7 @@ namespace helfem {
 
         if(chol && sym==0) {
           // Half-inverse is
-          return arma::diagmat(bfinvnormlz) * arma::chol(S);
+          return helfem::to_eigen(arma::mat(arma::diagmat(bfinvnormlz) * arma::chol(S)));
 
         } else {
           arma::vec Sval;
@@ -617,17 +617,17 @@ namespace helfem {
           arma::mat Shalf(Svec*arma::diagmat(arma::pow(Sval,0.5))*arma::trans(Svec));
           Shalf=arma::diagmat(bfinvnormlz)*Shalf;
 
-          return Shalf;
+          return helfem::to_eigen(Shalf);
         }
       }
 
-      arma::mat TwoDBasis::Sinvh(bool chol, int sym) const {
+      helfem::Matrix TwoDBasis::Sinvh(bool chol, int sym) const {
         // Form overlap matrix
         arma::mat S(helfem::to_arma(overlap()));
 
         // Half-inverse is
         if(sym==0) {
-          return helfem::to_arma(scf::form_Sinvh(helfem::to_eigen(S), chol));
+          return scf::form_Sinvh(helfem::to_eigen(S), chol);
         } else {
           // Get basis function indices
           std::vector<arma::uvec> midx(get_sym_idx(sym));
@@ -644,7 +644,7 @@ namespace helfem {
             // Increment offset
             ioff += midx[i].n_elem;
           }
-          return Sinvh;
+          return helfem::to_eigen(Sinvh);
         }
       }
 

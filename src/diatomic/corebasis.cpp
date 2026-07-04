@@ -48,7 +48,7 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
   // Form kinetic energy matrix
   arma::mat T(helfem::to_arma(basis.kinetic()));
   // Get half-inverse
-  arma::mat Sinvh(basis.Sinvh(!diag,symm));
+  arma::mat Sinvh(helfem::to_arma(basis.Sinvh(!diag,symm)));
   // Form nuclear attraction energy matrix
   arma::mat Vnuc;
 
