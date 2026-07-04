@@ -292,6 +292,27 @@ namespace helfem {
         return helfem::to_eigen(remove_boundaries(O));
       }
 
+      helfem::Matrix TwoDBasis::overlap(const TwoDBasis & rh) const {
+        // Cross-basis overlap: scatter radial.overlap(rh.radial) along the
+        // (l, m)-matched blocks of the two angular indexings.
+        arma::mat S(Ndummy(), rh.Ndummy());
+        S.zeros();
+        arma::mat Srad(helfem::to_arma(radial.overlap(rh.radial)));
+
+        for(size_t iang=0;iang<lval.n_elem;iang++)
+          for(size_t jang=0;jang<rh.lval.n_elem;jang++)
+            if(lval(iang) == rh.lval(jang) && mval(iang) == rh.mval(jang))
+              S.submat(iang*radial.Nbf(), jang*rh.radial.Nbf(),
+                       (iang+1)*radial.Nbf()-1, (jang+1)*rh.radial.Nbf()-1) = Srad;
+
+        // Same boundary-condition handling as overlap(): the returned
+        // matrix is indexed by pure_indices() on both sides so it can
+        // be composed with Sinvh matrices without touching boundary rows.
+        arma::uvec my_pure  = pure_indices();
+        arma::uvec rh_pure  = rh.pure_indices();
+        return helfem::to_eigen(arma::mat(S(my_pure, rh_pure)));
+      }
+
       helfem::Matrix TwoDBasis::kinetic() const {
         // Build radial kinetic energy matrices
         arma::mat Trad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,

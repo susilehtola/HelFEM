@@ -75,6 +75,11 @@ namespace helfem {
 
         /// Form half-inverse overlap matrix
         helfem::Matrix Sinvh() const;
+        /// Cross-basis overlap S12 = <this | rh>. Sadatom is spherically
+        /// symmetric so the cross-basis overlap is a plain radial overlap
+        /// between two FE radial bases; the same matrix applies to every
+        /// l-block downstream. Used by the SCF driver's --load path.
+        helfem::Matrix overlap(const TwoDBasis & rh) const;
         // Phase 3: SCF surface migrated to Eigen.
         /// Form overlap matrix
         helfem::Matrix overlap() const;

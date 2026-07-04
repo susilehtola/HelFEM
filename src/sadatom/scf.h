@@ -62,6 +62,13 @@ namespace helfem {
         arma::ivec fixed_per_l_b;
         /// OOO verbosity; 0 for silent, higher for per-iteration prints.
         int verbosity = 5;
+        /// Load orbital guess from checkpoint. Empty = start from core-H
+        /// guess as before. When non-empty, the old basis + per-l AO
+        /// densities are read from the checkpoint, projected into the
+        /// current basis via cross-basis overlap, and used to seed OOO.
+        std::string load_file;
+        /// Save final basis + per-l AO densities to checkpoint.
+        std::string save_file;
       };
 
       /// SCF outputs.

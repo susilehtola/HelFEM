@@ -35,6 +35,7 @@
 #include "../general/dftfuncs.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
+#include "../general/checkpoint.h"
 
 #include "openorbitaloptimizer/scfsolver.hpp"
 
@@ -99,6 +100,16 @@ int main(int argc, char **argv) {
   // Fock builds only).
   parser.add<bool>("readocc", 0, "read frozen per-block occupations from occs.dat", false, false);
 
+  // Load orbital guess from a checkpoint written by an earlier run.
+  // The old basis + AO densities Pa, Pb are read; densities are
+  // projected into the current basis via P_new = P_proj * P_old *
+  // P_proj^T with P_proj = S_new^-1 * S12, and used to seed OOO's
+  // initial orbitals + occupations.
+  parser.add<std::string>("load", 0, "load orbital guess from checkpoint file", false, "");
+  // Save basis + final AO densities + electron counts to a checkpoint
+  // for downstream reuse (--load, density_line, etc.).
+  parser.add<std::string>("save", 0, "save results to checkpoint file", false, "");
+
   parser.parse_check(argc, argv);
 
   const int    Z          = get_Z(parser.get<std::string>("Z"));
@@ -141,6 +152,8 @@ int main(int argc, char **argv) {
   const bool   add_conf     = parser.get<bool>("add_conf");
   const bool   maverage     = parser.get<bool>("maverage");
   const bool   readocc      = parser.get<bool>("readocc");
+  const std::string loadfile = parser.get<std::string>("load");
+  const std::string savefile = parser.get<std::string>("save");
 
   // Derive nela/nelb from Q, M -- same convention as the bespoke atomic
   // driver, so --M is the natural way to specify open-shell states.
@@ -573,8 +586,132 @@ int main(int argc, char **argv) {
     scfsolver.fixed_number_of_particles_per_block(fixed_particles);
   }
 
-  scfsolver.initialize_with_fock(CoreH);
+  // --load: project a saved AO density from an old basis into the
+  // current basis and initialise OOO with per-block orbitals derived
+  // from the projected density's eigenvectors. If no file was given
+  // OOO is seeded with the core Hamiltonian as before.
+  if (loadfile.size()) {
+    Checkpoint loadchk(loadfile, /*writemode=*/false);
+    atomic::basis::TwoDBasis oldbasis;
+    loadchk.read(oldbasis);
+    arma::mat Pa_old, Pb_old;
+    loadchk.read("Pa", Pa_old);
+    loadchk.read("Pb", Pb_old);
+    int nela_old = 0, nelb_old = 0;
+    loadchk.read("nela", nela_old);
+    loadchk.read("nelb", nelb_old);
+    if (nela_old != nela || nelb_old != nelb)
+      throw std::logic_error("--load: checkpoint nela/nelb do not match current run.");
+
+    // Cross-basis overlap S12 = <this | oldbasis>, shape (Nbf, Nbf_old).
+    const arma::mat S12         = helfem::to_arma(basis.overlap(oldbasis));
+    // Full-basis Sinvh (symmetric orthonormalisation, no per-symmetry
+    // block). S^-1 = Sinvh * Sinvh^T since Sinvh = S^{-1/2}.
+    const arma::mat Sinvh_full  = helfem::to_arma(basis.Sinvh(/*chol*/false, /*sym*/0));
+    const arma::mat Pproj       = Sinvh_full * arma::trans(Sinvh_full) * S12;
+
+    // Project the old AO densities to the current basis, then rescale
+    // so the total trace P*S recovers the exact electron count (the
+    // projection itself is not particle-conserving when the two bases
+    // do not span the same subspace).
+    arma::mat Pa_new = Pproj * Pa_old * arma::trans(Pproj);
+    arma::mat Pb_new = Pproj * Pb_old * arma::trans(Pproj);
+    const double na = arma::trace(Pa_new * S);
+    const double nb = arma::trace(Pb_new * S);
+    if (na > 0 && nela > 0) Pa_new *= static_cast<double>(nela) / na;
+    if (nb > 0 && nelb > 0) Pb_new *= static_cast<double>(nelb) / nb;
+
+    // Build per-block (orbitals, occupations) for OOO from the
+    // projected density. For a block k with basis-function index set
+    // dsym[k] and orthonormaliser Sinvh_k, we diagonalise
+    //   P_orth = Sinvh_k^T . P_spin(dsym[k], dsym[k]) . Sinvh_k
+    // and hand OOO the eigenvectors (orthonormal orbitals in the
+    // block basis) and eigenvalues (per-orbital occupations, sorted
+    // largest first for Aufbau semantics).
+    OpenOrbitalOptimizer::Orbitals<OOO_Real>            loaded_orbs(nsym * nparttype);
+    OpenOrbitalOptimizer::OrbitalOccupations<OOO_Real>  loaded_occs(nsym * nparttype);
+    const double max_occ_restr = 2.0;
+    const double max_occ_open  = 1.0;
+    auto fill_block = [&](size_t base, size_t k, const arma::mat & Pspin,
+                           double max_occ) {
+      if (!dsym[k].n_elem) {
+        loaded_orbs[base + k] = helfem::Matrix::Zero(0, 0);
+        loaded_occs[base + k] = helfem::Vector::Zero(0);
+        return;
+      }
+      const arma::mat Pblk  = Pspin(dsym[k], dsym[k]);
+      const arma::mat Porth = arma::trans(Sinvh_arma[k]) * Pblk * Sinvh_arma[k];
+      arma::vec occ_eigs;
+      arma::mat vec_eigs;
+      if (!arma::eig_sym(occ_eigs, vec_eigs, Porth))
+        throw std::logic_error("--load: eigendecomposition of projected block density failed");
+      // Ascending -> descending so highest-occupation orbitals come first.
+      const arma::uword n = vec_eigs.n_cols;
+      arma::mat V(vec_eigs.n_rows, n);
+      arma::vec w(n);
+      for (arma::uword i = 0; i < n; ++i) {
+        V.col(i) = vec_eigs.col(n - 1 - i);
+        w(i)     = std::min(std::max(occ_eigs(n - 1 - i), 0.0), max_occ);
+      }
+      loaded_orbs[base + k] = helfem::to_eigen(V);
+      loaded_occs[base + k] = helfem::to_eigen(w);
+    };
+    if (restricted) {
+      // Single channel: eigenvalues of total P should be in [0, 2].
+      const arma::mat P_total = Pa_new + Pb_new;
+      for (size_t k = 0; k < nsym; ++k) fill_block(0, k, P_total, max_occ_restr);
+    } else {
+      for (size_t k = 0; k < nsym; ++k) {
+        fill_block(0,    k, Pa_new, max_occ_open);
+        fill_block(nsym, k, Pb_new, max_occ_open);
+      }
+    }
+    scfsolver.initialize_with_orbitals(loaded_orbs, loaded_occs);
+  } else {
+    scfsolver.initialize_with_fock(CoreH);
+  }
+
   scfsolver.run();
+
+  // --save: reconstruct the AO densities from the converged per-block
+  // orbitals + occupations and write them plus the basis to a
+  // checkpoint. Layout matches --load's expectation and is what
+  // density_line / density_grid read.
+  if (savefile.size()) {
+    Checkpoint savechk(savefile, /*writemode=*/true);
+    savechk.write(basis);
+    const auto final_orbs = scfsolver.get_orbitals();
+    const auto final_occs = scfsolver.get_orbital_occupations();
+
+    arma::mat Pa_final(Nbf, Nbf, arma::fill::zeros);
+    arma::mat Pb_final(Nbf, Nbf, arma::fill::zeros);
+    for (size_t k = 0; k < nsym; ++k) {
+      if (!dsym[k].n_elem) continue;
+      const arma::mat orb_a_ao = Sinvh_arma[k] * helfem::to_arma(final_orbs[k]);
+      const arma::vec occ_a    = helfem::to_arma(final_occs[k]);
+      if (restricted) {
+        // orbitals[k] carries the closed-shell total density (max occ 2);
+        // split evenly between alpha and beta on disk.
+        const arma::mat P_block = 0.5 * (orb_a_ao * arma::diagmat(occ_a) * arma::trans(orb_a_ao));
+        arma::mat Pa_tmp = Pa_final; Pa_tmp(dsym[k], dsym[k]) += P_block; Pa_final = Pa_tmp;
+        arma::mat Pb_tmp = Pb_final; Pb_tmp(dsym[k], dsym[k]) += P_block; Pb_final = Pb_tmp;
+      } else {
+        const arma::mat orb_b_ao = Sinvh_arma[k] * helfem::to_arma(final_orbs[nsym + k]);
+        const arma::vec occ_b    = helfem::to_arma(final_occs[nsym + k]);
+        arma::mat Pa_tmp = Pa_final;
+        Pa_tmp(dsym[k], dsym[k]) += orb_a_ao * arma::diagmat(occ_a) * arma::trans(orb_a_ao);
+        Pa_final = Pa_tmp;
+        arma::mat Pb_tmp = Pb_final;
+        Pb_tmp(dsym[k], dsym[k]) += orb_b_ao * arma::diagmat(occ_b) * arma::trans(orb_b_ao);
+        Pb_final = Pb_tmp;
+      }
+    }
+    savechk.write("Pa", Pa_final);
+    savechk.write("Pb", Pb_final);
+    savechk.write("nela", nela);
+    savechk.write("nelb", nelb);
+    printf("Saved results to %s\n", savefile.c_str());
+  }
 
   return 0;
 }

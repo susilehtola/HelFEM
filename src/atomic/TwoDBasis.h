@@ -171,6 +171,11 @@ namespace helfem {
         /// Form quadrupole coupling matrix
         helfem::Matrix quadrupole_zz() const;
 
+        /// Cross-basis overlap matrix S12 = <this | rh>. Used by the
+        /// SCF driver's --load path to project a saved density from an
+        /// old basis into the current basis via C1 = S_new^-1 * S12 * C_old.
+        helfem::Matrix overlap(const TwoDBasis & rh) const;
+
         /// Coupling to magnetic field in z direction
         helfem::Matrix Bz_field(double B) const;
 

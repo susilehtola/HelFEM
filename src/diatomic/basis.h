@@ -70,6 +70,12 @@ namespace helfem {
         /// Compute primitive kinetic energy matrix
         arma::mat kinetic() const;
 
+        /// Cross-basis radial overlap with (typically different) rh, with
+        /// the sinh(mu) * cosh^n(mu) weight. Used by TwoDBasis::overlap
+        /// below when building the cross-basis S12 for the SCF driver's
+        /// --load path.
+        arma::mat overlap(const RadialBasis & rh, int n) const;
+
         /// Compute Plm integral
         arma::mat Plm_integral(int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
         /// Compute Qlm integral
@@ -229,6 +235,12 @@ namespace helfem {
         helfem::Matrix dipole_z() const;
         /// Form dipole coupling matrix
         helfem::Matrix quadrupole_zz() const;
+
+        /// Cross-basis overlap matrix S12 = <this | rh>. Used by the SCF
+        /// driver's --load path to project a saved density from an old
+        /// basis into the current one via P_new = P_proj . P_old . P_proj^T
+        /// with P_proj = S_new^-1 . S12.
+        helfem::Matrix overlap(const TwoDBasis & rh) const;
 
         /// Coupling to magnetic field in z direction
         helfem::Matrix Bz_field(double B) const;
