@@ -35,6 +35,7 @@
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
 #include "../general/timer.h"
+#include "../general/checkpoint.h"
 
 #include "openorbitaloptimizer/scfsolver.hpp"
 
@@ -92,6 +93,13 @@ int main(int argc, char **argv) {
   // occupations apply for the whole SCF, not just N Fock builds).
   parser.add<bool>("readocc", 0, "read frozen per-block occupations from occs.dat", false, false);
 
+  // Load orbital guess from a checkpoint written by an earlier run.
+  parser.add<std::string>("load", 0, "load orbital guess from checkpoint file", false, "");
+  // Save basis + AO densities + Rhalf/Z1/Z2/electron counts to a
+  // checkpoint (for --load and for the diatomic_dline / diatomic_dgrid
+  // / diatomic_cpl analysis tools).
+  parser.add<std::string>("save", 0, "save results to checkpoint file", false, "");
+
   parser.parse_check(argc, argv);
 
   const int Z1        = get_Z(parser.get<std::string>("Z1"));
@@ -123,6 +131,8 @@ int main(int argc, char **argv) {
   const double Bz     = parser.get<double>("Bz");
   const bool   maverage = parser.get<bool>("maverage");
   const bool   readocc  = parser.get<bool>("readocc");
+  const std::string loadfile = parser.get<std::string>("load");
+  const std::string savefile = parser.get<std::string>("save");
 
   // Derive nela/nelb from Q, M -- same convention as the bespoke diatomic
   // driver. Total nuclear charge is Z1 + Z2.
@@ -508,8 +518,112 @@ int main(int argc, char **argv) {
     scfsolver.fixed_number_of_particles_per_block(fixed_particles);
   }
 
-  scfsolver.initialize_with_fock(CoreH);
+  // --load: project a saved AO density from an old basis into the
+  // current basis. Same semantics as the atomic --load path.
+  if (loadfile.size()) {
+    Checkpoint loadchk(loadfile, /*writemode=*/false);
+    diatomic::basis::TwoDBasis oldbasis;
+    loadchk.read(oldbasis);
+    arma::mat Pa_old, Pb_old;
+    loadchk.read("Pa", Pa_old);
+    loadchk.read("Pb", Pb_old);
+    int nela_old = 0, nelb_old = 0;
+    loadchk.read("nela", nela_old);
+    loadchk.read("nelb", nelb_old);
+    if (nela_old != nela || nelb_old != nelb)
+      throw std::logic_error("--load: checkpoint nela/nelb do not match current run.");
+
+    const arma::mat S12         = helfem::to_arma(basis.overlap(oldbasis));
+    const arma::mat Sinvh_full  = helfem::to_arma(basis.Sinvh(/*chol*/false, /*sym*/0));
+    const arma::mat Pproj       = Sinvh_full * arma::trans(Sinvh_full) * S12;
+
+    arma::mat Pa_new = Pproj * Pa_old * arma::trans(Pproj);
+    arma::mat Pb_new = Pproj * Pb_old * arma::trans(Pproj);
+    const double na = arma::trace(Pa_new * S);
+    const double nb = arma::trace(Pb_new * S);
+    if (na > 0 && nela > 0) Pa_new *= static_cast<double>(nela) / na;
+    if (nb > 0 && nelb > 0) Pb_new *= static_cast<double>(nelb) / nb;
+
+    OpenOrbitalOptimizer::Orbitals<OOO_Real>            loaded_orbs(nsym * nparttype);
+    OpenOrbitalOptimizer::OrbitalOccupations<OOO_Real>  loaded_occs(nsym * nparttype);
+    const double max_occ_restr = 2.0;
+    const double max_occ_open  = 1.0;
+    auto fill_block = [&](size_t base, size_t k, const arma::mat & Pspin,
+                           double max_occ) {
+      if (!dsym[k].n_elem) {
+        loaded_orbs[base + k] = helfem::Matrix::Zero(0, 0);
+        loaded_occs[base + k] = helfem::Vector::Zero(0);
+        return;
+      }
+      const arma::mat Pblk  = Pspin(dsym[k], dsym[k]);
+      const arma::mat Porth = arma::trans(Sinvh_arma[k]) * Pblk * Sinvh_arma[k];
+      arma::vec occ_eigs;
+      arma::mat vec_eigs;
+      if (!arma::eig_sym(occ_eigs, vec_eigs, Porth))
+        throw std::logic_error("--load: eigendecomposition of projected block density failed");
+      const arma::uword n = vec_eigs.n_cols;
+      arma::mat V(vec_eigs.n_rows, n);
+      arma::vec w(n);
+      for (arma::uword i = 0; i < n; ++i) {
+        V.col(i) = vec_eigs.col(n - 1 - i);
+        w(i)     = std::min(std::max(occ_eigs(n - 1 - i), 0.0), max_occ);
+      }
+      loaded_orbs[base + k] = helfem::to_eigen(V);
+      loaded_occs[base + k] = helfem::to_eigen(w);
+    };
+    if (restricted) {
+      const arma::mat P_total = Pa_new + Pb_new;
+      for (size_t k = 0; k < nsym; ++k) fill_block(0, k, P_total, max_occ_restr);
+    } else {
+      for (size_t k = 0; k < nsym; ++k) {
+        fill_block(0,    k, Pa_new, max_occ_open);
+        fill_block(nsym, k, Pb_new, max_occ_open);
+      }
+    }
+    scfsolver.initialize_with_orbitals(loaded_orbs, loaded_occs);
+  } else {
+    scfsolver.initialize_with_fock(CoreH);
+  }
+
   scfsolver.run();
+
+  if (savefile.size()) {
+    Checkpoint savechk(savefile, /*writemode=*/true);
+    savechk.write(basis);
+    const auto final_orbs = scfsolver.get_orbitals();
+    const auto final_occs = scfsolver.get_orbital_occupations();
+
+    arma::mat Pa_final(Nbf, Nbf, arma::fill::zeros);
+    arma::mat Pb_final(Nbf, Nbf, arma::fill::zeros);
+    for (size_t k = 0; k < nsym; ++k) {
+      if (!dsym[k].n_elem) continue;
+      const arma::mat orb_a_ao = Sinvh_arma[k] * helfem::to_arma(final_orbs[k]);
+      const arma::vec occ_a    = helfem::to_arma(final_occs[k]);
+      if (restricted) {
+        const arma::mat P_block = 0.5 * (orb_a_ao * arma::diagmat(occ_a) * arma::trans(orb_a_ao));
+        arma::mat Pa_tmp = Pa_final; Pa_tmp(dsym[k], dsym[k]) += P_block; Pa_final = Pa_tmp;
+        arma::mat Pb_tmp = Pb_final; Pb_tmp(dsym[k], dsym[k]) += P_block; Pb_final = Pb_tmp;
+      } else {
+        const arma::mat orb_b_ao = Sinvh_arma[k] * helfem::to_arma(final_orbs[nsym + k]);
+        const arma::vec occ_b    = helfem::to_arma(final_occs[nsym + k]);
+        arma::mat Pa_tmp = Pa_final;
+        Pa_tmp(dsym[k], dsym[k]) += orb_a_ao * arma::diagmat(occ_a) * arma::trans(orb_a_ao);
+        Pa_final = Pa_tmp;
+        arma::mat Pb_tmp = Pb_final;
+        Pb_tmp(dsym[k], dsym[k]) += orb_b_ao * arma::diagmat(occ_b) * arma::trans(orb_b_ao);
+        Pb_final = Pb_tmp;
+      }
+    }
+    savechk.write("Pa", Pa_final);
+    savechk.write("Pb", Pb_final);
+    savechk.write("nela", nela);
+    savechk.write("nelb", nelb);
+    // Extra parameters needed by density_line / density_grid / completeness.
+    savechk.write("Rhalf", Rhalf);
+    savechk.write("Z1", Z1);
+    savechk.write("Z2", Z2);
+    printf("Saved results to %s\n", savefile.c_str());
+  }
 
   return 0;
 }

@@ -17,6 +17,7 @@
 #include "dftgrid.h"
 #include "../general/dftfuncs.h"
 #include "../general/scf_helpers.h"
+#include "../general/checkpoint.h"
 
 #include "openorbitaloptimizer/scfsolver.hpp"
 
@@ -242,7 +243,141 @@ namespace helfem {
           scfsolver.fixed_number_of_particles_per_block(fixed);
         }
 
-        scfsolver.initialize_with_fock(CoreH);
+        // --load path: read old basis + per-l density cube(s), project
+        // per-l density into the current basis via cross-basis radial
+        // overlap, then feed OOO's initialize_with_orbitals with the
+        // eigen-decomposition of each projected block.
+        if (opts.load_file.size()) {
+          Checkpoint loadchk(opts.load_file, /*writemode=*/false);
+          // Rebuild the old sadatom basis from the stored parameters.
+          // We only need Nrad_old and the FE matrices needed for the
+          // per-l density projection, which is fully determined by
+          // rebuilding the TwoDBasis object.
+          int old_Z = 0, old_lmax = 0, old_primbas = 0, old_nnodes = 0, old_Nquad = 0;
+          loadchk.read("sadatom_Z",       old_Z);
+          loadchk.read("sadatom_lmax",    old_lmax);
+          loadchk.read("sadatom_primbas", old_primbas);
+          loadchk.read("sadatom_nnodes",  old_nnodes);
+          loadchk.read("sadatom_Nquad",   old_Nquad);
+          arma::mat old_bval_mat;
+          loadchk.read("sadatom_bval", old_bval_mat);
+          const arma::vec old_bval = old_bval_mat.col(0);
+
+          // Reconstruct the old polynomial basis so the reassembled
+          // FE basis matches the checkpoint's Nbf exactly.
+          std::shared_ptr<const polynomial_basis::PolynomialBasis> old_poly(
+              polynomial_basis::get_basis(old_primbas, old_nnodes));
+          sadatom::basis::TwoDBasis oldbasis(old_Z, modelpotential::POINT_NUCLEUS,
+                                              0.0, old_poly, opts.zeroder,
+                                              old_Nquad, old_bval, old_lmax);
+          const arma::mat S12  = helfem::to_arma(basis.overlap(oldbasis));
+          const arma::mat Sinvh_full = helfem::to_arma(basis.Sinvh());
+          const arma::mat Pproj = Sinvh_full * arma::trans(Sinvh_full) * S12;
+          const arma::mat S_new = helfem::to_arma(basis.overlap());
+
+          // Read per-l density slices back into a cube. Each slice is
+          // stored on disk as sadatom_Pal_l (arma::mat, Nrad_old^2).
+          const int old_nblock_read = old_lmax + 1;
+          arma::cube Pal_old(old_bval.n_elem == 0 ? 0 : 0, 0, 0);
+          Pal_old.set_size(0, 0, 0);
+          if (loadchk.exist("sadatom_Pal_0")) {
+            arma::mat slice0;
+            loadchk.read("sadatom_Pal_0", slice0);
+            Pal_old.set_size(slice0.n_rows, slice0.n_cols, old_nblock_read);
+            Pal_old.slice(0) = slice0;
+            for (int l = 1; l < old_nblock_read; ++l) {
+              const std::string key = std::string("sadatom_Pal_") + std::to_string(l);
+              arma::mat sl;
+              if (loadchk.exist(key)) {
+                loadchk.read(key, sl);
+                Pal_old.slice(l) = sl;
+              } else {
+                Pal_old.slice(l).zeros();
+              }
+            }
+          }
+          arma::cube Pbl_old;
+          if (!restricted && loadchk.exist("sadatom_Pbl_0")) {
+            arma::mat slice0;
+            loadchk.read("sadatom_Pbl_0", slice0);
+            Pbl_old.set_size(slice0.n_rows, slice0.n_cols, old_nblock_read);
+            Pbl_old.slice(0) = slice0;
+            for (int l = 1; l < old_nblock_read; ++l) {
+              const std::string key = std::string("sadatom_Pbl_") + std::to_string(l);
+              arma::mat sl;
+              if (loadchk.exist(key)) {
+                loadchk.read(key, sl);
+                Pbl_old.slice(l) = sl;
+              } else {
+                Pbl_old.slice(l).zeros();
+              }
+            }
+          }
+
+          OpenOrbitalOptimizer::Orbitals<OOO_Real>            loaded_orbs(nblock * nparttype);
+          OpenOrbitalOptimizer::OrbitalOccupations<OOO_Real>  loaded_occs(nblock * nparttype);
+          const int old_nblock = old_lmax + 1;
+
+          auto fill_l = [&](size_t base, size_t l, const arma::cube & Pcube,
+                             double per_l_electrons, double max_occ) {
+            arma::mat Pl_new;
+            if (static_cast<int>(l) <= old_lmax && Pcube.n_slices > l) {
+              Pl_new = Pproj * arma::mat(Pcube.slice(l)) * arma::trans(Pproj);
+              const double trace_now = arma::trace(Pl_new * S_new);
+              if (trace_now > 0 && per_l_electrons > 0)
+                Pl_new *= per_l_electrons / trace_now;
+            } else {
+              Pl_new.zeros(Nrad, Nrad);
+            }
+            const arma::mat Porth = Sinvh_full.t() * Pl_new * Sinvh_full;
+            arma::vec occ_eigs;
+            arma::mat vec_eigs;
+            if (!arma::eig_sym(occ_eigs, vec_eigs, Porth))
+              throw std::logic_error("--load: eigendecomposition of projected l block density failed");
+            const arma::uword n = vec_eigs.n_cols;
+            arma::mat V(vec_eigs.n_rows, n);
+            arma::vec w(n);
+            for (arma::uword i = 0; i < n; ++i) {
+              V.col(i) = vec_eigs.col(n - 1 - i);
+              w(i)     = std::min(std::max(occ_eigs(n - 1 - i), 0.0), max_occ);
+            }
+            loaded_orbs[base + l] = helfem::to_eigen(V);
+            loaded_occs[base + l] = helfem::to_eigen(w);
+          };
+
+          // Per-l electron counts to renormalise into. Read from
+          // checkpoint if present, else fall back to trace-preserving
+          // (no rescaling).
+          arma::ivec per_l_a, per_l_b;
+          if (loadchk.exist("sadatom_occs_a")) {
+            arma::imat tmp;
+            loadchk.read("sadatom_occs_a", tmp);
+            per_l_a = tmp.col(0);
+          }
+          if (loadchk.exist("sadatom_occs_b")) {
+            arma::imat tmp;
+            loadchk.read("sadatom_occs_b", tmp);
+            per_l_b = tmp.col(0);
+          }
+
+          for (size_t l = 0; l < nblock; ++l) {
+            double per_l = (static_cast<int>(l) < per_l_a.n_elem)
+                             ? static_cast<double>(per_l_a(l)) : 0.0;
+            double max_occ = restricted ? 2.0 * (2 * l + 1) : (2.0 * l + 1);
+            fill_l(0, l, Pal_old, per_l, max_occ);
+          }
+          if (!restricted) {
+            for (size_t l = 0; l < nblock; ++l) {
+              double per_l = (static_cast<int>(l) < per_l_b.n_elem)
+                               ? static_cast<double>(per_l_b(l)) : 0.0;
+              double max_occ = 2.0 * l + 1;
+              fill_l(nblock, l, Pbl_old, per_l, max_occ);
+            }
+          }
+          scfsolver.initialize_with_orbitals(loaded_orbs, loaded_occs);
+        } else {
+          scfsolver.initialize_with_fock(CoreH);
+        }
         scfsolver.run();
 
         // Extract results. Convert OOO's per-block orbital matrices
@@ -274,6 +409,71 @@ namespace helfem {
         extract_channel(0, result.orbs_a, result.occs_a);
         if (!restricted)
           extract_channel(1, result.orbs_b, result.occs_b);
+
+        // --save path: write basis-defining params + per-l AO density
+        // cube(s) + per-l electron counts. Rebuilding a matching basis
+        // needs (Z, lmax, bval); the density cube is used by --load.
+        if (opts.save_file.size()) {
+          Checkpoint savechk(opts.save_file, /*writemode=*/true);
+          savechk.write("sadatom_Z",       opts.Z);
+          savechk.write("sadatom_lmax",    opts.lmax);
+          savechk.write("sadatom_primbas", opts.poly->get_id());
+          savechk.write("sadatom_nnodes",  opts.poly->get_nnodes());
+          savechk.write("sadatom_Nquad",   opts.Nquad);
+          {
+            arma::mat bval_col(opts.bval.n_elem, 1);
+            bval_col.col(0) = opts.bval;
+            savechk.write("sadatom_bval", bval_col);
+          }
+
+          auto build_cube = [&](const arma::cube & orbs_ao, const arma::ivec & occs_per_l,
+                                 arma::cube & Pcube_out) {
+            Pcube_out.zeros(Nrad, Nrad, nblock);
+            for (size_t l = 0; l < nblock; ++l) {
+              if (occs_per_l(l) <= 0) continue;
+              // For an integer per-l total N in a manifold of capacity
+              // 2*(2l+1) restricted or (2l+1) unrestricted, split
+              // evenly across the N/max_orb lowest orbitals.
+              const arma::mat orb_l = arma::mat(orbs_ao.slice(l));
+              const int norb = orb_l.n_cols;
+              const double per_orb = (restricted ? 2.0 * (2 * l + 1) : 2.0 * l + 1);
+              // AO density with occupations set: pick occs from OOO
+              // internal (they are what's converged). For simplicity
+              // fall back to a diagonal-per-orbital occupation of
+              // occs_per_l(l) / norb capped at per_orb.
+              arma::vec occ_vec(norb, arma::fill::zeros);
+              double remaining = static_cast<double>(occs_per_l(l));
+              for (int i = 0; i < norb && remaining > 0; ++i) {
+                const double take = std::min<double>(per_orb, remaining);
+                occ_vec(i) = take;
+                remaining -= take;
+              }
+              Pcube_out.slice(l) = orb_l * arma::diagmat(occ_vec) * arma::trans(orb_l);
+            }
+          };
+
+          arma::cube Pal_out;
+          build_cube(result.orbs_a, result.occs_a, Pal_out);
+          for (size_t l = 0; l < nblock; ++l)
+            savechk.write(std::string("sadatom_Pal_") + std::to_string(l),
+                          arma::mat(Pal_out.slice(l)));
+          {
+            arma::imat oa(result.occs_a.n_elem, 1);
+            for (size_t i = 0; i < result.occs_a.n_elem; ++i) oa(i, 0) = result.occs_a(i);
+            savechk.write("sadatom_occs_a", oa);
+          }
+          if (!restricted) {
+            arma::cube Pbl_out;
+            build_cube(result.orbs_b, result.occs_b, Pbl_out);
+            for (size_t l = 0; l < nblock; ++l)
+              savechk.write(std::string("sadatom_Pbl_") + std::to_string(l),
+                            arma::mat(Pbl_out.slice(l)));
+            arma::imat ob(result.occs_b.n_elem, 1);
+            for (size_t i = 0; i < result.occs_b.n_elem; ++i) ob(i, 0) = result.occs_b(i);
+            savechk.write("sadatom_occs_b", ob);
+          }
+          printf("Saved results to %s\n", opts.save_file.c_str());
+        }
 
         return result;
       }

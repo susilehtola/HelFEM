@@ -70,6 +70,10 @@ namespace helfem {
         return scf::form_Sinvh(overlap(), /*chol=*/false);
       }
 
+      helfem::Matrix TwoDBasis::overlap(const TwoDBasis & rh) const {
+        return radial.overlap(rh.radial);
+      }
+
       helfem::Matrix TwoDBasis::overlap() const {
         return helfem::assemble_radial_diagonal(radial,
             [&](size_t iel) { return radial.radial_integral(0, iel); });

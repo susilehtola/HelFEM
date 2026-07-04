@@ -60,6 +60,9 @@ int main(int argc, char **argv) {
   parser.add<double>("shift_conf",   0, "Where does confinement start?",     false, 0.0);
   parser.add<bool>  ("add_conf",     0, "Add element boundary at shifted confinement radius?", false, true);
 
+  parser.add<std::string>("load", 0, "load orbital guess from checkpoint file", false, "");
+  parser.add<std::string>("save", 0, "save results to checkpoint file",       false, "");
+
   parser.parse_check(argc, argv);
 
   const int igrid   = parser.get<int>("grid");
@@ -152,6 +155,8 @@ int main(int argc, char **argv) {
   opts.conf_barrier = conf_barrier;
   opts.shift_conf   = shift_conf;
   opts.verbosity    = 5;
+  opts.load_file    = parser.get<std::string>("load");
+  opts.save_file    = parser.get<std::string>("save");
 
   sadatom::scf::run_atomic_scf(opts);
   return 0;

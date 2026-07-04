@@ -124,6 +124,64 @@ namespace helfem {
         return eigen_mat_to_arma(fem.matrix_element(false, false, arma_to_eigen_vec(xq), arma_to_eigen_vec(wq), chsh));
       }
 
+      arma::mat RadialBasis::overlap(const RadialBasis & rh, int n) const {
+        // Use the larger number of quadrature points to make sure the
+        // projection is computed correctly.
+        size_t n_quad(std::max(xq.n_elem, rh.xq.n_elem));
+
+        arma::vec xproj, wproj;
+        chebyshev::chebyshev(n_quad, xproj, wproj);
+
+        // Find element pairs that share any mu range.
+        std::vector<std::vector<size_t>> overlap(fem.get_nelem());
+        for(size_t iel=0;iel<fem.get_nelem();iel++) {
+          double istart(fem.element_begin(iel));
+          double iend(fem.element_end(iel));
+          for(size_t jel=0;jel<rh.fem.get_nelem();jel++) {
+            double jstart(rh.fem.element_begin(jel));
+            double jend(rh.fem.element_end(jel));
+            if((jstart >= istart && jstart<iend) || (istart >= jstart && istart < jend))
+              overlap[iel].push_back(jel);
+          }
+        }
+
+        arma::mat S(Nbf(), rh.Nbf());
+        S.zeros();
+        for(size_t iel=0;iel<fem.get_nelem();iel++) {
+          for(size_t jj=0;jj<overlap[iel].size();jj++) {
+            size_t jel=overlap[iel][jj];
+            // FE-side element ranges.
+            double imin(fem.element_begin(iel));
+            double imax(fem.element_end(iel));
+            double jmin(rh.fem.element_begin(jel));
+            double jmax(rh.fem.element_end(jel));
+            // Shared range.
+            double intstart(std::max(imin, jmin));
+            double intend(std::min(imax, jmax));
+            double intmid(0.5*(intend+intstart));
+            double intlen(0.5*(intend-intstart));
+
+            arma::vec mu(intmid*arma::ones<arma::vec>(xproj.n_elem)+intlen*xproj);
+            arma::vec xi(eigen_vec_to_arma(fem.eval_prim(arma_to_eigen_vec(mu), iel)));
+            arma::vec xj(eigen_vec_to_arma(rh.fem.eval_prim(arma_to_eigen_vec(mu), jel)));
+
+            size_t ifirst, ilast;
+            get_idx(iel, ifirst, ilast);
+            size_t jfirst, jlast;
+            rh.get_idx(jel, jfirst, jlast);
+
+            arma::vec wtot(wproj*intlen);
+            wtot %= arma::sinh(mu);
+            if(n!=0) wtot %= arma::pow(arma::cosh(mu), n);
+            arma::mat ibf(eigen_mat_to_arma(fem.eval_f(arma_to_eigen_vec(xi), iel)));
+            arma::mat jbf(eigen_mat_to_arma(rh.fem.eval_f(arma_to_eigen_vec(xj), jel)));
+            arma::mat s(arma::trans(ibf)*arma::diagmat(wtot)*jbf);
+            S.submat(ifirst, jfirst, ilast, jlast) += s;
+          }
+        }
+        return S;
+      }
+
       arma::mat RadialBasis::Plm_integral(int k, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
         std::function<double(double)> Plm;
         if(k!=0) {
@@ -605,6 +663,38 @@ namespace helfem {
         S*=std::pow(Rhalf,3);
 
         return helfem::to_eigen(remove_boundaries(S));
+      }
+
+      helfem::Matrix TwoDBasis::overlap(const TwoDBasis & rh) const {
+        // Cross-basis overlap. Same coupling structure as overlap() but
+        // with rh's radial basis on the right.
+        arma::mat I10(radial.overlap(rh.radial, 0));
+        arma::mat I12(radial.overlap(rh.radial, 2));
+
+        arma::mat S(Ndummy(), rh.Ndummy());
+        S.zeros();
+        for(size_t iang=0;iang<lval.n_elem;iang++) {
+          int li(lval(iang));
+          int mi(mval(iang));
+          for(size_t jang=0;jang<rh.lval.n_elem;jang++) {
+            int lj(rh.lval(jang));
+            int mj(rh.mval(jang));
+            if(mi==mj) {
+              if(li==lj)
+                S.submat(iang*radial.Nbf(), jang*rh.radial.Nbf(),
+                         (iang+1)*radial.Nbf()-1, (jang+1)*rh.radial.Nbf()-1) = I12;
+              double cpl(gaunt.cosine2_coupling(lj, mj, li, mi));
+              if(cpl!=0.0)
+                S.submat(iang*radial.Nbf(), jang*rh.radial.Nbf(),
+                         (iang+1)*radial.Nbf()-1, (jang+1)*rh.radial.Nbf()-1) -= I10*cpl;
+            }
+          }
+        }
+        S *= std::pow(Rhalf, 3);
+        // Trim boundaries on both sides so shapes align with Sinvh_new /
+        // Sinvh_old.
+        S = S(pure_indices(), rh.pure_indices());
+        return helfem::to_eigen(S);
       }
 
       helfem::Matrix TwoDBasis::kinetic() const {
