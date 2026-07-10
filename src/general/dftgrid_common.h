@@ -23,6 +23,7 @@
 // compute_Nel, etc.) stay in the derived classes.
 
 #include <armadillo>
+#include <Matrix.h>
 
 namespace helfem {
   namespace dftgrid_common {
@@ -94,7 +95,7 @@ namespace helfem {
 
       /// Compute libxc functional contribution and add to exc / vxc /
       /// vsigma / vtau / vlapl. pot=true also computes potentials.
-      void compute_xc(int func_id, const arma::vec & params, double thr, bool pot = true);
+      void compute_xc(int func_id, const helfem::Vector & params, double thr, bool pot = true);
     };
   }
 }

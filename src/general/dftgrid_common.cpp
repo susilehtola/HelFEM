@@ -82,7 +82,7 @@ namespace helfem {
       return arma::sum(wtot % exc % dens);
     }
 
-    void DFTGridWorkerBase::compute_xc(int func_id, const arma::vec & p, double thr, bool pot) {
+    void DFTGridWorkerBase::compute_xc(int func_id, const helfem::Vector & p, double thr, bool pot) {
       bool gga, mgga_t, mgga_l;
       is_gga_mgga(func_id, gga, mgga_t, mgga_l);
 
@@ -117,11 +117,11 @@ namespace helfem {
       }
       xc_func_set_dens_threshold(&func, thr);
 
-      if (p.n_elem) {
-        if (p.n_elem != (arma::uword) xc_func_info_get_n_ext_params((xc_func_info_type *) func.info))
+      if (p.size()) {
+        if (p.size() != (Eigen::Index) xc_func_info_get_n_ext_params((xc_func_info_type *) func.info))
           throw std::logic_error("Incompatible number of parameters!\n");
-        arma::vec phlp(p);
-        xc_func_set_ext_params(&func, phlp.memptr());
+        helfem::Vector phlp(p);
+        xc_func_set_ext_params(&func, phlp.data());
       }
 
       if (has_exc(func_id)) {

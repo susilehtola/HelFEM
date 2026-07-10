@@ -667,10 +667,7 @@ namespace helfem {
       DFTGrid::~DFTGrid() {
       }
 
-      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars_e, int c_func, const helfem::Vector & c_pars_e, const arma::cube & P, arma::cube & H, double & Exc, double & Nel, double thr) {
-        // Functional parameters are Eigen at the boundary; bridge once.
-        const arma::vec x_pars(helfem::to_arma(x_pars_e));
-        const arma::vec c_pars(helfem::to_arma(c_pars_e));
+      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const arma::cube & P, arma::cube & H, double & Exc, double & Nel, double thr) {
         H.zeros(P.n_rows,P.n_rows,P.n_slices);
 
         double exc=0.0;
@@ -724,10 +721,7 @@ namespace helfem {
         Nel=nel;
       }
 
-      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars_e, int c_func, const helfem::Vector & c_pars_e, const arma::cube & Pa, const arma::cube & Pb, arma::cube & Ha, arma::cube & Hb, double & Exc, double & Nel, bool beta, double thr) {
-        // Functional parameters are Eigen at the boundary; bridge once.
-        const arma::vec x_pars(helfem::to_arma(x_pars_e));
-        const arma::vec c_pars(helfem::to_arma(c_pars_e));
+      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::cube & Ha, arma::cube & Hb, double & Exc, double & Nel, bool beta, double thr) {
         Ha.zeros(Pa.n_rows,Pa.n_rows,Pa.n_slices);
         Hb.zeros(Pb.n_rows,Pb.n_rows,Pb.n_slices);
 
