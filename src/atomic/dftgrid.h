@@ -86,8 +86,6 @@ namespace helfem {
 
         /// Compute basis functions on grid points
         void compute_bf(size_t iel);
-        /// Free memory
-        void free();
 
         /// Update values of density, restricted calculation
         void update_density(const arma::mat & P);
