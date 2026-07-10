@@ -192,6 +192,35 @@ namespace helfem {
       fock[b] = helfem::to_eigen(F_orth);
     }
 
+    /// Fock-builder helper: assemble the alpha/beta HF exchange
+    /// matrices and their energy contribution from a per-driver
+    /// exchange_fn callable. exchange_fn(P) returns the AO K matrix
+    /// for a spin-density P, folding in whichever coefficient set
+    /// the driver supports (kfrac * K + kshort * K_rs for atomic,
+    /// kfrac * K for diatomic). Restricted mode skips the K(Pb)
+    /// build; alpha == beta by construction so the beta contribution
+    /// is just 2 * the alpha one.
+    ///
+    /// Ka and Kb are the AO exchange buffers the caller then folds
+    /// into the Fock matrix downstream. Exx is the energy
+    /// contribution.
+    template <typename ExchangeFn>
+    inline void assemble_hf_exchange(
+        arma::mat & Ka, arma::mat & Kb, double & Exx,
+        const arma::mat & Pa, const arma::mat & Pb,
+        bool restricted, bool have_exx, ExchangeFn exchange_fn) {
+      Exx = 0.0;
+      if (!have_exx) return;
+      Ka = exchange_fn(Pa);
+      Exx = 0.5 * arma::trace(Pa * Ka);
+      if (!restricted) {
+        Kb = exchange_fn(Pb);
+        Exx += 0.5 * arma::trace(Pb * Kb);
+      } else {
+        Exx *= 2.0;
+      }
+    }
+
     /// Fock-builder helper: assemble the per-block orthonormal Fock
     /// matrices from the AO ingredients. Both drivers' fock_builder
     /// lambdas end with a byte-identical restricted / unrestricted

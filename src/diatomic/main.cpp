@@ -364,21 +364,14 @@ int main(int argc, char **argv) {
     const arma::mat J = helfem::to_arma(basis.coulomb(helfem::to_eigen(P)));
     const double Ecoul = 0.5 * arma::trace(P * J);
 
-    // HF exchange. See sign-convention note in atomic/ooo.cpp: basis.exchange
-    // returns a matrix that gets ADDED to the Fock and the energy
-    // contribution is +0.5*trace(Pspin*Kspin) per channel.
+    // Diatomic exchange kernel: pure Coulomb K (no RS split yet).
+    auto exchange_fn = [&](const arma::mat & P) {
+      return arma::mat(kfrac * helfem::to_arma(basis.exchange(helfem::to_eigen(P))));
+    };
     arma::mat Ka, Kb;
     double Exx = 0.0;
-    if (have_exx) {
-      Ka = kfrac * helfem::to_arma(basis.exchange(helfem::to_eigen(Pa)));
-      Exx = 0.5 * arma::trace(Pa * Ka);
-      if (!restricted) {
-        Kb = kfrac * helfem::to_arma(basis.exchange(helfem::to_eigen(Pb)));
-        Exx += 0.5 * arma::trace(Pb * Kb);
-      } else {
-        Exx *= 2.0;
-      }
-    }
+    helfem::scf_driver::assemble_hf_exchange(
+        Ka, Kb, Exx, Pa, Pb, restricted, have_exx, exchange_fn);
 
     const double Etot = Ekin + Enuc + Eefield + Emfield
                        + Ecoul + Exc + Exx + Enucr;
