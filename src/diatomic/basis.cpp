@@ -548,48 +548,6 @@ namespace helfem {
         return idx;
       }
 
-      helfem::Matrix TwoDBasis::Shalf(bool chol, int sym) const {
-        // Form overlap matrix
-        arma::mat S(helfem::to_arma(overlap()));
-
-        // Get the basis function norms
-        arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
-        arma::vec bfinvnormlz(arma::pow(arma::diagvec(S),0.5));
-	printf("Smallest normalization constant % e, largest % e\n",arma::min(bfnormlz),arma::max(bfnormlz));
-        // Go to normalized basis
-        S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
-
-        if(chol && sym==0) {
-          // Half-inverse is
-          return helfem::to_eigen(arma::mat(arma::diagmat(bfinvnormlz) * arma::chol(S)));
-
-        } else {
-          arma::vec Sval;
-          arma::mat Svec;
-          if(sym) {
-            // Symmetries
-            std::vector<arma::uvec> midx(get_sym_idx(sym));
-            { // Phase 5.12 bridge: eig_sym_sub is Eigen.
-              helfem::Vector Sval_e; helfem::Matrix Svec_e;
-              scf::eig_sym_sub(Sval_e, Svec_e, helfem::to_eigen(S), midx);
-              Sval = helfem::to_arma(Sval_e);
-              Svec = helfem::to_arma(Svec_e);
-            }
-          } else {
-            if(!arma::eig_sym(Sval,Svec,S)) {
-              S.save("S.dat",arma::raw_ascii);
-              throw std::logic_error("Diagonalization of overlap matrix failed\n");
-            }
-          }
-          printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
-
-          arma::mat Shalf(Svec*arma::diagmat(arma::pow(Sval,0.5))*arma::trans(Svec));
-          Shalf=arma::diagmat(bfinvnormlz)*Shalf;
-
-          return helfem::to_eigen(Shalf);
-        }
-      }
-
       helfem::Matrix TwoDBasis::Sinvh(bool chol, int sym) const {
         // Form overlap matrix
         arma::mat S(helfem::to_arma(overlap()));

@@ -152,14 +152,6 @@ namespace helfem {
         return arma::linspace<arma::uvec>(0,Nbf()-1,Nbf());
       }
 
-      arma::ivec TwoDBasis::get_l() const {
-        return lval;
-      }
-
-      arma::ivec TwoDBasis::get_m() const {
-        return mval;
-      }
-
       arma::uvec TwoDBasis::m_indices(int m) const {
         return helfem::collect_shell_indices(mval.n_elem,
             [&](size_t)   { return radial.Nbf(); },
@@ -196,50 +188,6 @@ namespace helfem {
         return idx;
       }
 
-      helfem::Matrix TwoDBasis::Shalf(bool chol, int sym) const {
-        // Phase 3: overlap() returns helfem::Matrix. The compute path
-        // below is still arma-native; bridge to Eigen at the return.
-        arma::mat S(helfem::to_arma(overlap()));
-
-        // Get the basis function norms
-        arma::vec bfnormlz(arma::pow(arma::diagvec(S),-0.5));
-        arma::vec bfinvnormlz(arma::pow(arma::diagvec(S),0.5));
-	printf("Smallest normalization constant % e, largest % e\n",arma::min(bfnormlz),arma::max(bfnormlz));
-        // Go to normalized basis
-        S=arma::diagmat(bfnormlz)*S*arma::diagmat(bfnormlz);
-
-        if(chol && sym==0) {
-          // Half-inverse is
-          arma::mat Shalf = arma::diagmat(bfinvnormlz) * arma::chol(S);
-          return helfem::to_eigen(Shalf);
-
-        } else {
-          arma::vec Sval;
-          arma::mat Svec;
-          if(sym) {
-            // Symmetries
-            std::vector<arma::uvec> midx(get_sym_idx(sym));
-            { // Phase 5.12 bridge: eig_sym_sub is Eigen.
-              helfem::Vector Sval_e; helfem::Matrix Svec_e;
-              scf::eig_sym_sub(Sval_e, Svec_e, helfem::to_eigen(S), midx);
-              Sval = helfem::to_arma(Sval_e);
-              Svec = helfem::to_arma(Svec_e);
-            }
-          } else {
-            if(!arma::eig_sym(Sval,Svec,S)) {
-              S.save("S.dat",arma::raw_ascii);
-              throw std::logic_error("Diagonalization of overlap matrix failed\n");
-            }
-          }
-          printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
-
-          arma::mat Shalf(Svec*arma::diagmat(arma::pow(Sval,0.5))*arma::trans(Svec));
-          Shalf=arma::diagmat(bfinvnormlz)*Shalf;
-
-          return helfem::to_eigen(Shalf);
-        }
-      }
-
       helfem::Matrix TwoDBasis::Sinvh(bool chol, int sym) const {
         arma::mat S(helfem::to_arma(overlap()));
 
@@ -272,10 +220,6 @@ namespace helfem {
 
       void TwoDBasis::add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Mrad) const {
         M.submat(iang*radial.Nbf(),jang*radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*radial.Nbf()-1)+=Mrad;
-      }
-
-      arma::mat TwoDBasis::get_sub(const arma::mat & M, size_t iang, size_t jang) const {
-        return M.submat(iang*radial.Nbf(),jang*radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*radial.Nbf()-1);
       }
 
       helfem::Matrix TwoDBasis::overlap() const {

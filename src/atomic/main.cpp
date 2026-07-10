@@ -281,7 +281,7 @@ int main(int argc, char **argv) {
   // is present, which is what you want).
   std::vector<std::vector<arma::uvec>> l_idx;
   if (maverage) {
-    const arma::ivec l_all = basis.get_l();
+    const arma::ivec l_all = basis.get_lval();
     const int lmax_bf = arma::max(l_all);
     l_idx.assign(lmax_bf + 1, {});
     for (int l = 0; l <= lmax_bf; ++l)

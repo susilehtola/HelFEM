@@ -125,13 +125,13 @@ namespace helfem_py {
     }
     py::list lvals() const {
       py::list out;
-      arma::ivec lv = basis_.get_l();
+      arma::ivec lv = basis_.get_lval();
       for (arma::uword i = 0; i < lv.n_elem; ++i) out.append((int) lv(i));
       return out;
     }
     py::list mvals() const {
       py::list out;
-      arma::ivec mv = basis_.get_m();
+      arma::ivec mv = basis_.get_mval();
       for (arma::uword i = 0; i < mv.n_elem; ++i) out.append((int) mv(i));
       return out;
     }
