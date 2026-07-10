@@ -65,11 +65,12 @@ target_include_directories(helfem
 )
 target_link_libraries(helfem PUBLIC helfem::lib1dfem Eigen3::Eigen)
 target_compile_features(helfem PUBLIC cxx_std_17)
-# ARMA_64BIT_WORD / ARMA_BLAS_LONG must be seen by any consumer that
-# includes libhelfem headers -- some public headers still transitively
-# include <armadillo> (e.g., helfem.source.h -> utils::invh), and the
-# macros affect arma's ABI. Propagate as INTERFACE.
-target_compile_definitions(helfem PUBLIC ARMA_64BIT_WORD ARMA_BLAS_LONG)
+# helfem::arma carries the Armadillo headers, the BLAS/LAPACK linkage
+# and the ARMA_64BIT_WORD / (ILP64) ARMA_BLAS_LONG definitions. It is
+# PUBLIC because some public headers still transitively include
+# <armadillo> (e.g. helfem.source.h -> utils::invh) and the integer
+# macros affect arma's ABI, so downstream consumers must inherit them.
+target_link_libraries(helfem PUBLIC helfem::arma)
 
 # In-tree alias so downstream targets in HelFEM's own tree can link
 # helfem::helfem consistently with the exported name.
