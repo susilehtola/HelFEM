@@ -418,25 +418,19 @@ int main(int argc, char **argv) {
     //     sign matches the bespoke atomic driver's line 754.
     //     For RS hybrids, rs_exchange uses the erfc or Yukawa kernel
     //     precomputed above.
+    // Atomic exchange kernel: kfrac * K + kshort * K_rs. Empty
+    // branches contribute zero, so RS hybrids and plain hybrids all
+    // flow through the same builder.
+    auto exchange_fn = [&](const arma::mat & P) {
+      arma::mat K(Nbf, Nbf, arma::fill::zeros);
+      if (kfrac  != 0.0) K += kfrac  * helfem::to_arma(basis.exchange(helfem::to_eigen(P)));
+      if (kshort != 0.0) K += kshort * helfem::to_arma(basis.rs_exchange(helfem::to_eigen(P)));
+      return K;
+    };
     arma::mat Ka, Kb;
     double Exx = 0.0;
-    if (have_exx) {
-      Ka.zeros(Nbf, Nbf);
-      if (kfrac  != 0.0) Ka += kfrac  * helfem::to_arma(basis.exchange(helfem::to_eigen(Pa)));
-      if (kshort != 0.0) Ka += kshort * helfem::to_arma(basis.rs_exchange(helfem::to_eigen(Pa)));
-      Exx = 0.5 * arma::trace(Pa * Ka);
-      if (!restricted) {
-        Kb.zeros(Nbf, Nbf);
-        if (kfrac  != 0.0) Kb += kfrac  * helfem::to_arma(basis.exchange(helfem::to_eigen(Pb)));
-        if (kshort != 0.0) Kb += kshort * helfem::to_arma(basis.rs_exchange(helfem::to_eigen(Pb)));
-        Exx += 0.5 * arma::trace(Pb * Kb);
-      } else {
-        // In restricted mode alpha == beta density, and we only assemble
-        // one Fock. Skipping the K(Pb) call saves one exchange build;
-        // the beta contribution equals the alpha one so double it.
-        Exx *= 2.0;
-      }
-    }
+    helfem::scf_driver::assemble_hf_exchange(
+        Ka, Kb, Exx, Pa, Pb, restricted, have_exx, exchange_fn);
 
     const double Etot = Ekin + Enuc + Eefield + Emfield + Econf
                        + Ecoul + Exc + Exx;
