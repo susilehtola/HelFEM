@@ -1207,57 +1207,6 @@ namespace helfem {
         return helfem::to_arma(radial.get_r(iel));
       }
 
-      arma::vec TwoDBasis::nuclear_density(const arma::mat & P0) const {
-        // Radial functions in first element
-        size_t ifirst, ilast;
-        radial.get_idx(0,ifirst,ilast);
-        // Total number of radial functions
-        size_t Nrad(radial.Nbf());
-
-        // Expand density matrix to boundary conditions
-        arma::mat P(expand_boundaries(P0));
-
-        // Loop over angular momentum
-        double nucden=0.0;
-#ifdef _OPENMP
-#pragma omp parallel for reduction(+:nucden)
-#endif
-        for(size_t iam=0;iam<lval.n_elem;iam++) {
-          // Integration over angles yields extra factor 4 pi that must be removed
-          nucden+=radial.nuclear_density(helfem::to_eigen(arma::mat(P.submat(Nrad*iam,Nrad*iam,Nrad*(iam+1)-1,Nrad*(iam+1)-1))))/(4.0*M_PI);
-        }
-
-        arma::vec den(1);
-        den(0)=nucden;
-
-        return den;
-      }
-
-      arma::vec TwoDBasis::nuclear_density_gradient(const arma::mat & P0) const {
-        // Radial functions in first element
-        size_t ifirst, ilast;
-        radial.get_idx(0,ifirst,ilast);
-        // Total number of radial functions
-        size_t Nrad(radial.Nbf());
-
-        // Expand density matrix to boundary conditions
-        arma::mat P(expand_boundaries(P0));
-
-        // Loop over angular momentum
-        double nucden=0.0;
-#ifdef _OPENMP
-#pragma omp parallel for reduction(+:nucden)
-#endif
-        for(size_t iam=0;iam<lval.n_elem;iam++) {
-          // Integration over angles yields extra factor 4 pi that must be removed
-          nucden+=radial.nuclear_density_gradient(helfem::to_eigen(arma::mat(P.submat(Nrad*iam,Nrad*iam,Nrad*(iam+1)-1,Nrad*(iam+1)-1))))/(4.0*M_PI);
-        }
-
-        arma::vec den(1);
-        den(0)=nucden;
-
-        return den;
-      }
     }
   }
 }

@@ -1741,28 +1741,6 @@ namespace helfem {
         return radial.get_r(iel);
       }
 
-      arma::vec TwoDBasis::nuclear_density(const arma::mat & P0) const {
-        // List of functions in the first element
-        arma::uvec fidx(bf_list_dummy(0));
-
-        // Expand density matrix to boundary conditions
-        arma::mat P(expand_boundaries(P0));
-        // and grab the contribution from the first element
-        P=P(fidx,fidx);
-
-        // Nucleus is at -1 on the primitive polynomial interval [-1,1]
-        arma::vec x(1);
-        x(0)=-1.0;
-        // Evaluate first basis functions in first element at both nuclei
-        arma::cx_mat bf_one(eval_bf(0,x,1.0,0.0));
-        arma::cx_mat bf_none(eval_bf(0,x,-1.0,0.0));
-
-        arma::vec den(2);
-        den(0)=arma::as_scalar(arma::real(bf_none*P*arma::trans(bf_none)));
-        den(1)=arma::as_scalar(arma::real(bf_one*P*arma::trans(bf_one)));
-
-        return den;
-      }
     }
   }
 }

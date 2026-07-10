@@ -127,10 +127,6 @@ namespace helfem {
         /// Get primitive integrals
         std::vector<arma::mat> get_prim_tei() const;
 
-        /// Electron density at nucleus
-        double nuclear_density(const arma::mat & P) const;
-        /// Electron density at nucleus
-        double nuclear_density_gradient(const arma::mat & P) const;
       };
 
       /// Extract per-l NAOs from a converged sadatom SCF result.

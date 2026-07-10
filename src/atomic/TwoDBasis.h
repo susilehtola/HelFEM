@@ -235,9 +235,7 @@ namespace helfem {
         arma::vec get_r(size_t iel) const;
 
         /// Electron density at nuclei
-        arma::vec nuclear_density(const arma::mat & P) const;
         /// Electron density gradient at nuclei
-        arma::vec nuclear_density_gradient(const arma::mat & P) const;
       };
     }
   }

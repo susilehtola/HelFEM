@@ -458,13 +458,6 @@ namespace helfem {
         return helfem::to_arma(radial.get_r(iel));
       }
 
-      double TwoDBasis::nuclear_density(const arma::mat & P) const {
-        return radial.nuclear_density(helfem::to_eigen(P))/(4.0*M_PI);
-      }
-
-      double TwoDBasis::nuclear_density_gradient(const arma::mat & P) const {
-        return radial.nuclear_density_gradient(helfem::to_eigen(P))/(4.0*M_PI);
-      }
 
 
       std::vector<std::pair<int, atomic::basis::NAORadialBasis>>
