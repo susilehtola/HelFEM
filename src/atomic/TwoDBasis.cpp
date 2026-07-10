@@ -465,33 +465,6 @@ namespace helfem {
         return helfem::to_eigen(remove_boundaries(V));
       }
 
-      size_t TwoDBasis::mem_1el() const {
-        return Nbf()*Nbf()*sizeof(double);
-      }
-
-      size_t TwoDBasis::mem_1el_aux() const {
-        size_t Nel(radial.Nel());
-        size_t Nprim(radial.max_Nprim());
-        size_t N_L(2*arma::max(lval)+1);
-
-        return 2*N_L*Nel*Nprim*Nprim*sizeof(double);
-      }
-
-      size_t TwoDBasis::mem_2el_aux() const {
-        // Auxiliary integrals required up to
-        size_t N_L(2*arma::max(lval)+1);
-        // Number of elements
-        size_t Nel(radial.Nel());
-        // Number of primitive functions per element
-        size_t Nprim(radial.max_Nprim());
-
-        // Memory use is thus
-        //return 2*N_L*Nel*Nel*Nprim*Nprim*Nprim*Nprim*sizeof(double);
-        // No off-diagonal storage
-        return 2*N_L*Nel*Nprim*Nprim*Nprim*Nprim*sizeof(double);
-      }
-
-
       std::vector<std::vector<helfem::Matrix>>
       TwoDBasis::radial_df_factors(double tol) const {
         if (!prim_tei.size())

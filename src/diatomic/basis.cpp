@@ -954,31 +954,6 @@ namespace helfem {
         return (lh.first == rh.first) && (lh.second == rh.second);
       }
 
-      size_t TwoDBasis::mem_1el() const {
-        return Nbf()*Nbf()*sizeof(double);
-      }
-
-      size_t TwoDBasis::mem_1el_aux() const {
-        size_t Nel(radial.Nel());
-        size_t Nprim(radial.max_Nprim());
-        size_t N_LM(lm_map.size());
-
-        return 4*N_LM*Nel*Nprim*Nprim*sizeof(double);
-      }
-
-      size_t TwoDBasis::mem_2el_aux() const {
-        // Auxiliary integrals required up to
-        size_t N_LM(lm_map.size());
-        // Number of elements
-        size_t Nel(radial.Nel());
-        // Number of primitive functions per element
-        size_t Nprim(radial.max_Nprim());
-
-        // No off-diagonal storage
-        return 4*N_LM*Nel*Nprim*Nprim*Nprim*Nprim*sizeof(double);
-      }
-
-
       void TwoDBasis::compute_tei(bool exchange) {
         // Number of distinct L values is
         size_t Nel(radial.Nel());
