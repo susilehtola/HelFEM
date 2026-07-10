@@ -99,7 +99,6 @@ namespace helfem {
         // from DFTGridWorkerBase.
 
         /// Numerical clean up of xc
-        void check_xc();
 
         /// Evaluate overlap matrix
         void eval_overlap(arma::mat & S) const;

@@ -276,45 +276,6 @@ namespace helfem {
       // init_xc, zero_Exc: inherited from
       // helfem::dftgrid_common::DFTGridWorkerBase.
 
-      void DFTGridWorker::check_xc() {
-        size_t inf=0;
-
-        for(arma::uword i=0;i<exc.n_elem;i++)
-          if(!std::isfinite(exc[i])) {
-            inf++;
-            exc[i]=0.0;
-          }
-
-        for(arma::uword i=0;i<vxc.n_elem;i++)
-          if(!std::isfinite(vxc[i])) {
-            inf++;
-            vxc[i]=0.0;
-          }
-
-        for(arma::uword i=0;i<vsigma.n_elem;i++)
-          if(!std::isfinite(vsigma[i])) {
-            inf++;
-            vsigma[i]=0.0;
-          }
-
-        for(arma::uword i=0;i<vlapl.n_elem;i++)
-          if(!std::isfinite(vlapl[i])) {
-            inf++;
-            vlapl[i]=0.0;
-          }
-
-
-        for(arma::uword i=0;i<vtau.n_elem;i++)
-          if(!std::isfinite(vtau[i])) {
-            inf++;
-            vtau[i]=0.0;
-          }
-
-        if(inf) {
-          printf("Warning - %i non-finite entries found in xc energy / potential.\n",(int) inf);
-        }
-      }
-
       void check_array(const std::vector<double> & x, size_t n, std::vector<size_t> & idx) {
         if(x.size()%n!=0) {
           std::ostringstream oss;
