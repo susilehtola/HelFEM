@@ -565,10 +565,9 @@ namespace helfem {
       DFTGrid::~DFTGrid() {
       }
 
-      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars_e, int c_func, const helfem::Vector & c_pars_e, const helfem::Matrix & P_e, helfem::Matrix & H_e, double & Exc, double & Nel, double & Ekin, double thr) {
-        // Eigen public boundary; bridge to the arma-native interior once.
-        const arma::vec x_pars(helfem::to_arma(x_pars_e));
-        const arma::vec c_pars(helfem::to_arma(c_pars_e));
+      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & P_e, helfem::Matrix & H_e, double & Exc, double & Nel, double & Ekin, double thr) {
+        // Eigen public boundary; bridge the density to the arma interior once
+        // (functional parameters flow straight through to compute_xc).
         const arma::mat P(helfem::to_arma(P_e));
         arma::mat H;
         H.zeros(P.n_rows,P.n_rows);
@@ -633,10 +632,9 @@ namespace helfem {
         printf("Integral over laplacian %e\n",lapl);
       }
 
-      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars_e, int c_func, const helfem::Vector & c_pars_e, const helfem::Matrix & Pa_e, const helfem::Matrix & Pb_e, helfem::Matrix & Ha_e, helfem::Matrix & Hb_e, double & Exc, double & Nel, double & Ekin, bool beta, double thr) {
-        // Eigen public boundary; bridge to the arma-native interior once.
-        const arma::vec x_pars(helfem::to_arma(x_pars_e));
-        const arma::vec c_pars(helfem::to_arma(c_pars_e));
+      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & Pa_e, const helfem::Matrix & Pb_e, helfem::Matrix & Ha_e, helfem::Matrix & Hb_e, double & Exc, double & Nel, double & Ekin, bool beta, double thr) {
+        // Eigen public boundary; bridge the density to the arma interior once
+        // (functional parameters flow straight through to compute_xc).
         const arma::mat Pa(helfem::to_arma(Pa_e));
         const arma::mat Pb(helfem::to_arma(Pb_e));
         arma::mat Ha, Hb;
