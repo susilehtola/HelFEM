@@ -400,31 +400,10 @@ int main(int argc, char **argv) {
       if (maverage)
         F = helfem::to_arma(scf::fock_symmetry_average(helfem::to_eigen(F), mavg_idx));
     };
-    if (restricted) {
-      arma::mat F_ao = H1 + J;
-      if (have_xc)  F_ao += XCa;
-      if (have_exx) F_ao += Ka;
-      apply_mavg(F_ao);
-      for (size_t k = 0; k < nsym; ++k)
-        orthonormalize_block(fock, k, F_ao, k);
-    } else {
-      arma::mat Fa_ao = H1 + J;
-      arma::mat Fb_ao = H1 + J;
-      if (have_xc)  { Fa_ao += XCa; Fb_ao += XCb; }
-      if (have_exx) { Fa_ao += Ka;  Fb_ao += Kb;  }
-      // Spin-Zeeman splitting Fa -= Bz/2 * S, Fb += Bz/2 * S. In
-      // restricted mode alpha == beta so no split is applied.
-      if (have_bfield) {
-        Fa_ao -= 0.5 * Bz * S;
-        Fb_ao += 0.5 * Bz * S;
-      }
-      apply_mavg(Fa_ao);
-      apply_mavg(Fb_ao);
-      for (size_t k = 0; k < nsym; ++k) {
-        orthonormalize_block(fock, k,        Fa_ao, k);
-        orthonormalize_block(fock, nsym + k, Fb_ao, k);
-      }
-    }
+    helfem::scf_driver::assemble_fock_blocks<OOO_Real>(
+        fock, H1, J, XCa, XCb, Ka, Kb, S,
+        nsym, restricted, have_xc, have_exx, have_bfield, Bz,
+        apply_mavg, orthonormalize_block);
     return std::make_pair(Etot, fock);
   };
 
