@@ -24,6 +24,8 @@
 
 #include <armadillo>
 #include <Matrix.h>
+#include <sstream>
+#include <stdexcept>
 
 namespace helfem {
   namespace dftgrid_common {
@@ -93,10 +95,41 @@ namespace helfem {
       /// Evaluate int wtot * exc * rho_total
       double eval_Exc() const;
 
+      /// Integrate the (total) electron density over the current
+      /// element grid: int wtot * rho. Geometry-independent -- reads
+      /// only the shared wtot / rho / polarized state.
+      double compute_Nel() const;
+
       /// Compute libxc functional contribution and add to exc / vxc /
       /// vsigma / vtau / vlapl. pot=true also computes potentials.
       void compute_xc(int func_id, const helfem::Vector & params, double thr, bool pot = true);
     };
+
+    /// BLAS routine for LDA-type quadrature: accumulate
+    /// H += Re( (f .* vxc) * f^T ), i.e. the weighted outer product of
+    /// the basis-function values f (Nbf x Npts) against themselves with
+    /// per-point potential weights vxc (1 x Npts). Geometry-independent
+    /// -- shared verbatim by all three DFTGridWorker variants (real f
+    /// for sadatom, complex f for atomic/diatomic).
+    template<typename T> void increment_lda(arma::mat & H, const arma::rowvec & vxc, const arma::Mat<T> & f) {
+      if(f.n_cols != vxc.n_elem) {
+        std::ostringstream oss;
+        oss << "Number of functions " << f.n_cols << " and potential values " << vxc.n_elem << " do not match!\n";
+        throw std::runtime_error(oss.str());
+      }
+      if(H.n_rows != f.n_rows || H.n_cols != f.n_rows) {
+        std::ostringstream oss;
+        oss << "Size of basis function (" << f.n_rows << "," << f.n_cols << ") and Fock matrix (" << H.n_rows << "," << H.n_cols << ") doesn't match!\n";
+        throw std::runtime_error(oss.str());
+      }
+
+      // Form helper matrix
+      arma::Mat<T> fhlp(f);
+      for(size_t i=0;i<fhlp.n_rows;i++)
+        for(size_t j=0;j<fhlp.n_cols;j++)
+          fhlp(i,j)*=vxc(j);
+      H+=arma::real(fhlp*arma::trans(f));
+    }
   }
 }
 
