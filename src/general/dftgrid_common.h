@@ -82,12 +82,8 @@ namespace helfem {
       /// Check necessity of computing gradient / tau / laplacian for the
       /// given exchange + correlation functional ids.
       void check_grad_tau_lapl(int x_func, int c_func);
-      /// Query the do_grad / do_tau / do_lapl flags
       /// Explicit override of the do_grad / do_tau / do_lapl flags
       void set_grad_tau_lapl(bool grad, bool tau, bool lapl);
-
-      /// Zero the exchange-correlation energy density buffer
-      void zero_Exc();
 
       /// Initialise vxc / vsigma / vtau / vlapl buffers with the
       /// correct shape and zero exc.
