@@ -188,8 +188,6 @@ namespace helfem {
         /// Get polynomial basis identifier
         int get_poly_id() const;
         /// Get polynomial basis order
-        int get_poly_order() const;
-        /// Get polynomial basis order
         int get_poly_nnodes() const;
 
         /// Get indices of real basis functions
@@ -235,9 +233,6 @@ namespace helfem {
         /// Coupling to magnetic field in z direction
         helfem::Matrix Bz_field(double B) const;
 
-        /// <r^2> matrix
-        arma::mat radial_moments(const arma::mat & P) const;
-
         /// Form Coulomb matrix
         arma::mat coulomb(const arma::mat & P) const;
         /// Form exchange matrix
@@ -245,9 +240,6 @@ namespace helfem {
 
         /// Get primitive integrals
         std::vector<arma::mat> get_prim_tei() const;
-
-        /// Set elements to zero
-        void set_zero(int lmax, arma::mat & M) const;
 
         /// Get indices of basis functions with wanted m quantum number
         arma::uvec m_indices(int m) const;
