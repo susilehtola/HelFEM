@@ -24,6 +24,7 @@
 #include "../general/dftfuncs.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
+#include "../general/scf_driver_common.h"
 #include "../atomic/basis.h"
 #include "scf.h"
 #include <ArmaEigen.h>
@@ -91,12 +92,11 @@ int main(int argc, char **argv) {
   const double shift_conf   = parser.get<double>("shift_conf");
   const bool   add_conf     = parser.get<bool>("add_conf");
 
-  scf::parse_nela_nelb(nela, nelb, Q, M, Z);
-  if (restr == -1) restr = (nela == nelb) ? 1 : 0;
-  const bool restricted = (restr != 0);
-  if (restricted && nela != nelb)
-    throw std::logic_error("Restricted mode requires nela == nelb (closed shell). "
-                            "Use --restricted=0 (or leave -1 for auto) for open-shell.");
+  bool restricted;
+  int Ntot;
+  helfem::scf_driver::derive_nela_nelb_restricted(
+      nela, nelb, restr, Q, M, Z, restricted, Ntot);
+  (void) Ntot;  // sadatom SCF driver does its own per-l particle counting.
 
   arma::vec x_pars, c_pars;
   if (xparf.size()) {
