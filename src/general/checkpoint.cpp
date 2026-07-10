@@ -217,21 +217,6 @@ void Checkpoint::read(const std::string & name, arma::mat & m) {
   if(cl) close();
 }
 
-void Checkpoint::cwrite(const std::string & name, const arma::cx_mat & m) {
-  arma::mat mreal=arma::real(m);
-  arma::mat mim=arma::imag(m);
-
-  write(name+".re",mreal);
-  write(name+".im",mim);
-}
-
-void Checkpoint::cread(const std::string & name, arma::cx_mat & m) {
-  arma::mat mreal, mim;
-  read(name+".re",mreal);
-  read(name+".im",mim);
-  m=mreal*std::complex<double>(1.0,0.0)+mim*std::complex<double>(0.0,1.0);
-}
-
 void Checkpoint::write(const std::string & name, const arma::imat & m0) {
   CHECK_WRITE();
 
@@ -1018,49 +1003,6 @@ void Checkpoint::read(const std::string & name, std::string & val) {
 bool file_exists(const std::string & name) {
   std::ifstream file(name.c_str());
   return file.good();
-}
-
-std::string get_cwd() {
-  // Initial array size
-  size_t m=1024;
-  char *p=(char *) malloc(m);
-  char *r=NULL;
-
-  while(true) {
-    // Get cwd in array p
-    r=getcwd(p,m);
-    // Success?
-    if(r==p)
-      break;
-
-    // Failed, increase m
-    m*=2;
-    p=(char *) realloc(p,m);
-  }
-
-  std::string cwd(p);
-  free(p);
-  return cwd;
-}
-
-void change_dir(std::string dir, bool create) {
-  if(create) {
-    std::string cmd="mkdir -p "+dir;
-    int err=system(cmd.c_str());
-    if(err) {
-      std::ostringstream oss;
-      oss << "Could not create directory \"" << dir << "\".\n";
-      throw std::runtime_error(oss.str());
-    }
-  }
-
-  // Go to directory
-  int direrr=chdir(dir.c_str());
-  if(direrr) {
-    std::ostringstream oss;
-    oss << "Could not change to directory \"" << dir << "\".\n";
-    throw std::runtime_error(oss.str());
-  }
 }
 
 // Eigen overloads: bridge through arma::mat at the HDF5 boundary so

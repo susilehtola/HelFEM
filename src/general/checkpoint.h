@@ -97,11 +97,6 @@ class Checkpoint {
   void write(const std::string & name, const helfem::Vector & v);
   void read(const std::string & name, helfem::Vector & v);
 
-  /// Save complex matrix
-  void cwrite(const std::string & name, const arma::cx_mat & mat);
-  /// Read complex matrix
-  void cread(const std::string & name, arma::cx_mat & mat);
-
   /// Save matrix
   void write(const std::string & name, const arma::imat & mat);
   /// Read matrix
@@ -154,11 +149,6 @@ class Checkpoint {
 
 /// Check for existence of file
 bool file_exists(const std::string & name);
-
-/// Get current working directory
-std::string get_cwd();
-/// Change to directory, create it first if wanted
-void change_dir(std::string dir, bool create=false);
 
 /// Get a temporary file name
 std::string tempname();
