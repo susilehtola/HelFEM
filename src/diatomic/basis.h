@@ -145,8 +145,6 @@ namespace helfem {
         void add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
         /// Set radial submatrix
         void set_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
-        /// Get radial submatrix
-        arma::mat get_sub(const arma::mat & M, size_t iang, size_t jang) const;
 
         /// Find index in (L,|M|) table
         size_t lmind(int L, int M, bool check=true) const;
@@ -251,10 +249,6 @@ namespace helfem {
         /// Set elements to zero
         void set_zero(int lmax, arma::mat & M) const;
 
-        /// Get l values
-        arma::ivec get_l() const;
-        /// Get m values
-        arma::ivec get_m() const;
         /// Get indices of basis functions with wanted m quantum number
         arma::uvec m_indices(int m) const;
         /// Get indices of basis functions with wanted m quantum number and parity

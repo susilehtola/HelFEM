@@ -499,14 +499,6 @@ namespace helfem {
         return idx;
       }
 
-      arma::ivec TwoDBasis::get_l() const {
-        return lval;
-      }
-
-      arma::ivec TwoDBasis::get_m() const {
-        return mval;
-      }
-
       arma::uvec TwoDBasis::m_indices(int m) const {
         return helfem::collect_shell_indices(mval.n_elem,
             [&](size_t i) { return (mval(i) == 0) ? radial.Nbf() : radial.Nbf() - 1; },
@@ -581,10 +573,6 @@ namespace helfem {
 
       void TwoDBasis::add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Mrad) const {
         M.submat(iang*radial.Nbf(),jang*radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*radial.Nbf()-1)+=Mrad;
-      }
-
-      arma::mat TwoDBasis::get_sub(const arma::mat & M, size_t iang, size_t jang) const {
-        return M.submat(iang*radial.Nbf(),jang*radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*radial.Nbf()-1);
       }
 
       helfem::Matrix TwoDBasis::overlap() const {
