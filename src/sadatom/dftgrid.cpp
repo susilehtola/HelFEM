@@ -923,36 +923,6 @@ namespace helfem {
         Nel=nel;
       }
 
-      arma::mat DFTGrid::eval_overlap() {
-        arma::mat S(basp->Nbf(),basp->Nbf());
-        S.zeros();
-
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-        {
-          DFTGridWorker grid(basp);
-          grid.set_grad_tau_lapl(false,false,false);
-
-#ifdef _OPENMP
-#pragma omp for
-#endif
-          for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
-            grid.compute_bf(iel);
-            grid.eval_overlap(S);
-          }
-#ifdef _OPENMP
-#pragma omp for
-#endif
-          for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
-            grid.compute_bf(iel);
-            grid.eval_overlap(S);
-          }
-        }
-
-        return S;
-      }
-
       void DFTGrid::eval_pot(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::mat & pot, double thr) {
         // Compute number of quadrature points
         size_t Nquad=basp->get_r(0).n_elem;

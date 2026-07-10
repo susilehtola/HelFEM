@@ -631,45 +631,6 @@ namespace helfem {
         Hb=basp->remove_boundaries(Hb);
       }
 
-      arma::mat DFTGrid::eval_overlap() {
-        arma::mat S(basp->Ndummy(),basp->Ndummy());
-        S.zeros();
-
-        {
-          DFTGridWorker grid(basp,lang,mang);
-          grid.set_grad_tau_lapl(false,false,false);
-
-          for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-            for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
-              grid.compute_bf(iel,irad);
-              grid.eval_overlap(S);
-            }
-          }
-        }
-
-        // Clean up matrices
-        return basp->remove_boundaries(S);
-      }
-
-      arma::mat DFTGrid::eval_kinetic() {
-        arma::mat T(basp->Ndummy(),basp->Ndummy());
-        T.zeros();
-
-        {
-          DFTGridWorker grid(basp,lang,mang);
-          grid.set_grad_tau_lapl(true,false,false);
-
-          for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-            for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
-              grid.compute_bf(iel,irad);
-              grid.eval_kinetic(T);
-            }
-          }
-        }
-
-        // Clean up matrices
-        return basp->remove_boundaries(T);
-      }
     }
   }
 }
