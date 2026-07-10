@@ -82,8 +82,6 @@ namespace helfem {
         void compute_bf(size_t iel, size_t irad);
         /// Free memory
         void free();
-        /// Save data
-        void save(const std::string & info) const;
 
         /// Update values of density, restricted calculation
         void update_density(const arma::mat & P);
@@ -97,13 +95,6 @@ namespace helfem {
 
         // init_xc / compute_xc / eval_Exc / zero_Exc are inherited
         // from DFTGridWorkerBase.
-
-        /// Numerical clean up of xc
-
-        /// Evaluate overlap matrix
-        void eval_overlap(arma::mat & S) const;
-        /// Evaluate kinetic energy matrix
-        void eval_kinetic(arma::mat & T) const;
 
         /// Evaluate Fock matrix, restricted calculation
         void eval_Fxc(arma::mat & H) const;

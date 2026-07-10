@@ -267,38 +267,7 @@ namespace helfem {
 
       // compute_xc: inherited from DFTGridWorkerBase.
 
-      void DFTGridWorker::save(const std::string & info) const {
-        rho.save("rho"+info+".dat",arma::raw_ascii);
-        sigma.save("sigma"+info+".dat",arma::raw_ascii);
-        tau.save("tau"+info+".dat",arma::raw_ascii);
-
-        vxc.save("vxc"+info+".dat",arma::raw_ascii);
-        vsigma.save("vsigma"+info+".dat",arma::raw_ascii);
-        vtau.save("vtau"+info+".dat",arma::raw_ascii);
-        exc.save("exc"+info+".dat",arma::raw_ascii);
-      }
-
       // eval_Exc: inherited from DFTGridWorkerBase.
-
-      void DFTGridWorker::eval_overlap(arma::mat & So) const {
-        // Calculate in subspace
-        arma::mat S(bf_ind.n_elem,bf_ind.n_elem);
-        S.zeros();
-        increment_lda< std::complex<double> >(S,wtot,bf);
-        // Increment
-        So.submat(bf_ind,bf_ind)+=S;
-      }
-
-      void DFTGridWorker::eval_kinetic(arma::mat & To) const {
-        // Calculate in subspace
-        arma::mat T(bf_ind.n_elem,bf_ind.n_elem);
-        T.zeros();
-        increment_lda< std::complex<double> >(T,wtot/(scale_r%scale_r),bf_rho);
-        increment_lda< std::complex<double> >(T,wtot/(scale_theta%scale_theta),bf_theta);
-        increment_lda< std::complex<double> >(T,wtot/(scale_phi%scale_phi),bf_phi);
-        // Increment
-        To.submat(bf_ind,bf_ind)+=0.5*T;
-      }
 
       void DFTGridWorker::eval_Fxc(arma::mat & Ho) const {
         if(polarized) {
@@ -567,12 +536,6 @@ namespace helfem {
 
               exc+=grid.eval_Exc();
               grid.eval_Fxc(H);
-
-#if 0
-              std::ostringstream oss;
-              oss << "_" << iel << "_" << irad;
-              grid.save(oss.str());
-#endif
             }
           }
         }
@@ -611,12 +574,6 @@ namespace helfem {
 
               exc+=grid.eval_Exc();
               grid.eval_Fxc(Ha,Hb,beta);
-
-#if 0
-              std::ostringstream oss;
-              oss << "_" << iel << "_" << irad;
-              grid.save(oss.str());
-#endif
             }
           }
         }

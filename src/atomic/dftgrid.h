@@ -106,11 +106,6 @@ namespace helfem {
 
         /// Numerical clean up of xc
 
-        /// Evaluate overlap matrix
-        void eval_overlap(arma::mat & S) const;
-        /// Evaluate kinetic energy matrix
-        void eval_kinetic(arma::mat & T) const;
-
         /// Evaluate Fock matrix, restricted calculation
         void eval_Fxc(arma::mat & H) const;
         /// Evaluate Fock matrix, unrestricted calculation

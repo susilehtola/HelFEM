@@ -85,8 +85,6 @@ namespace helfem {
         // init_xc / compute_xc / eval_Exc / zero_Exc are inherited
         // from DFTGridWorkerBase.
 
-        /// Evaluate overlap matrix
-        void eval_overlap(arma::mat & S) const;
 
         /// Evaluate Fock matrix, restricted calculation
         void eval_Fxc(arma::cube & H) const;
