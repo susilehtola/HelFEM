@@ -93,6 +93,12 @@ int main(int argc, char **argv) {
   // occupations apply for the whole SCF, not just N Fock builds).
   parser.add<bool>("readocc", 0, "read frozen per-block occupations from occs.dat", false, false);
 
+  // Initial guess model potential (parity with bespoke diatomic). SAP
+  // is the default because it typically converges materially faster
+  // than the bare core-Hamiltonian guess. Ignored when --load supplies
+  // orbitals from a checkpoint.
+  parser.add<int>("iguess", 0, "initial guess: 0 core Hamiltonian, 1 GSZ, 2 SAP, 3 Thomas-Fermi", false, 2);
+
   // Load orbital guess from a checkpoint written by an earlier run.
   parser.add<std::string>("load", 0, "load orbital guess from checkpoint file", false, "");
   // Save basis + AO densities + Rhalf/Z1/Z2/electron counts to a
@@ -131,6 +137,7 @@ int main(int argc, char **argv) {
   const double Bz     = parser.get<double>("Bz");
   const bool   maverage = parser.get<bool>("maverage");
   const bool   readocc  = parser.get<bool>("readocc");
+  const int    iguess       = parser.get<int>("iguess");
   const std::string loadfile = parser.get<std::string>("load");
   const std::string savefile = parser.get<std::string>("save");
 
@@ -435,9 +442,46 @@ int main(int argc, char **argv) {
     return std::make_pair(Etot, fock);
   };
 
-  // Core-H guess per block per particle type. Fold in the external-field
-  // 1e matrices so the very first Fock reflects the perturbing potential.
-  const arma::mat H0 = T + Vnuc + Vel + Vmag;
+  // Initial-guess Hamiltonian per block per particle type. Fold in the
+  // external-field 1e matrices so the very first Fock reflects the
+  // perturbing potential. iguess selects the electron-nuclear channel:
+  //   0 core Hamiltonian: bare Vnuc
+  //   1..3 model potential (GSZ / SAP / Thomas-Fermi) on each centre
+  //     instead of Vnuc. Matches the bespoke-diatomic guess menu; SAP
+  //     is the default because it typically converges materially
+  //     faster than core-H.
+  arma::mat Vguess;
+  if (iguess == 0) {
+    printf("Guess orbitals from core Hamiltonian\n");
+    Vguess = Vnuc;
+  } else {
+    modelpotential::ModelPotential *p1 = nullptr, *p2 = nullptr;
+    switch (iguess) {
+    case 1:
+      printf("Guess orbitals from GSZ screened nuclei\n");
+      p1 = new modelpotential::GSZAtom(Z1);
+      p2 = new modelpotential::GSZAtom(Z2);
+      break;
+    case 2:
+      printf("Guess orbitals from SAP screened nuclei\n");
+      p1 = new modelpotential::SAPAtom(Z1);
+      p2 = new modelpotential::SAPAtom(Z2);
+      break;
+    case 3:
+      printf("Guess orbitals from Thomas-Fermi screened nuclei\n");
+      p1 = new modelpotential::TFAtom(Z1);
+      p2 = new modelpotential::TFAtom(Z2);
+      break;
+    default:
+      throw std::logic_error("Unsupported iguess value (expected 0..3).\n");
+    }
+    const int lquad = 4 * arma::max(lmmax) + 12;
+    helfem::diatomic::twodquad::TwoDGrid qgrid(&basis, lquad);
+    Vguess = qgrid.model_potential(p1, p2);
+    delete p1;
+    delete p2;
+  }
+  const arma::mat H0 = T + Vguess + Vel + Vmag;
   OpenOrbitalOptimizer::FockMatrix<OOO_Real> CoreH(nsym * nparttype);
   for (size_t t = 0; t < nparttype; ++t) {
     for (size_t k = 0; k < nsym; ++k) {
