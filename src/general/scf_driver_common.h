@@ -192,6 +192,55 @@ namespace helfem {
       fock[b] = helfem::to_eigen(F_orth);
     }
 
+    /// Fock-builder helper: assemble the per-block orthonormal Fock
+    /// matrices from the AO ingredients. Both drivers' fock_builder
+    /// lambdas end with a byte-identical restricted / unrestricted
+    /// branch that
+    ///   * adds up H1 + J (+ XC + K) per spin channel,
+    ///   * applies the spin-Zeeman +/- Bz/2 * S split (unrestricted
+    ///     only),
+    ///   * runs the driver-supplied apply_mavg / orthonormalize_block
+    ///     callables to symmetrise and orthonormalise per block.
+    /// XCa / XCb, Ka / Kb are assumed pre-zeroed (their addends only
+    /// fire under the corresponding have_* flag), matching the
+    /// convention the driver bodies keep for the XC and HF-exchange
+    /// pieces.
+    template <typename Real, typename ApplyMAvg, typename OrthoBlock>
+    inline void assemble_fock_blocks(
+        OpenOrbitalOptimizer::FockMatrix<Real> & fock,
+        const arma::mat & H1, const arma::mat & J,
+        const arma::mat & XCa, const arma::mat & XCb,
+        const arma::mat & Ka,  const arma::mat & Kb,
+        const arma::mat & S,
+        size_t nsym, bool restricted,
+        bool have_xc, bool have_exx, bool have_bfield, double Bz,
+        ApplyMAvg apply_mavg, OrthoBlock orthonormalize_block) {
+      if (restricted) {
+        arma::mat F_ao = H1 + J;
+        if (have_xc)  F_ao += XCa;
+        if (have_exx) F_ao += Ka;
+        apply_mavg(F_ao);
+        for (size_t k = 0; k < nsym; ++k)
+          orthonormalize_block(fock, k, F_ao, k);
+      } else {
+        arma::mat Fa_ao = H1 + J;
+        arma::mat Fb_ao = H1 + J;
+        if (have_xc)  { Fa_ao += XCa; Fb_ao += XCb; }
+        if (have_exx) { Fa_ao += Ka;  Fb_ao += Kb;  }
+        // Spin-Zeeman: alpha <- -Bz/2 * S, beta <- +Bz/2 * S.
+        if (have_bfield) {
+          Fa_ao -= 0.5 * Bz * S;
+          Fb_ao += 0.5 * Bz * S;
+        }
+        apply_mavg(Fa_ao);
+        apply_mavg(Fb_ao);
+        for (size_t k = 0; k < nsym; ++k) {
+          orthonormalize_block(fock, k,        Fa_ao, k);
+          orthonormalize_block(fock, nsym + k, Fb_ao, k);
+        }
+      }
+    }
+
   } // namespace scf_driver
 } // namespace helfem
 
