@@ -261,9 +261,9 @@ namespace helfem {
       helfem::Matrix TwoDBasis::nuclear() const {
         if(model != modelpotential::POINT_NUCLEUS) {
           modelpotential::ModelPotential *pot=modelpotential::get_nuclear_model(model,Z,Rrms);
-          arma::mat Vnuc(model_potential(pot));
+          helfem::Matrix Vnuc = model_potential(pot);
           delete pot;
-          return helfem::to_eigen(Vnuc);
+          return Vnuc;
         } else {
           // Full nuclear attraction matrix
           arma::mat V(Ndummy(),Ndummy());
@@ -325,7 +325,7 @@ namespace helfem {
         }
       }
 
-      arma::mat TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {
+      helfem::Matrix TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {
         // Full nuclear attraction matrix
         arma::mat V(Ndummy(),Ndummy());
         V.zeros();
@@ -336,7 +336,7 @@ namespace helfem {
 	for(size_t iang=0;iang<lval.n_elem;iang++)
 	  set_sub(V,iang,iang,Vrad);
 
-        return remove_boundaries(V);
+        return helfem::to_eigen(remove_boundaries(V));
       }
 
       helfem::Matrix TwoDBasis::confinement(const int N, double r_0, const int iconf, const double V, const double shift_pot) const {
