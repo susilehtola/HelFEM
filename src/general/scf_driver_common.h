@@ -152,6 +152,46 @@ namespace helfem {
       return {Pa_final, Pb_final};
     }
 
+    /// Fock-builder helper: accumulate one block of the AO density
+    /// matrix P_full from OOO's per-block (orbitals, occupations)
+    /// pair. Called per symmetry block per spin channel from both
+    /// drivers' fock_builder lambdas. Empty blocks are no-ops.
+    ///
+    ///   C_k     = Sinvh_k . orb_e
+    ///   P_full(dsym[k], dsym[k]) += C_k . diag(occ_e) . C_k^T
+    template <typename Real>
+    inline void accumulate_density_block(
+        arma::mat & P_full, const std::vector<arma::uvec> & dsym, size_t k,
+        const std::vector<arma::mat> & Sinvh_arma,
+        const helfem::Matrix & orb_e, const helfem::Vector & occ_e) {
+      if (!dsym[k].n_elem) return;
+      const arma::mat orb  = helfem::to_arma(orb_e);
+      const arma::vec occ  = helfem::to_arma(occ_e);
+      const arma::mat C_k  = Sinvh_arma[k] * orb;
+      const arma::mat P_k  = C_k * arma::diagmat(occ) * C_k.t();
+      P_full(dsym[k], dsym[k]) += P_k;
+    }
+
+    /// Fock-builder helper: extract block k of a full AO Fock matrix,
+    /// transform to that block's orthonormal basis via
+    /// Sinvh_k^T . F_k . Sinvh_k, and stash it into the OOO
+    /// FockMatrix at index b (as helfem::Matrix). Empty blocks
+    /// become 0x0 placeholders.
+    template <typename Real>
+    inline void orthonormalize_fock_block(
+        OpenOrbitalOptimizer::FockMatrix<Real> & fock, size_t b,
+        const std::vector<arma::uvec> & dsym, size_t k,
+        const std::vector<arma::mat> & Sinvh_arma,
+        const arma::mat & F_full) {
+      if (!dsym[k].n_elem) {
+        fock[b] = helfem::Matrix::Zero(0, 0);
+        return;
+      }
+      const arma::mat Fk_sub = F_full(dsym[k], dsym[k]);
+      const arma::mat F_orth = Sinvh_arma[k].t() * Fk_sub * Sinvh_arma[k];
+      fock[b] = helfem::to_eigen(F_orth);
+    }
+
   } // namespace scf_driver
 } // namespace helfem
 

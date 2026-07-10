@@ -350,27 +350,15 @@ int main(int argc, char **argv) {
   auto accumulate_density = [&](arma::mat & P_full, size_t k,
                                  const helfem::Matrix & orb_e,
                                  const helfem::Vector & occ_e) {
-    if (!dsym[k].n_elem) return;
-    const arma::mat orb  = helfem::to_arma(orb_e);
-    const arma::vec occ  = helfem::to_arma(occ_e);
-    const arma::mat C_k  = Sinvh_arma[k] * orb;
-    const arma::mat P_k  = C_k * arma::diagmat(occ) * C_k.t();
-    P_full(dsym[k], dsym[k]) += P_k;
+    helfem::scf_driver::accumulate_density_block<OOO_Real>(
+        P_full, dsym, k, Sinvh_arma, orb_e, occ_e);
   };
 
-  // Extract F_full(dsym[k], dsym[k]), transform to the block's
-  // orthonormal basis via Sinvh_k^T . F_k . Sinvh_k, and stash into
-  // fock[b] as helfem::Matrix.
   auto orthonormalize_block =
       [&](OpenOrbitalOptimizer::FockMatrix<OOO_Real> & fock, size_t b,
           const arma::mat & F_full, size_t k) {
-    if (!dsym[k].n_elem) {
-      fock[b] = helfem::Matrix::Zero(0, 0);
-      return;
-    }
-    const arma::mat Fk_sub = F_full(dsym[k], dsym[k]);
-    const arma::mat F_orth = Sinvh_arma[k].t() * Fk_sub * Sinvh_arma[k];
-    fock[b] = helfem::to_eigen(F_orth);
+    helfem::scf_driver::orthonormalize_fock_block<OOO_Real>(
+        fock, b, dsym, k, Sinvh_arma, F_full);
   };
 
   OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> fock_builder =
