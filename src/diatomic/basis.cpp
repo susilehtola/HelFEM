@@ -1081,9 +1081,13 @@ namespace helfem {
         return r;
       }
 
-      arma::mat TwoDBasis::coulomb(const arma::mat & P0) const {
+      helfem::Matrix TwoDBasis::coulomb(const helfem::Matrix & P_in) const {
         if(!prim_tei00.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
+
+        // Public boundary Eigen -> internal arma. One conversion at
+        // entry, one at exit; the interior is arma-native.
+        const arma::mat P0 = helfem::to_arma(P_in);
 
         // Extend to boundaries
         arma::mat P(expand_boundaries(P0));
@@ -1257,12 +1261,16 @@ namespace helfem {
           }
         }
 
-        return remove_boundaries(J);
+        return helfem::to_eigen(remove_boundaries(J));
       }
 
-      arma::mat TwoDBasis::exchange(const arma::mat & P0) const {
+      helfem::Matrix TwoDBasis::exchange(const helfem::Matrix & P_in) const {
         if(!prim_ktei00.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
+
+        // Public boundary Eigen -> internal arma. One conversion at
+        // entry, one at exit; the interior is arma-native.
+        const arma::mat P0 = helfem::to_arma(P_in);
 
         // Extend to boundaries
         arma::mat P(expand_boundaries(P0));
@@ -1465,7 +1473,7 @@ namespace helfem {
           }
         }
 
-        return remove_boundaries(K);
+        return helfem::to_eigen(remove_boundaries(K));
       }
 
       arma::mat TwoDBasis::remove_boundaries(const arma::mat & Fnob) const {

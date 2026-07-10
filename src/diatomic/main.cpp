@@ -361,7 +361,7 @@ int main(int argc, char **argv) {
     const double Emfield = have_bfield
         ? arma::trace(P * Vmag) - 0.5 * Bz * (nela - nelb) : 0.0;
 
-    const arma::mat J = basis.coulomb(P);
+    const arma::mat J = helfem::to_arma(basis.coulomb(helfem::to_eigen(P)));
     const double Ecoul = 0.5 * arma::trace(P * J);
 
     // HF exchange. See sign-convention note in atomic/ooo.cpp: basis.exchange
@@ -370,10 +370,10 @@ int main(int argc, char **argv) {
     arma::mat Ka, Kb;
     double Exx = 0.0;
     if (have_exx) {
-      Ka = kfrac * basis.exchange(Pa);
+      Ka = kfrac * helfem::to_arma(basis.exchange(helfem::to_eigen(Pa)));
       Exx = 0.5 * arma::trace(Pa * Ka);
       if (!restricted) {
-        Kb = kfrac * basis.exchange(Pb);
+        Kb = kfrac * helfem::to_arma(basis.exchange(helfem::to_eigen(Pb)));
         Exx += 0.5 * arma::trace(Pb * Kb);
       } else {
         Exx *= 2.0;

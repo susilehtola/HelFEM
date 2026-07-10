@@ -231,10 +231,13 @@ namespace helfem {
         /// Coupling to magnetic field in z direction
         helfem::Matrix Bz_field(double B) const;
 
-        /// Form Coulomb matrix
-        arma::mat coulomb(const arma::mat & P) const;
-        /// Form exchange matrix
-        arma::mat exchange(const arma::mat & P) const;
+        /// Form Coulomb matrix (Eigen-typed public boundary; internal
+        /// implementation is arma-native, one to_arma bridge at entry
+        /// and one to_eigen bridge at exit).
+        helfem::Matrix coulomb(const helfem::Matrix & P) const;
+        /// Form exchange matrix (Eigen-typed public boundary; same
+        /// bridging convention as coulomb() above).
+        helfem::Matrix exchange(const helfem::Matrix & P) const;
 
 
         /// Get indices of basis functions with wanted m quantum number
