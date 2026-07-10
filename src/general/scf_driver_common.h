@@ -15,90 +15,143 @@
 #ifndef HELFEM_SCF_DRIVER_COMMON_H
 #define HELFEM_SCF_DRIVER_COMMON_H
 
-// Shared building blocks for the atomic and diatomic SCF drivers.
-// Extracted from src/atomic/main.cpp and src/diatomic/main.cpp
-// (both files kept byte-identical copies of these).
+// Shared building blocks for the atomic and diatomic OOO SCF
+// drivers. Both driver bodies used to keep byte-identical copies of
+// these routines; extracted here so bug fixes only need to happen in
+// one place.
 
 #include <armadillo>
 #include <cstdio>
 #include <stdexcept>
-#include <string>
+#include <utility>
 #include <vector>
-#include "checkpoint.h"
 #include "scf_helpers.h"
 #include <ArmaEigen.h>
+#include "openorbitaloptimizer/scfsolver.hpp"
 
 namespace helfem {
   namespace scf_driver {
-    /// In-place symmetric scaling M(i, j) *= norm(i) * norm(j),
-    /// used by both drivers to renormalise Fock / density blocks.
-    inline void normalize_matrix(arma::mat & M, const arma::vec & norm) {
-      if (M.n_rows != norm.n_elem) throw std::logic_error("Incompatible dimensions!\n");
-      if (M.n_cols != norm.n_elem) throw std::logic_error("Incompatible dimensions!\n");
-      for (size_t i = 0; i < M.n_rows; ++i)
-        for (size_t j = 0; j < M.n_cols; ++j)
-          M(i, j) *= norm(i) * norm(j);
-    }
 
-    /// Gram-Schmidt reorthonormalise the first nocc columns of C
-    /// against the overlap S. Used after re-loading orbitals from a
-    /// checkpoint or projecting between bases so subsequent SCF
-    /// iterations start from a strictly orthonormal set.
-    inline void gram_schmidt(arma::mat & C, const arma::mat & S, int nocc) {
-      for (int i = 0; i < nocc; ++i) {
-        for (int j = 0; j < i; ++j)
-          C.col(i) -= C.col(j) * (arma::trans(C.col(j)) * S * C.col(i));
-        C.col(i) /= std::sqrt(arma::as_scalar(arma::trans(C.col(i)) * S * C.col(i)));
+    /// Per-block symmetric orthonormalisation of the AO overlap S
+    /// restricted to each symmetry index set. Both drivers build this
+    /// once and reuse it in the CoreH construction, the --load block
+    /// projection, and the --save density reconstruction.
+    inline std::vector<arma::mat> build_per_block_Sinvh(
+        const arma::mat & S, const std::vector<arma::uvec> & dsym) {
+      const size_t nsym = dsym.size();
+      std::vector<arma::mat> out(nsym);
+      for (size_t k = 0; k < nsym; ++k) {
+        if (!dsym[k].n_elem) continue;
+        const arma::mat Sk = S(dsym[k], dsym[k]);
+        out[k] = helfem::to_arma(scf::form_Sinvh(helfem::to_eigen(Sk), /*chol=*/false));
       }
+      return out;
     }
 
-    /// Report orbital-orthonormality deviation ||Sinvh^T S Sinvh - I||_F.
-    /// Both drivers print this immediately after Sinvh is formed.
-    inline void report_ortho_deviation(const arma::mat & S, const arma::mat & Sinvh) {
-      arma::mat Smo(Sinvh.t() * S * Sinvh);
-      Smo -= arma::eye<arma::mat>(Smo.n_rows, Smo.n_cols);
-      printf("Orbital orthonormality deviation is %e\n", arma::norm(Smo, "fro"));
+    /// Build OOO's per-(spin, block) initial Fock matrix in the
+    /// orthonormal basis from a global AO Hamiltonian H0. For
+    /// unrestricted magnetic-field runs each spin channel gets its
+    /// own +/- 0.5 * Bz * S Zeeman split, matching the split the
+    /// steady-state Fock builder applies.
+    template <typename Real>
+    inline OpenOrbitalOptimizer::FockMatrix<Real> build_coreH_from_H0(
+        const arma::mat & H0, const arma::mat & S,
+        const std::vector<arma::uvec> & dsym,
+        const std::vector<arma::mat> & Sinvh_arma,
+        size_t nparttype, bool have_bfield, double Bz) {
+      const size_t nsym = dsym.size();
+      OpenOrbitalOptimizer::FockMatrix<Real> CoreH(nsym * nparttype);
+      for (size_t t = 0; t < nparttype; ++t) {
+        for (size_t k = 0; k < nsym; ++k) {
+          if (!dsym[k].n_elem) {
+            CoreH[t * nsym + k] = helfem::Matrix::Zero(0, 0);
+            continue;
+          }
+          arma::mat H_sub = H0(dsym[k], dsym[k]);
+          if (have_bfield && nparttype == 2)
+            H_sub += (t == 0 ? -0.5 : 0.5) * Bz * arma::mat(S(dsym[k], dsym[k]));
+          const arma::mat H_orth = Sinvh_arma[k].t() * H_sub * Sinvh_arma[k];
+          CoreH[t * nsym + k] = helfem::to_eigen(H_orth);
+        }
+      }
+      return CoreH;
     }
 
-    /// Report half-overlap consistency ||Sh^T Sinvh - I||_F. Both
-    /// drivers print this immediately after Sh is formed.
-    inline void report_halfoverlap_error(const arma::mat & Sh, const arma::mat & Sinvh) {
-      arma::mat Smo(Sh.t() * Sinvh);
-      Smo -= arma::eye<arma::mat>(Smo.n_rows, Smo.n_cols);
-      printf("Half-overlap error is %e\n", arma::norm(Smo, "fro"));
-    }
-
-    /// Load a Fock matrix by key, project it through the checkpoint's
-    /// (old) orthonormal basis into the current (new) orthonormal
-    /// basis, transform back to the AO basis, and diagonalise into
-    /// (E, C). Both drivers use this pattern once per spin channel
-    /// when restarting from a checkpoint via Fock projection.
+    /// Load-path helper: take a saved AO density Pspin projected into
+    /// the current basis, diagonalise it inside symmetry block k in
+    /// the block's orthonormal basis, and hand OOO the resulting
+    /// orbitals + occupations (largest occupation first). Empty
+    /// blocks become 0x0 placeholders. Called per spin channel and
+    /// per block from the driver's --load path.
     ///
-    ///   F <- oldSinvh^T F oldSinvh                       (to old orthonormal)
-    ///   F <- S12 F S12^T                                  (project to new orthonormal)
-    ///   F <- SSinvh F SSinvh^T                            (back to AO)
-    ///   (E, C) <- symm ? eig_gsym_sub(F, Sinvh, dsym) : eig_gsym(F, Sinvh).
-    inline void project_and_diagonalize(
-        Checkpoint & loadchk, const std::string & fock_key,
-        const arma::mat & oldSinvh, const arma::mat & S12,
-        const arma::mat & SSinvh,   const arma::mat & Sinvh,
-        bool symm, const std::vector<arma::uvec> & dsym,
-        arma::vec & E, arma::mat & C) {
-      arma::mat F;
-      loadchk.read(fock_key, F);
-      F = arma::trans(oldSinvh) * F * oldSinvh;
-      F = S12 * F * arma::trans(S12);
-      F = SSinvh * F * arma::trans(SSinvh);
-
-      helfem::Vector E_e;
-      helfem::Matrix C_e;
-      if (symm)
-        helfem::scf::eig_gsym_sub(E_e, C_e, helfem::to_eigen(F), helfem::to_eigen(Sinvh), dsym);
-      else
-        helfem::scf::eig_gsym    (E_e, C_e, helfem::to_eigen(F), helfem::to_eigen(Sinvh));
-      E = helfem::to_arma(E_e);
-      C = helfem::to_arma(C_e);
+    ///   P_orth = Sinvh_k^T . Pspin(dsym[k], dsym[k]) . Sinvh_k
+    ///          -> V, w  (descending); w clamped to [0, max_occ]
+    template <typename Real>
+    inline void fill_block_from_density(
+        size_t out_index,
+        OpenOrbitalOptimizer::Orbitals<Real> & orbs,
+        OpenOrbitalOptimizer::OrbitalOccupations<Real> & occs,
+        const arma::mat & Pspin, const arma::uvec & idx,
+        const arma::mat & Sinvh_block, double max_occ) {
+      if (!idx.n_elem) {
+        orbs[out_index] = helfem::Matrix::Zero(0, 0);
+        occs[out_index] = helfem::Vector::Zero(0);
+        return;
+      }
+      const arma::mat Pblk  = Pspin(idx, idx);
+      const arma::mat Porth = arma::trans(Sinvh_block) * Pblk * Sinvh_block;
+      arma::vec occ_eigs;
+      arma::mat vec_eigs;
+      if (!arma::eig_sym(occ_eigs, vec_eigs, Porth))
+        throw std::logic_error("--load: eigendecomposition of projected block density failed");
+      const arma::uword n = vec_eigs.n_cols;
+      arma::mat V(vec_eigs.n_rows, n);
+      arma::vec w(n);
+      for (arma::uword i = 0; i < n; ++i) {
+        V.col(i) = vec_eigs.col(n - 1 - i);
+        w(i)     = std::min(std::max(occ_eigs(n - 1 - i), 0.0), max_occ);
+      }
+      orbs[out_index] = helfem::to_eigen(V);
+      occs[out_index] = helfem::to_eigen(w);
     }
+
+    /// Save-path helper: reconstruct the full AO alpha / beta density
+    /// matrices from OOO's converged per-block orbitals + occupations.
+    /// Restricted case: orbs[k] carries the closed-shell density
+    /// (max occ 2); alpha and beta both get half of it. Unrestricted:
+    /// alpha in indices [0, nsym), beta in [nsym, 2*nsym).
+    template <typename Real>
+    inline std::pair<arma::mat, arma::mat> assemble_final_density(
+        size_t Nbf, bool restricted,
+        const std::vector<arma::uvec> & dsym,
+        const std::vector<arma::mat> & Sinvh_arma,
+        const OpenOrbitalOptimizer::Orbitals<Real> & final_orbs,
+        const OpenOrbitalOptimizer::OrbitalOccupations<Real> & final_occs) {
+      const size_t nsym = dsym.size();
+      arma::mat Pa_final(Nbf, Nbf, arma::fill::zeros);
+      arma::mat Pb_final(Nbf, Nbf, arma::fill::zeros);
+      for (size_t k = 0; k < nsym; ++k) {
+        if (!dsym[k].n_elem) continue;
+        const arma::mat orb_a_ao = Sinvh_arma[k] * helfem::to_arma(final_orbs[k]);
+        const arma::vec occ_a    = helfem::to_arma(final_occs[k]);
+        if (restricted) {
+          const arma::mat P_block = 0.5 * (orb_a_ao * arma::diagmat(occ_a) * arma::trans(orb_a_ao));
+          arma::mat Pa_tmp = Pa_final; Pa_tmp(dsym[k], dsym[k]) += P_block; Pa_final = Pa_tmp;
+          arma::mat Pb_tmp = Pb_final; Pb_tmp(dsym[k], dsym[k]) += P_block; Pb_final = Pb_tmp;
+        } else {
+          const arma::mat orb_b_ao = Sinvh_arma[k] * helfem::to_arma(final_orbs[nsym + k]);
+          const arma::vec occ_b    = helfem::to_arma(final_occs[nsym + k]);
+          arma::mat Pa_tmp = Pa_final;
+          Pa_tmp(dsym[k], dsym[k]) += orb_a_ao * arma::diagmat(occ_a) * arma::trans(orb_a_ao);
+          Pa_final = Pa_tmp;
+          arma::mat Pb_tmp = Pb_final;
+          Pb_tmp(dsym[k], dsym[k]) += orb_b_ao * arma::diagmat(occ_b) * arma::trans(orb_b_ao);
+          Pb_final = Pb_tmp;
+        }
+      }
+      return {Pa_final, Pb_final};
+    }
+
   } // namespace scf_driver
 } // namespace helfem
 

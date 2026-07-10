@@ -35,6 +35,7 @@
 #include "../general/dftfuncs.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
+#include "../general/scf_driver_common.h"
 #include "../general/checkpoint.h"
 
 #include "openorbitaloptimizer/scfsolver.hpp"
@@ -310,13 +311,9 @@ int main(int argc, char **argv) {
   }
   const size_t nsym = dsym.size();
 
-  // --- Per-block Sinvh_k = symmetric orthonormalization of S(dsym[k], dsym[k]).
-  std::vector<arma::mat> Sinvh_arma(nsym);
-  for (size_t k = 0; k < nsym; ++k) {
-    if (!dsym[k].n_elem) continue;
-    const arma::mat Sk = S(dsym[k], dsym[k]);
-    Sinvh_arma[k] = helfem::to_arma(scf::form_Sinvh(helfem::to_eigen(Sk), /*chol*/false));
-  }
+  // Per-block Sinvh_k = symmetric orthonormalization of S(dsym[k], dsym[k]).
+  const std::vector<arma::mat> Sinvh_arma =
+      helfem::scf_driver::build_per_block_Sinvh(S, dsym);
 
   const int ldft = ldft_arg > 0 ? ldft_arg : 4 * lmax + 12;
   const int mdft = mdft_arg > 0 ? mdft_arg : 4 * mmax + 12;
@@ -538,23 +535,9 @@ int main(int argc, char **argv) {
     delete model;
   }
   const arma::mat H0 = T + Vguess + Vel + Vmag + Vconf;
-  OpenOrbitalOptimizer::FockMatrix<OOO_Real> CoreH(nsym * nparttype);
-  for (size_t t = 0; t < nparttype; ++t) {
-    for (size_t k = 0; k < nsym; ++k) {
-      if (!dsym[k].n_elem) {
-        CoreH[t * nsym + k] = helfem::Matrix::Zero(0, 0);
-        continue;
-      }
-      arma::mat H_sub = H0(dsym[k], dsym[k]);
-      // Same spin-Zeeman split as in the Fock builder (only meaningful
-      // in unrestricted mode; harmless in restricted since we hit both
-      // channels equally).
-      if (have_bfield && nparttype == 2)
-        H_sub += (t == 0 ? -0.5 : 0.5) * Bz * arma::mat(S(dsym[k], dsym[k]));
-      const arma::mat H_orth = Sinvh_arma[k].t() * H_sub * Sinvh_arma[k];
-      CoreH[t * nsym + k] = helfem::to_eigen(H_orth);
-    }
-  }
+  const OpenOrbitalOptimizer::FockMatrix<OOO_Real> CoreH =
+      helfem::scf_driver::build_coreH_from_H0<OOO_Real>(
+          H0, S, dsym, Sinvh_arma, nparttype, have_bfield, Bz);
 
   OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(
       number_of_blocks_per_particle_type, maximum_occupation,
@@ -669,38 +652,18 @@ int main(int argc, char **argv) {
     OpenOrbitalOptimizer::OrbitalOccupations<OOO_Real>  loaded_occs(nsym * nparttype);
     const double max_occ_restr = 2.0;
     const double max_occ_open  = 1.0;
-    auto fill_block = [&](size_t base, size_t k, const arma::mat & Pspin,
-                           double max_occ) {
-      if (!dsym[k].n_elem) {
-        loaded_orbs[base + k] = helfem::Matrix::Zero(0, 0);
-        loaded_occs[base + k] = helfem::Vector::Zero(0);
-        return;
-      }
-      const arma::mat Pblk  = Pspin(dsym[k], dsym[k]);
-      const arma::mat Porth = arma::trans(Sinvh_arma[k]) * Pblk * Sinvh_arma[k];
-      arma::vec occ_eigs;
-      arma::mat vec_eigs;
-      if (!arma::eig_sym(occ_eigs, vec_eigs, Porth))
-        throw std::logic_error("--load: eigendecomposition of projected block density failed");
-      // Ascending -> descending so highest-occupation orbitals come first.
-      const arma::uword n = vec_eigs.n_cols;
-      arma::mat V(vec_eigs.n_rows, n);
-      arma::vec w(n);
-      for (arma::uword i = 0; i < n; ++i) {
-        V.col(i) = vec_eigs.col(n - 1 - i);
-        w(i)     = std::min(std::max(occ_eigs(n - 1 - i), 0.0), max_occ);
-      }
-      loaded_orbs[base + k] = helfem::to_eigen(V);
-      loaded_occs[base + k] = helfem::to_eigen(w);
-    };
     if (restricted) {
       // Single channel: eigenvalues of total P should be in [0, 2].
       const arma::mat P_total = Pa_new + Pb_new;
-      for (size_t k = 0; k < nsym; ++k) fill_block(0, k, P_total, max_occ_restr);
+      for (size_t k = 0; k < nsym; ++k)
+        helfem::scf_driver::fill_block_from_density(
+            k, loaded_orbs, loaded_occs, P_total, dsym[k], Sinvh_arma[k], max_occ_restr);
     } else {
       for (size_t k = 0; k < nsym; ++k) {
-        fill_block(0,    k, Pa_new, max_occ_open);
-        fill_block(nsym, k, Pb_new, max_occ_open);
+        helfem::scf_driver::fill_block_from_density(
+            k,        loaded_orbs, loaded_occs, Pa_new, dsym[k], Sinvh_arma[k], max_occ_open);
+        helfem::scf_driver::fill_block_from_density(
+            nsym + k, loaded_orbs, loaded_occs, Pb_new, dsym[k], Sinvh_arma[k], max_occ_open);
       }
     }
     scfsolver.initialize_with_orbitals(loaded_orbs, loaded_occs);
@@ -719,30 +682,9 @@ int main(int argc, char **argv) {
     savechk.write(basis);
     const auto final_orbs = scfsolver.get_orbitals();
     const auto final_occs = scfsolver.get_orbital_occupations();
-
-    arma::mat Pa_final(Nbf, Nbf, arma::fill::zeros);
-    arma::mat Pb_final(Nbf, Nbf, arma::fill::zeros);
-    for (size_t k = 0; k < nsym; ++k) {
-      if (!dsym[k].n_elem) continue;
-      const arma::mat orb_a_ao = Sinvh_arma[k] * helfem::to_arma(final_orbs[k]);
-      const arma::vec occ_a    = helfem::to_arma(final_occs[k]);
-      if (restricted) {
-        // orbitals[k] carries the closed-shell total density (max occ 2);
-        // split evenly between alpha and beta on disk.
-        const arma::mat P_block = 0.5 * (orb_a_ao * arma::diagmat(occ_a) * arma::trans(orb_a_ao));
-        arma::mat Pa_tmp = Pa_final; Pa_tmp(dsym[k], dsym[k]) += P_block; Pa_final = Pa_tmp;
-        arma::mat Pb_tmp = Pb_final; Pb_tmp(dsym[k], dsym[k]) += P_block; Pb_final = Pb_tmp;
-      } else {
-        const arma::mat orb_b_ao = Sinvh_arma[k] * helfem::to_arma(final_orbs[nsym + k]);
-        const arma::vec occ_b    = helfem::to_arma(final_occs[nsym + k]);
-        arma::mat Pa_tmp = Pa_final;
-        Pa_tmp(dsym[k], dsym[k]) += orb_a_ao * arma::diagmat(occ_a) * arma::trans(orb_a_ao);
-        Pa_final = Pa_tmp;
-        arma::mat Pb_tmp = Pb_final;
-        Pb_tmp(dsym[k], dsym[k]) += orb_b_ao * arma::diagmat(occ_b) * arma::trans(orb_b_ao);
-        Pb_final = Pb_tmp;
-      }
-    }
+    arma::mat Pa_final, Pb_final;
+    std::tie(Pa_final, Pb_final) = helfem::scf_driver::assemble_final_density<OOO_Real>(
+        Nbf, restricted, dsym, Sinvh_arma, final_orbs, final_occs);
     savechk.write("Pa", Pa_final);
     savechk.write("Pb", Pb_final);
     savechk.write("nela", nela);
