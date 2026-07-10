@@ -57,13 +57,9 @@ namespace helfem {
       do_lapl = lap_;
     }
 
-    void DFTGridWorkerBase::zero_Exc() {
-      exc.zeros(wtot.n_elem);
-    }
-
     void DFTGridWorkerBase::init_xc() {
       const size_t N = wtot.n_elem;
-      zero_Exc();
+      exc.zeros(N);
       if (!polarized) {
         vxc.zeros(1, N);
         if (do_grad) vsigma.zeros(1, N);
