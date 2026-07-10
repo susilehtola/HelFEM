@@ -28,6 +28,7 @@
 #include "../atomic/basis.h"
 #include "scf.h"
 #include <ArmaEigen.h>
+#include <iostream>
 
 using namespace helfem;
 
@@ -98,14 +99,14 @@ int main(int argc, char **argv) {
       nela, nelb, restr, Q, M, Z, restricted, Ntot);
   (void) Ntot;  // sadatom SCF driver does its own per-l particle counting.
 
-  arma::vec x_pars, c_pars;
+  helfem::Vector x_pars, c_pars;
   if (xparf.size()) {
-    x_pars = helfem::to_arma(scf::parse_xc_params(xparf));
-    x_pars.t().print("Exchange functional parameters");
+    x_pars = scf::parse_xc_params(xparf);
+    std::cout << "Exchange functional parameters\n" << x_pars.transpose() << std::endl;
   }
   if (cparf.size()) {
-    c_pars = helfem::to_arma(scf::parse_xc_params(cparf));
-    c_pars.t().print("Correlation functional parameters");
+    c_pars = scf::parse_xc_params(cparf);
+    std::cout << "Correlation functional parameters\n" << c_pars.transpose() << std::endl;
   }
 
   printf("Running %s %s calculation with Rmax=%e and %i elements.\n",

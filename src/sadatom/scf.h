@@ -38,8 +38,8 @@ namespace helfem {
         bool   restricted = true;
         int    x_func     = 0;
         int    c_func     = 0;
-        arma::vec x_pars;
-        arma::vec c_pars;
+        helfem::Vector x_pars;
+        helfem::Vector c_pars;
         double dftthr     = 1e-12;
         modelpotential::nuclear_model_t finitenuc = modelpotential::POINT_NUCLEUS;
         double Rrms       = 0.0;

@@ -104,10 +104,14 @@ namespace helfem {
         /// Destructor
         ~DFTGrid();
 
-        /// Compute Fock matrix, exchange-correlation energy and integrated electron density, restricted case
-        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & P, arma::cube & H, double & Exc, double & Nel, double thr);
-        /// Compute Fock matrix, exchange-correlation energy and integrated electron density, unrestricted case
-        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::cube & Ha, arma::cube & Hb, double & Exc, double & Nel, bool beta, double thr);
+        /// Compute Fock matrix, exchange-correlation energy and integrated
+        /// electron density, restricted case. Functional parameters are
+        /// Eigen-typed (helfem::Vector), matching the atomic/diatomic grids;
+        /// the per-l density/Fock stay arma::cube (no helfem cube type).
+        void eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const arma::cube & P, arma::cube & H, double & Exc, double & Nel, double thr);
+        /// Compute Fock matrix, exchange-correlation energy and integrated
+        /// electron density, unrestricted case.
+        void eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::cube & Ha, arma::cube & Hb, double & Exc, double & Nel, bool beta, double thr);
 
       };
 
