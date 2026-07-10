@@ -328,21 +328,14 @@ int main(int argc, char **argv) {
   // --- OOO block layout.
   using OOO_Real = double;
   const size_t nparttype = restricted ? 1 : 2;
-  OpenOrbitalOptimizer::IndexVector number_of_blocks_per_particle_type(nparttype);
-  Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> maximum_occupation(nsym * nparttype);
-  Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> number_of_particles(nparttype);
+  OpenOrbitalOptimizer::IndexVector number_of_blocks_per_particle_type;
+  Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> maximum_occupation;
+  Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> number_of_particles;
   std::vector<std::string> block_descriptions;
-  block_descriptions.reserve(nsym * nparttype);
-
-  for (size_t t = 0; t < nparttype; ++t) {
-    number_of_blocks_per_particle_type(t) = static_cast<int>(nsym);
-    number_of_particles(t) = static_cast<OOO_Real>(restricted ? Ntot : (t == 0 ? nela : nelb));
-    for (size_t k = 0; k < nsym; ++k) {
-      maximum_occupation(t * nsym + k) = restricted ? 2.0 : 1.0;
-      block_descriptions.push_back(
-          (nparttype == 1 ? "" : (t == 0 ? "a:" : "b:")) + std::string("sym") + std::to_string(k));
-    }
-  }
+  helfem::scf_driver::build_ooo_block_metadata<OOO_Real>(
+      nsym, nparttype, restricted, Ntot, nela, nelb,
+      number_of_blocks_per_particle_type, maximum_occupation,
+      number_of_particles, block_descriptions);
 
   // Accumulate a per-block density (C_k * diag(occ_k) * C_k^T) into the
   // full-Nbf density matrix P_full through the block's basis-function
