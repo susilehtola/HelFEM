@@ -89,8 +89,6 @@ namespace helfem {
         arma::mat get_bf(size_t iel) const;
         /// Evaluate basis functions at wanted point in [-1,1]
         arma::mat get_bf(size_t iel, const arma::vec & x) const;
-        /// Evaluate all basis functions at given value of mu
-        arma::mat get_bf(double mu) const;
         /// Evaluate derivatives of basis functions at quadrature points
         arma::mat get_df(size_t iel) const;
         /// Get quadrature weights
@@ -249,7 +247,6 @@ namespace helfem {
         /// Evaluate basis functions at quadrature points
         arma::cx_mat eval_bf(size_t iel, size_t irad, double cth, double phi) const;
         /// Evaluate basis functions at wanted x value
-        arma::cx_mat eval_bf(size_t iel, const arma::vec & x, double cth, double phi) const;
         /// Evaluate basis functions with m=m at quadrature point
         arma::mat eval_bf(size_t iel, size_t irad, double cth, int m) const;
 
