@@ -1067,16 +1067,6 @@ namespace helfem {
         return Pnob;
       }
 
-      std::vector<arma::mat> TwoDBasis::get_prim_tei() const {
-        // Phase 2c: prim_tei is std::vector<helfem::Matrix> internally;
-        // bridge to arma for the public accessor (low-frequency test/diag
-        // path; consumers can be migrated later).
-        std::vector<arma::mat> out;
-        out.reserve(prim_tei.size());
-        for (const auto & m : prim_tei) out.push_back(helfem::to_arma(m));
-        return out;
-      }
-
       arma::cx_mat TwoDBasis::eval_bf(size_t iel, double cth, double phi) const {
         // Evaluate spherical harmonics
         arma::cx_vec sph(lval.n_elem);
