@@ -152,6 +152,43 @@ namespace helfem {
       return {Pa_final, Pb_final};
     }
 
+    /// OOO block wiring. Fills the four IndexVector / Eigen /
+    /// std::vector holders that the OOO SCFSolver constructor takes:
+    ///   number_of_blocks_per_particle_type (size = nparttype)
+    ///   maximum_occupation                 (size = nsym * nparttype)
+    ///   number_of_particles                (size = nparttype)
+    ///   block_descriptions                 (size = nsym * nparttype)
+    ///
+    /// Restricted mode packs everything into a single closed-shell
+    /// particle type with max_occ = 2 per block. Unrestricted splits
+    /// alpha (t=0) and beta (t=1) into two particle types with
+    /// max_occ = 1 per block; block descriptions get an "a:" / "b:"
+    /// prefix per channel.
+    template <typename Real>
+    inline void build_ooo_block_metadata(
+        size_t nsym, size_t nparttype, bool restricted,
+        int Ntot, int nela, int nelb,
+        OpenOrbitalOptimizer::IndexVector & number_of_blocks_per_particle_type,
+        Eigen::Matrix<Real, Eigen::Dynamic, 1> & maximum_occupation,
+        Eigen::Matrix<Real, Eigen::Dynamic, 1> & number_of_particles,
+        std::vector<std::string> & block_descriptions) {
+      number_of_blocks_per_particle_type.resize(nparttype);
+      maximum_occupation.resize(nsym * nparttype);
+      number_of_particles.resize(nparttype);
+      block_descriptions.clear();
+      block_descriptions.reserve(nsym * nparttype);
+      for (size_t t = 0; t < nparttype; ++t) {
+        number_of_blocks_per_particle_type(t) = static_cast<int>(nsym);
+        number_of_particles(t) = static_cast<Real>(restricted ? Ntot : (t == 0 ? nela : nelb));
+        for (size_t k = 0; k < nsym; ++k) {
+          maximum_occupation(t * nsym + k) = restricted ? 2.0 : 1.0;
+          block_descriptions.push_back(
+              (nparttype == 1 ? "" : (t == 0 ? "a:" : "b:"))
+              + std::string("sym") + std::to_string(k));
+        }
+      }
+    }
+
     /// Fock-builder helper: accumulate one block of the AO density
     /// matrix P_full from OOO's per-block (orbitals, occupations)
     /// pair. Called per symmetry block per spin channel from both
