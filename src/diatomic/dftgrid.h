@@ -132,10 +132,6 @@ namespace helfem {
         /// Compute Fock matrix, exchange-correlation energy and integrated electron density, unrestricted case
         void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr);
 
-        /// Evaluate overlap
-        arma::mat eval_overlap();
-        /// Evaluate kinetic energy matrix
-        arma::mat eval_kinetic();
       };
 
       /// BLAS routine for LDA-type quadrature

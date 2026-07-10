@@ -704,66 +704,6 @@ namespace helfem {
         Nel=nel;
       }
 
-      arma::mat DFTGrid::eval_overlap() {
-        arma::mat S(basp->Nbf(),basp->Nbf());
-        S.zeros();
-
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-        {
-          DFTGridWorker grid(basp,lang,mang);
-          grid.set_grad_tau_lapl(false,false,false);
-
-#ifdef _OPENMP
-#pragma omp for
-#endif
-          for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
-            grid.compute_bf(iel);
-            grid.eval_overlap(S);
-          }
-#ifdef _OPENMP
-#pragma omp for
-#endif
-          for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
-            grid.compute_bf(iel);
-            grid.eval_overlap(S);
-          }
-        }
-
-        return S;
-      }
-
-      arma::mat DFTGrid::eval_kinetic() {
-        arma::mat T(basp->Nbf(),basp->Nbf());
-        T.zeros();
-
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-        {
-          DFTGridWorker grid(basp,lang,mang);
-          grid.set_grad_tau_lapl(true,false,false);
-
-#ifdef _OPENMP
-#pragma omp for
-#endif
-          for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
-            grid.compute_bf(iel);
-            grid.eval_kinetic(T);
-          }
-#ifdef _OPENMP
-#pragma omp for
-#endif
-          for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
-            grid.compute_bf(iel);
-            grid.eval_kinetic(T);
-          }
-        }
-
-        // Clean up matrices
-        return T;
-      }
     }
   }
 }

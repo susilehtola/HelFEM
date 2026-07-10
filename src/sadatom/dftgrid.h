@@ -132,8 +132,6 @@ namespace helfem {
         /// Compute the ingredients
         void eval_ing(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::mat & ing, double thr);
 
-        /// Evaluate overlap
-        arma::mat eval_overlap();
       };
 
       /// BLAS routine for LDA-type quadrature
