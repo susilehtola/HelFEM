@@ -267,7 +267,6 @@ namespace helfem {
         arma::mat get_rad_bf(size_t iel) const;
 
         /// Electron density at nuclei
-        arma::vec nuclear_density(const arma::mat & P) const;
       };
     }
   }
