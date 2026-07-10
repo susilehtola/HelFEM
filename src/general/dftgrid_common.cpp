@@ -51,12 +51,6 @@ namespace helfem {
       if (c_func > 0) do_lapl = do_lapl || laplacian_needed(c_func);
     }
 
-    void DFTGridWorkerBase::get_grad_tau_lapl(bool & grad_, bool & tau_, bool & lap_) const {
-      grad_ = do_grad;
-      tau_  = do_tau;
-      lap_  = do_lapl;
-    }
-
     void DFTGridWorkerBase::set_grad_tau_lapl(bool grad_, bool tau_, bool lap_) {
       do_grad = grad_;
       do_tau  = tau_;

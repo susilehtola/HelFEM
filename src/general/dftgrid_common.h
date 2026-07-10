@@ -83,7 +83,6 @@ namespace helfem {
       /// given exchange + correlation functional ids.
       void check_grad_tau_lapl(int x_func, int c_func);
       /// Query the do_grad / do_tau / do_lapl flags
-      void get_grad_tau_lapl(bool & grad, bool & tau, bool & lapl) const;
       /// Explicit override of the do_grad / do_tau / do_lapl flags
       void set_grad_tau_lapl(bool grad, bool tau, bool lapl);
 
