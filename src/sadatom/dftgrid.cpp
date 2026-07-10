@@ -226,19 +226,6 @@ namespace helfem {
         }
       }
 
-      double DFTGridWorker::compute_Nel() const {
-        double nel=0.0;
-        if(!polarized) {
-          for(size_t ip=0;ip<wtot.n_elem;ip++)
-            nel+=wtot(ip)*rho(0,ip);
-        } else {
-          for(size_t ip=0;ip<wtot.n_elem;ip++)
-            nel+=wtot(ip)*(rho(0,ip)+rho(1,ip));
-        }
-
-        return nel;
-      }
-
 
 
       // init_xc, zero_Exc: inherited from

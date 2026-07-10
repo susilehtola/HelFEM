@@ -77,8 +77,7 @@ namespace helfem {
         /// Update values of density, unrestricted calculation
         void update_density(const arma::cube & Pa, const arma::cube & Pb);
 
-        /// Compute number of electrons
-        double compute_Nel() const;
+        // compute_Nel() is inherited from DFTGridWorkerBase.
 
         // init_xc / compute_xc / eval_Exc / zero_Exc are inherited
         // from DFTGridWorkerBase.
@@ -115,26 +114,8 @@ namespace helfem {
 
       };
 
-      /// BLAS routine for LDA-type quadrature
-      template<typename T> void increment_lda(arma::mat & H, const arma::rowvec & vxc, const arma::Mat<T> & f) {
-        if(f.n_cols != vxc.n_elem) {
-          std::ostringstream oss;
-          oss << "Number of functions " << f.n_cols << " and potential values " << vxc.n_elem << " do not match!\n";
-          throw std::runtime_error(oss.str());
-        }
-        if(H.n_rows != f.n_rows || H.n_cols != f.n_rows) {
-          std::ostringstream oss;
-          oss << "Size of basis function (" << f.n_rows << "," << f.n_cols << ") and Fock matrix (" << H.n_rows << "," << H.n_cols << ") doesn't match!\n";
-          throw std::runtime_error(oss.str());
-        }
-
-        // Form helper matrix
-        arma::Mat<T> fhlp(f);
-        for(size_t i=0;i<fhlp.n_rows;i++)
-          for(size_t j=0;j<fhlp.n_cols;j++)
-            fhlp(i,j)*=vxc(j);
-        H+=arma::real(fhlp*arma::trans(f));
-      }
+      /// LDA quadrature accumulation is shared across geometries.
+      using helfem::dftgrid_common::increment_lda;
 
       /// BLAS routine for GGA-type quadrature
       template<typename T> void increment_gga(arma::mat & H, const arma::mat & gn, const arma::Mat<T> & f, arma::Mat<T> f_x) {

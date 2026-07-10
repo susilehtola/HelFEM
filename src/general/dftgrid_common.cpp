@@ -82,6 +82,19 @@ namespace helfem {
       return arma::sum(wtot % exc % dens);
     }
 
+    double DFTGridWorkerBase::compute_Nel() const {
+      double nel=0.0;
+      if(!polarized) {
+        for(size_t ip=0;ip<wtot.n_elem;ip++)
+          nel+=wtot(ip)*rho(0,ip);
+      } else {
+        for(size_t ip=0;ip<wtot.n_elem;ip++)
+          nel+=wtot(ip)*(rho(0,ip)+rho(1,ip));
+      }
+
+      return nel;
+    }
+
     void DFTGridWorkerBase::compute_xc(int func_id, const helfem::Vector & p, double thr, bool pot) {
       bool gga, mgga_t, mgga_l;
       is_gga_mgga(func_id, gga, mgga_t, mgga_l);
