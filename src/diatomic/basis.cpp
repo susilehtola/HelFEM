@@ -1436,23 +1436,6 @@ namespace helfem {
         return bf;
       }
 
-      arma::cx_mat TwoDBasis::eval_bf(size_t iel, const arma::vec & x, double cth, double phi) const {
-        // Evaluate spherical harmonics
-        arma::cx_vec sph(lval.n_elem);
-        for(size_t i=0;i<lval.n_elem;i++)
-          sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
-
-        // Evaluate radial functions
-        arma::mat rad(radial.get_bf(iel,x));
-
-        // Form supermatrix
-        arma::cx_mat bf(rad.n_rows,lval.n_elem*rad.n_cols);
-        for(size_t i=0;i<lval.n_elem;i++)
-          bf.cols(i*rad.n_cols,(i+1)*rad.n_cols-1)=sph(i)*rad;
-
-        return bf;
-      }
-
       arma::mat TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, int m) const {
         // Figure out list of functions
         std::vector<arma::uword> flist;
