@@ -214,69 +214,68 @@ namespace helfem {
         }
       }
 
-      void TwoDBasis::set_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Mrad) const {
-        M.submat(iang*radial.Nbf(),jang*radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*radial.Nbf()-1)=Mrad;
+      void TwoDBasis::set_sub(helfem::Matrix & M, size_t iang, size_t jang, const helfem::Matrix & Mrad) const {
+        const Eigen::Index n = static_cast<Eigen::Index>(radial.Nbf());
+        M.block(static_cast<Eigen::Index>(iang)*n, static_cast<Eigen::Index>(jang)*n, n, n) = Mrad;
       }
 
-      void TwoDBasis::add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Mrad) const {
-        M.submat(iang*radial.Nbf(),jang*radial.Nbf(),(iang+1)*radial.Nbf()-1,(jang+1)*radial.Nbf()-1)+=Mrad;
+      void TwoDBasis::add_sub(helfem::Matrix & M, size_t iang, size_t jang, const helfem::Matrix & Mrad) const {
+        const Eigen::Index n = static_cast<Eigen::Index>(radial.Nbf());
+        M.block(static_cast<Eigen::Index>(iang)*n, static_cast<Eigen::Index>(jang)*n, n, n) += Mrad;
       }
 
       helfem::Matrix TwoDBasis::overlap() const {
         // Full overlap matrix built by scattering the radial R=0 integrals
-        // along the angular diagonal.
-        arma::mat Orad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
-            [&](size_t iel) { return radial.radial_integral(0, iel); }));
+        // along the angular diagonal. The atomic basis has no
+        // boundary-condition reduction (pure_indices() is the identity),
+        // so the assembled matrix is returned directly.
+        const helfem::Matrix Orad = helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(0, iel); });
 
-        arma::mat O(Ndummy(),Ndummy());
-        O.zeros();
+        helfem::Matrix O = helfem::Matrix::Zero(Ndummy(), Ndummy());
         for(size_t iang=0;iang<lval.n_elem;iang++)
           set_sub(O,iang,iang,Orad);
 
-        return helfem::to_eigen(remove_boundaries(O));
+        return O;
       }
 
       helfem::Matrix TwoDBasis::overlap(const TwoDBasis & rh) const {
         // Cross-basis overlap: scatter radial.overlap(rh.radial) along the
-        // (l, m)-matched blocks of the two angular indexings.
-        arma::mat S(Ndummy(), rh.Ndummy());
-        S.zeros();
-        arma::mat Srad(helfem::to_arma(radial.overlap(rh.radial)));
+        // (l, m)-matched blocks of the two angular indexings. Each side's
+        // pure_indices() is the identity, so no boundary slicing is needed.
+        helfem::Matrix S = helfem::Matrix::Zero(Ndummy(), rh.Ndummy());
+        const helfem::Matrix Srad = radial.overlap(rh.radial);
+        const Eigen::Index n   = static_cast<Eigen::Index>(radial.Nbf());
+        const Eigen::Index rhn = static_cast<Eigen::Index>(rh.radial.Nbf());
 
         for(size_t iang=0;iang<lval.n_elem;iang++)
           for(size_t jang=0;jang<rh.lval.n_elem;jang++)
             if(lval(iang) == rh.lval(jang) && mval(iang) == rh.mval(jang))
-              S.submat(iang*radial.Nbf(), jang*rh.radial.Nbf(),
-                       (iang+1)*radial.Nbf()-1, (jang+1)*rh.radial.Nbf()-1) = Srad;
+              S.block(static_cast<Eigen::Index>(iang)*n,
+                      static_cast<Eigen::Index>(jang)*rhn, n, rhn) = Srad;
 
-        // Same boundary-condition handling as overlap(): the returned
-        // matrix is indexed by pure_indices() on both sides so it can
-        // be composed with Sinvh matrices without touching boundary rows.
-        arma::uvec my_pure  = pure_indices();
-        arma::uvec rh_pure  = rh.pure_indices();
-        return helfem::to_eigen(arma::mat(S(my_pure, rh_pure)));
+        return S;
       }
 
       helfem::Matrix TwoDBasis::kinetic() const {
         // Build radial kinetic energy matrices
-        arma::mat Trad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
-            [&](size_t iel) { return radial.kinetic(iel); }));
-        arma::mat Trad_l = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
-            [&](size_t iel) { return radial.kinetic_l(iel); }));
+        const helfem::Matrix Trad = helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.kinetic(iel); });
+        const helfem::Matrix Trad_l = helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.kinetic_l(iel); });
 
         // Full kinetic energy matrix
-        arma::mat T(Ndummy(),Ndummy());
-        T.zeros();
+        helfem::Matrix T = helfem::Matrix::Zero(Ndummy(), Ndummy());
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++) {
           set_sub(T,iang,iang,Trad);
           if(lval(iang)>0) {
             // We also get the l(l+1) term
-            add_sub(T,iang,iang,lval(iang)*(lval(iang)+1)*Trad_l);
+            add_sub(T,iang,iang,static_cast<double>(lval(iang)*(lval(iang)+1))*Trad_l);
           }
         }
 
-        return helfem::to_eigen(remove_boundaries(T));
+        return T;
       }
 
       helfem::Matrix TwoDBasis::nuclear() const {
@@ -287,27 +286,25 @@ namespace helfem {
           return Vnuc;
         } else {
           // Full nuclear attraction matrix
-          arma::mat V(Ndummy(),Ndummy());
-          V.zeros();
+          helfem::Matrix V = helfem::Matrix::Zero(Ndummy(), Ndummy());
 
           if (Z != 0.0) {
-            arma::mat Vrad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
-                [&](size_t iel) { return radial.radial_integral(-1, iel); }));
+            const helfem::Matrix Vrad = helfem::assemble_radial_diagonal(radial,
+                [&](size_t iel) { return radial.radial_integral(-1, iel); });
             for (size_t iang = 0; iang < lval.n_elem; iang++)
-              set_sub(V, iang, iang, -Z * Vrad);
+              set_sub(V, iang, iang, static_cast<double>(-Z) * Vrad);
           }
 
           if(Zl != 0.0 || Zr != 0.0) {
             // Auxiliary matrices
-            size_t Nrad(radial.Nbf());
             int Lmax(2*arma::max(lval));
-            std::vector<arma::mat> Vaux(Lmax+1);
+            std::vector<helfem::Matrix> Vaux(Lmax+1);
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
             for (int L = 0; L <= Lmax; L++) {
-              Vaux[L] = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
-                  [&](size_t iel) { return radial.nuclear_offcenter(iel, Rhalf, L); }));
+              Vaux[L] = helfem::assemble_radial_diagonal(radial,
+                  [&](size_t iel) { return radial.nuclear_offcenter(iel, Rhalf, L); });
             }
 
             int gmax(std::max(arma::max(lval),arma::max(mval)));
@@ -336,58 +333,55 @@ namespace helfem {
                     continue;
 
                   const double signL = (L & 1) ? -1.0 : 1.0;
-                  add_sub(V,iang,jang,cpl*(signL*Zl + Zr)*Vaux[L]);
+                  add_sub(V,iang,jang,(cpl*(signL*Zl + Zr))*Vaux[L]);
                 }
               }
             }
           }
 
-          return helfem::to_eigen(remove_boundaries(V));
+          return V;
         }
       }
 
       helfem::Matrix TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {
         // Full nuclear attraction matrix
-        arma::mat V(Ndummy(),Ndummy());
-        V.zeros();
+        helfem::Matrix V = helfem::Matrix::Zero(Ndummy(), Ndummy());
 
-        arma::mat Vrad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
-            [&](size_t iel) { return radial.model_potential(pot, iel); }));
+        const helfem::Matrix Vrad = helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.model_potential(pot, iel); });
 	// Fill elements
 	for(size_t iang=0;iang<lval.n_elem;iang++)
 	  set_sub(V,iang,iang,Vrad);
 
-        return helfem::to_eigen(remove_boundaries(V));
+        return V;
       }
 
       helfem::Matrix TwoDBasis::confinement(const int N, double r_0, const int iconf, const double V, const double shift_pot) const {
         // Full matrix
-        arma::mat O(Ndummy(),Ndummy());
-        O.zeros();
+        helfem::Matrix O = helfem::Matrix::Zero(Ndummy(), Ndummy());
 
 	if(iconf==0)
-	  return helfem::to_eigen(remove_boundaries(O));
+	  return O;
 
-        arma::mat Orad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
+        const helfem::Matrix Orad = helfem::assemble_radial_diagonal(radial,
             [&](size_t iel) {
               return radial.confinement_potential(iel, N, r_0, iconf, V, shift_pot);
-            }));
+            });
 
         // Fill elements
         for(size_t iang=0;iang<lval.n_elem;iang++)
           set_sub(O,iang,iang,Orad);
 
-        return helfem::to_eigen(remove_boundaries(O));
+        return O;
       }
 
       helfem::Matrix TwoDBasis::dipole_z() const {
         // Build radial elements
-        arma::mat Orad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
-            [&](size_t iel) { return radial.radial_integral(1, iel); }));
+        const helfem::Matrix Orad = helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(1, iel); });
 
         // Full electric couplings
-        arma::mat V(Ndummy(),Ndummy());
-        V.zeros();
+        helfem::Matrix V = helfem::Matrix::Zero(Ndummy(), Ndummy());
 
         int gmax(std::max(arma::max(lval),arma::max(mval)));
         gaunt::Gaunt gaunt(gmax,1,gmax);
@@ -404,21 +398,20 @@ namespace helfem {
             // Calculate coupling
             double cpl(gaunt.cosine_coupling(lj,mj,li,mi));
             if(cpl!=0.0)
-              set_sub(V,iang,jang,Orad*cpl);
+              set_sub(V,iang,jang,cpl*Orad);
           }
         }
 
-        return helfem::to_eigen(remove_boundaries(V));
+        return V;
       }
 
       helfem::Matrix TwoDBasis::quadrupole_zz() const {
         // Build radial elements
-        arma::mat Orad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
-            [&](size_t iel) { return radial.radial_integral(2, iel); }));
+        const helfem::Matrix Orad = helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(2, iel); });
 
         // Full electric couplings
-        arma::mat V(Ndummy(),Ndummy());
-        V.zeros();
+        helfem::Matrix V = helfem::Matrix::Zero(Ndummy(), Ndummy());
 
         int gmax(std::max(arma::max(lval),arma::max(mval)));
         gaunt::Gaunt gaunt(gmax,2,gmax);
@@ -440,24 +433,23 @@ namespace helfem {
             if(cpl!=0.0) {
               const double c0(2.0/5.0*sqrt(5.0*M_PI));
               cpl*=c0;
-              set_sub(V,iang,jang,Orad*cpl);
+              set_sub(V,iang,jang,cpl*Orad);
             }
           }
         }
 
-        return helfem::to_eigen(remove_boundaries(V));
+        return V;
       }
 
       helfem::Matrix TwoDBasis::Bz_field(double B) const {
         // Build radial elements
-        arma::mat O0rad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
-            [&](size_t iel) { return radial.radial_integral(0, iel); }));
-        arma::mat O2rad = helfem::to_arma(helfem::assemble_radial_diagonal(radial,
-            [&](size_t iel) { return radial.radial_integral(2, iel); }));
+        const helfem::Matrix O0rad = helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(0, iel); });
+        const helfem::Matrix O2rad = helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.radial_integral(2, iel); });
 
         // Full coupling
-        arma::mat V(Ndummy(),Ndummy());
-        V.zeros();
+        helfem::Matrix V = helfem::Matrix::Zero(Ndummy(), Ndummy());
 
         int gmax(std::max(arma::max(lval),arma::max(mval)));
         gaunt::Gaunt gaunt(gmax,4,gmax);
@@ -474,16 +466,16 @@ namespace helfem {
             // Calculate coupling
             double cpl(gaunt.sine2_coupling(lj,mj,li,mi));
             if(cpl!=0.0) {
-              set_sub(V,iang,jang,B*B/8.0*O2rad*cpl);
+              set_sub(V,iang,jang,(B*B/8.0*cpl)*O2rad);
             }
 
             if(li==lj && mi==mj) {
-              add_sub(V,iang,jang,-0.5*B*mj*O0rad);
+              add_sub(V,iang,jang,(-0.5*B*mj)*O0rad);
             }
           }
         }
 
-        return helfem::to_eigen(remove_boundaries(V));
+        return V;
       }
 
       std::vector<std::vector<helfem::Matrix>>
