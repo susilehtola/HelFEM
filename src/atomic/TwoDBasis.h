@@ -154,7 +154,7 @@ namespace helfem {
 	/// Form confinement potential matrix
 	helfem::Matrix confinement(const int N, const double r_0, const int iconf, const double V, const double shift_pot) const;
 	/// Form model potential matrix
-	arma::mat model_potential(const modelpotential::ModelPotential * model) const;
+	helfem::Matrix model_potential(const modelpotential::ModelPotential * model) const;
         /// Form dipole coupling matrix
         helfem::Matrix dipole_z() const;
         /// Form quadrupole coupling matrix

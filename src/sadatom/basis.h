@@ -92,7 +92,7 @@ namespace helfem {
 	/// Form confinement potential matrix
 	helfem::Matrix confinement(int N, double r_0, int iconf, double V, double shift_pot) const;
         /// Form model potential matrix
-	arma::mat model_potential(const modelpotential::ModelPotential * model) const;
+	helfem::Matrix model_potential(const modelpotential::ModelPotential * model) const;
         /// Form Coulomb matrix
         helfem::Matrix coulomb(const helfem::Matrix & P) const;
         /// Form exchange matrix

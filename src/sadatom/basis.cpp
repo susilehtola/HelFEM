@@ -86,9 +86,9 @@ namespace helfem {
       helfem::Matrix TwoDBasis::nuclear() const {
         if (model != modelpotential::POINT_NUCLEUS) {
           modelpotential::ModelPotential * pot = modelpotential::get_nuclear_model(model, Z, Rrms);
-          arma::mat Vrad(model_potential(pot));
+          helfem::Matrix Vrad = model_potential(pot);
           delete pot;
-          return helfem::to_eigen(Vrad);
+          return Vrad;
         }
         return -Z * helfem::assemble_radial_diagonal(radial,
             [&](size_t iel) { return radial.radial_integral(-1, iel); });
@@ -105,9 +105,9 @@ namespace helfem {
             });
       }
 
-      arma::mat TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {
-        return helfem::to_arma(helfem::assemble_radial_diagonal(radial,
-            [&](size_t iel) { return radial.model_potential(pot, iel); }));
+      helfem::Matrix TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {
+        return helfem::assemble_radial_diagonal(radial,
+            [&](size_t iel) { return radial.model_potential(pot, iel); });
       }
 
       void TwoDBasis::compute_tei() {
