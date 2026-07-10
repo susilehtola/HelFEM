@@ -66,10 +66,10 @@ namespace helfem {
         /// Primitive range-separated two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
         std::vector<helfem::Matrix> rs_ktei;
 
-        /// Add to radial submatrix
-        void add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
-        /// Set radial submatrix
-        void set_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
+        /// Add a radial block onto the (iang, jang) angular submatrix
+        void add_sub(helfem::Matrix & M, size_t iang, size_t jang, const helfem::Matrix & Msub) const;
+        /// Set the (iang, jang) angular submatrix to a radial block
+        void set_sub(helfem::Matrix & M, size_t iang, size_t jang, const helfem::Matrix & Msub) const;
 
       public:
         TwoDBasis();
