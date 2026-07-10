@@ -149,9 +149,9 @@ int main(int argc, char **argv) {
   helfem::scf_driver::derive_nela_nelb_restricted(
       nela, nelb, restr, Q, M, Z1 + Z2, restricted, Ntot);
 
-  arma::vec x_pars, c_pars;
-  if (xparf.size()) x_pars = helfem::to_arma(scf::parse_xc_params(xparf));
-  if (cparf.size()) c_pars = helfem::to_arma(scf::parse_xc_params(cparf));
+  helfem::Vector x_pars, c_pars;
+  if (xparf.size()) x_pars = scf::parse_xc_params(xparf);
+  if (cparf.size()) c_pars = scf::parse_xc_params(cparf);
 
   int x_func, c_func;
   ::parse_xc_func(x_func, c_func, method);
@@ -324,11 +324,17 @@ int main(int argc, char **argv) {
     double nelnum = 0.0, ekin_grid = 0.0;
     arma::mat XCa, XCb;
 
+    // grid.eval_Fxc takes/returns Eigen at its public boundary; bridge the
+    // arma-native driver density into it and the XC potential back out.
     if (restricted) {
       for (size_t k = 0; k < nsym; ++k)
         accumulate_density(P, k, orbitals[k], occupations[k]);
-      if (have_xc)
-        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa, Exc, nelnum, ekin_grid, dftthr);
+      if (have_xc) {
+        helfem::Matrix XCa_e;
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, helfem::to_eigen(P), XCa_e,
+                       Exc, nelnum, ekin_grid, dftthr);
+        XCa = helfem::to_arma(XCa_e);
+      }
       if (have_exx) Pa = 0.5 * P;
     } else {
       Pa.zeros(Nbf, Nbf);
@@ -338,9 +344,13 @@ int main(int argc, char **argv) {
         accumulate_density(Pb, k, orbitals[nsym + k], occupations[nsym + k]);
       }
       P = Pa + Pb;
-      if (have_xc)
-        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb, XCa, XCb,
-                       Exc, nelnum, ekin_grid, nelb > 0, dftthr);
+      if (have_xc) {
+        helfem::Matrix XCa_e, XCb_e;
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, helfem::to_eigen(Pa), helfem::to_eigen(Pb),
+                       XCa_e, XCb_e, Exc, nelnum, ekin_grid, nelb > 0, dftthr);
+        XCa = helfem::to_arma(XCa_e);
+        XCb = helfem::to_arma(XCb_e);
+      }
     }
 
     const double Ekin = arma::trace(P * T);

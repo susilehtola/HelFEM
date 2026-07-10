@@ -20,6 +20,7 @@
 #include <xc.h>
 
 #include "dftgrid.h"
+#include <ArmaEigen.h>
 #include "../general/dftfuncs.h"
 // Angular quadrature
 #include "../general/angular.h"
@@ -511,7 +512,12 @@ namespace helfem {
       DFTGrid::~DFTGrid() {
       }
 
-      void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double & Ekin, double thr) {
+      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars_e, int c_func, const helfem::Vector & c_pars_e, const helfem::Matrix & P_e, helfem::Matrix & H_e, double & Exc, double & Nel, double & Ekin, double thr) {
+        // Eigen public boundary; bridge to the arma-native interior once.
+        const arma::vec x_pars(helfem::to_arma(x_pars_e));
+        const arma::vec c_pars(helfem::to_arma(c_pars_e));
+        const arma::mat P(helfem::to_arma(P_e));
+        arma::mat H;
         H.zeros(basp->Ndummy(),basp->Ndummy());
 
         double exc=0.0;
@@ -545,10 +551,16 @@ namespace helfem {
         Ekin=ekin;
         Nel=nel;
 
-        H=basp->remove_boundaries(H);
+        H_e=helfem::to_eigen(basp->remove_boundaries(H));
       }
 
-      void DFTGrid::eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr) {
+      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars_e, int c_func, const helfem::Vector & c_pars_e, const helfem::Matrix & Pa_e, const helfem::Matrix & Pb_e, helfem::Matrix & Ha_e, helfem::Matrix & Hb_e, double & Exc, double & Nel, double & Ekin, bool beta, double thr) {
+        // Eigen public boundary; bridge to the arma-native interior once.
+        const arma::vec x_pars(helfem::to_arma(x_pars_e));
+        const arma::vec c_pars(helfem::to_arma(c_pars_e));
+        const arma::mat Pa(helfem::to_arma(Pa_e));
+        const arma::mat Pb(helfem::to_arma(Pb_e));
+        arma::mat Ha, Hb;
         Ha.zeros(basp->Ndummy(),basp->Ndummy());
         Hb.zeros(basp->Ndummy(),basp->Ndummy());
 
@@ -584,8 +596,8 @@ namespace helfem {
         Nel=nel;
 
         // Clean up matrices
-        Ha=basp->remove_boundaries(Ha);
-        Hb=basp->remove_boundaries(Hb);
+        Ha_e=helfem::to_eigen(basp->remove_boundaries(Ha));
+        Hb_e=helfem::to_eigen(basp->remove_boundaries(Hb));
       }
 
     }
