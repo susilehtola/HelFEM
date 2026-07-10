@@ -201,12 +201,6 @@ namespace helfem {
         /// Remove boundary conditions
         arma::mat remove_boundaries(const arma::mat & H) const;
 
-        /// Memory for one-electron integral matrix
-        size_t mem_1el() const;
-        /// Memory for auxiliary one-electron integrals (off-center nuclei)
-        size_t mem_1el_aux() const;
-        /// Memory for auxiliary two-electron integrals
-        size_t mem_2el_aux() const;
 
         /// Compute two-electron integrals
         void compute_tei(bool exchange);
