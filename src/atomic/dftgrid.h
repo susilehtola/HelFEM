@@ -126,10 +126,14 @@ namespace helfem {
         /// Destructor
         ~DFTGrid();
 
-        /// Compute Fock matrix, exchange-correlation energy and integrated electron density, restricted case
-        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & P, arma::mat & H, double & Exc, double & Nel, double & Ekin, double thr);
-        /// Compute Fock matrix, exchange-correlation energy and integrated electron density, unrestricted case
-        void eval_Fxc(int x_func, const arma::vec & x_pars, int c_func, const arma::vec & c_pars, const arma::mat & Pa, const arma::mat & Pb, arma::mat & Ha, arma::mat & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr);
+        /// Compute Fock matrix, exchange-correlation energy and integrated
+        /// electron density, restricted case. Eigen-typed public boundary
+        /// (functional parameters, density, and Fock matrix); the quadrature
+        /// interior stays arma-native with a single bridge at entry/exit.
+        void eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & P, helfem::Matrix & H, double & Exc, double & Nel, double & Ekin, double thr);
+        /// Compute Fock matrix, exchange-correlation energy and integrated
+        /// electron density, unrestricted case. Eigen-typed public boundary.
+        void eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & Pa, const helfem::Matrix & Pb, helfem::Matrix & Ha, helfem::Matrix & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr);
 
       };
 
