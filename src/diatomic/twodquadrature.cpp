@@ -229,10 +229,6 @@ namespace helfem {
           }
       }
 
-      void TwoDGridWorker::unit_pot() {
-        itg.ones(1,wtot.n_elem);
-      }
-
       void TwoDGridWorker::multiply_Plm(int l, int m, probe_t p) {
         arma::vec chmu(arma::cosh(r));
         arma::vec shmu(arma::sinh(r));
@@ -382,32 +378,6 @@ namespace helfem {
         H=basp->remove_boundaries(H);
 
         return H;
-      }
-
-      arma::mat TwoDGrid::overlap() {
-        arma::mat S;
-        S.zeros(basp->Ndummy(),basp->Ndummy());
-
-        // Get unique m values in basis set
-        arma::ivec muni(basp->get_mval());
-        muni=muni(arma::find_unique(muni));
-        {
-          TwoDGridWorker grid(basp,lang);
-
-          for(size_t im=0;im<muni.n_elem;im++) {
-            for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-              for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
-                grid.compute_bf(iel,irad,muni(im));
-                grid.unit_pot();
-                grid.eval_pot(S);
-              }
-            }
-          }
-        }
-
-        S=basp->remove_boundaries(S);
-
-        return S;
       }
 
       arma::mat TwoDGrid::gto_projection(int l, int m, const arma::vec & expn, probe_t p) {

@@ -68,13 +68,9 @@ namespace helfem {
 
         /// Compute basis functions on grid points
         void compute_bf(size_t iel, size_t irad, int m);
-        /// Free memory
-        void free();
 
         /// Compute model potential
         void model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2);
-        /// Set unit potential
-        void unit_pot();
 
         /// Compute AO projection
         void ao_projection(const std::function<arma::vec(double r)> & compute_ao, probe_t p);
@@ -119,8 +115,6 @@ namespace helfem {
         /// Compute model potential matrix
         arma::mat model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2);
 
-        /// Compute overlap matrix
-        arma::mat overlap();
         /// Compute GTO projection
         arma::mat gto_projection(int l, int m, const arma::vec & expn, probe_t p);
         /// Compute GTO projection
