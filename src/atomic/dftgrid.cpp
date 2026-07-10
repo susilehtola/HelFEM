@@ -303,26 +303,6 @@ namespace helfem {
       // compute_xc, eval_Exc: inherited from
       // helfem::dftgrid_common::DFTGridWorkerBase.
 
-      void DFTGridWorker::eval_overlap(arma::mat & So) const {
-        // Calculate in subspace
-        arma::mat S(bf_ind.n_elem,bf_ind.n_elem);
-        S.zeros();
-        increment_lda< std::complex<double> >(S,wtot,bf);
-        // Increment
-        So.submat(bf_ind,bf_ind)+=S;
-      }
-
-      void DFTGridWorker::eval_kinetic(arma::mat & To) const {
-        // Calculate in subspace
-        arma::mat T(bf_ind.n_elem,bf_ind.n_elem);
-        T.zeros();
-        increment_lda< std::complex<double> >(T,wtot % inv_scale_r2,bf_rho);
-        increment_lda< std::complex<double> >(T,wtot % inv_scale_theta2,bf_theta);
-        increment_lda< std::complex<double> >(T,wtot % inv_scale_phi2,bf_phi);
-        // Increment
-        To.submat(bf_ind,bf_ind)+=0.5*T;
-      }
-
       void DFTGridWorker::eval_Fxc(arma::mat & Ho) const {
         if(polarized) {
           throw std::runtime_error("Refusing to compute restricted Fock matrix with unrestricted density.\n");

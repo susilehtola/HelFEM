@@ -434,15 +434,6 @@ namespace helfem {
 
       // eval_Exc: inherited from DFTGridWorkerBase.
 
-      void DFTGridWorker::eval_overlap(arma::mat & So) const {
-        // Calculate in subspace
-        arma::mat S(bf_ind.n_elem,bf_ind.n_elem);
-        S.zeros();
-        increment_lda<double>(S,wtot,bf);
-        // Increment
-        So.submat(bf_ind,bf_ind)+=S;
-      }
-
       void DFTGridWorker::eval_Fxc(arma::cube & Ho) const {
         if(polarized) {
           throw std::runtime_error("Refusing to compute restricted Fock matrix with unrestricted density.\n");
