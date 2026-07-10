@@ -215,8 +215,6 @@ namespace helfem {
         /// Number of angular shells
         size_t Nang() const;
 
-        /// Form half-overlap matrix
-        helfem::Matrix Shalf(bool chol, int sym) const;
         /// Form half-inverse overlap matrix
         helfem::Matrix Sinvh(bool chol, int sym) const;
         /// Form overlap matrix

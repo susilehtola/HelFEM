@@ -70,8 +70,6 @@ namespace helfem {
         void add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
         /// Set radial submatrix
         void set_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
-        /// Get radial submatrix
-        arma::mat get_sub(const arma::mat & M, size_t iang, size_t jang) const;
 
       public:
         TwoDBasis();
@@ -151,9 +149,6 @@ namespace helfem {
         /// Number of angular shells
         size_t Nang() const;
 
-        /// Form half-overlap matrix (Phase 5.19: Eigen-typed at the
-        /// public boundary; interior computation still arma).
-        helfem::Matrix Shalf(bool chol, int sym) const;
         /// Form half-inverse overlap matrix (Phase 5.19: Eigen-typed).
         helfem::Matrix Sinvh(bool chol, int sym) const;
         /// Form overlap matrix
@@ -211,10 +206,6 @@ namespace helfem {
         /// Get primitive integrals
         std::vector<arma::mat> get_prim_tei() const;
 
-        /// Get l values
-        arma::ivec get_l() const;
-        /// Get m values
-        arma::ivec get_m() const;
         /// Get indices of basis functions with wanted m quantum number
         arma::uvec m_indices(int m) const;
         /// Get indices of basis functions with wanted l and m quantum numbers
