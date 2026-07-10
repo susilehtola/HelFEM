@@ -144,13 +144,10 @@ int main(int argc, char **argv) {
 
   // Derive nela/nelb from Q, M -- same convention as the bespoke diatomic
   // driver. Total nuclear charge is Z1 + Z2.
-  scf::parse_nela_nelb(nela, nelb, Q, M, Z1 + Z2);
-  if (restr == -1) restr = (nela == nelb) ? 1 : 0;
-  const bool restricted = (restr != 0);
-  if (restricted && nela != nelb)
-    throw std::logic_error("Restricted mode requires nela == nelb (closed shell). "
-                            "Use --restricted=0 (or leave -1 for auto) for open-shell.");
-  const int Ntot = nela + nelb;
+  bool restricted;
+  int Ntot;
+  helfem::scf_driver::derive_nela_nelb_restricted(
+      nela, nelb, restr, Q, M, Z1 + Z2, restricted, Ntot);
 
   arma::vec x_pars, c_pars;
   if (xparf.size()) x_pars = helfem::to_arma(scf::parse_xc_params(xparf));

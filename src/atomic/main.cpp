@@ -165,19 +165,10 @@ int main(int argc, char **argv) {
 
   // Derive nela/nelb from Q, M -- same convention as the bespoke atomic
   // driver, so --M is the natural way to specify open-shell states.
-  // parse_nela_nelb(nela, nelb, Q, M, Ztot) fills in nela/nelb when
-  // both are zero on entry (using Q and M); if nela/nelb are given,
-  // it recomputes Q from them.
-  scf::parse_nela_nelb(nela, nelb, Q, M, Z);
-  if (restr == -1) {
-    // Auto: closed shell -> restricted, else unrestricted.
-    restr = (nela == nelb) ? 1 : 0;
-  }
-  const bool restricted = (restr != 0);
-  const int Ntot = nela + nelb;
-  if (restricted && nela != nelb)
-    throw std::logic_error("Restricted mode requires nela == nelb (closed shell). "
-                            "Use --restricted=0 (or leave -1 for auto) for open-shell.");
+  bool restricted;
+  int Ntot;
+  helfem::scf_driver::derive_nela_nelb_restricted(
+      nela, nelb, restr, Q, M, Z, restricted, Ntot);
 
   // symm=2 (per-(l,m)) breaks in the presence of an external electric or
   // magnetic field -- the field mixes l or m sectors respectively, so the

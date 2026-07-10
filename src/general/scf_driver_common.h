@@ -152,6 +152,26 @@ namespace helfem {
       return {Pa_final, Pb_final};
     }
 
+    /// CLI-input normalisation shared by both drivers:
+    /// * scf::parse_nela_nelb fills in nela/nelb from --Q and --M
+    ///   when both are zero on entry;
+    /// * restr = -1 means "auto": closed shell -> 1 restricted,
+    ///   otherwise 0 unrestricted;
+    /// * restricted mode requires nela == nelb, else throws.
+    /// Returns the derived (restricted, Ntot = nela + nelb) pair via
+    /// out-refs so both drivers can use them directly below.
+    inline void derive_nela_nelb_restricted(
+        int & nela, int & nelb, int & restr, int Q, int M, int Ztotal,
+        bool & restricted, int & Ntot) {
+      scf::parse_nela_nelb(nela, nelb, Q, M, Ztotal);
+      if (restr == -1) restr = (nela == nelb) ? 1 : 0;
+      restricted = (restr != 0);
+      if (restricted && nela != nelb)
+        throw std::logic_error("Restricted mode requires nela == nelb (closed shell). "
+                                "Use --restricted=0 (or leave -1 for auto) for open-shell.");
+      Ntot = nela + nelb;
+    }
+
     /// OOO block wiring. Fills the four IndexVector / Eigen /
     /// std::vector holders that the OOO SCFSolver constructor takes:
     ///   number_of_blocks_per_particle_type (size = nparttype)
