@@ -119,8 +119,6 @@ namespace helfem {
         /// converged sadatom SCF (see extract_naos_per_l below).
         const atomic::basis::FEMRadialBasis & get_radial() const { return radial; }
 
-        /// Get primitive integrals
-        std::vector<arma::mat> get_prim_tei() const;
 
       };
 

@@ -226,8 +226,6 @@ namespace helfem {
         /// Form exchange matrix
         arma::mat exchange(const arma::mat & P) const;
 
-        /// Get primitive integrals
-        std::vector<arma::mat> get_prim_tei() const;
 
         /// Get indices of basis functions with wanted m quantum number
         arma::uvec m_indices(int m) const;

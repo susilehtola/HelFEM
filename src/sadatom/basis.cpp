@@ -399,14 +399,6 @@ namespace helfem {
         return K;
       }
 
-      std::vector<arma::mat> TwoDBasis::get_prim_tei() const {
-        // Phase 2c: prim_tei is std::vector<helfem::Matrix> internally;
-        // bridge to arma for the public accessor.
-        std::vector<arma::mat> out;
-        out.reserve(prim_tei.size());
-        for (const auto & m : prim_tei) out.push_back(helfem::to_arma(m));
-        return out;
-      }
 
       arma::mat TwoDBasis::eval_bf(size_t iel) const {
         return helfem::to_arma(radial.get_bf(iel));

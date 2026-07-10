@@ -197,8 +197,6 @@ namespace helfem {
         std::vector<std::vector<helfem::Matrix>>
         radial_df_factors(double tol = 1e-10) const;
 
-        /// Get primitive integrals
-        std::vector<arma::mat> get_prim_tei() const;
 
         /// Get indices of basis functions with wanted m quantum number
         arma::uvec m_indices(int m) const;
