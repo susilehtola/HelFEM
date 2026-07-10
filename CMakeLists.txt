@@ -1,229 +1,207 @@
 # CMake project file for HelFEM
-cmake_minimum_required (VERSION 3.14)
-project (helfem CXX)
-# C++ standard is set per-target via target_compile_features(... cxx_std_17)
-# rather than globally.
+#
+# Quick start (Linux or macOS, dependencies on a standard prefix):
+#
+#     cmake -B build -DCMAKE_INSTALL_PREFIX=install
+#     cmake --build build -j
+#     cmake --install build
+#
+# Dependencies installed in non-standard locations are found by adding
+# their install prefixes to CMAKE_PREFIX_PATH, e.g.
+#
+#     cmake -B build -DCMAKE_PREFIX_PATH="/opt/libxc;$(brew --prefix)"
+#
+# There is no machine-specific config file to maintain any more: all
+# dependencies are located with find_package / pkg-config and consumed
+# as imported targets. See the option documentation below for the few
+# knobs that remain (BLAS integer width, external BLAS, OpenMP).
+cmake_minimum_required(VERSION 3.20)
+project(helfem CXX)
 
-# helfem-common / helfem / legendre / lib1dfem are all STATIC libraries.
-# When a downstream project links any of them into a shared library
-# (e.g. the pybind11 _helfem module, or an external libatomscf shared
-# lib), the static archives need position-independent code -- otherwise
-# `ld -shared` refuses with `R_X86_64_32 ... can not be used when
-# making a shared object; recompile with -fPIC`. Set PIC globally so
-# every static archive is safe to consume from a shared object.
+# All in-tree static archives are built PIC so they can be linked into a
+# shared object (the pybind11 _helfem module, or a downstream shared
+# libatomscf) without `ld -shared` rejecting them.
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Ensure we are building out-of-source so that the tests work (issue 120)
-get_filename_component(srcdir "${CMAKE_SOURCE_DIR}" REALPATH)
-get_filename_component(bindir "${CMAKE_BINARY_DIR}" REALPATH)
-if("${srcdir}" STREQUAL "${bindir}")
-  message(FATAL_ERROR "HelFEM should not be configured & built in the source directory.
-Please create a separate build directory and rerun cmake from the build directory.
-For example: mkdir objdir; cd build; cmake ..")
+# Default to a Release build if the user did not pick one.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-# Following options can be used to configure the HelFEM CMake build. They can be set by
-# passing the corresponding -D flags to CMake, e.g.:
+# Enforce out-of-source builds so the tests work (issue 120).
+get_filename_component(_srcdir "${CMAKE_SOURCE_DIR}" REALPATH)
+get_filename_component(_bindir "${CMAKE_BINARY_DIR}" REALPATH)
+if("${_srcdir}" STREQUAL "${_bindir}")
+    message(FATAL_ERROR "HelFEM must be configured out-of-source.\n"
+                        "Run e.g.  cmake -B build  from the source root.")
+endif()
+
+# ---------------------------------------------------------------------------
+# Options
+# ---------------------------------------------------------------------------
+# - USE_OPENMP:  build the OpenMP-parallel version. On macOS this needs a
+#   real OpenMP runtime (`brew install libomp`); AppleClang ships none by
+#   default. If find_package(OpenMP) fails the build errors with a hint.
 #
-#     cmake -DHELFEM_FIND_DEPS=ON -DHELFEM_BINARIES=OFF ..
+# - HELFEM_BINARIES: build the executables under src/ (atomic, diatomic,
+#   gensap, ...). OFF builds only libhelfem, avoiding the HDF5 and libxc
+#   dependencies.
 #
-# - USE_OPENMP: if set to OFF, force-disables OpenMP. Note that if it is on, OpenMP may
-#   still get disabled if CMake is not able to find OpenMP libraries.
+# - HELFEM_PYTHON: build the pybind11 `_helfem` module.
 #
-# - HELFEM_FIND_DEPS: if set to ON, CMake will try to find all dependencies automatically
-#   with find_package calls. If successful, no user configuration should be necessary to
-#   compile HelFEM.
+# - HELFEM_ILP64: use 64-bit BLAS/LAPACK integers (ILP64) and tell
+#   Armadillo to match (ARMA_BLAS_LONG). ON reproduces the large-matrix
+#   configuration HelFEM has historically shipped and requires an ILP64
+#   BLAS (e.g. flexiblas64, or MKL/OpenBLAS built ILP64). Turn OFF on
+#   platforms whose only BLAS is LP64 -- notably macOS Accelerate -- to
+#   link an ordinary 32-bit-integer BLAS. ARMA_64BIT_WORD (64-bit element
+#   indexing) is set either way, so large matrices work in both modes;
+#   only the BLAS call ABI differs. A mismatch between this and the BLAS
+#   actually linked silently corrupts the heap inside LAPACK (surfaces as
+#   "free(): invalid next size"), so keep it consistent with your BLAS.
 #
-#   In case some libraries are installed in non-standard locations, the CMAKE_PREFIX_PATH
-#   variable can be used to configure additional paths where CMake looks for the libraries.
-#   In this situation, additional RPATH/RUNPATH or LD_LIBRARY_PATH configuration may be
-#   necessary to run binaries that have been installed with `make install`.
-#
-# - HELFEM_BINARIES: if set to OFF, disables the building of the HelFEM binary program that
-#   are located under src/. This is useful in cases where only the libhelfem library is
-#   needed and you wish to avoid the HDF5 and libxc dependencies.
-#
-# - HELFEM_CMAKE_SYSTEM: if set to OFF, the CMake.system file is ignored. This is useful
-#   when creating multiple out-of-tree build directories from the same source directory with
-#   different settings, some using CMake.system and some not. Primarily useful when
-#   developing the build scripts.
-#
-# - HELFEM_BLAS_PROVIDED_EXTERNALLY: if set to ON, HelFEM will NOT link BLAS/LAPACK itself,
-#   regardless of which discovery mechanism (HELFEM_FIND_DEPS or CMake.system) is active.
-#   Use this when embedding libhelfem in a parent project that already provides BLAS/LAPACK
-#   (e.g. its own MKL/OpenBLAS/flexiblas setup -- libatomscf is the canonical downstream
-#   consumer). Effects when ON:
-#     - CMake.system is skipped (it typically does link_libraries(<some-blas>), which
-#       would defeat the option). A STATUS message is printed if a CMake.system file
-#       was found but suppressed.
-#     - Under HELFEM_FIND_DEPS, ARMADILLO_LIBRARIES (which on most distributions
-#       transitively pulls in BLAS) is NOT linked; only Armadillo headers are added.
-#     - -DARMA_DONT_USE_WRAPPER is set, so Armadillo expects BLAS symbols to be resolved
-#       by the parent's final link step rather than wrapped through libarmadillo.
-#   The parent project is responsible for matching the integer width libhelfem was compiled
-#   with (LP64 vs ILP64 -- see ARMA_64BIT_WORD / ARMA_BLAS_LONG). A mismatch silently
-#   corrupts the heap inside LAPACK routines like dsyevd, surfacing as
-#   "free(): invalid next size".
-#
-option(USE_OPENMP "Compile OpenMP enabled version (for parallel calculations)?" ON)
-option(HELFEM_FIND_DEPS "Try to find dependencies automatically?" OFF)
-option(HELFEM_BINARIES "Compile HelFEM binaries?" ON)
-option(HELFEM_CMAKE_SYSTEM "Load the CMake.system file (if present)?" ON)
-option(HELFEM_BLAS_PROVIDED_EXTERNALLY "Skip BLAS/LAPACK linkage; parent project provides them" OFF)
+# - HELFEM_BLAS_PROVIDED_EXTERNALLY: do not find or link BLAS/LAPACK here;
+#   a parent project provides them (libatomscf embedding its own MKL, say).
+#   Sets -DARMA_DONT_USE_WRAPPER so Armadillo resolves BLAS symbols at the
+#   parent's final link step. The parent must match HELFEM_ILP64.
+option(USE_OPENMP "Build the OpenMP-parallel version" ON)
+option(HELFEM_BINARIES "Build the HelFEM executables under src/" ON)
 option(HELFEM_PYTHON "Build the HelFEM Python (pybind11) bindings" OFF)
+option(HELFEM_ILP64 "Use 64-bit-integer (ILP64) BLAS/LAPACK" ON)
+option(HELFEM_BLAS_PROVIDED_EXTERNALLY
+       "Skip BLAS/LAPACK discovery; parent project provides them" OFF)
 
-# When the parent project provides BLAS, Armadillo must NOT wrap BLAS
-# through libarmadillo.so -- the symbols come from the parent's link line.
+# ---------------------------------------------------------------------------
+# Dependencies
+# ---------------------------------------------------------------------------
+
+# Armadillo -- headers (and, on most installs, an `armadillo` imported
+# target). Version >= 9 is required.
+find_package(Armadillo 9 REQUIRED)
+message(STATUS "Found Armadillo ${ARMADILLO_VERSION_STRING}")
+
+# One INTERFACE target carries everything an Armadillo-consuming HelFEM
+# target needs: the headers, the BLAS/LAPACK linkage (or the
+# no-wrapper macro when the parent provides BLAS), and the integer-width
+# definitions. libhelfem and helfem-common link it PUBLIC so both the
+# in-tree build and downstream consumers inherit a consistent ABI.
+add_library(helfem_arma INTERFACE)
+add_library(helfem::arma ALIAS helfem_arma)
+target_include_directories(helfem_arma INTERFACE "${ARMADILLO_INCLUDE_DIRS}")
+target_compile_definitions(helfem_arma INTERFACE ARMA_64BIT_WORD)
+if(HELFEM_ILP64)
+    target_compile_definitions(helfem_arma INTERFACE ARMA_BLAS_LONG)
+endif()
+
 if(HELFEM_BLAS_PROVIDED_EXTERNALLY)
-    add_definitions(-DARMA_DONT_USE_WRAPPER)
+    # Parent resolves BLAS symbols at its final link; do not wrap through
+    # libarmadillo and do not look for a BLAS here. Armadillo is used
+    # header-only (the wrapper2_* shims are skipped).
+    target_compile_definitions(helfem_arma INTERFACE ARMA_DONT_USE_WRAPPER)
+    message(STATUS "HELFEM_BLAS_PROVIDED_EXTERNALLY=ON: Armadillo headers only, no BLAS/LAPACK linked")
+else()
+    # Request the integer width the rest of the build assumes before
+    # locating BLAS, so e.g. flexiblas64 is preferred under ILP64.
+    if(HELFEM_ILP64)
+        set(BLA_SIZEOF_INTEGER 8)
+    endif()
+    find_package(BLAS REQUIRED)
+    find_package(LAPACK REQUIRED)
+    # libarmadillo provides the wrapper2_* BLAS/LAPACK shims that
+    # Armadillo's default (wrapper) build calls; the actual BLAS/LAPACK
+    # back them. Both must be on the link line.
+    target_link_libraries(helfem_arma INTERFACE
+        ${ARMADILLO_LIBRARIES} BLAS::BLAS LAPACK::LAPACK)
+    message(STATUS "BLAS: ${BLAS_LIBRARIES}")
 endif()
 
-# System specific definitions -- gated by HELFEM_BLAS_PROVIDED_EXTERNALLY
-# because CMake.system typically does link_libraries(<some-blas>), which
-# would defeat the external-BLAS option.
-if(HELFEM_CMAKE_SYSTEM AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/CMake.system")
-    if(HELFEM_BLAS_PROVIDED_EXTERNALLY)
-        message(STATUS "HELFEM_BLAS_PROVIDED_EXTERNALLY=ON: skipping CMake.system "
-                       "(would normally add a BLAS link line that defeats this option).")
-    else()
-        message("Including user-provided CMake.system.")
-        include("${CMAKE_CURRENT_SOURCE_DIR}/CMake.system")
-    endif()
-endif()
+install(TARGETS helfem_arma EXPORT helfemTargets)
 
-# Try to automatically find and configure all the dependent libraries, if the user specified
-# the HELFEM_FIND_DEPS option.
-#
-# If the dependencies are installed in non-standard paths (e.g. somewhere under /home), then
-# the CMAKE_PREFIX_PATH variables can be used to specify the path to the root of the install
-# prefix. E.g. if the libraries are installed under /home/username/local/usr, then CMake
-# could be invoked with:
-#
-#     cmake -DCMAKE_PREFIX_PATH=$HOME/local/usr ..
-#
-if(HELFEM_FIND_DEPS)
-    # Try to find the Armadillo C++ library
-    find_package(Armadillo REQUIRED)
-    message("Found Armadillo ${ARMADILLO_VERSION_NAME} (v${ARMADILLO_VERSION_MAJOR}.${ARMADILLO_VERSION_MINOR}.${ARMADILLO_VERSION_PATCH})")
-    message("ARMADILLO_VERSION_STRING: ${ARMADILLO_VERSION_STRING}")
-    message("ARMADILLO_INCLUDE_DIRS:   ${ARMADILLO_INCLUDE_DIRS}")
-    message("ARMADILLO_LIBRARIES:      ${ARMADILLO_LIBRARIES}")
-    if(${ARMADILLO_VERSION_MAJOR} LESS "9")
-        message(FATAL_ERROR "Armadillo too old, version 9 or above required.")
-    endif()
-    include_directories("${ARMADILLO_INCLUDE_DIRS}")
-    if(NOT HELFEM_BLAS_PROVIDED_EXTERNALLY)
-        # Default: link Armadillo (which pulls in BLAS on most distros).
-        # When HELFEM_BLAS_PROVIDED_EXTERNALLY=ON the suppression message
-        # and -DARMA_DONT_USE_WRAPPER were already set near the top of
-        # this file.
-        link_libraries("${ARMADILLO_LIBRARIES}")
-    endif()
-    # If we should also compile all the HelFEM binaries (under src/), we need also need to
-    # set up the HDF5 and libxc dependencies:
-    if(HELFEM_BINARIES)
-        find_package(HDF5 REQUIRED COMPONENTS CXX)
-        message("HDF5_FOUND: ${HDF5_FOUND}")
-        message("HDF5_VERSION: ${HDF5_VERSION}")
-        message("HDF5_INCLUDE_DIRS: ${HDF5_INCLUDE_DIRS}")
-        message("HDF5_LIBRARIES: ${HDF5_LIBRARIES}")
-
-        find_package(LibXc REQUIRED PATHS ".")
-        message("LibXc_FOUND=${LibXc_FOUND}")
-        message("LIBXC_INCLUDE_DIRS=${LIBXC_INCLUDE_DIRS}")
-        message("LIBXC_LIBRARIES=${LIBXC_LIBRARIES}")
-
-        include_directories("${HDF5_INCLUDE_DIRS}" "${LIBXC_INCLUDE_DIRS}")
-        link_libraries("${HDF5_LIBRARIES}" "${LIBXC_LIBRARIES}")
-    endif()
-endif()
-
-# Eigen: header-only matrix library. Phase 1 of the Eigen migration
-# arc -- introduces the helfem::Matrix typedef and arma<->Eigen
-# converters in libhelfem/include without yet replacing Armadillo
-# anywhere. Subsequent phases migrate libhelfem and src/ leaf-by-leaf.
-# Prefer a system-installed Eigen3 >= 3.4, otherwise fetch v3.4.0.
-# Use the CMake range form `3.4...99` so that any 3.4-or-newer install
-# is accepted. A bare `3.4` request is treated by Eigen's stock
-# Eigen3ConfigVersion.cmake as the exclusive range [3.4, 3.5) and
-# rejects e.g. Fedora's Eigen 5.0.1.
+# Eigen3 (>= 3.4) -- header-only. Prefer a system install, else fetch
+# v3.4.0. The range form `3.4...99` accepts any >= 3.4 (a bare `3.4`
+# is read as the exclusive [3.4, 3.5) by Eigen's ConfigVersion and would
+# reject e.g. Fedora's Eigen 5).
 find_package(Eigen3 3.4...99 QUIET NO_MODULE)
 if(NOT Eigen3_FOUND)
-    message(STATUS "Eigen3 >= 3.4 not found via find_package; fetching v3.4.0")
+    message(STATUS "Eigen3 >= 3.4 not found; fetching v3.4.0")
     include(FetchContent)
-    FetchContent_Declare(
-        Eigen3
+    FetchContent_Declare(Eigen3
         GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-        GIT_TAG        3.4.0
-    )
-    # Suppress Eigen's own build targets / tests; we only need the
-    # interface library that exposes the headers.
-    set(EIGEN_BUILD_DOC      OFF CACHE INTERNAL "")
+        GIT_TAG        3.4.0)
+    set(EIGEN_BUILD_DOC       OFF CACHE INTERNAL "")
     set(EIGEN_BUILD_PKGCONFIG OFF CACHE INTERNAL "")
-    set(BUILD_TESTING        OFF CACHE INTERNAL "")
+    set(BUILD_TESTING         OFF CACHE INTERNAL "")
     FetchContent_MakeAvailable(Eigen3)
 else()
-    message(STATUS "Using system Eigen3 (${Eigen3_VERSION})")
+    message(STATUS "Using system Eigen3 ${Eigen3_VERSION}")
 endif()
 
-# Wigner-nj symbols: prefer a system-installed wignernj >= 0.5.0, otherwise
-# fetch and build that version.
+# Wigner-nj symbols (>= 0.5.0). System install preferred, else fetch.
 find_package(wignernj 0.5.0 QUIET)
 if(NOT wignernj_FOUND)
-    message(STATUS "wignernj >= 0.5.0 not found via find_package; fetching v0.5.0")
+    message(STATUS "wignernj >= 0.5.0 not found; fetching v0.5.0")
     include(FetchContent)
-    FetchContent_Declare(
-        wignernj
+    FetchContent_Declare(wignernj
         GIT_REPOSITORY https://github.com/susilehtola/wignernj.git
-        GIT_TAG        v0.5.0
-    )
+        GIT_TAG        v0.5.0)
     FetchContent_MakeAvailable(wignernj)
-    # find_package would expose the library as the namespaced wignernj::wignernj
-    # imported target. Provide the same alias from FetchContent so consumers
-    # can always link against the same name.
     if(NOT TARGET wignernj::wignernj)
         add_library(wignernj::wignernj ALIAS wignernj)
     endif()
 else()
-    message(STATUS "Using system wignernj (${wignernj_VERSION})")
+    message(STATUS "Using system wignernj ${wignernj_VERSION}")
 endif()
 
-# OpenOrbitalOptimizer: header-only SCF-convergence library. Used by the
-# per-suite _ooo executables (sadatom_ooo, atomic_ooo, ...). Prefer a
-# system-installed copy, otherwise FetchContent from the upstream repo.
+# OpenOrbitalOptimizer -- header-only SCF-convergence library. System
+# install preferred, else fetch.
 find_package(OpenOrbitalOptimizer QUIET)
 if(NOT OpenOrbitalOptimizer_FOUND)
-    message(STATUS "OpenOrbitalOptimizer not found via find_package; fetching from GitHub")
+    message(STATUS "OpenOrbitalOptimizer not found; fetching from GitHub")
     include(FetchContent)
-    FetchContent_Declare(
-        OpenOrbitalOptimizer
+    FetchContent_Declare(OpenOrbitalOptimizer
         GIT_REPOSITORY https://github.com/susilehtola/OpenOrbitalOptimizer.git
-        GIT_TAG        master
-    )
+        GIT_TAG        master)
     FetchContent_MakeAvailable(OpenOrbitalOptimizer)
 else()
     message(STATUS "Using system OpenOrbitalOptimizer")
 endif()
 
-# Find OpenMP support. Add flags to CXX flags so in-tree
-# targets get -fopenmp at compile time regardless of target chain.
-# ALSO record OpenMP::OpenMP_CXX so it can be added to the
-# INTERFACE_LINK_LIBRARIES of the exported libraries below, giving
-# downstream consumers of helfem::helfem the -fopenmp/libgomp
-# transitive linkage automatically (previously they had to remember
-# -fopenmp themselves).
+# OpenMP -- consumed as the OpenMP::OpenMP_CXX imported target, which
+# carries the right flags on every compiler (crucially AppleClang, which
+# needs -Xpreprocessor -fopenmp plus libomp rather than a bare -fopenmp).
 if(USE_OPENMP)
- find_package( OpenMP )
- if(OPENMP_FOUND)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
- endif()
+    find_package(OpenMP REQUIRED COMPONENTS CXX)
+    message(STATUS "OpenMP enabled (${OpenMP_CXX_VERSION})")
 endif()
 
-# Include libhelfem headers
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/libhelfem/include")
+# HDF5 (C++) and libxc are only needed by the executables under src/.
+if(HELFEM_BINARIES)
+    find_package(HDF5 REQUIRED COMPONENTS CXX)
+    message(STATUS "HDF5 ${HDF5_VERSION}")
+    # Wrap HDF5 in one stable helfem-owned interface so the exported
+    # target set references a name we control. FindHDF5's imported
+    # targets vary across versions and some do not chain the C library
+    # behind the C++ one (missing H5check_version at link), so use the
+    # HDF5_CXX_LIBRARIES variable, which FindHDF5 populates with the full
+    # C++ + C library set.
+    add_library(helfem_hdf5 INTERFACE)
+    add_library(helfem::hdf5 ALIAS helfem_hdf5)
+    target_include_directories(helfem_hdf5 INTERFACE ${HDF5_CXX_INCLUDE_DIRS})
+    target_link_libraries(helfem_hdf5 INTERFACE ${HDF5_CXX_LIBRARIES})
+    install(TARGETS helfem_hdf5 EXPORT helfemTargets)
 
-# Compile code
-add_subdirectory(lib1dfem)   # v2 Phase 1 destination (currently empty INTERFACE target)
+    # libxc ships pkg-config metadata (.pc) rather than a CMake package on
+    # most installs; pkg_check_modules honours CMAKE_PREFIX_PATH so a
+    # non-standard libxc prefix is found the same way as everything else.
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LIBXC REQUIRED IMPORTED_TARGET libxc)
+    message(STATUS "libxc ${LIBXC_VERSION}")
+endif()
+
+# ---------------------------------------------------------------------------
+# Build
+# ---------------------------------------------------------------------------
+add_subdirectory(lib1dfem)
 add_subdirectory(libhelfem)
 if(HELFEM_PYTHON)
     add_subdirectory(python)
@@ -232,22 +210,15 @@ if(HELFEM_BINARIES)
     add_subdirectory(src)
 endif()
 
-# ---- Export an installed CMake package -------------------------------
-#
-# After `cmake --install`, a consumer can do
-#
+# ---------------------------------------------------------------------------
+# Export an installed CMake package
+# ---------------------------------------------------------------------------
+# Consumers then do
 #     find_package(helfem CONFIG REQUIRED)
 #     target_link_libraries(mytarget PRIVATE helfem::helfem)
-#
-# which pulls in the exported targets and their transitive properties
-# (INTERFACE_INCLUDE_DIRECTORIES / INTERFACE_LINK_LIBRARIES /
-#  INTERFACE_COMPILE_DEFINITIONS). This is the shape libatomscf and
-# other external C++ consumers use.
 include(CMakePackageConfigHelpers)
 
-# Test whether the HDF5 CXX target got resolved during our own build.
-# Used only to decide whether the exported config re-finds HDF5.
-if(TARGET HDF5::HDF5 OR DEFINED HDF5_CXX_LIBRARIES OR DEFINED HDF5_LIBRARIES)
+if(HELFEM_BINARIES)
     set(HELFEM_HAS_HDF5 TRUE)
 else()
     set(HELFEM_HAS_HDF5 FALSE)
@@ -256,21 +227,17 @@ endif()
 configure_package_config_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/helfemConfig.cmake.in"
     "${CMAKE_CURRENT_BINARY_DIR}/helfemConfig.cmake"
-    INSTALL_DESTINATION lib/cmake/helfem
-)
+    INSTALL_DESTINATION lib/cmake/helfem)
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/helfemConfigVersion.cmake"
     VERSION "0.0.1"
-    COMPATIBILITY SameMajorVersion
-)
+    COMPATIBILITY SameMajorVersion)
 
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/helfemConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/helfemConfigVersion.cmake"
     DESTINATION lib/cmake/helfem)
 
-# helfemTargets.cmake is generated from EXPORT(helfemTargets)
-# declared by the individual add_subdirectory calls below.
 install(EXPORT helfemTargets
     NAMESPACE helfem::
     DESTINATION lib/cmake/helfem)

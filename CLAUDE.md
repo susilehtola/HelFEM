@@ -17,23 +17,29 @@ Requires an out-of-source build. The quickest path:
 Manual build:
 
 ```bash
-mkdir objdir && cd objdir
-cmake .. -DUSE_OPENMP=ON -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=Release
-make -j9 install
+cmake -B objdir -DCMAKE_INSTALL_PREFIX=install
+cmake --build objdir -j9
+cmake --install objdir
+```
+
+All dependencies are located with `find_package` / `pkg-config` and consumed as
+imported targets — there is **no** machine-specific config file to maintain. If a
+dependency lives in a non-standard prefix, add it to `CMAKE_PREFIX_PATH`:
+
+```bash
+cmake -B objdir -DCMAKE_PREFIX_PATH="/opt/libxc;$(brew --prefix)"
 ```
 
 **Key CMake options:**
-- `HELFEM_FIND_DEPS=ON` — auto-discover Armadillo/HDF5/libxc via `find_package`
-- `HELFEM_BINARIES=OFF` — build only `libhelfem` (skips HDF5 and libxc requirements)
-- `HELFEM_CMAKE_SYSTEM=OFF` — ignore `CMake.system` (useful for multiple build dirs)
-- `HELFEM_BLAS_PROVIDED_EXTERNALLY=ON` — don't link BLAS/LAPACK into libhelfem; parent project (e.g. an embedding application with its own MKL/OpenBLAS) must provide them. Sets `-DARMA_DONT_USE_WRAPPER`. The parent must match integer width — see ARMA_64BIT_WORD / ARMA_BLAS_LONG.
+- `HELFEM_BINARIES=OFF` — build only `libhelfem` (skips the HDF5 and libxc requirements)
+- `HELFEM_ILP64` (default `ON`) — use 64-bit-integer (ILP64) BLAS/LAPACK and set `ARMA_BLAS_LONG` to match. Requires an ILP64 BLAS (flexiblas64, ILP64 MKL/OpenBLAS). Set **OFF** on platforms whose only BLAS is LP64 — notably **macOS Accelerate**. `ARMA_64BIT_WORD` (64-bit element indexing) is on either way; only the BLAS call ABI differs. A mismatch with the linked BLAS silently corrupts the heap (`free(): invalid next size`).
+- `HELFEM_BLAS_PROVIDED_EXTERNALLY=ON` — don't find/link BLAS/LAPACK; a parent project provides them (Armadillo used header-only via `-DARMA_DONT_USE_WRAPPER`). The parent must match `HELFEM_ILP64`.
+- `USE_OPENMP` (default `ON`) — consumed as the `OpenMP::OpenMP_CXX` imported target. On **macOS**, AppleClang ships no OpenMP runtime; `brew install libomp` first (or configure with `-DUSE_OPENMP=OFF`).
 
-**System configuration:** `CMake.system` (symlink to e.g. `CMake.fedora`) sets compiler flags, library paths, and Armadillo/BLAS configuration for the local machine. This is where 64-bit BLAS indices, flexiblas, and non-standard install paths are configured.
-
-**Dependencies:**
-- Core (`libhelfem`): Armadillo ≥ v9
-- Binaries (`src/`): HDF5 (C++ interface), libxc
-- Fortran compiler: for Legendre special functions (`src/legendre/`)
+**Dependencies:** Armadillo ≥ 9, Eigen ≥ 3.4 (auto-fetched if absent), BLAS/LAPACK,
+wignernj (auto-fetched), OpenOrbitalOptimizer (auto-fetched); binaries additionally
+need HDF5 (C++ interface) and libxc. The Legendre special functions are C++ (no
+Fortran compiler required).
 
 ## Running tests
 

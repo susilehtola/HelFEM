@@ -5,80 +5,64 @@
 #   find_package(helfem CONFIG REQUIRED)
 #   target_link_libraries(mytarget PRIVATE helfem::helfem)
 #
-# This exposes the IMPORTED target `helfem::helfem` which chains
-# helfem::helfem-common, helfem::legendre, helfem::lib1dfem and
-# their transitive dependencies. Consumer code needs no manual
-# -I<armadillo> or -DARMA_* flags -- they are propagated through
-# the exported target's INTERFACE_* properties.
+# This exposes the IMPORTED target `helfem::helfem` and chains
+# helfem::helfem-common, helfem::legendre, helfem::lib1dfem, helfem::arma
+# (Armadillo + BLAS/LAPACK + integer-width defs) and their transitive
+# dependencies. Consumer code needs no manual -I<armadillo> or -DARMA_*
+# flags -- they are propagated through the exported targets' INTERFACE_*
+# properties.
 
 include(CMakeFindDependencyMacro)
 
-# Transitive deps -- these must be resolvable by the consumer's
-# find_package chain so the IMPORTED targets in helfemTargets.cmake
-# find their linkage.
-# Range form `3.4...99` so any Eigen >= 3.4 is accepted. A bare `3.4`
-# is treated by Eigen's ConfigVersion.cmake as the exclusive range
-# [3.4, 3.5) and rejects e.g. Fedora's Eigen 5.0.1.
+# Header-only / config-package dependencies. The range form `3.4...99`
+# accepts any Eigen >= 3.4 (a bare `3.4` is read as [3.4, 3.5)).
 find_dependency(Eigen3 3.4...99 CONFIG)
 find_dependency(wignernj 0.5.0)
-# OpenMP is included in helfem-common's INTERFACE_LINK_LIBRARIES so
-# consumers inherit -fopenmp / libgomp automatically. We must be able
-# to resolve OpenMP::OpenMP_CXX at find_package(helfem) time.
-find_dependency(OpenMP)
+# OpenOrbitalOptimizer's header-only imported target is carried in
+# helfem-common's INTERFACE_LINK_LIBRARIES.
+find_dependency(OpenOrbitalOptimizer)
 
-# Armadillo is a private link/interface dep of helfem-common; the
-# consumer must be able to link against it. We do not require it
-# by find_package here because HelFEM's own build allows Armadillo
-# to come in via either find_package(Armadillo) or a plain
-# link_libraries(armadillo) from CMake.system. If a consumer runs
-# without Armadillo on the system, the link step below fails
-# clearly.
-find_dependency(Armadillo)
+# OpenMP is carried in helfem-common's INTERFACE_LINK_LIBRARIES, so the
+# consumer must be able to recreate OpenMP::OpenMP_CXX.
+if(@USE_OPENMP@)
+    find_dependency(OpenMP COMPONENTS CXX)
+endif()
 
-# Optional deps used by helfem-common's DFT / HDF5 paths. Only
-# looked up if they were found at HelFEM build time.
+# Armadillo headers are a PUBLIC dependency (some public headers include
+# <armadillo>); BLAS/LAPACK back the eigensolves. Match the integer
+# width HelFEM was built with before locating BLAS.
+find_dependency(Armadillo 9)
+if(NOT @HELFEM_BLAS_PROVIDED_EXTERNALLY@)
+    if(@HELFEM_ILP64@)
+        set(BLA_SIZEOF_INTEGER 8)
+    endif()
+    find_dependency(BLAS)
+    find_dependency(LAPACK)
+endif()
+
+# HDF5 (C++) and libxc back the DFT / checkpoint paths under src/. Only
+# looked up when HelFEM was built with its binaries (HELFEM_BINARIES).
 if(@HELFEM_HAS_HDF5@)
     find_dependency(HDF5 COMPONENTS CXX)
+    find_dependency(PkgConfig)
+    pkg_check_modules(LIBXC REQUIRED IMPORTED_TARGET libxc)
 endif()
 
 # Bring in the imported targets: helfem::helfem, helfem::helfem-common,
-# helfem::legendre, helfem::lib1dfem.
+# helfem::legendre, helfem::lib1dfem, helfem::arma (+ helfem::hdf5).
 include("${CMAKE_CURRENT_LIST_DIR}/helfemTargets.cmake")
 
-# In-tree, the atomic FE code (TwoDBasis, DFTGrid, gaunt, and every
-# other symbol under src/) lives in libhelfem-common.a, which links
-# PUBLIC to libhelfem.a. A downstream target_link_libraries(x helfem::helfem)
-# does NOT drag helfem-common in via that PUBLIC link because
-# helfem-common depends on helfem, not vice versa.
-#
-# Consumers reaching for helfem::helfem expect the atomic backend to
-# work out-of-the-box (that's the whole point of the exported package,
-# see PR #142). So pull the missing static libs into helfem::helfem's
-# interface closure at config time. Order matters for the eventual
-# ld link line: put the higher-level libs first so the archive-based
-# linker resolution walks helfem-common -> helfem -> legendre
-# correctly. The static libs are mutually referential in some symbol
-# groups (e.g. helfem::helfem-common's TwoDBasis pulls symbols back
-# from helfem, but helfem's RadialBasis uses helpers defined in
-# helfem-common too). Wrap them in --start-group / --end-group via
-# LINK_ONLY so the whole cluster is resolvable regardless of the
-# consumer's link order.
+# In-tree, the atomic FE code (TwoDBasis, DFTGrid, gaunt, ... everything
+# under src/) lives in libhelfem-common.a, which links PUBLIC to
+# libhelfem.a. A downstream target_link_libraries(x helfem::helfem) does
+# NOT drag helfem-common in via that PUBLIC link, because helfem-common
+# depends on helfem, not the other way round. Consumers reaching for
+# helfem::helfem expect the atomic backend to work out of the box, so
+# append the higher-level libs to helfem::helfem's interface closure.
 if(TARGET helfem::helfem AND TARGET helfem::helfem-common)
-    # Static archive order: consumers get helfem::helfem-common (which
-    # itself INTERFACE-links helfem::helfem, wignernj::wignernj,
-    # helfem::legendre) first, then helfem::legendre standalone in case
-    # legendre symbols are referenced from headers the consumer
-    # includes directly. lib1dfem is already in helfem::helfem's own
-    # INTERFACE_LINK_LIBRARIES so it comes along.
     set_property(TARGET helfem::helfem APPEND PROPERTY
         INTERFACE_LINK_LIBRARIES
-            helfem::helfem-common helfem::legendre
-    )
+            helfem::helfem-common helfem::legendre)
 endif()
-
-# ARMA_64BIT_WORD / ARMA_BLAS_LONG are attached as
-# INTERFACE_COMPILE_DEFINITIONS on the exported targets, so a consumer
-# that just does target_link_libraries(mytarget PRIVATE helfem::helfem)
-# gets them automatically -- no need to remember the macros.
 
 check_required_components(helfem)
