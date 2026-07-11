@@ -534,26 +534,26 @@ namespace helfem {
           //    pair is visited once if it lives in one element, twice
           //    (with identical J output) if both indices are the same
           //    boundary -- harmless small redundancy.
-          arma::mat D(Nrad, Nrad, arma::fill::zeros);
+          const Eigen::Index Nrad_e = static_cast<Eigen::Index>(Nrad);
+          helfem::Matrix D = helfem::Matrix::Zero(Nrad_e, Nrad_e);
           for (size_t iel = 0; iel < Nel; ++iel) {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
             const size_t Ni = ilast - ifirst + 1;
             for (size_t j_loc = 0; j_loc < Ni; ++j_loc) {
               for (size_t i_loc = 0; i_loc <= j_loc; ++i_loc) {
-                const size_t i = ifirst + i_loc;
-                const size_t j = ifirst + j_loc;
-                arma::mat P(Nrad, Nrad, arma::fill::zeros);
+                const Eigen::Index i = static_cast<Eigen::Index>(ifirst + i_loc);
+                const Eigen::Index j = static_cast<Eigen::Index>(ifirst + j_loc);
+                helfem::Matrix P = helfem::Matrix::Zero(Nrad_e, Nrad_e);
                 if (i == j) {
                   P(i, i) = 1.0;
                 } else {
                   P(i, j) = 0.5;
                   P(j, i) = 0.5;
                 }
-                arma::mat J = ::helfem::to_arma(
-                    helfem::atomic::basis::
-                        assemble_J_FE_one_multipole_cached(
-                            radial, rs, rb, tw, ::helfem::to_eigen(P)));
+                const helfem::Matrix J =
+                    helfem::atomic::basis::assemble_J_FE_one_multipole_cached(
+                        radial, rs, rb, tw, P);
                 D(i, j) = J(i, j);
                 D(j, i) = D(i, j);
               }
@@ -566,16 +566,14 @@ namespace helfem {
           //    the J helper, subtracts projections onto previously found
           //    Cholesky vectors, normalises, appends, and updates the
           //    diagonal.
-          std::vector<arma::mat> B_L_vecs;
+          std::vector<helfem::Matrix> B_L_vecs;
           while (true) {
-            const arma::uword pivot_flat = D.index_max();
-            const double D_pivot = D(pivot_flat);
+            // Eigen is column-major, so maxCoeff scans in the same order
+            // as the old arma index_max column-major flatten -- identical
+            // pivot (i*, j*) selection and tie-breaking.
+            Eigen::Index i_star = 0, j_star = 0;
+            const double D_pivot = D.maxCoeff(&i_star, &j_star);
             if (D_pivot < tol) break;
-
-            // Armadillo column-major flatten: i = flat % Nrad,
-            // j = flat / Nrad.
-            const arma::uword i_star = pivot_flat % Nrad;
-            const arma::uword j_star = pivot_flat / Nrad;
 
             // Build the symmetric pair-density indicator P. For i == j:
             //   P = e_i e_i^T (single 1 on the diagonal).
@@ -584,16 +582,16 @@ namespace helfem {
             // The J helper expects a symmetric P (it integrates against
             // the symmetric pair density), and J(P)[a, b] then equals
             // exactly R^L(a, b, i*, j*).
-            arma::mat P(Nrad, Nrad, arma::fill::zeros);
+            helfem::Matrix P = helfem::Matrix::Zero(Nrad_e, Nrad_e);
             if (i_star == j_star) {
               P(i_star, i_star) = 1.0;
             } else {
               P(i_star, j_star) = 0.5;
               P(j_star, i_star) = 0.5;
             }
-            arma::mat col = ::helfem::to_arma(
+            helfem::Matrix col =
                 helfem::atomic::basis::assemble_J_FE_one_multipole_cached(
-                    radial, rs, rb, tw, ::helfem::to_eigen(P)));
+                    radial, rs, rb, tw, P);
 
             // Subtract projections onto already-found Cholesky vectors.
             for (const auto & V : B_L_vecs) {
@@ -603,20 +601,17 @@ namespace helfem {
             // Normalise. By construction col(i*, j*) == D_pivot, so
             // v_new(i*, j*) == sqrt(D_pivot) -- pivot diagonal zeros
             // out exactly on the diagonal update below.
-            arma::mat v_new = col / std::sqrt(D_pivot);
+            helfem::Matrix v_new = col / std::sqrt(D_pivot);
 
-            // Update diagonal: D <- D - v_new % v_new (elementwise).
-            D -= v_new % v_new;
-            // Numerical: clamp at zero to avoid negative drift.
-            D.transform([](double x) { return x < 0.0 ? 0.0 : x; });
+            // Update diagonal: D <- D - v_new .* v_new (elementwise),
+            // clamped at zero to avoid negative drift.
+            D -= v_new.cwiseProduct(v_new);
+            D = D.cwiseMax(0.0);
 
             B_L_vecs.push_back(std::move(v_new));
           }
 
-          // -- 4. Bridge to helfem::Matrix at the public boundary.
-          B[L].reserve(B_L_vecs.size());
-          for (auto & M : B_L_vecs)
-            B[L].push_back(helfem::to_eigen(M));
+          B[L] = std::move(B_L_vecs);
         }
 
         return B;
