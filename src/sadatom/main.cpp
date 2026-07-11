@@ -29,8 +29,67 @@
 #include "scf.h"
 #include <ArmaEigen.h>
 #include <iostream>
+#include <sstream>
 
 using namespace helfem;
+
+// Assemble the radial effective-potential table for the converged
+// density in `res`, using exchange/correlation ids (xp_func, cp_func)
+// for the xc screening. Mirrors the bespoke SCFSolver::{Restricted,
+// Unrestricted}Potential. Columns:
+//   0 r   1 rho   2 grad(rho)   3 lapl(rho)   4 tau
+//   5 v_coul(screening)   6 v_xc(screening)   7 quad weight
+//   8 Zeff = charge - (v_coul + v_xc)   <-- the SAP effective charge
+static arma::mat effective_potential_table(
+    const helfem::sadatom::basis::TwoDBasis & basis,
+    const helfem::sadatom::scf::AtomicSCFResult & res,
+    bool restricted, int xp_func, int cp_func) {
+
+  const arma::mat P = helfem::to_arma(res.Prad);
+  // Total per-l density cube (for tau). Restricted: Pl_a already holds
+  // the full per-l density; unrestricted: sum alpha + beta.
+  arma::cube Pl = res.Pl_a;
+  if (!restricted)
+    Pl += res.Pl_b;
+
+  const arma::vec r    = basis.radii();
+  const arma::vec wt   = basis.quadrature_weights();
+  const arma::vec vcoul = basis.coulomb_screening(P);
+
+  arma::vec vxc;
+  if (restricted) {
+    vxc = basis.xc_screening(P, xp_func, cp_func);
+  } else {
+    // Averaged spin-unrestricted xc screening.
+    arma::mat Pa = arma::zeros(P.n_rows, P.n_cols);
+    arma::mat Pb = arma::zeros(P.n_rows, P.n_cols);
+    for (arma::uword l = 0; l < res.Pl_a.n_slices; ++l) Pa += res.Pl_a.slice(l);
+    for (arma::uword l = 0; l < res.Pl_b.n_slices; ++l) Pb += res.Pl_b.slice(l);
+    vxc = arma::mean(basis.xc_screening(Pa, Pb, xp_func, cp_func), 1);
+  }
+
+  const arma::vec Zeff = vcoul + vxc;
+  const arma::vec rho  = basis.electron_density(P);
+  const arma::vec grho = basis.electron_density_gradient(P);
+  const arma::vec lrho = basis.electron_density_laplacian(P);
+  const arma::vec tau  = basis.kinetic_energy_density(Pl);
+
+  arma::mat result(r.n_elem, 9);
+  result.col(0) = r;
+  result.col(1) = rho;
+  result.col(2) = grho;
+  result.col(3) = lrho;
+  result.col(4) = tau;
+  result.col(5) = vcoul;
+  result.col(6) = vxc;
+  result.col(7) = wt;
+  result.col(8) = basis.charge() * arma::ones<arma::vec>(Zeff.n_elem) - Zeff;
+
+  printf("Electron density by quadrature: %.10e\n", arma::sum(wt % rho % r % r));
+  printf("Quadrature of tabulated Coulomb potential yields Coulomb energy %.10e\n",
+         arma::sum(0.5 * r % rho % wt % vcoul));
+  return result;
+}
 
 int main(int argc, char **argv) {
   cmdline::parser parser;
@@ -64,6 +123,14 @@ int main(int argc, char **argv) {
 
   parser.add<std::string>("load", 0, "load orbital guess from checkpoint file", false, "");
   parser.add<std::string>("save", 0, "save results to checkpoint file",       false, "");
+
+  // SAP / effective-potential generation (parity with bespoke gensap).
+  // With a functional active, gensap tabulates the radial effective
+  // charge Zeff(r) = Z - r*(V_Hartree + V_xc) to result_<El>.dat -- the
+  // data used to build the SAP guess (see src/general/sap.cpp).
+  parser.add<std::string>("pot", 0, "functional for the effective/SAP potential (empty = use --method)", false, "");
+  parser.add<bool>("savepot", 0, "also save the xc screening potential to xcpot.dat?", false, false);
+  parser.add<bool>("saveing", 0, "also save the density ingredients to xcing.dat?", false, false);
 
   parser.parse_check(argc, argv);
 
@@ -159,6 +226,72 @@ int main(int argc, char **argv) {
   opts.load_file    = parser.get<std::string>("load");
   opts.save_file    = parser.get<std::string>("save");
 
-  sadatom::scf::run_atomic_scf(opts);
+  sadatom::scf::AtomicSCFResult result = sadatom::scf::run_atomic_scf(opts);
+
+  // Effective-potential / SAP-table output. The potential functional is
+  // --pot if given, otherwise the SCF --method. As in the bespoke
+  // driver, the table is written whenever a functional is active.
+  const std::string potmethod = parser.get<std::string>("pot");
+  const bool savepot = parser.get<bool>("savepot");
+  const bool saveing = parser.get<bool>("saveing");
+
+  int xp_func = x_func, cp_func = c_func;
+  if (potmethod.size()) {
+    ::parse_xc_func(xp_func, cp_func, potmethod);
+    ::print_info(xp_func, cp_func);
+  }
+  // Meta-GGA / range-separated potentials are not implemented in the
+  // spherically symmetric screening path (matches the old driver).
+  {
+    bool gga, mgga_t, mgga_l;
+    if (xp_func > 0) {
+      ::is_gga_mgga(xp_func, gga, mgga_t, mgga_l);
+      if (mgga_t || mgga_l)
+        throw std::logic_error("Meta-GGA potentials are not supported in the spherically symmetric program.\n");
+    }
+    if (cp_func > 0) {
+      ::is_gga_mgga(cp_func, gga, mgga_t, mgga_l);
+      if (mgga_t || mgga_l)
+        throw std::logic_error("Meta-GGA potentials are not supported in the spherically symmetric program.\n");
+    }
+    if (xp_func > 0) {
+      double o, a, b;
+      ::range_separation(xp_func, o, a, b);
+      if (o != 0.0 || a != 0.0 || b != 0.0)
+        throw std::logic_error("Optimized effective potential is not implemented in the spherically symmetric program.\n");
+    }
+  }
+
+  if (xp_func > 0 || cp_func > 0) {
+    const arma::mat pot = effective_potential_table(
+        result.basis, result, restricted, xp_func, cp_func);
+    std::ostringstream oss;
+    oss << "result_" << element_symbols[Z] << ".dat";
+    pot.save(oss.str(), arma::raw_ascii);
+    printf("Saved effective potential (SAP table) to %s\n", oss.str().c_str());
+
+    if (savepot) {
+      // xc screening potential: [r, v_xc]
+      arma::mat xcpot(pot.n_rows, 2);
+      xcpot.col(0) = pot.col(0);
+      xcpot.col(1) = pot.col(6);
+      xcpot.save("xcpot.dat", arma::raw_ascii);
+      printf("Saved xc screening potential to xcpot.dat\n");
+    }
+    if (saveing) {
+      // density ingredients: [r, rho, grad, lapl, tau]
+      arma::mat ing(pot.n_rows, 5);
+      ing.col(0) = pot.col(0);
+      ing.col(1) = pot.col(1);
+      ing.col(2) = pot.col(2);
+      ing.col(3) = pot.col(3);
+      ing.col(4) = pot.col(4);
+      ing.save("xcing.dat", arma::raw_ascii);
+      printf("Saved density ingredients to xcing.dat\n");
+    }
+  } else if (savepot || saveing) {
+    printf("No functional active (HF) -- no xc potential/ingredients to save.\n");
+  }
+
   return 0;
 }

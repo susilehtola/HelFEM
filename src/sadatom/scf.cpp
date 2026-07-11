@@ -410,6 +410,48 @@ namespace helfem {
         if (!restricted)
           extract_channel(1, result.orbs_b, result.occs_b);
 
+        // Rebuild the converged per-l radial density cube(s) from the
+        // final orbitals + integer per-l occupations (Aufbau filling,
+        // consistent with the converged ground state and with the
+        // checkpoint written below). Used both for --save and for the
+        // gensap effective-potential / SAP-table output in main.cpp.
+        auto build_cube = [&](const arma::cube & orbs_ao, const arma::ivec & occs_per_l,
+                               arma::cube & Pcube_out) {
+          Pcube_out.zeros(Nrad, Nrad, nblock);
+          for (size_t l = 0; l < nblock; ++l) {
+            if (occs_per_l(l) <= 0) continue;
+            // For an integer per-l total N in a manifold of capacity
+            // 2*(2l+1) restricted or (2l+1) unrestricted, split
+            // evenly across the N/max_orb lowest orbitals.
+            const arma::mat orb_l = arma::mat(orbs_ao.slice(l));
+            const int norb = orb_l.n_cols;
+            const double per_orb = (restricted ? 2.0 * (2 * l + 1) : 2.0 * l + 1);
+            // AO density with occupations set: pick occs from OOO
+            // internal (they are what's converged). For simplicity
+            // fall back to a diagonal-per-orbital occupation of
+            // occs_per_l(l) / norb capped at per_orb.
+            arma::vec occ_vec(norb, arma::fill::zeros);
+            double remaining = static_cast<double>(occs_per_l(l));
+            for (int i = 0; i < norb && remaining > 0; ++i) {
+              const double take = std::min<double>(per_orb, remaining);
+              occ_vec(i) = take;
+              remaining -= take;
+            }
+            Pcube_out.slice(l) = orb_l * arma::diagmat(occ_vec) * arma::trans(orb_l);
+          }
+        };
+
+        build_cube(result.orbs_a, result.occs_a, result.Pl_a);
+        arma::mat Prad_arma = arma::zeros(Nrad, Nrad);
+        for (size_t l = 0; l < nblock; ++l)
+          Prad_arma += result.Pl_a.slice(l);
+        if (!restricted) {
+          build_cube(result.orbs_b, result.occs_b, result.Pl_b);
+          for (size_t l = 0; l < nblock; ++l)
+            Prad_arma += result.Pl_b.slice(l);
+        }
+        result.Prad = helfem::to_eigen(Prad_arma);
+
         // --save path: write basis-defining params + per-l AO density
         // cube(s) + per-l electron counts. Rebuilding a matching basis
         // needs (Z, lmax, bval); the density cube is used by --load.
@@ -426,34 +468,7 @@ namespace helfem {
             savechk.write("sadatom_bval", bval_col);
           }
 
-          auto build_cube = [&](const arma::cube & orbs_ao, const arma::ivec & occs_per_l,
-                                 arma::cube & Pcube_out) {
-            Pcube_out.zeros(Nrad, Nrad, nblock);
-            for (size_t l = 0; l < nblock; ++l) {
-              if (occs_per_l(l) <= 0) continue;
-              // For an integer per-l total N in a manifold of capacity
-              // 2*(2l+1) restricted or (2l+1) unrestricted, split
-              // evenly across the N/max_orb lowest orbitals.
-              const arma::mat orb_l = arma::mat(orbs_ao.slice(l));
-              const int norb = orb_l.n_cols;
-              const double per_orb = (restricted ? 2.0 * (2 * l + 1) : 2.0 * l + 1);
-              // AO density with occupations set: pick occs from OOO
-              // internal (they are what's converged). For simplicity
-              // fall back to a diagonal-per-orbital occupation of
-              // occs_per_l(l) / norb capped at per_orb.
-              arma::vec occ_vec(norb, arma::fill::zeros);
-              double remaining = static_cast<double>(occs_per_l(l));
-              for (int i = 0; i < norb && remaining > 0; ++i) {
-                const double take = std::min<double>(per_orb, remaining);
-                occ_vec(i) = take;
-                remaining -= take;
-              }
-              Pcube_out.slice(l) = orb_l * arma::diagmat(occ_vec) * arma::trans(orb_l);
-            }
-          };
-
-          arma::cube Pal_out;
-          build_cube(result.orbs_a, result.occs_a, Pal_out);
+          const arma::cube & Pal_out = result.Pl_a;
           for (size_t l = 0; l < nblock; ++l)
             savechk.write(std::string("sadatom_Pal_") + std::to_string(l),
                           arma::mat(Pal_out.slice(l)));
@@ -463,8 +478,7 @@ namespace helfem {
             savechk.write("sadatom_occs_a", oa);
           }
           if (!restricted) {
-            arma::cube Pbl_out;
-            build_cube(result.orbs_b, result.occs_b, Pbl_out);
+            const arma::cube & Pbl_out = result.Pl_b;
             for (size_t l = 0; l < nblock; ++l)
               savechk.write(std::string("sadatom_Pbl_") + std::to_string(l),
                             arma::mat(Pbl_out.slice(l)));

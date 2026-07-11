@@ -86,6 +86,18 @@ namespace helfem {
         /// Beta channel (empty for restricted).
         arma::cube orbs_b;
         arma::ivec occs_b;
+        /// Converged total radial density matrix (alpha+beta),
+        /// Nrad x Nrad. Consumed by the gensap effective-potential /
+        /// SAP-table output path (basis::coulomb_screening /
+        /// xc_screening / electron_density).
+        helfem::Matrix Prad;
+        /// Per-l radial density cubes. Pl_a.slice(l) is the l-channel
+        /// density; for restricted it holds the full per-l density
+        /// (alpha+beta), for unrestricted it is the alpha channel and
+        /// Pl_b the beta channel (empty for restricted). Used for the
+        /// kinetic-energy-density (tau) column of the SAP table.
+        arma::cube Pl_a;
+        arma::cube Pl_b;
       };
 
       /// Run an OOO-based sadatom SCF. Replaces the bespoke SCFSolver
