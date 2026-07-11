@@ -76,6 +76,9 @@ int main(int argc, char **argv) {
   parser.add<int>("mdft", 0, "phi rule for dft quadrature (0 for auto)", false, 0);
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
+  parser.add<int>("finitenuc", 0, "finite nuclear model: 0 point, 1 Gaussian, 2 spherical, 3 hollow, 4 regularized", false, 0);
+  parser.add<double>("Rrms1", 0, "nucleus 1 finite rms radius", false, 0.0);
+  parser.add<double>("Rrms2", 0, "nucleus 2 finite rms radius", false, 0.0);
   parser.add<int>("restricted", 0, "spin-restricted: 1 restricted, 0 unrestricted, -1 auto from nela/nelb", false, -1);
   parser.add<int>("symmetry", 0, "orbital symmetry: 0 none, 1 per-m, 2 per-(m,parity) (homonuclear only)", false, 1);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
@@ -129,6 +132,9 @@ int main(int argc, char **argv) {
   const int mdft_arg  = parser.get<int>("mdft");
   const double dftthr = parser.get<double>("dftthr");
   const int primbas   = parser.get<int>("primbas");
+  const int finitenuc = parser.get<int>("finitenuc");
+  const double Rrms1  = parser.get<double>("Rrms1");
+  const double Rrms2  = parser.get<double>("Rrms2");
         int restr     = parser.get<int>("restricted");
         int symm      = parser.get<int>("symmetry");
   const std::string xparf = parser.get<std::string>("x_pars");
@@ -225,7 +231,27 @@ int main(int argc, char **argv) {
   // Diatomic chemistry-layer methods are still arma-native.
   const arma::mat S    = helfem::to_arma(basis.overlap());
   const arma::mat T    = helfem::to_arma(basis.kinetic());
-  const arma::mat Vnuc = helfem::to_arma(basis.nuclear());
+  // Nuclear attraction. Point nuclei use the exact analytic
+  // prolate-spheroidal matrix; a finite nuclear model is evaluated on
+  // the two-dimensional quadrature grid (same path the SAP guess uses),
+  // one modelpotential::ModelPotential per nucleus. finitenuc indexes
+  // modelpotential::nuclear_model_t directly (0 == point), matching the
+  // atomic driver's convention.
+  arma::mat Vnuc;
+  if (finitenuc == 0) {
+    Vnuc = helfem::to_arma(basis.nuclear());
+  } else {
+    modelpotential::ModelPotential *pot1 =
+        modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) finitenuc, Z1, Rrms1);
+    modelpotential::ModelPotential *pot2 =
+        modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) finitenuc, Z2, Rrms2);
+    const int lquad = 4 * arma::max(lmmax) + 12;
+    helfem::diatomic::twodquad::TwoDGrid qgrid(&basis, lquad);
+    Vnuc = qgrid.model_potential(pot1, pot2);
+    delete pot1;
+    delete pot2;
+    printf("Using finite nuclear model %d (Rrms1=%g, Rrms2=%g)\n", finitenuc, Rrms1, Rrms2);
+  }
 
   // External static-field one-electron matrices. Diatomic has two
   // nuclei at (0, 0, +/- Rhalf); nuclear dipole/quadrupole moments are
