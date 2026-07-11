@@ -22,6 +22,7 @@
 
 #include "../general/cmdline.h"
 #include "../general/dftfuncs.h"
+#include "../general/constants.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
 #include "../general/scf_driver_common.h"
@@ -131,6 +132,11 @@ int main(int argc, char **argv) {
   parser.add<std::string>("pot", 0, "functional for the effective/SAP potential (empty = use --method)", false, "");
   parser.add<bool>("savepot", 0, "also save the xc screening potential to xcpot.dat?", false, false);
   parser.add<bool>("saveing", 0, "also save the density ingredients to xcing.dat?", false, false);
+  parser.add<bool>("saveorb", 0, "save radial orbitals to orbs_<El>_<spin>_l<l>.dat?", false, false);
+
+  // Atomic-size diagnostics (parity with bespoke gensap).
+  parser.add<double>("vdwthr", 0, "density threshold for the van der Waals radius", false, 0.001);
+  parser.add<double>("eps_el", 0, "density threshold for the electron-count atomic radius", false, 0.073416683704840394115); // H analytic radius matches the vdW routine at 1e-3 (Rahm 2016)
 
   parser.parse_check(argc, argv);
 
@@ -227,6 +233,48 @@ int main(int argc, char **argv) {
   opts.save_file    = parser.get<std::string>("save");
 
   sadatom::scf::AtomicSCFResult result = sadatom::scf::run_atomic_scf(opts);
+
+  // Density / atomic-size diagnostics (parity with bespoke gensap).
+  {
+    const arma::mat Pdiag = helfem::to_arma(result.Prad);
+    const double nucd  = result.basis.nuclear_density(Pdiag);
+    const double gnucd = result.basis.nuclear_density_gradient(Pdiag);
+    printf("\nElectron density          at the nucleus is % e\n", nucd);
+    printf("Electron density gradient at the nucleus is % e\n", gnucd);
+    if (nucd != 0.0)
+      printf("Cusp condition is %.10f\n", -1.0 / (2 * Z) * gnucd / nucd);
+
+    const double vdwthr = parser.get<double>("vdwthr");
+    const double eps_el = parser.get<double>("eps_el");
+    const double rvdw = result.basis.vdw_radius(Pdiag, vdwthr);
+    printf("\nEstimated vdW radius with density threshold %e is %.6f bohr = %.6f A\n",
+           vdwthr, rvdw, rvdw * BOHRINANGSTROM);
+    printf("Note that this criterion is sensitive to numerical noise.\n");
+    const double rincl = result.basis.electron_count_radius(Pdiag, eps_el);
+    printf("Estimated radius with electron count threshold %e is %.6f bohr = %.6f A\n",
+           eps_el, rincl, rincl * BOHRINANGSTROM);
+  }
+
+  // Save radial orbitals: one file per spin channel and l, columns
+  // [r, phi_0(r), phi_1(r), ...] on the quadrature grid.
+  if (parser.get<bool>("saveorb")) {
+    const arma::vec r = result.basis.radii();
+    auto dump = [&](const arma::cube & orbs, const char * spin) {
+      for (arma::uword l = 0; l < orbs.n_slices; ++l) {
+        const arma::mat phi = result.basis.orbitals(orbs.slice(l));
+        arma::mat out(r.n_elem, phi.n_cols + 1);
+        out.col(0) = r;
+        out.cols(1, phi.n_cols) = phi;
+        std::ostringstream oss;
+        oss << "orbs_" << element_symbols[Z] << "_" << spin << "_l" << l << ".dat";
+        out.save(oss.str(), arma::raw_ascii);
+      }
+    };
+    dump(result.orbs_a, restricted ? "r" : "a");
+    if (!restricted)
+      dump(result.orbs_b, "b");
+    printf("Saved radial orbitals to orbs_%s_*.dat\n", element_symbols[Z].c_str());
+  }
 
   // Effective-potential / SAP-table output. The potential functional is
   // --pot if given, otherwise the SCF --method. As in the bespoke
