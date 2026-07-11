@@ -26,9 +26,9 @@ namespace helfem {
       /// Radial basis set
       class RadialBasis {
         /// Quadrature points
-        arma::vec xq;
+        helfem::Vector xq;
         /// Quadrature weights
-        arma::vec wq;
+        helfem::Vector wq;
         /// Finite element basis
         polynomial_basis::FiniteElementBasis fem;
 
@@ -43,7 +43,7 @@ namespace helfem {
         /// Get number of quadrature points
         int get_nquad() const;
         /// Get boundary values
-        arma::vec get_bval() const;
+        helfem::Vector get_bval() const;
         /// Get polynomial basis identifier
         int get_poly_id() const;
         /// Get number of nodes in polynomial
@@ -64,37 +64,37 @@ namespace helfem {
         void get_idx(size_t iel, size_t & ifirst, size_t & ilast) const;
 
         /// Compute radial matrix elements
-        arma::mat radial_integral(int m, int n) const;
+        helfem::Matrix radial_integral(int m, int n) const;
         /// Compute primitive kinetic energy matrix in element (excluding l and m parts)
-        arma::mat kinetic(size_t iel) const;
+        helfem::Matrix kinetic(size_t iel) const;
         /// Compute primitive kinetic energy matrix
-        arma::mat kinetic() const;
+        helfem::Matrix kinetic() const;
 
         /// Cross-basis radial overlap with (typically different) rh, with
         /// the sinh(mu) * cosh^n(mu) weight. Used by TwoDBasis::overlap
         /// below when building the cross-basis S12 for the SCF driver's
         /// --load path.
-        arma::mat overlap(const RadialBasis & rh, int n) const;
+        helfem::Matrix overlap(const RadialBasis & rh, int n) const;
 
         /// Compute Plm integral
-        arma::mat Plm_integral(int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
+        helfem::Matrix Plm_integral(int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
         /// Compute Qlm integral
-        arma::mat Qlm_integral(int alpha, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
+        helfem::Matrix Qlm_integral(int alpha, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
         /// Compute primitive two-electron integral
-        arma::mat twoe_integral(int alpha, int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
+        helfem::Matrix twoe_integral(int alpha, int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
 
         /// Get quadrature points
-        arma::vec get_chmu_quad() const;
+        helfem::Vector get_chmu_quad() const;
         /// Evaluate basis functions at quadrature points
-        arma::mat get_bf(size_t iel) const;
+        helfem::Matrix get_bf(size_t iel) const;
         /// Evaluate basis functions at wanted point in [-1,1]
-        arma::mat get_bf(size_t iel, const arma::vec & x) const;
+        helfem::Matrix get_bf(size_t iel, const helfem::Vector & x) const;
         /// Evaluate derivatives of basis functions at quadrature points
-        arma::mat get_df(size_t iel) const;
+        helfem::Matrix get_df(size_t iel) const;
         /// Get quadrature weights
-        arma::vec get_wrad(size_t iel) const;
+        helfem::Vector get_wrad(size_t iel) const;
         /// Get r values
-        arma::vec get_r(size_t iel) const;
+        helfem::Vector get_r(size_t iel) const;
       };
 
       /// L, |M| index type
@@ -131,18 +131,18 @@ namespace helfem {
         /// L, M map
         std::vector<lmidx_t> LM_map;
         /// Auxiliary integrals, Plm
-        std::vector<arma::mat> disjoint_P0, disjoint_P2;
+        std::vector<helfem::Matrix> disjoint_P0, disjoint_P2;
         /// Auxiliary integrals, Qlm
-        std::vector<arma::mat> disjoint_Q0, disjoint_Q2;
+        std::vector<helfem::Matrix> disjoint_Q0, disjoint_Q2;
         /// Primitive two-electron integrals: <Nel^2 * N_L>
-        std::vector<arma::mat> prim_tei00, prim_tei02, prim_tei20, prim_tei22;
+        std::vector<helfem::Matrix> prim_tei00, prim_tei02, prim_tei20, prim_tei22;
         /// Primitive two-electron integrals: <Nel^2 * N_L> sorted for exchange
-        std::vector<arma::mat> prim_ktei00, prim_ktei02, prim_ktei20, prim_ktei22;
+        std::vector<helfem::Matrix> prim_ktei00, prim_ktei02, prim_ktei20, prim_ktei22;
 
         /// Add to radial submatrix
-        void add_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
+        void add_sub(helfem::Matrix & M, size_t iang, size_t jang, const helfem::Matrix & Msub) const;
         /// Set radial submatrix
-        void set_sub(arma::mat & M, size_t iang, size_t jang, const arma::mat & Msub) const;
+        void set_sub(helfem::Matrix & M, size_t iang, size_t jang, const helfem::Matrix & Msub) const;
 
         /// Find index in (L,|M|) table
         size_t lmind(int L, int M, bool check=true) const;
