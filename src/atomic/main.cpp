@@ -75,6 +75,14 @@ int main(int argc, char **argv) {
   parser.add<double>("Rrms", 0, "finite nuclear rms radius", false, 0.0);
   parser.add<int>("restricted", 0, "spin-restricted: 1 restricted, 0 unrestricted, -1 auto from nela/nelb", false, -1);
   parser.add<int>("symmetry", 0, "orbital symmetry: 0 none, 1 per-m, 2 per-(l,m)", false, 1);
+  // Off-centre point charges on the z-axis at +/- Rmid (parity with the
+  // bespoke atomic driver): an atom of charge Z at the origin embedded
+  // between two extra nuclei Zl, Zr. Breaks spherical (l) symmetry but
+  // conserves m, so symmetry=2 is relaxed to per-m below.
+  parser.add<std::string>("Zl", 0, "left-hand off-centre nuclear charge (element symbol or Z)", false, "");
+  parser.add<std::string>("Zr", 0, "right-hand off-centre nuclear charge (element symbol or Z)", false, "");
+  parser.add<double>("Rmid", 0, "distance of the off-centre nuclei from the origin", false, 0.0);
+  parser.add<bool>("angstrom", 0, "input Rmid in angstrom instead of bohr", false, false);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
@@ -144,6 +152,13 @@ int main(int argc, char **argv) {
   const double Rrms       = parser.get<double>("Rrms");
         int    restr      = parser.get<int>("restricted");
   const int    symm       = parser.get<int>("symmetry");
+  const int    Zl         = get_Z(parser.get<std::string>("Zl"));
+  const int    Zr         = get_Z(parser.get<std::string>("Zr"));
+        double Rhalf      = parser.get<double>("Rmid");
+  if (parser.get<bool>("angstrom") && Rhalf != 0.0) {
+    printf("Converting Rmid from %g angstrom to %g bohr.\n", Rhalf, Rhalf * ANGSTROMINBOHR);
+    Rhalf *= ANGSTROMINBOHR;
+  }
   const std::string xparf = parser.get<std::string>("x_pars");
   const std::string cparf = parser.get<std::string>("c_pars");
   const bool   zeroder    = parser.get<bool>("zeroder");
@@ -183,6 +198,13 @@ int main(int argc, char **argv) {
     printf("Warning - asked for full orbital symmetry in presence of magnetic field. Relaxing restriction.\n");
     symm_eff = 1;
   }
+  // Off-centre charges mix l sectors (they conserve m), so the per-(l,m)
+  // block-diagonal Fock ansatz would silently drop the l-coupling in
+  // basis.nuclear(). Relax to per-m, exactly as for an electric field.
+  if (symm_eff == 2 && (Zl != 0 || Zr != 0)) {
+    printf("Warning - asked for full orbital symmetry with off-centre charges. Relaxing to per-m.\n");
+    symm_eff = 1;
+  }
 
   helfem::Vector x_pars, c_pars;
   if (xparf.size()) x_pars = scf::parse_xc_params(xparf);
@@ -218,8 +240,19 @@ int main(int argc, char **argv) {
   else if (Nquad < 2 * poly->get_nbf())
     throw std::logic_error("Insufficient radial quadrature.\n");
 
-  const int Zl = 0, Zr = 0;
-  const double Rhalf = 0.0;
+  // Nuclear-nuclear repulsion from the off-centre charges: Z(centre)<->Zl,
+  // Z<->Zr (both at distance Rhalf) plus Zl<->Zr (distance 2*Rhalf).
+  const double Enucr = (Rhalf > 0.0)
+      ? Z * (Zl + Zr) / Rhalf + Zl * Zr / (2.0 * Rhalf)
+      : 0.0;
+  if (Zl != 0 || Zr != 0) {
+    printf("Off-centre charges Zl=%i Zr=%i at distance %.6f bohr from the origin.\n", Zl, Zr, Rhalf);
+    printf("Nuclear repulsion energy is %.10e\n", Enucr);
+    if (Rhalf <= 0.0)
+      throw std::logic_error("Off-centre charges require --Rmid > 0.\n");
+    if (Nelem0 < 1)
+      throw std::logic_error("Off-centre charges require --nelem0 >= 1 (radial elements between the origin and the off-centre nuclei).\n");
+  }
 
   arma::ivec lval, mval;
   atomic::basis::angular_basis(lmax, mmax, lval, mval);
@@ -427,12 +460,13 @@ int main(int argc, char **argv) {
         Ka, Kb, Exx, Pa, Pb, restricted, have_exx, exchange_fn);
 
     const double Etot = Ekin + Enuc + Eefield + Emfield + Econf
-                       + Ecoul + Exc + Exx;
+                       + Ecoul + Exc + Exx + Enucr;
     printf("kinetic %.10f nuclear %.10f Coulomb %.10f XC %.10f Exx %.10f",
             Ekin, Enuc, Ecoul, Exc, Exx);
     if (have_efield) printf(" Eefield %.10f", Eefield);
     if (have_bfield) printf(" Emfield %.10f", Emfield);
     if (have_conf)   printf(" Econf %.10f",   Econf);
+    if (Enucr != 0.0) printf(" Enucr %.10f",  Enucr);
     printf("  total %.10f  (nel err %.3e)\n",
             Etot, nelnum - static_cast<double>(Ntot));
     fflush(stdout);

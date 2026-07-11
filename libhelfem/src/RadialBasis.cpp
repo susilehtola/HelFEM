@@ -381,11 +381,18 @@ namespace helfem {
       }
 
       helfem::Matrix FEMRadialBasis::nuclear_offcenter(size_t iel, double Rhalf, int L) const {
-        if (fem.element_begin(iel) <= Rhalf) {
+        // Multipole term of 1/|r - Rhalf| over element iel. For an element
+        // entirely outside Rhalf (r >= Rhalf) the source is enclosed, so
+        // r_< = Rhalf, r_> = r  ->  Rhalf^L * <r^{-L-1}>. For an element
+        // entirely inside (r <= Rhalf), r_< = r, r_> = Rhalf  ->
+        // <r^L> * Rhalf^{-L-1}. The comparison operators were inverted in
+        // an earlier migration, which for r>Rhalf elements evaluated
+        // <r^L> out to Rmax (~40^L) and blew up the SCF; restored here.
+        if (fem.element_begin(iel) >= Rhalf) {
           return -sqrt(4.0 * M_PI / (2 * L + 1)) *
                   radial_integral(-L - 1, iel) *
                   std::pow(Rhalf, L);
-        } else if (fem.element_end(iel) >= Rhalf) {
+        } else if (fem.element_end(iel) <= Rhalf) {
           return -sqrt(4.0 * M_PI / (2 * L + 1)) *
                   radial_integral(L, iel) *
                   std::pow(Rhalf, -L - 1);
