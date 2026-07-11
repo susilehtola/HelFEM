@@ -48,9 +48,9 @@ namespace helfem {
         /// Radial basis set
         FEMRadialBasis radial;
         /// Angular basis set: function l values
-        arma::ivec lval;
+        Eigen::VectorXi lval;
         /// Angular basis set: function m values
-        arma::ivec mval;
+        Eigen::VectorXi mval;
         /// Zero out derivative at practical infinity?
         bool zeroder;
 
