@@ -148,10 +148,6 @@ namespace helfem {
         return lval.n_elem;
       }
 
-      arma::uvec TwoDBasis::pure_indices() const {
-        return arma::linspace<arma::uvec>(0,Nbf()-1,Nbf());
-      }
-
       arma::uvec TwoDBasis::m_indices(int m) const {
         return helfem::collect_shell_indices(mval.n_elem,
             [&](size_t)   { return radial.Nbf(); },
@@ -1009,46 +1005,6 @@ namespace helfem {
         }
 
         return K;
-      }
-
-      arma::mat TwoDBasis::remove_boundaries(const arma::mat & Fnob) const {
-        if(Fnob.n_rows != Ndummy() || Fnob.n_cols != Ndummy()) {
-          std::ostringstream oss;
-          oss << "Matrix does not have expected size! Got " << Fnob.n_rows << " x " << Fnob.n_cols << ", expected " << Ndummy() << " x " << Ndummy() << "!\n";
-          throw std::logic_error(oss.str());
-        }
-
-        // Get indices
-        arma::uvec idx(pure_indices());
-
-        // Matrix with the boundary conditions removed
-        arma::mat Fpure(Fnob(idx,idx));
-
-        //Fnob.print("Input: w/o built-in boundaries");
-        //Fpure.print("Output: w built-in boundaries");
-
-        return Fpure;
-      }
-
-      arma::mat TwoDBasis::expand_boundaries(const arma::mat & Ppure) const {
-        if(Ppure.n_rows != Nbf() || Ppure.n_cols != Nbf()) {
-          std::ostringstream oss;
-          oss << "Matrix does not have expected size! Got " << Ppure.n_rows << " x " << Ppure.n_cols << ", expected " << Nbf() << " x " << Nbf() << "!\n";
-          throw std::logic_error(oss.str());
-        }
-
-        // Get indices
-        arma::uvec idx(pure_indices());
-
-        // Matrix with the boundary conditions removed
-        arma::mat Pnob(Ndummy(),Ndummy());
-        Pnob.zeros();
-        Pnob(idx,idx)=Ppure;
-
-        //Ppure.print("Input: w built-in boundaries");
-        //Pnob.print("Output: w/o built-in boundaries");
-
-        return Pnob;
       }
 
       arma::cx_mat TwoDBasis::eval_bf(size_t iel, double cth, double phi) const {

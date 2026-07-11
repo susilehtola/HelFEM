@@ -118,13 +118,6 @@ namespace helfem {
         /// Is derivative zeroed at infinity?
         int get_zeroder() const;
 
-        /// Get indices of real basis functions
-        arma::uvec pure_indices() const;
-        /// Expand boundary conditions
-        arma::mat expand_boundaries(const arma::mat & H) const;
-        /// Remove boundary conditions
-        arma::mat remove_boundaries(const arma::mat & H) const;
-
 
         /// Compute two-electron integrals
         void compute_tei(bool exchange);
