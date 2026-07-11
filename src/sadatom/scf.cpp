@@ -210,10 +210,29 @@ namespace helfem {
           return std::make_pair(Etot, fock);
         };
 
+        // Initial-guess electron-nuclear potential. iguess 0 uses the
+        // bare nuclear attraction (core-Hamiltonian guess); 1/2/3 use a
+        // GSZ / SAP / Thomas-Fermi screened-nucleus model potential,
+        // which typically converges materially faster. Only the guess
+        // Fock matrix is affected -- the SCF Fock build above always
+        // uses the true Vnuc.
+        helfem::Matrix Vguess = Vnuc;
+        if (opts.iguess != 0) {
+          modelpotential::ModelPotential * model = nullptr;
+          switch (opts.iguess) {
+          case 1: model = new modelpotential::GSZAtom(opts.Z); break;
+          case 2: model = new modelpotential::SAPAtom(opts.Z); break;
+          case 3: model = new modelpotential::TFAtom(opts.Z);  break;
+          default: throw std::logic_error("Unsupported iguess value (expected 0..3).\n");
+          }
+          Vguess = basis.model_potential(model);
+          delete model;
+        }
+
         OpenOrbitalOptimizer::FockMatrix<OOO_Real> CoreH(nblock * nparttype);
         for (size_t t = 0; t < nparttype; ++t) {
           for (size_t l = 0; l < nblock; ++l) {
-            helfem::Matrix Hl = T + Vnuc;
+            helfem::Matrix Hl = T + Vguess;
             if (have_conf) Hl += Vconf;
             if (l > 0) Hl += l * (l + 1) * Tl;
             CoreH[t * nblock + l] = Sinvh.transpose() * Hl * Sinvh;
