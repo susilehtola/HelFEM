@@ -18,6 +18,8 @@
 
 #include "basis.h"
 #include "../general/dftgrid_common.h"
+#include <complex>
+#include <vector>
 
 namespace helfem {
   namespace diatomic {
@@ -31,36 +33,36 @@ namespace helfem {
         const helfem::diatomic::basis::TwoDBasis *basp;
 
         /// Angular grid
-        arma::vec cth, phi, wang;
+        helfem::Vector cth, phi, wang;
 
         /// Scale factors
-        arma::rowvec scale_r, scale_theta, scale_phi;
+        helfem::Vector scale_r, scale_theta, scale_phi;
         /// Pre-computed 1 / scale^2 used by the kinetic / mGGA terms.
-        /// Filled together with scale_*; cuts arma::square + division out
+        /// Filled together with scale_*; cuts the square + division out
         /// of every Fxc evaluation.
-        arma::rowvec inv_scale_r2, inv_scale_theta2, inv_scale_phi2;
+        helfem::Vector inv_scale_r2, inv_scale_theta2, inv_scale_phi2;
 
         /// List of basis functions in element
-        arma::uvec bf_ind;
+        std::vector<Eigen::Index> bf_ind;
         /// Values of important functions in grid points, Nbf * Ngrid
-        arma::cx_mat bf;
+        Eigen::MatrixXcd bf;
         /// Radial gradient
-        arma::cx_mat bf_rho;
+        Eigen::MatrixXcd bf_rho;
         /// Theta gradient
-        arma::cx_mat bf_theta;
+        Eigen::MatrixXcd bf_theta;
         /// Phi gradient
-        arma::cx_mat bf_phi;
+        Eigen::MatrixXcd bf_phi;
         /// Values of laplacians in grid points, (3*Nbf) * Ngrid
-        arma::cx_mat bf_lapl;
+        Eigen::MatrixXcd bf_lapl;
 
         /// Density helper matrices: P_{uv} chi_v, and P_{uv} nabla(chi_v)
-        arma::cx_mat Pv, Pv_rho, Pv_theta, Pv_phi;
+        Eigen::MatrixXcd Pv, Pv_rho, Pv_theta, Pv_phi;
         /// Same for spin-polarized
-        arma::cx_mat Pav, Pav_rho, Pav_theta, Pav_phi;
-        arma::cx_mat Pbv, Pbv_rho, Pbv_theta, Pbv_phi;
+        Eigen::MatrixXcd Pav, Pav_rho, Pav_theta, Pav_phi;
+        Eigen::MatrixXcd Pbv, Pbv_rho, Pbv_theta, Pbv_phi;
 
         /// Gradient of electron density
-        arma::mat grho;
+        helfem::Matrix grho;
 
         // Members provided by helfem::dftgrid_common::DFTGridWorkerBase:
         //   wtot, exc, rho, sigma, vxc, vsigma, lapl, tau, vlapl, vtau
@@ -82,9 +84,9 @@ namespace helfem {
         void compute_bf(size_t iel, size_t irad);
 
         /// Update values of density, restricted calculation
-        void update_density(const arma::mat & P);
+        void update_density(const helfem::Matrix & P);
         /// Update values of density, unrestricted calculation
-        void update_density(const arma::mat & Pa, const arma::mat & Pb);
+        void update_density(const helfem::Matrix & Pa, const helfem::Matrix & Pb);
 
         // compute_Nel() is inherited from DFTGridWorkerBase.
         /// Compute kinetic energy
@@ -94,9 +96,9 @@ namespace helfem {
         // from DFTGridWorkerBase.
 
         /// Evaluate Fock matrix, restricted calculation
-        void eval_Fxc(arma::mat & H) const;
+        void eval_Fxc(helfem::Matrix & H) const;
         /// Evaluate Fock matrix, unrestricted calculation
-        void eval_Fxc(arma::mat & Ha, arma::mat & Hb, bool beta=true) const;
+        void eval_Fxc(helfem::Matrix & Ha, helfem::Matrix & Hb, bool beta=true) const;
       };
 
       /// Wrapper routine
@@ -130,49 +132,40 @@ namespace helfem {
       using helfem::dftgrid_common::increment_lda;
 
       /// BLAS routine for GGA-type quadrature
-      template<typename T> void increment_gga(arma::mat & H, const arma::mat & gn, const arma::Mat<T> & f, arma::Mat<T> f_x, arma::Mat<T> f_y, arma::Mat<T> f_z) {
-        if(gn.n_cols!=3) {
+      template<typename T> void increment_gga(helfem::Matrix & H, const helfem::Matrix & gn, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> & f, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> f_x, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> f_y, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> f_z) {
+        if(gn.cols()!=3) {
           throw std::runtime_error("Grad rho must have three columns!\n");
         }
-        if(f.n_rows != f_x.n_rows || f.n_cols != f_x.n_cols || f.n_rows != f_y.n_rows || f.n_cols != f_y.n_cols || f.n_rows != f_z.n_rows || f.n_cols != f_z.n_cols) {
+        if(f.rows() != f_x.rows() || f.cols() != f_x.cols() || f.rows() != f_y.rows() || f.cols() != f_y.cols() || f.rows() != f_z.rows() || f.cols() != f_z.cols()) {
           throw std::runtime_error("Sizes of basis function and derivative matrices doesn't match!\n");
         }
-        if(H.n_rows != f.n_rows || H.n_cols != f.n_rows) {
+        if(H.rows() != f.rows() || H.cols() != f.rows()) {
           throw std::runtime_error("Sizes of basis function and Fock matrices doesn't match!\n");
         }
 
         // Compute helper: gamma_{ip} = \sum_c \chi_{ip;c} gr_{p;c}
         //                 (N, Np)    =        (N Np; c)    (Np, 3)
-        arma::Mat<T> gamma(f.n_rows,f.n_cols);
-        gamma.zeros();
+        Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> gamma =
+            Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>::Zero(f.rows(), f.cols());
         {
-          // Helper
-          arma::rowvec gc;
+          // x gradient. gn(j,0) scales column j of f_x.
+          for(Eigen::Index j=0;j<f_x.cols();j++)
+            f_x.col(j) *= gn(j,0);
+          gamma += f_x;
 
-          // x gradient
-          gc=arma::strans(gn.col(0));
-          for(size_t j=0;j<f_x.n_cols;j++)
-            for(size_t i=0;i<f_x.n_rows;i++)
-              f_x(i,j)*=gc(j);
-          gamma+=f_x;
-
-          // x gradient
-          gc=arma::strans(gn.col(1));
-          for(size_t j=0;j<f_y.n_cols;j++)
-            for(size_t i=0;i<f_y.n_rows;i++)
-              f_y(i,j)*=gc(j);
-          gamma+=f_y;
+          // y gradient
+          for(Eigen::Index j=0;j<f_y.cols();j++)
+            f_y.col(j) *= gn(j,1);
+          gamma += f_y;
 
           // z gradient
-          gc=arma::strans(gn.col(2));
-          for(size_t j=0;j<f_z.n_cols;j++)
-            for(size_t i=0;i<f_z.n_rows;i++)
-              f_z(i,j)*=gc(j);
-          gamma+=f_z;
+          for(Eigen::Index j=0;j<f_z.cols();j++)
+            f_z.col(j) *= gn(j,2);
+          gamma += f_z;
         }
 
         // Form Fock matrix
-        H+=arma::real(gamma*arma::trans(f) + f*arma::trans(gamma));
+        H += (gamma*f.adjoint() + f*gamma.adjoint()).real();
       }
     }
   }

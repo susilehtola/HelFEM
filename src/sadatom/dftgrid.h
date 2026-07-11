@@ -18,6 +18,7 @@
 
 #include "basis.h"
 #include "../general/dftgrid_common.h"
+#include <vector>
 
 namespace helfem {
   namespace sadatom {
@@ -31,27 +32,27 @@ namespace helfem {
         const helfem::sadatom::basis::TwoDBasis *basp;
 
         /// Distance from nucleus
-        arma::rowvec r;
+        helfem::Vector r;
         /// Radial quadrature weight
-        arma::rowvec wrad;
+        helfem::Vector wrad;
 
         /// List of basis functions in element
-        arma::uvec bf_ind;
+        std::vector<Eigen::Index> bf_ind;
         /// Values of important functions in grid points, Nbf * Ngrid
-        arma::mat bf;
+        helfem::Matrix bf;
         /// Radial gradient
-        arma::mat bf_rho;
+        helfem::Matrix bf_rho;
         /// Radial laplacian
-        arma::mat bf_rho2;
+        helfem::Matrix bf_rho2;
 
         /// Density helper matrices: P_{uv} chi_v, and P_{uv} nabla(chi_v)
-        arma::mat Pv, Pv_rho;
+        helfem::Matrix Pv, Pv_rho;
         /// Same for spin-polarized
-        arma::mat Pav, Pav_rho;
-        arma::mat Pbv, Pbv_rho;
+        helfem::Matrix Pav, Pav_rho;
+        helfem::Matrix Pbv, Pbv_rho;
 
         /// Gradient of electron density
-        arma::mat grho;
+        helfem::Matrix grho;
 
         // Members provided by helfem::dftgrid_common::DFTGridWorkerBase:
         //   wtot, exc, rho, sigma, vxc, vsigma, lapl, tau, vlapl, vtau
@@ -72,10 +73,11 @@ namespace helfem {
         /// Compute basis functions on grid points
         void compute_bf(size_t iel);
 
-        /// Update values of density, restricted calculation
-        void update_density(const arma::cube & P);
+        /// Update values of density, restricted calculation. The per-l
+        /// density cube is passed as one helfem::Matrix per l-slice.
+        void update_density(const std::vector<helfem::Matrix> & P);
         /// Update values of density, unrestricted calculation
-        void update_density(const arma::cube & Pa, const arma::cube & Pb);
+        void update_density(const std::vector<helfem::Matrix> & Pa, const std::vector<helfem::Matrix> & Pb);
 
         // compute_Nel() is inherited from DFTGridWorkerBase.
 
@@ -83,10 +85,11 @@ namespace helfem {
         // from DFTGridWorkerBase.
 
 
-        /// Evaluate Fock matrix, restricted calculation
-        void eval_Fxc(arma::cube & H) const;
+        /// Evaluate Fock matrix, restricted calculation. One
+        /// helfem::Matrix per l-slice.
+        void eval_Fxc(std::vector<helfem::Matrix> & H) const;
         /// Evaluate Fock matrix, unrestricted calculation
-        void eval_Fxc(arma::cube & Ha, arma::cube & Hb, bool beta=true) const;
+        void eval_Fxc(std::vector<helfem::Matrix> & Ha, std::vector<helfem::Matrix> & Hb, bool beta=true) const;
       };
 
       /// Wrapper routine
@@ -118,60 +121,56 @@ namespace helfem {
       using helfem::dftgrid_common::increment_lda;
 
       /// BLAS routine for GGA-type quadrature
-      template<typename T> void increment_gga(arma::mat & H, const arma::mat & gn, const arma::Mat<T> & f, arma::Mat<T> f_x) {
-        if(gn.n_cols!=1) {
+      template<typename T> void increment_gga(helfem::Matrix & H, const helfem::Matrix & gn, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> & f, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> f_x) {
+        if(gn.cols()!=1) {
           throw std::runtime_error("Grad rho must have three columns!\n");
         }
-        if(f.n_rows != f_x.n_rows || f.n_cols != f_x.n_cols) {
+        if(f.rows() != f_x.rows() || f.cols() != f_x.cols()) {
           throw std::runtime_error("Sizes of basis function and derivative matrices doesn't match!\n");
         }
-        if(H.n_rows != f.n_rows || H.n_cols != f.n_rows) {
+        if(H.rows() != f.rows() || H.cols() != f.rows()) {
           throw std::runtime_error("Sizes of basis function and Fock matrices doesn't match!\n");
         }
 
         // Compute helper: gamma_{ip} = \sum_c \chi_{ip;c} gr_{p;c}
         //                 (N, Np)    =        (N Np; c)    (Np, 3)
-        arma::Mat<T> gamma(f.n_rows,f.n_cols);
-        gamma.zeros();
+        Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> gamma =
+            Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>::Zero(f.rows(), f.cols());
         {
-          // Helper
-          arma::rowvec gc;
-
-          gc=arma::strans(gn.col(0));
-          for(size_t j=0;j<f_x.n_cols;j++)
-            for(size_t i=0;i<f_x.n_rows;i++)
-              f_x(i,j)*=gc(j);
-          gamma+=f_x;
+          // gn.col(0) holds the (single) radial gradient weight per point;
+          // scale column j of f_x by gn(j,0).
+          for(Eigen::Index j=0;j<f_x.cols();j++)
+            f_x.col(j) *= gn(j,0);
+          gamma += f_x;
         }
 
         // Form Fock matrix
-        H+=arma::real(gamma*arma::trans(f) + f*arma::trans(gamma));
+        H += (gamma*f.adjoint() + f*gamma.adjoint()).real();
       }
 
       /// BLAS routine for mGGA-type quadrature
-      template<typename T> void increment_mgga_lapl(arma::mat & H, const arma::mat & vlapl, const arma::Mat<T> & f, const arma::Mat<T> & l) {
-        if(f.n_cols != vlapl.n_elem) {
+      template<typename T> void increment_mgga_lapl(helfem::Matrix & H, const helfem::Vector & vlapl, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> & f, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> & l) {
+        if(f.cols() != vlapl.size()) {
           std::ostringstream oss;
-          oss << "Number of functions " << f.n_cols << " and potential values " << vlapl.n_elem << " do not match!\n";
+          oss << "Number of functions " << f.cols() << " and potential values " << vlapl.size() << " do not match!\n";
           throw std::runtime_error(oss.str());
         }
-        if(H.n_rows != f.n_rows || H.n_cols != f.n_rows) {
+        if(H.rows() != f.rows() || H.cols() != f.rows()) {
           std::ostringstream oss;
-          oss << "Size of basis function (" << f.n_rows << "," << f.n_cols << ") and Fock matrix (" << H.n_rows << "," << H.n_cols << ") doesn't match!\n";
+          oss << "Size of basis function (" << f.rows() << "," << f.cols() << ") and Fock matrix (" << H.rows() << "," << H.cols() << ") doesn't match!\n";
           throw std::runtime_error(oss.str());
         }
-        if(l.n_rows != f.n_rows || l.n_cols != f.n_cols) {
+        if(l.rows() != f.rows() || l.cols() != f.cols()) {
           std::ostringstream oss;
-          oss << "Size of basis function (" << f.n_rows << "," << f.n_cols << ") and Laplacian matrix (" << l.n_rows << "," << l.n_cols << ") doesn't match!\n";
+          oss << "Size of basis function (" << f.rows() << "," << f.cols() << ") and Laplacian matrix (" << l.rows() << "," << l.cols() << ") doesn't match!\n";
           throw std::runtime_error(oss.str());
         }
 
         // Form helper matrix
-        arma::Mat<T> fhlp(f);
-        for(size_t i=0;i<fhlp.n_rows;i++)
-          for(size_t j=0;j<fhlp.n_cols;j++)
-            fhlp(i,j)*=vlapl(j);
-        H+=arma::real(fhlp*arma::trans(l)+l*arma::trans(fhlp));
+        Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> fhlp = f;
+        for(Eigen::Index j=0;j<fhlp.cols();j++)
+          fhlp.col(j) *= vlapl(j);
+        H += (fhlp*l.adjoint() + l*fhlp.adjoint()).real();
       }
     }
   }
