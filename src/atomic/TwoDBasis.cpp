@@ -668,15 +668,14 @@ namespace helfem {
         if(!prim_tei.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
-        // Phase 3: SCF surface takes Eigen, internals stay arma -- one
-        // conversion at entry, one at exit.
-        const arma::mat P0 = helfem::to_arma(P0_in);
-        arma::mat P(expand_boundaries(P0));
+        // The atomic basis has no boundary reduction (expand/remove_boundaries
+        // are the identity), so the SCF-facing Eigen density is used directly.
+        const helfem::Matrix & P = P0_in;
 
         // Number of radial elements
         size_t Nel(radial.Nel());
         // Number of radial functions
-        size_t Nrad(radial.Nbf());
+        const Eigen::Index Nrad = static_cast<Eigen::Index>(radial.Nbf());
         // Gaunt coefficient table
         int gmax(std::max(arma::max(lval),arma::max(mval)));
         gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
@@ -685,11 +684,11 @@ namespace helfem {
         int Mmax=arma::max(mval)-arma::min(mval);
 
         // Radial helper matrices
-        std::vector< std::vector<arma::mat> > Paux(2*arma::max(lval)+1);
+        std::vector< std::vector<helfem::Matrix> > Paux(2*arma::max(lval)+1);
         for(int L=0;L<(int) Paux.size();L++) {
           Paux[L].resize(2*Mmax+1);
           for(int M=-std::min(L,Mmax);M<=std::min(L,Mmax);M++) {
-            Paux[L][M+Mmax].zeros(Nrad,Nrad);
+            Paux[L][M+Mmax] = helfem::Matrix::Zero(Nrad,Nrad);
           }
         }
 
@@ -710,17 +709,17 @@ namespace helfem {
               // Calculate coupling coefficient
               double cpl(gaunt.coeff(lk,mk,L,M,ll));
               // Increment
-              Paux[L][M+Mmax]+=cpl*P.submat(kang*Nrad,lang*Nrad,(kang+1)*Nrad-1,(lang+1)*Nrad-1);
+              Paux[L][M+Mmax]+=cpl*P.block(static_cast<Eigen::Index>(kang)*Nrad,static_cast<Eigen::Index>(lang)*Nrad,Nrad,Nrad);
             }
           }
         }
 
         // Helper matrices
-        std::vector< std::vector<arma::mat> > Jaux(2*arma::max(lval)+1);
+        std::vector< std::vector<helfem::Matrix> > Jaux(2*arma::max(lval)+1);
         for(int L=0;L<(int) Jaux.size();L++) {
           Jaux[L].resize(2*Mmax+1);
           for(int M=-std::min(L,Mmax);M<=std::min(L,Mmax);M++) {
-            Jaux[L][M+Mmax].zeros(Nrad,Nrad);
+            Jaux[L][M+Mmax] = helfem::Matrix::Zero(Nrad,Nrad);
           }
         }
         // Contract integrals. Per (L, M), delegate the FE assembly to
@@ -737,15 +736,14 @@ namespace helfem {
             return prim_tei[Nel*Nel*L + iel*Nel + iel];
           };
           for(int M=-std::min(L,Mmax);M<=std::min(L,Mmax);M++) {
-            Jaux[L][M+Mmax] += Lfac * ::helfem::to_arma(
+            Jaux[L][M+Mmax] += Lfac *
               helfem::atomic::basis::assemble_J_FE_one_multipole_cached(
-                radial, rs, rb, tw, ::helfem::to_eigen(Paux[L][M+Mmax])));
+                radial, rs, rb, tw, Paux[L][M+Mmax]);
           }
         }
 
         // Full Coulomb matrix
-        arma::mat J(Ndummy(),Ndummy());
-        J.zeros();
+        helfem::Matrix J = helfem::Matrix::Zero(Ndummy(),Ndummy());
         for(size_t iang=0;iang<lval.n_elem;iang++) {
           for(size_t jang=0;jang<lval.n_elem;jang++) {
             // l and m values
@@ -762,21 +760,22 @@ namespace helfem {
               // Coupling
               double cpl(gaunt.coeff(lj,mj,L,M,li));
               if(cpl!=0.0) {
-                J.submat(iang*Nrad,jang*Nrad,(iang+1)*Nrad-1,(jang+1)*Nrad-1)+=cpl*Jaux[L][M+Mmax];
+                J.block(static_cast<Eigen::Index>(iang)*Nrad,static_cast<Eigen::Index>(jang)*Nrad,Nrad,Nrad)+=cpl*Jaux[L][M+Mmax];
               }
             }
           }
         }
 
-        return helfem::to_eigen(remove_boundaries(J));
+        return J;
       }
 
       helfem::Matrix TwoDBasis::exchange(const helfem::Matrix & P0_in) const {
         if(!prim_ktei.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
-        const arma::mat P0 = helfem::to_arma(P0_in);
-        arma::mat P(expand_boundaries(P0));
+        // No boundary reduction in the atomic basis (expand/remove are
+        // the identity), so the Eigen density is used directly.
+        const helfem::Matrix & P = P0_in;
 
         // Gaunt coefficient table
         int gmax(std::max(arma::max(lval),arma::max(mval)));
@@ -785,11 +784,10 @@ namespace helfem {
         // Number of radial elements
         size_t Nel(radial.Nel());
         // Number of radial basis functions
-        size_t Nrad(radial.Nbf());
+        const Eigen::Index Nrad = static_cast<Eigen::Index>(radial.Nbf());
 
         // Full exchange matrix
-        arma::mat K(Ndummy(),Ndummy());
-        K.zeros();
+        helfem::Matrix K = helfem::Matrix::Zero(Ndummy(),Ndummy());
 
         // Per-element K assembly is delegated to
         // assemble_K_FE_one_multipole_cached -- no per-thread scratch
@@ -811,9 +809,9 @@ namespace helfem {
 
               // Form radial helpers
               size_t N_L(2*arma::max(lval)+1);
-              std::vector<arma::mat> Rmat(N_L);
+              std::vector<helfem::Matrix> Rmat(N_L);
               for(size_t i=0;i<N_L;i++) {
-                Rmat[i].zeros(Nrad,Nrad);
+                Rmat[i] = helfem::Matrix::Zero(Nrad,Nrad);
               }
               // Is there a coupling to the channel?
               std::vector<bool> couple(N_L,false);
@@ -835,7 +833,7 @@ namespace helfem {
                     continue;
 
                   // Do we have any density in this block?
-                  double bdens(arma::norm(P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1),"fro"));
+                  double bdens(P.block(static_cast<Eigen::Index>(iang)*Nrad,static_cast<Eigen::Index>(lang)*Nrad,Nrad,Nrad).norm());
                   //printf("(%i %i) (%i %i) density block norm %e\n",li,mi,ll,ml,bdens);
                   if(bdens<10*DBL_EPSILON)
                     continue;
@@ -852,7 +850,7 @@ namespace helfem {
 
                     // L factor
                     double Lfac=4.0*M_PI/(2*L+1);
-                    Rmat[L]+=(Lfac*cpl)*P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1);
+                    Rmat[L]+=(Lfac*cpl)*P.block(static_cast<Eigen::Index>(iang)*Nrad,static_cast<Eigen::Index>(lang)*Nrad,Nrad,Nrad);
                     couple[L]=true;
                   }
                 }
@@ -860,7 +858,7 @@ namespace helfem {
 
               // Per-L K assembly via the shared FE helper, accumulated
               // into the (jang, kang) angular block of K.
-              arma::mat K_block(Nrad, Nrad, arma::fill::zeros);
+              helfem::Matrix K_block = helfem::Matrix::Zero(Nrad, Nrad);
               for(size_t L=0; L<N_L; ++L) {
                 if(!couple[L]) continue;
                 const size_t Lc = L;
@@ -873,25 +871,24 @@ namespace helfem {
                 auto kt = [&,Lc](size_t iel) -> const helfem::Matrix & {
                   return prim_ktei[Nel*Nel*Lc + iel*Nel + iel];
                 };
-                K_block += ::helfem::to_arma(
-                  helfem::atomic::basis::assemble_K_FE_one_multipole_cached(
-                    radial, rs, rb, kt, ::helfem::to_eigen(Rmat[Lc])));
+                K_block += helfem::atomic::basis::assemble_K_FE_one_multipole_cached(
+                    radial, rs, rb, kt, Rmat[Lc]);
               }
-              K.submat(jang*Nrad, kang*Nrad,
-                       (jang+1)*Nrad-1, (kang+1)*Nrad-1) -= K_block;
+              K.block(static_cast<Eigen::Index>(jang)*Nrad, static_cast<Eigen::Index>(kang)*Nrad, Nrad, Nrad) -= K_block;
             }
           }
         }
 
-        return helfem::to_eigen(remove_boundaries(K));
+        return K;
       }
 
       helfem::Matrix TwoDBasis::rs_exchange(const helfem::Matrix & P0_in) const {
         if(!rs_ktei.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
-        const arma::mat P0 = helfem::to_arma(P0_in);
-        arma::mat P(expand_boundaries(P0));
+        // No boundary reduction in the atomic basis (expand/remove are
+        // the identity), so the Eigen density is used directly.
+        const helfem::Matrix & P = P0_in;
 
         // Gaunt coefficient table
         int gmax(std::max(arma::max(lval),arma::max(mval)));
@@ -900,11 +897,10 @@ namespace helfem {
         // Number of radial elements
         size_t Nel(radial.Nel());
         // Number of radial basis functions
-        size_t Nrad(radial.Nbf());
+        const Eigen::Index Nrad = static_cast<Eigen::Index>(radial.Nbf());
 
         // Full exchange matrix
-        arma::mat K(Ndummy(),Ndummy());
-        K.zeros();
+        helfem::Matrix K = helfem::Matrix::Zero(Ndummy(),Ndummy());
 
         // Per-element K assembly is delegated to the cached helpers
         // in CoulombExchangeFE.h -- no per-thread scratch needed.
@@ -925,9 +921,9 @@ namespace helfem {
 
               // Form radial helpers
               size_t N_L(2*arma::max(lval)+1);
-              std::vector<arma::mat> Rmat(N_L);
+              std::vector<helfem::Matrix> Rmat(N_L);
               for(size_t i=0;i<N_L;i++) {
-                Rmat[i].zeros(Nrad,Nrad);
+                Rmat[i] = helfem::Matrix::Zero(Nrad,Nrad);
               }
               // Is there a coupling to the channel?
               std::vector<bool> couple(N_L,false);
@@ -949,7 +945,7 @@ namespace helfem {
                     continue;
 
                   // Do we have any density in this block?
-                  double bdens(arma::norm(P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1),"fro"));
+                  double bdens(P.block(static_cast<Eigen::Index>(iang)*Nrad,static_cast<Eigen::Index>(lang)*Nrad,Nrad,Nrad).norm());
                   //printf("(%i %i) (%i %i) density block norm %e\n",li,mi,ll,ml,bdens);
                   if(bdens<10*DBL_EPSILON)
                     continue;
@@ -966,7 +962,7 @@ namespace helfem {
 
                     // L factor
                     double Lfac = yukawa ? 4.0*M_PI*lambda :  4.0*M_PI*lambda/(2*L+1);
-                    Rmat[L]+=(Lfac*cpl)*P.submat(iang*Nrad,lang*Nrad,(iang+1)*Nrad-1,(lang+1)*Nrad-1);
+                    Rmat[L]+=(Lfac*cpl)*P.block(static_cast<Eigen::Index>(iang)*Nrad,static_cast<Eigen::Index>(lang)*Nrad,Nrad,Nrad);
                     couple[L]=true;
                   }
                 }
@@ -975,7 +971,7 @@ namespace helfem {
               if (yukawa) {
                 // Same FE structure as bare exchange: per-L cached
                 // helper, summed into the (jang, kang) angular block.
-                arma::mat K_block(Nrad, Nrad, arma::fill::zeros);
+                helfem::Matrix K_block = helfem::Matrix::Zero(Nrad, Nrad);
                 for(size_t L=0; L<N_L; ++L) {
                   if(!couple[L]) continue;
                   const size_t Lc = L;
@@ -988,35 +984,31 @@ namespace helfem {
                   auto kt = [&,Lc](size_t iel) -> const helfem::Matrix & {
                     return rs_ktei[Nel*Nel*Lc + iel*Nel + iel];
                   };
-                  K_block += ::helfem::to_arma(
-                    helfem::atomic::basis::assemble_K_FE_one_multipole_cached(
-                      radial, rs, rb, kt, ::helfem::to_eigen(Rmat[Lc])));
+                  K_block += helfem::atomic::basis::assemble_K_FE_one_multipole_cached(
+                      radial, rs, rb, kt, Rmat[Lc]);
                 }
-                K.submat(jang*Nrad, kang*Nrad,
-                         (jang+1)*Nrad-1, (kang+1)*Nrad-1) -= K_block;
+                K.block(static_cast<Eigen::Index>(jang)*Nrad, static_cast<Eigen::Index>(kang)*Nrad, Nrad, Nrad) -= K_block;
               } else {
                 // Erfc: rs_ktei has cross-element entries for every
                 // (iel, jel) pair -- delegate to the pairwise cached
                 // helper, summed over L into the (jang, kang) block.
-                arma::mat K_block(Nrad, Nrad, arma::fill::zeros);
+                helfem::Matrix K_block = helfem::Matrix::Zero(Nrad, Nrad);
                 for(size_t L=0; L<N_L; ++L) {
                   if(!couple[L]) continue;
                   const size_t Lc = L;
                   auto kt = [&,Lc](size_t iel, size_t jel) -> const helfem::Matrix & {
                     return rs_ktei[Nel*Nel*Lc + iel*Nel + jel];
                   };
-                  K_block += ::helfem::to_arma(
-                    helfem::atomic::basis::assemble_K_FE_one_multipole_cached_pairwise(
-                      radial, kt, ::helfem::to_eigen(Rmat[Lc])));
+                  K_block += helfem::atomic::basis::assemble_K_FE_one_multipole_cached_pairwise(
+                      radial, kt, Rmat[Lc]);
                 }
-                K.submat(jang*Nrad, kang*Nrad,
-                         (jang+1)*Nrad-1, (kang+1)*Nrad-1) -= K_block;
+                K.block(static_cast<Eigen::Index>(jang)*Nrad, static_cast<Eigen::Index>(kang)*Nrad, Nrad, Nrad) -= K_block;
               }
             }
           }
         }
 
-        return helfem::to_eigen(remove_boundaries(K));
+        return K;
       }
 
       arma::mat TwoDBasis::remove_boundaries(const arma::mat & Fnob) const {
