@@ -31,6 +31,8 @@
 #include <ArmaEigen.h>
 #include <iostream>
 #include <sstream>
+#include <algorithm>
+#include <vector>
 
 using namespace helfem;
 
@@ -121,6 +123,9 @@ int main(int argc, char **argv) {
   parser.add<double>("conf_barrier", 0, "Confinement barrier height",        false, 0.0);
   parser.add<double>("shift_conf",   0, "Where does confinement start?",     false, 0.0);
   parser.add<bool>  ("add_conf",     0, "Add element boundary at shifted confinement radius?", false, true);
+
+  parser.add<int>("iguess", 0, "initial guess: 0 core Hamiltonian, 1 GSZ, 2 SAP, 3 Thomas-Fermi", false, 2);
+  parser.add<std::string>("occs", 0, "occupations: 'auto' (Aufbau), or space-separated per-l counts (lmax+1 totals; unrestricted also accepts 2*(lmax+1) as alpha then beta)", false, "auto");
 
   parser.add<std::string>("load", 0, "load orbital guess from checkpoint file", false, "");
   parser.add<std::string>("save", 0, "save results to checkpoint file",       false, "");
@@ -229,8 +234,58 @@ int main(int argc, char **argv) {
   opts.conf_barrier = conf_barrier;
   opts.shift_conf   = shift_conf;
   opts.verbosity    = 5;
+  opts.iguess       = parser.get<int>("iguess");
   opts.load_file    = parser.get<std::string>("load");
   opts.save_file    = parser.get<std::string>("save");
+
+  // Explicit occupations. "auto" leaves OOO to fill by Aufbau. Otherwise
+  // parse space-separated per-l integer counts and pin them via the
+  // frozen-occupation API (opts.fixed_per_l_*). Restricted expects
+  // lmax+1 per-l totals; unrestricted accepts lmax+1 totals (Hund
+  // high-spin split into alpha/beta) or 2*(lmax+1) explicit alpha-then-
+  // beta counts.
+  {
+    const std::string occstr = parser.get<std::string>("occs");
+    if (occstr != "auto" && occstr != "AUTO" && occstr != "Auto") {
+      std::istringstream iss(occstr);
+      std::vector<int> vals; int v;
+      while (iss >> v) vals.push_back(v);
+      const int nl = lmax + 1;
+      auto to_ivec = [](const std::vector<int> & x) {
+        arma::ivec o(x.size());
+        for (size_t i = 0; i < x.size(); ++i) o(i) = x[i];
+        return o;
+      };
+      if (restricted) {
+        if ((int) vals.size() != nl)
+          throw std::logic_error("Restricted --occs needs lmax+1 per-l totals.\n");
+        opts.fixed_per_l_a = to_ivec(vals);
+      } else if ((int) vals.size() == nl) {
+        // Hund high-spin split of each per-l total across n-shells: fill
+        // shells of capacity 2*(2l+1), putting up to (2l+1) per shell in
+        // alpha before beta (matches the bespoke driver's hund_rule).
+        arma::ivec a(nl, arma::fill::zeros), b(nl, arma::fill::zeros);
+        for (int l = 0; l < nl; ++l) {
+          int numel = vals[l];
+          while (numel > 0) {
+            const int numsh = std::min(numel, 2 * (2 * l + 1));
+            const int na    = std::min(numsh, 2 * l + 1);
+            a(l) += na;
+            b(l) += numsh - na;
+            numel -= numsh;
+          }
+        }
+        opts.fixed_per_l_a = a;
+        opts.fixed_per_l_b = b;
+      } else if ((int) vals.size() == 2 * nl) {
+        opts.fixed_per_l_a = to_ivec(std::vector<int>(vals.begin(), vals.begin() + nl));
+        opts.fixed_per_l_b = to_ivec(std::vector<int>(vals.begin() + nl, vals.end()));
+      } else {
+        throw std::logic_error("Unrestricted --occs needs lmax+1 totals or 2*(lmax+1) alpha/beta counts.\n");
+      }
+      printf("Using explicit occupations from --occs.\n");
+    }
+  }
 
   sadatom::scf::AtomicSCFResult result = sadatom::scf::run_atomic_scf(opts);
 

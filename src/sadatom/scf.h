@@ -41,6 +41,12 @@ namespace helfem {
         helfem::Vector x_pars;
         helfem::Vector c_pars;
         double dftthr     = 1e-12;
+        /// Initial-guess electron-nuclear potential: 0 core Hamiltonian
+        /// (bare Vnuc), 1 GSZ, 2 SAP, 3 Thomas-Fermi. Affects only the
+        /// starting Fock matrix; the SCF Fock build always uses the true
+        /// nuclear attraction. Default 0 so the twodquadrature sub-SCF
+        /// keeps its core-Hamiltonian guess; the gensap CLI defaults to 2.
+        int    iguess     = 0;
         modelpotential::nuclear_model_t finitenuc = modelpotential::POINT_NUCLEUS;
         double Rrms       = 0.0;
         bool   zeroder    = false;
