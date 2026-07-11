@@ -26,6 +26,7 @@
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
 #include "../general/scf_driver_common.h"
+#include "../general/lcao.h"
 #include "../atomic/basis.h"
 #include "scf.h"
 #include <ArmaEigen.h>
@@ -94,6 +95,94 @@ static arma::mat effective_potential_table(
   return result;
 }
 
+// Completeness profile Y(alpha, l): for each trial exponent alpha and
+// angular momentum l, the norm of the projection of the radial AO
+// (STO/GTO) onto the orthonormal FE basis -- i.e. how completely the FE
+// basis reproduces that AO (1 = fully represented). Column 0 is alpha;
+// columns 1..lmax+1 are the per-l profiles. Mirrors the bespoke
+// SCFSolver::ao_completeness_profile.
+static arma::mat ao_completeness_profile(
+    const helfem::sadatom::basis::TwoDBasis & basis, const arma::mat & Sinvh, int lmax,
+    const arma::vec & expn,
+    const std::function<arma::mat(int l, const arma::vec & r)> & eval_ao) {
+  arma::mat Y(expn.n_elem, lmax + 2, arma::fill::zeros);
+  Y.col(0) = expn;
+  for (int l = 0; l <= lmax; l++) {
+    arma::mat ao_projection(expn.n_elem, basis.Nbf(), arma::fill::zeros);
+    for (size_t iel = 0; iel < basis.get_rad_Nel(); iel++) {
+      const arma::vec r  = basis.get_r(iel);
+      const arma::vec wr = basis.get_wrad(iel);
+      const arma::mat ao = eval_ao(l, r);          // (npts x nexp)
+      const arma::mat bf = basis.eval_bf(iel);     // (npts x nbf_el)
+      const arma::uvec bfl = basis.bf_list(iel);
+      ao_projection.cols(bfl) += ao.t() * arma::diagmat(wr % r % r) * bf;
+    }
+    // Into the orthonormal basis, then per-exponent norm.
+    ao_projection = (ao_projection * Sinvh).t();
+    for (size_t ix = 0; ix < expn.n_elem; ix++)
+      Y(ix, l + 1) = arma::norm(ao_projection.col(ix), 2);
+  }
+  return Y;
+}
+
+// Importance profile: like the completeness profile, but projects the
+// trial AOs onto the OCCUPIED SCF orbitals instead of the full FE basis
+// -- how important each exponent is for the converged density. Mirrors
+// SCFSolver::ao_importance_profile.
+static arma::mat ao_importance_profile(
+    const helfem::sadatom::basis::TwoDBasis & basis,
+    const arma::cube & C, const arma::ivec & occs, int lmax,
+    const arma::vec & expn,
+    const std::function<arma::mat(int l, const arma::vec & r)> & eval_ao) {
+  arma::mat I(expn.n_elem, lmax + 2, arma::fill::zeros);
+  I.col(0) = expn;
+  for (int l = 0; l <= lmax; l++) {
+    if (occs(l) <= 0) continue;
+    const int nocc = (int) std::ceil(occs(l) / (2.0 * (2.0 * l + 1.0)));
+    const arma::mat Cocc = C.slice(l).cols(0, nocc - 1);
+    arma::mat ao_projection(nocc, expn.n_elem, arma::fill::zeros);
+    for (size_t iel = 0; iel < basis.get_rad_Nel(); iel++) {
+      const arma::vec r  = basis.get_r(iel);
+      const arma::vec wr = basis.get_wrad(iel);
+      const arma::mat ao = eval_ao(l, r);
+      const arma::mat bf = basis.eval_bf(iel);
+      const arma::uvec bfl = basis.bf_list(iel);
+      const arma::mat orbs = bf * Cocc.rows(bfl);   // (npts x nocc)
+      ao_projection += orbs.t() * arma::diagmat(wr % r % r) * ao;
+    }
+    for (size_t ix = 0; ix < expn.n_elem; ix++)
+      I(ix, l + 1) = arma::norm(ao_projection.col(ix), 2);
+  }
+  return I;
+}
+
+// Write GTO and STO completeness/importance profiles for the converged
+// density to <El>_{gto,sto}_{completeness,importance}.dat, over a
+// log-spaced exponent grid.
+static void write_profiles(
+    const helfem::sadatom::scf::AtomicSCFResult & result, int Z, int lmax,
+    double minexp = 1e-5, double maxexp = 1e10, size_t nexp = 501) {
+  const arma::vec expn = arma::exp10(arma::linspace<arma::vec>(
+      std::log10(minexp), std::log10(maxexp), nexp));
+  const arma::mat Sinvh = helfem::to_arma(result.basis.Sinvh());
+  const helfem::Vector expn_e = helfem::to_eigen(expn);
+  auto eval_gto = [&](int l, const arma::vec & r) {
+    return helfem::to_arma(helfem::lcao::radial_GTO(helfem::to_eigen(r), l, expn_e)); };
+  auto eval_sto = [&](int l, const arma::vec & r) {
+    return helfem::to_arma(helfem::lcao::radial_STO(helfem::to_eigen(r), l, expn_e)); };
+
+  const std::string el = element_symbols[Z];
+  ao_completeness_profile(result.basis, Sinvh, lmax, expn, eval_gto)
+      .save(el + "_gto_completeness.dat", arma::raw_ascii);
+  ao_completeness_profile(result.basis, Sinvh, lmax, expn, eval_sto)
+      .save(el + "_sto_completeness.dat", arma::raw_ascii);
+  ao_importance_profile(result.basis, result.orbs_a, result.occs_a, lmax, expn, eval_gto)
+      .save(el + "_gto_importance.dat", arma::raw_ascii);
+  ao_importance_profile(result.basis, result.orbs_a, result.occs_a, lmax, expn, eval_sto)
+      .save(el + "_sto_importance.dat", arma::raw_ascii);
+  printf("Wrote GTO/STO completeness and importance profiles for %s.\n", el.c_str());
+}
+
 int main(int argc, char **argv) {
   cmdline::parser parser;
 
@@ -138,6 +227,8 @@ int main(int argc, char **argv) {
   parser.add<bool>("savepot", 0, "also save the xc screening potential to xcpot.dat?", false, false);
   parser.add<bool>("saveing", 0, "also save the density ingredients to xcing.dat?", false, false);
   parser.add<bool>("saveorb", 0, "save radial orbitals to orbs_<El>_<spin>_l<l>.dat?", false, false);
+
+  parser.add<bool>("completeness", 0, "write GTO/STO completeness + importance profiles?", false, false);
 
   // Atomic-size diagnostics (parity with bespoke gensap).
   parser.add<double>("vdwthr", 0, "density threshold for the van der Waals radius", false, 0.001);
@@ -288,6 +379,10 @@ int main(int argc, char **argv) {
   }
 
   sadatom::scf::AtomicSCFResult result = sadatom::scf::run_atomic_scf(opts);
+
+  // GTO/STO completeness + importance profiles for basis-set design.
+  if (parser.get<bool>("completeness"))
+    write_profiles(result, Z, lmax);
 
   // Density / atomic-size diagnostics (parity with bespoke gensap).
   {
