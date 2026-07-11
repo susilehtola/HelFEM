@@ -59,6 +59,7 @@ int main(int argc, char **argv) {
   parser.add<std::string>("Z1", 0, "first nuclear charge", true);
   parser.add<std::string>("Z2", 0, "second nuclear charge", true);
   parser.add<double>("Rbond", 0, "internuclear distance", true);
+  parser.add<bool>("angstrom", 0, "input Rbond in angstrom instead of bohr", false, false);
   parser.add<int>("Q", 0, "charge state", false, 0);
   parser.add<int>("M", 0, "spin multiplicity (2S+1); mutually exclusive with nela/nelb", false, 0);
   parser.add<int>("nela", 0, "number of alpha electrons (leave 0 to derive from Q/M)", false, 0);
@@ -114,7 +115,11 @@ int main(int argc, char **argv) {
 
   const int Z1        = get_Z(parser.get<std::string>("Z1"));
   const int Z2        = get_Z(parser.get<std::string>("Z2"));
-  const double Rbond  = parser.get<double>("Rbond");
+        double Rbond  = parser.get<double>("Rbond");
+  if (parser.get<bool>("angstrom")) {
+    printf("Converting Rbond from %g angstrom to %g bohr.\n", Rbond, Rbond * ANGSTROMINBOHR);
+    Rbond *= ANGSTROMINBOHR;
+  }
         int Q         = parser.get<int>("Q");
         int M         = parser.get<int>("M");
         int nela      = parser.get<int>("nela");
