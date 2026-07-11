@@ -193,28 +193,46 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDBasis::Sinvh(bool chol, int sym) const {
-        arma::mat S(helfem::to_arma(overlap()));
+        const helfem::Matrix S = overlap();
 
         // Half-inverse is
         if(sym==0) {
-          return scf::form_Sinvh(helfem::to_eigen(S), chol);
+          return scf::form_Sinvh(S, chol);
         } else {
-          // Get basis function indices
+          // Per-symmetry-block orthonormalization. get_sym_idx returns the
+          // (scattered) AO index list for each block; the orthonormal
+          // columns are packed contiguously, so Sinvh maps orthonormal ->
+          // AO with block-diagonal structure (scattered rows, contiguous
+          // columns per block).
           std::vector<arma::uvec> midx(get_sym_idx(sym));
-          // Construct Sinvh in each subblock
-          arma::mat Sinvh(Nbf(),Nbf(),arma::fill::zeros);
-          size_t ioff=0;
+          const Eigen::Index N = static_cast<Eigen::Index>(Nbf());
+          helfem::Matrix Sinvh = helfem::Matrix::Zero(N, N);
+          Eigen::Index ioff = 0;
           for(size_t i=0;i<midx.size();i++) {
-            if(!midx[i].n_elem)
+            const Eigen::Index n = static_cast<Eigen::Index>(midx[i].n_elem);
+            if(!n)
               continue;
 
-            // Column indices
-            arma::uvec cidx(arma::linspace<arma::uvec>(ioff,ioff+midx[i].n_elem-1,midx[i].n_elem));
-            Sinvh(midx[i],cidx)=helfem::to_arma(scf::form_Sinvh(helfem::to_eigen(arma::mat(S(midx[i],midx[i]))),chol));
-            // Increment offset
-            ioff += midx[i].n_elem;
+            // AO indices of this block.
+            std::vector<Eigen::Index> rows(n);
+            for(Eigen::Index k=0;k<n;k++)
+              rows[k] = static_cast<Eigen::Index>(midx[i](k));
+
+            // Gather the block overlap, orthonormalize.
+            helfem::Matrix Ssub(n, n);
+            for(Eigen::Index a=0;a<n;a++)
+              for(Eigen::Index b=0;b<n;b++)
+                Ssub(a,b) = S(rows[a], rows[b]);
+            const helfem::Matrix sub = scf::form_Sinvh(Ssub, chol);
+
+            // Scatter: rows scattered by `rows`, columns contiguous
+            // [ioff, ioff+n).
+            for(Eigen::Index a=0;a<n;a++)
+              for(Eigen::Index b=0;b<n;b++)
+                Sinvh(rows[a], ioff+b) = sub(a,b);
+            ioff += n;
           }
-          return helfem::to_eigen(Sinvh);
+          return Sinvh;
         }
       }
 
