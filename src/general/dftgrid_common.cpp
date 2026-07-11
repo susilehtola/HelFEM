@@ -58,18 +58,18 @@ namespace helfem {
     }
 
     void DFTGridWorkerBase::init_xc() {
-      const size_t N = wtot.n_elem;
-      exc.zeros(N);
+      const Eigen::Index N = wtot.size();
+      exc = helfem::Vector::Zero(N);
       if (!polarized) {
-        vxc.zeros(1, N);
-        if (do_grad) vsigma.zeros(1, N);
-        if (do_tau)  vtau.zeros(1, N);
-        if (do_lapl) vlapl.zeros(1, N);
+        vxc = helfem::Matrix::Zero(1, N);
+        if (do_grad) vsigma = helfem::Matrix::Zero(1, N);
+        if (do_tau)  vtau   = helfem::Matrix::Zero(1, N);
+        if (do_lapl) vlapl  = helfem::Matrix::Zero(1, N);
       } else {
-        vxc.zeros(2, N);
-        if (do_grad) vsigma.zeros(3, N);
-        if (do_tau)  vtau.zeros(2, N);
-        if (do_lapl) vlapl.zeros(2, N);
+        vxc = helfem::Matrix::Zero(2, N);
+        if (do_grad) vsigma = helfem::Matrix::Zero(3, N);
+        if (do_tau)  vtau   = helfem::Matrix::Zero(2, N);
+        if (do_lapl) vlapl  = helfem::Matrix::Zero(2, N);
       }
       do_gga    = false;
       do_mgga_l = false;
@@ -77,18 +77,18 @@ namespace helfem {
     }
 
     double DFTGridWorkerBase::eval_Exc() const {
-      arma::rowvec dens(rho.row(0));
-      if (polarized) dens += rho.row(1);
-      return arma::sum(wtot % exc % dens);
+      helfem::Vector dens = rho.row(0).transpose();
+      if (polarized) dens += rho.row(1).transpose();
+      return (wtot.array() * exc.array() * dens.array()).sum();
     }
 
     double DFTGridWorkerBase::compute_Nel() const {
       double nel=0.0;
       if(!polarized) {
-        for(size_t ip=0;ip<wtot.n_elem;ip++)
+        for(Eigen::Index ip=0;ip<wtot.size();ip++)
           nel+=wtot(ip)*rho(0,ip);
       } else {
-        for(size_t ip=0;ip<wtot.n_elem;ip++)
+        for(Eigen::Index ip=0;ip<wtot.size();ip++)
           nel+=wtot(ip)*(rho(0,ip)+rho(1,ip));
       }
 
@@ -103,21 +103,21 @@ namespace helfem {
       do_mgga_t = do_mgga_t || mgga_t;
       do_mgga_l = do_mgga_l || mgga_l;
 
-      const size_t N = wtot.n_elem;
+      const size_t N = (size_t) wtot.size();
 
-      arma::rowvec exc_wrk;
-      arma::mat vxc_wrk, vsigma_wrk, vlapl_wrk, vtau_wrk;
+      helfem::Vector exc_wrk;
+      helfem::Matrix vxc_wrk, vsigma_wrk, vlapl_wrk, vtau_wrk;
 
       if (has_exc(func_id))
-        exc_wrk.zeros(exc.n_elem);
+        exc_wrk = helfem::Vector::Zero(exc.size());
       if (pot) {
-        vxc_wrk.zeros(vxc.n_rows, vxc.n_cols);
+        vxc_wrk = helfem::Matrix::Zero(vxc.rows(), vxc.cols());
         if (gga || mgga_t || mgga_l)
-          vsigma_wrk.zeros(vsigma.n_rows, vsigma.n_cols);
+          vsigma_wrk = helfem::Matrix::Zero(vsigma.rows(), vsigma.cols());
         if (mgga_t)
-          vtau_wrk.zeros(vtau.n_rows, vtau.n_cols);
+          vtau_wrk = helfem::Matrix::Zero(vtau.rows(), vtau.cols());
         if (mgga_l)
-          vlapl_wrk.zeros(vlapl.n_rows, vlapl.n_cols);
+          vlapl_wrk = helfem::Matrix::Zero(vlapl.rows(), vlapl.cols());
       }
 
       const int nspin = polarized ? XC_POLARIZED : XC_UNPOLARIZED;
@@ -140,50 +140,50 @@ namespace helfem {
       if (has_exc(func_id)) {
         if (pot) {
           if (mgga_t || mgga_l) {
-            double * laplp  = mgga_l ? lapl.memptr()      : NULL;
-            double * taup   = mgga_t ? tau.memptr()       : NULL;
-            double * vlaplp = mgga_l ? vlapl_wrk.memptr() : NULL;
-            double * vtaup  = mgga_t ? vtau_wrk.memptr()  : NULL;
-            xc_mgga_exc_vxc(&func, N, rho.memptr(), sigma.memptr(),
+            double * laplp  = mgga_l ? lapl.data()      : NULL;
+            double * taup   = mgga_t ? tau.data()       : NULL;
+            double * vlaplp = mgga_l ? vlapl_wrk.data() : NULL;
+            double * vtaup  = mgga_t ? vtau_wrk.data()  : NULL;
+            xc_mgga_exc_vxc(&func, N, rho.data(), sigma.data(),
                              laplp, taup,
-                             exc_wrk.memptr(), vxc_wrk.memptr(),
-                             vsigma_wrk.memptr(), vlaplp, vtaup);
+                             exc_wrk.data(), vxc_wrk.data(),
+                             vsigma_wrk.data(), vlaplp, vtaup);
           } else if (gga) {
-            xc_gga_exc_vxc(&func, N, rho.memptr(), sigma.memptr(),
-                            exc_wrk.memptr(), vxc_wrk.memptr(),
-                            vsigma_wrk.memptr());
+            xc_gga_exc_vxc(&func, N, rho.data(), sigma.data(),
+                            exc_wrk.data(), vxc_wrk.data(),
+                            vsigma_wrk.data());
           } else {
-            xc_lda_exc_vxc(&func, N, rho.memptr(),
-                            exc_wrk.memptr(), vxc_wrk.memptr());
+            xc_lda_exc_vxc(&func, N, rho.data(),
+                            exc_wrk.data(), vxc_wrk.data());
           }
         } else {
           if (mgga_t || mgga_l) {
-            double * laplp = mgga_l ? lapl.memptr() : NULL;
-            double * taup  = mgga_t ? tau.memptr()  : NULL;
-            xc_mgga_exc(&func, N, rho.memptr(), sigma.memptr(),
-                         laplp, taup, exc_wrk.memptr());
+            double * laplp = mgga_l ? lapl.data() : NULL;
+            double * taup  = mgga_t ? tau.data()  : NULL;
+            xc_mgga_exc(&func, N, rho.data(), sigma.data(),
+                         laplp, taup, exc_wrk.data());
           } else if (gga) {
-            xc_gga_exc(&func, N, rho.memptr(), sigma.memptr(), exc_wrk.memptr());
+            xc_gga_exc(&func, N, rho.data(), sigma.data(), exc_wrk.data());
           } else {
-            xc_lda_exc(&func, N, rho.memptr(), exc_wrk.memptr());
+            xc_lda_exc(&func, N, rho.data(), exc_wrk.data());
           }
         }
       } else {
         if (pot) {
           if (mgga_t || mgga_l) {
-            double * laplp  = mgga_l ? lapl.memptr()      : NULL;
-            double * taup   = mgga_t ? tau.memptr()       : NULL;
-            double * vlaplp = mgga_l ? vlapl_wrk.memptr() : NULL;
-            double * vtaup  = mgga_t ? vtau_wrk.memptr()  : NULL;
-            xc_mgga_vxc(&func, N, rho.memptr(), sigma.memptr(),
+            double * laplp  = mgga_l ? lapl.data()      : NULL;
+            double * taup   = mgga_t ? tau.data()       : NULL;
+            double * vlaplp = mgga_l ? vlapl_wrk.data() : NULL;
+            double * vtaup  = mgga_t ? vtau_wrk.data()  : NULL;
+            xc_mgga_vxc(&func, N, rho.data(), sigma.data(),
                          laplp, taup,
-                         vxc_wrk.memptr(), vsigma_wrk.memptr(),
+                         vxc_wrk.data(), vsigma_wrk.data(),
                          vlaplp, vtaup);
           } else if (gga) {
-            xc_gga_vxc(&func, N, rho.memptr(), sigma.memptr(),
-                        vxc_wrk.memptr(), vsigma_wrk.memptr());
+            xc_gga_vxc(&func, N, rho.data(), sigma.data(),
+                        vxc_wrk.data(), vsigma_wrk.data());
           } else {
-            xc_lda_vxc(&func, N, rho.memptr(), vxc_wrk.memptr());
+            xc_lda_vxc(&func, N, rho.data(), vxc_wrk.data());
           }
         }
       }
@@ -192,7 +192,7 @@ namespace helfem {
       // so atomic and diatomic get the same warning). Prints only;
       // never modifies state.
       for (size_t i = 0; i < N; ++i) {
-        const double e = has_exc(func_id) ? exc_wrk[i] : 0.0;
+        const double e = has_exc(func_id) ? exc_wrk(i) : 0.0;
         double rhoa = 0.0, rhob = 0.0;
         double sigmaaa = 0.0, sigmaab = 0.0, sigmabb = 0.0;
         double lapla = 0.0, laplb = 0.0, taua = 0.0, taub = 0.0;

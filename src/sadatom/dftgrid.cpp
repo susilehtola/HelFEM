@@ -43,41 +43,47 @@ namespace helfem {
       DFTGridWorker::~DFTGridWorker() {
       }
 
-      void DFTGridWorker::update_density(const arma::cube & Pc0) {
-        // In-element cube
-        arma::cube Pc(bf_ind.n_elem, bf_ind.n_elem, Pc0.n_slices);
-        for(size_t islice=0; islice<Pc0.n_slices;islice++) {
-          Pc.slice(islice) = Pc0.slice(islice)(bf_ind, bf_ind);
+      void DFTGridWorker::update_density(const std::vector<helfem::Matrix> & Pc0) {
+        const size_t nslices = Pc0.size();
+        const Eigen::Index nbf = (Eigen::Index) bf_ind.size();
+
+        // In-element per-l density matrices (gathered submatrices)
+        std::vector<helfem::Matrix> Pc(nslices);
+        for(size_t islice=0; islice<nslices; islice++) {
+          Pc[islice] = helfem::Matrix(nbf, nbf);
+          for(size_t i=0;i<bf_ind.size();i++)
+            for(size_t j=0;j<bf_ind.size();j++)
+              Pc[islice](i,j) = Pc0[islice](bf_ind[i], bf_ind[j]);
         }
         // Total density matrix
-        arma::mat P(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
-        for(size_t islice=0; islice<Pc.n_slices;islice++) {
-          P += Pc.slice(islice);
+        helfem::Matrix P = helfem::Matrix::Zero(nbf, nbf);
+        for(size_t islice=0; islice<nslices; islice++) {
+          P += Pc[islice];
         }
         // and the one multiplied by l(l+1)
-        arma::mat Pl(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
-        for(size_t islice=0; islice<Pc.n_slices;islice++) {
-          Pl += islice*(islice+1)*Pc.slice(islice);
+        helfem::Matrix Pl = helfem::Matrix::Zero(nbf, nbf);
+        for(size_t islice=0; islice<nslices; islice++) {
+          Pl += ((double)(islice*(islice+1)))*Pc[islice];
         }
 
         // Non-polarized calculation.
         polarized=false;
 
-        // Update density vector
-        Pv=P*arma::conj(bf);
+        // Update density vector (bf is real, so conj(bf)==bf)
+        Pv=P*bf;
 
         // Calculate density
-        rho.zeros(1,wtot.n_elem);
-        for(size_t ip=0;ip<wtot.n_elem;ip++)
-          rho(0,ip)=arma::dot(Pv.col(ip),bf.col(ip));
+        rho = helfem::Matrix::Zero(1, wtot.size());
+        for(Eigen::Index ip=0;ip<wtot.size();ip++)
+          rho(0,ip)=(Pv.col(ip).array()*bf.col(ip).array()).sum();
 
         // Calculate gradient
         if(do_grad) {
-          grho.zeros(1,wtot.n_elem);
-          sigma.zeros(1,wtot.n_elem);
-          for(size_t ip=0;ip<wtot.n_elem;ip++) {
+          grho = helfem::Matrix::Zero(1, wtot.size());
+          sigma = helfem::Matrix::Zero(1, wtot.size());
+          for(Eigen::Index ip=0;ip<wtot.size();ip++) {
             // Calculate values
-            double g_rad=grho(0,ip)=2.0*arma::dot(Pv.col(ip),bf_rho.col(ip));
+            double g_rad=grho(0,ip)=2.0*(Pv.col(ip).array()*bf_rho.col(ip).array()).sum();
             // Compute sigma as well
             sigma(0,ip)=g_rad*g_rad;
           }
@@ -85,16 +91,16 @@ namespace helfem {
 
         // Calculate kinetic energy density
         if(do_tau || do_lapl) {
-          arma::mat Pvp(P*arma::conj(bf_rho));
+          helfem::Matrix Pvp = P*bf_rho;
 
           if(do_tau) {
-            arma::mat Plv(Pl*arma::conj(bf));
-            tau.zeros(1,wtot.n_elem);
-            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+            helfem::Matrix Plv = Pl*bf;
+            tau = helfem::Matrix::Zero(1, wtot.size());
+            for(Eigen::Index ip=0;ip<wtot.size();ip++) {
               // First term: P(u,v) * \chi_u' \chi_v'
-              double term1 = arma::dot(Pvp.col(ip), bf_rho.col(ip));
+              double term1 = (Pvp.col(ip).array()*bf_rho.col(ip).array()).sum();
               // Second term: l(l+1) Pl(u,v) \chi_u \chi_v / r^2
-              double term2 = arma::dot(Plv.col(ip), bf.col(ip))/(r(ip)*r(ip));
+              double term2 = (Plv.col(ip).array()*bf.col(ip).array()).sum()/(r(ip)*r(ip));
               // The second term is ill-behaved near the nucleus since
               // only s orbitals contribute to density but that gets
               // killed by the l(l+1) factor
@@ -103,14 +109,14 @@ namespace helfem {
           }
 
           if(do_lapl) {
-            lapl.zeros(1,wtot.n_elem);
-            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+            lapl = helfem::Matrix::Zero(1, wtot.size());
+            for(Eigen::Index ip=0;ip<wtot.size();ip++) {
               // First term: P(u,v) * \chi_u' \chi_v'
-              double term1 = 2.0*arma::dot(Pvp.col(ip), bf_rho.col(ip));
+              double term1 = 2.0*(Pvp.col(ip).array()*bf_rho.col(ip).array()).sum();
               // Second term: P(u,v) \chi_u \chi_v''
-              double term2 = 2.0*arma::dot(Pv.col(ip), bf_rho2.col(ip));
+              double term2 = 2.0*(Pv.col(ip).array()*bf_rho2.col(ip).array()).sum();
               // Third term: P(u,v) * \chi_u \chi_v' / r
-              double term3 = 4.0*arma::dot(Pv.col(ip), bf_rho.col(ip))/r(ip);
+              double term3 = 4.0*(Pv.col(ip).array()*bf_rho.col(ip).array()).sum()/r(ip);
 
               // Store values
               lapl(0,ip)=term1+term2+term3;
@@ -119,60 +125,70 @@ namespace helfem {
         }
       }
 
-      void DFTGridWorker::update_density(const arma::cube & Pac0, const arma::cube & Pbc0) {
-        if(!Pac0.n_elem || !Pbc0.n_elem) {
+      void DFTGridWorker::update_density(const std::vector<helfem::Matrix> & Pac0, const std::vector<helfem::Matrix> & Pbc0) {
+        if(Pac0.empty() || Pbc0.empty()) {
           throw std::runtime_error("Error - density matrix is empty!\n");
         }
 
-        // In-element cube
-        arma::cube Pac(bf_ind.n_elem, bf_ind.n_elem, Pac0.n_slices);
-        for(size_t islice=0; islice<Pac0.n_slices;islice++) {
-          Pac.slice(islice) = Pac0.slice(islice)(bf_ind, bf_ind);
+        const size_t naslices = Pac0.size();
+        const size_t nbslices = Pbc0.size();
+        const Eigen::Index nbf = (Eigen::Index) bf_ind.size();
+
+        // In-element per-l density matrices (gathered submatrices)
+        std::vector<helfem::Matrix> Pac(naslices);
+        for(size_t islice=0; islice<naslices; islice++) {
+          Pac[islice] = helfem::Matrix(nbf, nbf);
+          for(size_t i=0;i<bf_ind.size();i++)
+            for(size_t j=0;j<bf_ind.size();j++)
+              Pac[islice](i,j) = Pac0[islice](bf_ind[i], bf_ind[j]);
         }
-        arma::cube Pbc(bf_ind.n_elem, bf_ind.n_elem, Pbc0.n_slices);
-        for(size_t islice=0; islice<Pbc0.n_slices;islice++) {
-          Pbc.slice(islice) = Pbc0.slice(islice)(bf_ind, bf_ind);
+        std::vector<helfem::Matrix> Pbc(nbslices);
+        for(size_t islice=0; islice<nbslices; islice++) {
+          Pbc[islice] = helfem::Matrix(nbf, nbf);
+          for(size_t i=0;i<bf_ind.size();i++)
+            for(size_t j=0;j<bf_ind.size();j++)
+              Pbc[islice](i,j) = Pbc0[islice](bf_ind[i], bf_ind[j]);
         }
         // Total density matrix
-        arma::mat Pa(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
-        for(size_t islice=0; islice<Pac.n_slices;islice++) {
-          Pa += Pac.slice(islice);
+        helfem::Matrix Pa = helfem::Matrix::Zero(nbf, nbf);
+        for(size_t islice=0; islice<naslices; islice++) {
+          Pa += Pac[islice];
         }
-        arma::mat Pb(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
-        for(size_t islice=0; islice<Pbc.n_slices;islice++) {
-          Pb += Pbc.slice(islice);
+        helfem::Matrix Pb = helfem::Matrix::Zero(nbf, nbf);
+        for(size_t islice=0; islice<nbslices; islice++) {
+          Pb += Pbc[islice];
         }
         // and the one multiplied by l(l+1)
-        arma::mat Pal(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
-        for(size_t islice=0; islice<Pac.n_slices;islice++) {
-          Pal += islice*(islice+1)*Pac.slice(islice);
+        helfem::Matrix Pal = helfem::Matrix::Zero(nbf, nbf);
+        for(size_t islice=0; islice<naslices; islice++) {
+          Pal += ((double)(islice*(islice+1)))*Pac[islice];
         }
-        arma::mat Pbl(bf_ind.n_elem, bf_ind.n_elem, arma::fill::zeros);
-        for(size_t islice=0; islice<Pbc.n_slices;islice++) {
-          Pbl += islice*(islice+1)*Pbc.slice(islice);
+        helfem::Matrix Pbl = helfem::Matrix::Zero(nbf, nbf);
+        for(size_t islice=0; islice<nbslices; islice++) {
+          Pbl += ((double)(islice*(islice+1)))*Pbc[islice];
         }
 
         // Polarized calculation.
         polarized=true;
 
-        // Update density vector
-        Pav=Pa*arma::conj(bf);
-        Pbv=Pb*arma::conj(bf);
+        // Update density vector (bf is real, so conj(bf)==bf)
+        Pav=Pa*bf;
+        Pbv=Pb*bf;
 
         // Calculate density
-        rho.zeros(2,wtot.n_elem);
-        for(size_t ip=0;ip<wtot.n_elem;ip++) {
-          rho(0,ip)=arma::dot(Pav.col(ip),bf.col(ip));
-          rho(1,ip)=arma::dot(Pbv.col(ip),bf.col(ip));
+        rho = helfem::Matrix::Zero(2, wtot.size());
+        for(Eigen::Index ip=0;ip<wtot.size();ip++) {
+          rho(0,ip)=(Pav.col(ip).array()*bf.col(ip).array()).sum();
+          rho(1,ip)=(Pbv.col(ip).array()*bf.col(ip).array()).sum();
         }
 
         // Calculate gradient
         if(do_grad) {
-          grho.zeros(2,wtot.n_elem);
-          sigma.zeros(3,wtot.n_elem);
-          for(size_t ip=0;ip<wtot.n_elem;ip++) {
-            double ga_rad=grho(0,ip)=2.0*arma::dot(Pav.col(ip),bf_rho.col(ip));
-            double gb_rad=grho(1,ip)=2.0*arma::dot(Pbv.col(ip),bf_rho.col(ip));
+          grho = helfem::Matrix::Zero(2, wtot.size());
+          sigma = helfem::Matrix::Zero(3, wtot.size());
+          for(Eigen::Index ip=0;ip<wtot.size();ip++) {
+            double ga_rad=grho(0,ip)=2.0*(Pav.col(ip).array()*bf_rho.col(ip).array()).sum();
+            double gb_rad=grho(1,ip)=2.0*(Pbv.col(ip).array()*bf_rho.col(ip).array()).sum();
 
             // Compute sigma as well
             sigma(0,ip)=ga_rad*ga_rad;
@@ -183,20 +199,20 @@ namespace helfem {
 
         // Calculate kinetic energy density
         if(do_tau || do_lapl) {
-          arma::mat Pavp(Pa*arma::conj(bf_rho));
-          arma::mat Pbvp(Pb*arma::conj(bf_rho));
+          helfem::Matrix Pavp = Pa*bf_rho;
+          helfem::Matrix Pbvp = Pb*bf_rho;
 
           if(do_tau) {
-            arma::mat Palv(Pal*arma::conj(bf));
-            arma::mat Pblv(Pbl*arma::conj(bf));
-            tau.zeros(2,wtot.n_elem);
-            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+            helfem::Matrix Palv = Pal*bf;
+            helfem::Matrix Pblv = Pbl*bf;
+            tau = helfem::Matrix::Zero(2, wtot.size());
+            for(Eigen::Index ip=0;ip<wtot.size();ip++) {
               // First term: P(u,v) * \chi_u' \chi_v'
-              double term1a = arma::dot(Pavp.col(ip), bf_rho.col(ip));
-              double term1b = arma::dot(Pbvp.col(ip), bf_rho.col(ip));
+              double term1a = (Pavp.col(ip).array()*bf_rho.col(ip).array()).sum();
+              double term1b = (Pbvp.col(ip).array()*bf_rho.col(ip).array()).sum();
               // Second term: l(l+1) Pl(u,v) \chi_u \chi_v / r^2
-              double term2a = arma::dot(Palv.col(ip), bf.col(ip))/(r(ip)*r(ip));
-              double term2b = arma::dot(Pblv.col(ip), bf.col(ip))/(r(ip)*r(ip));
+              double term2a = (Palv.col(ip).array()*bf.col(ip).array()).sum()/(r(ip)*r(ip));
+              double term2b = (Pblv.col(ip).array()*bf.col(ip).array()).sum()/(r(ip)*r(ip));
               // The second term is ill-behaved near the nucleus since
               // only s orbitals contribute to density but that gets
               // killed by the l(l+1) factor
@@ -206,17 +222,17 @@ namespace helfem {
           }
 
           if(do_lapl) {
-            lapl.zeros(2,wtot.n_elem);
-            for(size_t ip=0;ip<wtot.n_elem;ip++) {
+            lapl = helfem::Matrix::Zero(2, wtot.size());
+            for(Eigen::Index ip=0;ip<wtot.size();ip++) {
               // First term: P(u,v) * \chi_u' \chi_v'
-              double term1a = 2.0*arma::dot(Pavp.col(ip), bf_rho.col(ip));
-              double term1b = 2.0*arma::dot(Pbvp.col(ip), bf_rho.col(ip));
+              double term1a = 2.0*(Pavp.col(ip).array()*bf_rho.col(ip).array()).sum();
+              double term1b = 2.0*(Pbvp.col(ip).array()*bf_rho.col(ip).array()).sum();
               // Second term: P(u,v) \chi_u \chi_v''
-              double term2a = 2.0*arma::dot(Pav.col(ip), bf_rho2.col(ip));
-              double term2b = 2.0*arma::dot(Pbv.col(ip), bf_rho2.col(ip));
+              double term2a = 2.0*(Pav.col(ip).array()*bf_rho2.col(ip).array()).sum();
+              double term2b = 2.0*(Pbv.col(ip).array()*bf_rho2.col(ip).array()).sum();
               // Third term: P(u,v) * \chi_u \chi_v' / r
-              double term3a = 4.0*arma::dot(Pav.col(ip), bf_rho.col(ip))/r(ip);
-              double term3b = 4.0*arma::dot(Pbv.col(ip), bf_rho.col(ip))/r(ip);
+              double term3a = 4.0*(Pav.col(ip).array()*bf_rho.col(ip).array()).sum()/r(ip);
+              double term3b = 4.0*(Pbv.col(ip).array()*bf_rho.col(ip).array()).sum()/r(ip);
 
               // Store values
               lapl(0,ip)=term1a+term2a+term3a;
@@ -234,387 +250,211 @@ namespace helfem {
       // The compute_xc implementation is inherited; the NaN-guard
       // diagnostic that lived here is now in the base and runs for
       // atomic and diatomic too.
-#if 0
-      void DFTGridWorker::compute_xc(int func_id, const arma::vec & p, double thr, bool pot) {
-        // Compute exchange-correlation functional
-
-        // Which functional is in question?
-        bool gga, mgga_t, mgga_l;
-        is_gga_mgga(func_id,gga,mgga_t,mgga_l);
-
-        // Update controlling flags for eval_Fxc (exchange and correlation
-        // parts might be of different type)
-        do_gga=do_gga || gga || mgga_t || mgga_l;
-        do_mgga_t=do_mgga_t || mgga_t;
-        do_mgga_l=do_mgga_l || mgga_l;
-
-        // Amount of grid points
-        const size_t N=wtot.n_elem;
-
-        // Work arrays - exchange and correlation are computed separately
-        arma::rowvec exc_wrk;
-        arma::mat vxc_wrk;
-        arma::mat vsigma_wrk;
-        arma::mat vlapl_wrk;
-        arma::mat vtau_wrk;
-
-        if(has_exc(func_id))
-          exc_wrk.zeros(exc.n_elem);
-        if(pot) {
-          vxc_wrk.zeros(vxc.n_rows,vxc.n_cols);
-          if(gga || mgga_t || mgga_l)
-            vsigma_wrk.zeros(vsigma.n_rows,vsigma.n_cols);
-          if(mgga_t)
-            vtau_wrk.zeros(vtau.n_rows,vtau.n_cols);
-          if(mgga_l)
-            vlapl_wrk.zeros(vlapl.n_rows,vlapl.n_cols);
-        }
-
-        // Spin variable for libxc
-        int nspin;
-        if(!polarized)
-          nspin=XC_UNPOLARIZED;
-        else
-          nspin=XC_POLARIZED;
-
-        // Initialize libxc worker
-        xc_func_type func;
-        if(xc_func_init(&func, func_id, nspin) != 0) {
-          std::ostringstream oss;
-          oss << "Functional "<<func_id<<" not found!";
-          throw std::runtime_error(oss.str());
-        }
-        // Set density threshold
-        xc_func_set_dens_threshold(&func, thr);
-
-        // Set parameters
-        if(p.n_elem) {
-          // Check sanity
-          if(p.n_elem != (arma::uword) xc_func_info_get_n_ext_params(func.info))
-            throw std::logic_error("Incompatible number of parameters!\n");
-          arma::vec phlp(p);
-          xc_func_set_ext_params(&func, phlp.memptr());
-        }
-
-        // Evaluate functionals.
-        if(has_exc(func_id)) {
-          if(pot) {
-            if(mgga_t || mgga_l) {// meta-GGA
-              double * laplp = mgga_l ? lapl.memptr() : NULL;
-              double * taup = mgga_t ? tau.memptr() : NULL;
-              double * vlaplp = mgga_l ? vlapl_wrk.memptr() : NULL;
-              double * vtaup = mgga_t ? vtau_wrk.memptr() : NULL;
-              xc_mgga_exc_vxc(&func, N, rho.memptr(), sigma.memptr(), laplp, taup, exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr(), vlaplp, vtaup);
-            } else if(gga) // GGA
-              xc_gga_exc_vxc(&func, N, rho.memptr(), sigma.memptr(), exc_wrk.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr());
-            else // LDA
-              xc_lda_exc_vxc(&func, N, rho.memptr(), exc_wrk.memptr(), vxc_wrk.memptr());
-          } else {
-            if(mgga_t || mgga_l) { // meta-GGA
-              double * laplp = mgga_l ? lapl.memptr() : NULL;
-              double * taup = mgga_t ? tau.memptr() : NULL;
-              xc_mgga_exc(&func, N, rho.memptr(), sigma.memptr(), laplp, taup, exc_wrk.memptr());
-            } else if(gga) // GGA
-              xc_gga_exc(&func, N, rho.memptr(), sigma.memptr(), exc_wrk.memptr());
-            else // LDA
-              xc_lda_exc(&func, N, rho.memptr(), exc_wrk.memptr());
-          }
-
-        } else {
-          if(pot) {
-            if(mgga_t || mgga_l) { // meta-GGA
-              double * laplp = mgga_l ? lapl.memptr() : NULL;
-              double * taup = mgga_t ? tau.memptr() : NULL;
-              double * vlaplp = mgga_l ? vlapl_wrk.memptr() : NULL;
-              double * vtaup = mgga_t ? vtau_wrk.memptr() : NULL;
-              xc_mgga_vxc(&func, N, rho.memptr(), sigma.memptr(), laplp, taup, vxc_wrk.memptr(), vsigma_wrk.memptr(), vlaplp, vtaup);
-            } else if(gga) // GGA
-              xc_gga_vxc(&func, N, rho.memptr(), sigma.memptr(), vxc_wrk.memptr(), vsigma_wrk.memptr());
-            else // LDA
-              xc_lda_vxc(&func, N, rho.memptr(), vxc_wrk.memptr());
-          }
-        }
-
-        // Check for NaNs
-        for(size_t i=0; i<N; i++) {
-          double e = has_exc(func_id) ? exc_wrk[i] : 0.0;
-          double rhoa=0.0, rhob=0.0, sigmaaa=0.0, sigmaab=0.0, sigmabb=0.0, lapla=0.0, laplb=0.0, taua=0.0, taub=0.0;
-          double vrhoa=0.0, vrhob=0.0, vsigmaaa=0.0, vsigmaab=0.0, vsigmabb=0.0, vlapla=0.0, vlaplb=0.0, vtaua=0.0, vtaub=0.0;
-          if(polarized) {
-            rhoa = rho(0,i);
-            rhob = rho(1,i);
-            vrhoa = vxc(0,i);
-            vrhob = vxc(1,i);
-            if(gga || mgga_t || mgga_l) {
-              sigmaaa = sigma(0,i);
-              sigmaab = sigma(1,i);
-              sigmabb = sigma(2,i);
-              vsigmaaa = vsigma(0,i);
-              vsigmaab = vsigma(1,i);
-              vsigmabb = vsigma(2,i);
-            }
-            if(mgga_l) {
-              lapla = lapl(0,i);
-              laplb = lapl(1,i);
-              vlapla = vlapl(0,i);
-              vlaplb = vlapl(1,i);
-            }
-            if(mgga_t) {
-              taua = tau(0,i);
-              taub = tau(1,i);
-              vtaua = vtau(0,i);
-              vtaub = vtau(1,i);
-            }
-          } else {
-            rhoa = 0.5*rho(0,i);
-            rhob = 0.5*rho(0,i);
-            vrhoa = vxc(0,i);
-            vrhob = vxc(0,i);
-            if(gga || mgga_t || mgga_l) {
-              sigmaaa = 0.25*sigma(0,i);
-              sigmaab = 0.25*sigma(0,i);
-              sigmabb = 0.25*sigma(0,i);
-              vsigmaaa = vsigma(0,i);
-              vsigmaab = vsigma(0,i);
-              vsigmabb = vsigma(0,i);
-            }
-            if(mgga_l) {
-              lapla = 0.5*lapl(0,i);
-              laplb = 0.5*lapl(0,i);
-              vlapla = vlapl(0,i);
-              vlaplb = vlapl(0,i);
-            }
-            if(mgga_t) {
-              taua = 0.5*tau(0,i);
-              taub = 0.5*tau(0,i);
-              vtaua = vtau(0,i);
-              vtaub = vtau(0,i);
-            }
-          }
-
-          if(std::isnan(e) || std::isnan(vrhoa) || std::isnan(vrhob) || std::isnan(vsigmaaa) || std::isnan(vsigmaab) || std::isnan(vsigmabb) || std::isnan(vlapla) || std::isnan(vlaplb) || std::isnan(vtaua) || std::isnan(vtaub)) {
-            printf("NaN encountered for functional id = %i with input\n", func_id);
-
-            printf("input: %e %e %e % e %e %e %e % e % e\n",rhoa,rhob,sigmaaa,sigmaab,sigmabb,lapla,laplb,taua,taub);
-            printf("output: % e % e % e % e % e % e % e % e % e % e\n",e,vrhoa,vrhob,vsigmaaa,vsigmaab,vsigmabb,vlapla,vlaplb,vtaua,vtaub);
-          }
-        }
-
-        // Sum to total arrays containing both exchange and correlation
-        if(has_exc(func_id))
-          exc+=exc_wrk;
-        if(pot) {
-          if(mgga_l)
-            vlapl+=vlapl_wrk;
-          if(mgga_t)
-            vtau+=vtau_wrk;
-          if(mgga_t || mgga_l || gga)
-            vsigma+=vsigma_wrk;
-          vxc+=vxc_wrk;
-        }
-
-        // Free functional
-        xc_func_end(&func);
-      }
-#endif
-
 
 
       // eval_Exc: inherited from DFTGridWorkerBase.
 
-      void DFTGridWorker::eval_Fxc(arma::cube & Ho) const {
+      void DFTGridWorker::eval_Fxc(std::vector<helfem::Matrix> & Ho) const {
         if(polarized) {
           throw std::runtime_error("Refusing to compute restricted Fock matrix with unrestricted density.\n");
         }
 
+        const Eigen::Index nbf = (Eigen::Index) bf_ind.size();
+
         // Work matrix
-        arma::mat H(bf_ind.n_elem,bf_ind.n_elem);
-        H.zeros();
+        helfem::Matrix H = helfem::Matrix::Zero(nbf,nbf);
 
         // l-dependent term
-        arma::mat Hl(bf_ind.n_elem,bf_ind.n_elem);
-        Hl.zeros();
+        helfem::Matrix Hl = helfem::Matrix::Zero(nbf,nbf);
 
         {
           // LDA potential
-          arma::rowvec vrho(vxc.row(0));
+          helfem::Vector vrho = vxc.row(0).transpose();
           // Multiply weights into potential
-          vrho%=wtot;
+          vrho = vrho.array() * wtot.array();
           // Increment matrix
           increment_lda<double>(H,vrho,bf);
         }
-        if(H.has_nan())
+        if(!H.allFinite())
           fprintf(stderr,"NaN in Hamiltonian after LDA!\n");
 
         if(do_gga) {
           // Get vsigma
-          arma::rowvec vs(vsigma.row(0));
-          // Get grad rho
-          arma::uvec idx(arma::linspace<arma::uvec>(0,0,1));
-          arma::mat gr(arma::trans(grho.rows(idx)));
+          helfem::Vector vs = vsigma.row(0).transpose();
+          // Get grad rho (single spin channel) as a column
+          helfem::Matrix gr = grho.row(0).transpose();
           // Multiply grad rho by vsigma and the weights
-          gr.col(0)%=2.0*(wtot%vs).t();
+          gr.col(0).array() *= 2.0*(wtot.array()*vs.array());
           // If we also have laplacian dependence, we get an extra term
           if(do_mgga_l) {
-            gr.col(0)+=(2.0*vlapl.row(0)%r%(wrad*4.0*M_PI)).t();
+            gr.col(0).array() += 2.0*vlapl.row(0).transpose().array()*r.array()*(wrad.array()*4.0*M_PI);
           }
           // Increment matrix
           increment_gga<double>(H,gr,bf,bf_rho);
-          if(H.has_nan())
+          if(!H.allFinite())
             fprintf(stderr,"NaN in Hamiltonian after GGA!\n");
         }
 
         if(do_mgga_t || do_mgga_l) {
-          arma::rowvec vtl(wtot.n_elem, arma::fill::zeros);
+          helfem::Vector vtl = helfem::Vector::Zero(wtot.size());
           if(do_mgga_t)
-            vtl+=0.5*vtau.row(0);
+            vtl += 0.5*vtau.row(0).transpose();
           if(do_mgga_l)
-            vtl+=2.0*vlapl.row(0);
-          vtl%=wtot;
+            vtl += 2.0*vlapl.row(0).transpose();
+          vtl = vtl.array() * wtot.array();
           // Base term
           increment_lda<double>(H,vtl,bf_rho);
 
           if(do_mgga_t) {
             // l(l+1) term: r^-2 cancels out the factor in the total weight
-            vtl=vtau.row(0)%(0.5*wrad*4.0*M_PI);
+            vtl = vtau.row(0).transpose().array() * (0.5*wrad.array()*4.0*M_PI);
             increment_lda<double>(Hl,vtl,bf);
           }
           if(do_mgga_l) {
             // Laplacian term
-            vtl=vlapl.row(0)%wtot;
+            vtl = vlapl.row(0).transpose().array() * wtot.array();
             increment_mgga_lapl<double>(H,vtl,bf,bf_rho2);
           }
-          if(H.has_nan())
+          if(!H.allFinite())
             fprintf(stderr,"NaN in Hamiltonian after mGGA!\n");
         }
 
         // Collect results
-        for(size_t islice=0;islice<Ho.n_slices;islice++) {
-          Ho.slice(islice)(bf_ind,bf_ind) += H + islice*(islice+1)*Hl;
+        for(size_t islice=0;islice<Ho.size();islice++) {
+          helfem::Matrix Hs = H + ((double)(islice*(islice+1)))*Hl;
+          for(size_t i=0;i<bf_ind.size();i++)
+            for(size_t j=0;j<bf_ind.size();j++)
+              Ho[islice](bf_ind[i],bf_ind[j]) += Hs(i,j);
         }
       }
 
-      void DFTGridWorker::eval_Fxc(arma::cube & Hao, arma::cube & Hbo, bool beta) const {
+      void DFTGridWorker::eval_Fxc(std::vector<helfem::Matrix> & Hao, std::vector<helfem::Matrix> & Hbo, bool beta) const {
         if(!polarized) {
           throw std::runtime_error("Refusing to compute unrestricted Fock matrix with restricted density.\n");
         }
 
-        arma::mat Ha, Hb;
-        Ha.zeros(bf_ind.n_elem,bf_ind.n_elem);
-        if(beta)
-          Hb.zeros(bf_ind.n_elem,bf_ind.n_elem);
+        const Eigen::Index nbf = (Eigen::Index) bf_ind.size();
 
-        arma::mat Hal, Hbl;
-        Hal.zeros(bf_ind.n_elem,bf_ind.n_elem);
+        helfem::Matrix Ha = helfem::Matrix::Zero(nbf,nbf);
+        helfem::Matrix Hb;
         if(beta)
-          Hbl.zeros(bf_ind.n_elem,bf_ind.n_elem);
+          Hb = helfem::Matrix::Zero(nbf,nbf);
+
+        helfem::Matrix Hal = helfem::Matrix::Zero(nbf,nbf);
+        helfem::Matrix Hbl;
+        if(beta)
+          Hbl = helfem::Matrix::Zero(nbf,nbf);
 
         {
           // LDA potential
-          arma::rowvec vrhoa(vxc.row(0));
+          helfem::Vector vrhoa = vxc.row(0).transpose();
           // Multiply weights into potential
-          vrhoa%=wtot;
+          vrhoa = vrhoa.array() * wtot.array();
           // Increment matrix
           increment_lda<double>(Ha,vrhoa,bf);
 
           if(beta) {
-            arma::rowvec vrhob(vxc.row(1));
-            vrhob%=wtot;
+            helfem::Vector vrhob = vxc.row(1).transpose();
+            vrhob = vrhob.array() * wtot.array();
             increment_lda<double>(Hb,vrhob,bf);
           }
         }
-        if(Ha.has_nan() || (beta && Hb.has_nan()))
+        if(!Ha.allFinite() || (beta && !Hb.allFinite()))
           //throw std::logic_error("NaN encountered!\n");
           fprintf(stderr,"NaN in Hamiltonian after LDA!\n");
 
         if(do_gga) {
           // Get vsigma
-          arma::rowvec vs_aa(vsigma.row(0));
-          arma::rowvec vs_ab(vsigma.row(1));
+          helfem::Vector vs_aa = vsigma.row(0).transpose();
+          helfem::Vector vs_ab = vsigma.row(1).transpose();
 
-          // Get grad rho
-          arma::uvec idxa(arma::linspace<arma::uvec>(0,0,1));
-          arma::uvec idxb(arma::linspace<arma::uvec>(1,1,1));
-          arma::mat gr_a0(arma::trans(grho.rows(idxa)));
-          arma::mat gr_b0(arma::trans(grho.rows(idxb)));
+          // Get grad rho (columns)
+          helfem::Vector gr_a0 = grho.row(0).transpose();
+          helfem::Vector gr_b0 = grho.row(1).transpose();
 
           // Multiply grad rho by vsigma and the weights
-          arma::mat gr_a(gr_a0);
-          gr_a.col(0)=(wtot%(2.0*vs_aa%gr_a0.col(0).t() + vs_ab%gr_b0.col(0).t())).t();
+          helfem::Matrix gr_a(wtot.size(),1);
+          gr_a.col(0) = (wtot.array()*(2.0*vs_aa.array()*gr_a0.array() + vs_ab.array()*gr_b0.array())).matrix();
           // If we also have laplacian dependence, we get an extra term
           if(do_mgga_l) {
-            gr_a.col(0)+=2.0*(vlapl.row(0)%r%(wrad*4.0*M_PI)).t();
+            gr_a.col(0).array() += 2.0*vlapl.row(0).transpose().array()*r.array()*(wrad.array()*4.0*M_PI);
           }
           // Increment matrix
           increment_gga<double>(Ha,gr_a,bf,bf_rho);
 
           if(beta) {
-            arma::rowvec vs_bb(vsigma.row(2));
-            arma::mat gr_b(gr_b0);
-            gr_b.col(0)=(wtot%(2.0*vs_bb%gr_b0.col(0).t() + vs_ab%gr_a0.col(0).t())).t();
+            helfem::Vector vs_bb = vsigma.row(2).transpose();
+            helfem::Matrix gr_b(wtot.size(),1);
+            gr_b.col(0) = (wtot.array()*(2.0*vs_bb.array()*gr_b0.array() + vs_ab.array()*gr_a0.array())).matrix();
             if(do_mgga_l) {
-              gr_b.col(0)+=2.0*(vlapl.row(1)%r%(wrad*4.0*M_PI)).t();
+              gr_b.col(0).array() += 2.0*vlapl.row(1).transpose().array()*r.array()*(wrad.array()*4.0*M_PI);
             }
             increment_gga<double>(Hb,gr_b,bf,bf_rho);
           }
-          if(Ha.has_nan() || (beta && Hb.has_nan()))
+          if(!Ha.allFinite() || (beta && !Hb.allFinite()))
             //throw std::logic_error("NaN encountered!\n");
             fprintf(stderr,"NaN in Hamiltonian after GGA!\n");
         }
 
         if(do_mgga_t || do_mgga_l) {
-          arma::rowvec vtl_a(wtot.n_elem, arma::fill::zeros);
+          helfem::Vector vtl_a = helfem::Vector::Zero(wtot.size());
           if(do_mgga_t)
-            vtl_a += 0.5*vtau.row(0);
+            vtl_a += 0.5*vtau.row(0).transpose();
           if(do_mgga_l)
-            vtl_a += 2.0*vlapl.row(0);
-          vtl_a %= wtot;
+            vtl_a += 2.0*vlapl.row(0).transpose();
+          vtl_a = vtl_a.array() * wtot.array();
 
           // Base term
           increment_lda<double>(Ha,vtl_a,bf_rho);
 
           if(do_mgga_t) {
             // l(l+1) term: r^-2 cancels out the factor in the total weight
-            vtl_a=vtau.row(0)%(0.5*wrad*4.0*M_PI);
+            vtl_a = vtau.row(0).transpose().array() * (0.5*wrad.array()*4.0*M_PI);
             increment_lda<double>(Hal,vtl_a,bf);
           }
           if(do_mgga_l) {
-            vtl_a=vlapl.row(0)%wtot;
+            vtl_a = vlapl.row(0).transpose().array() * wtot.array();
             increment_mgga_lapl<double>(Ha,vtl_a,bf,bf_rho2);
           }
           if(beta) {
-            arma::rowvec vtl_b(wtot.n_elem, arma::fill::zeros);
+            helfem::Vector vtl_b = helfem::Vector::Zero(wtot.size());
             if(do_mgga_t)
-              vtl_b += 0.5*vtau.row(1);
+              vtl_b += 0.5*vtau.row(1).transpose();
             if(do_mgga_l)
-              vtl_b += 2.0*vlapl.row(1);
-            vtl_b %= wtot;
+              vtl_b += 2.0*vlapl.row(1).transpose();
+            vtl_b = vtl_b.array() * wtot.array();
 
             // Base term
             increment_lda<double>(Hb,vtl_b,bf_rho);
 
             if(do_mgga_t) {
               // l(l+1) term: r^-2 cancels out the factor in the total weight
-              vtl_b=vtau.row(1)%(0.5*wrad*4.0*M_PI);
+              vtl_b = vtau.row(1).transpose().array() * (0.5*wrad.array()*4.0*M_PI);
               increment_lda<double>(Hbl,vtl_b,bf);
             }
             if(do_mgga_l) {
-              vtl_b=vlapl.row(1)%wtot;
+              vtl_b = vlapl.row(1).transpose().array() * wtot.array();
               increment_mgga_lapl<double>(Hb,vtl_b,bf,bf_rho2);
             }
           }
-          if(Ha.has_nan() || (beta && Hb.has_nan()))
+          if(!Ha.allFinite() || (beta && !Hb.allFinite()))
             //throw std::logic_error("NaN encountered!\n");
             fprintf(stderr,"NaN in Hamiltonian after mGGA!\n");
         }
 
         // Collect results
-        for(size_t islice=0;islice<Hao.n_slices;islice++) {
-          Hao.slice(islice)(bf_ind,bf_ind) += Ha + islice*(islice+1)*Hal;
+        for(size_t islice=0;islice<Hao.size();islice++) {
+          helfem::Matrix Hs = Ha + ((double)(islice*(islice+1)))*Hal;
+          for(size_t i=0;i<bf_ind.size();i++)
+            for(size_t j=0;j<bf_ind.size();j++)
+              Hao[islice](bf_ind[i],bf_ind[j]) += Hs(i,j);
         }
         if(beta) {
-          for(size_t islice=0;islice<Hbo.n_slices;islice++) {
-            Hbo.slice(islice)(bf_ind,bf_ind) += Hb + islice*(islice+1)*Hbl;
+          for(size_t islice=0;islice<Hbo.size();islice++) {
+            helfem::Matrix Hs = Hb + ((double)(islice*(islice+1)))*Hbl;
+            for(size_t i=0;i<bf_ind.size();i++)
+              for(size_t j=0;j<bf_ind.size();j++)
+                Hbo[islice](bf_ind[i],bf_ind[j]) += Hs(i,j);
           }
         }
       }
@@ -623,25 +463,29 @@ namespace helfem {
       // inherited from DFTGridWorkerBase.
 
       void DFTGridWorker::compute_bf(size_t iel) {
-        // Update function list
-        bf_ind=basp->bf_list(iel);
-        // Get radii
-        r=basp->get_r(iel).t();
+        // Update function list (bridge arma::uvec -> vector<Eigen::Index>)
+        arma::uvec bf_ind_arma = basp->bf_list(iel);
+        bf_ind.assign(bf_ind_arma.n_elem, 0);
+        for(size_t k=0;k<bf_ind_arma.n_elem;k++)
+          bf_ind[k] = (Eigen::Index) bf_ind_arma(k);
+
+        // Get radii (basis returns arma::vec -> helfem::Vector)
+        r = helfem::to_eigen(basp->get_r(iel));
         // Get radial weights
-        wrad=basp->get_wrad(iel).t();
+        wrad = helfem::to_eigen(basp->get_wrad(iel));
 
         // Update total weights
-        wtot = 4.0*M_PI*wrad%arma::square(r);
+        wtot = 4.0*M_PI * wrad.array() * r.array().square();
 
-        // Compute basis function values
-        bf=arma::trans(basp->eval_bf(iel));
+        // Compute basis function values (basis returns arma::mat; transpose to Nbf x Npts)
+        bf = helfem::to_eigen(basp->eval_bf(iel)).transpose();
 
         if(do_grad) {
-          bf_rho=arma::trans(basp->eval_df(iel));
+          bf_rho = helfem::to_eigen(basp->eval_df(iel)).transpose();
         }
 
         if(do_lapl) {
-          bf_rho2=arma::trans(basp->eval_lf(iel));
+          bf_rho2 = helfem::to_eigen(basp->eval_lf(iel)).transpose();
         }
       }
 
@@ -657,6 +501,16 @@ namespace helfem {
       void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const arma::cube & P, arma::cube & H, double & Exc, double & Nel, double thr) {
         H.zeros(P.n_rows,P.n_rows,P.n_slices);
 
+        // Bridge the per-l density cube to a vector of Eigen matrices
+        std::vector<helfem::Matrix> Pvec(P.n_slices);
+        for(size_t is=0; is<P.n_slices; is++)
+          Pvec[is] = helfem::to_eigen(arma::mat(P.slice(is)));
+
+        // Shared Eigen Fock accumulator (one matrix per l-slice)
+        std::vector<helfem::Matrix> Hvec(P.n_slices);
+        for(size_t is=0; is<P.n_slices; is++)
+          Hvec[is] = helfem::Matrix::Zero(P.n_rows, P.n_rows);
+
         double exc=0.0;
         double nel=0.0;
 
@@ -672,7 +526,7 @@ namespace helfem {
 #endif
           for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
             grid.compute_bf(iel);
-            grid.update_density(P);
+            grid.update_density(Pvec);
             nel+=grid.compute_Nel();
 
             grid.init_xc();
@@ -682,14 +536,14 @@ namespace helfem {
               grid.compute_xc(c_func,c_pars,thr);
 
             exc+=grid.eval_Exc();
-            grid.eval_Fxc(H);
+            grid.eval_Fxc(Hvec);
           }
 #ifdef _OPENMP
 #pragma omp for
 #endif
           for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
             grid.compute_bf(iel);
-            grid.update_density(P);
+            grid.update_density(Pvec);
             nel+=grid.compute_Nel();
 
             grid.init_xc();
@@ -699,9 +553,13 @@ namespace helfem {
               grid.compute_xc(c_func,c_pars,thr);
 
             exc+=grid.eval_Exc();
-            grid.eval_Fxc(H);
+            grid.eval_Fxc(Hvec);
           }
         }
+
+        // Bridge Fock accumulator back to the arma cube
+        for(size_t is=0; is<P.n_slices; is++)
+          H.slice(is) = helfem::to_arma(Hvec[is]);
 
         // Save outputs
         Exc=exc;
@@ -712,6 +570,22 @@ namespace helfem {
         Ha.zeros(Pa.n_rows,Pa.n_rows,Pa.n_slices);
         Hb.zeros(Pb.n_rows,Pb.n_rows,Pb.n_slices);
 
+        // Bridge the per-l density cubes to vectors of Eigen matrices
+        std::vector<helfem::Matrix> Pavec(Pa.n_slices);
+        for(size_t is=0; is<Pa.n_slices; is++)
+          Pavec[is] = helfem::to_eigen(arma::mat(Pa.slice(is)));
+        std::vector<helfem::Matrix> Pbvec(Pb.n_slices);
+        for(size_t is=0; is<Pb.n_slices; is++)
+          Pbvec[is] = helfem::to_eigen(arma::mat(Pb.slice(is)));
+
+        // Shared Eigen Fock accumulators (one matrix per l-slice)
+        std::vector<helfem::Matrix> Havec(Pa.n_slices);
+        for(size_t is=0; is<Pa.n_slices; is++)
+          Havec[is] = helfem::Matrix::Zero(Pa.n_rows, Pa.n_rows);
+        std::vector<helfem::Matrix> Hbvec(Pb.n_slices);
+        for(size_t is=0; is<Pb.n_slices; is++)
+          Hbvec[is] = helfem::Matrix::Zero(Pb.n_rows, Pb.n_rows);
+
         double exc=0.0;
         double nel=0.0;
 #ifdef _OPENMP
@@ -726,7 +600,7 @@ namespace helfem {
 #endif
           for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
             grid.compute_bf(iel);
-            grid.update_density(Pa,Pb);
+            grid.update_density(Pavec,Pbvec);
             nel+=grid.compute_Nel();
 
             grid.init_xc();
@@ -736,14 +610,14 @@ namespace helfem {
               grid.compute_xc(c_func,c_pars,thr);
 
             exc+=grid.eval_Exc();
-            grid.eval_Fxc(Ha,Hb,beta);
+            grid.eval_Fxc(Havec,Hbvec,beta);
           }
 #ifdef _OPENMP
 #pragma omp for
 #endif
           for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
             grid.compute_bf(iel);
-            grid.update_density(Pa,Pb);
+            grid.update_density(Pavec,Pbvec);
             nel+=grid.compute_Nel();
 
             grid.init_xc();
@@ -753,8 +627,16 @@ namespace helfem {
               grid.compute_xc(c_func,c_pars,thr);
 
             exc+=grid.eval_Exc();
-            grid.eval_Fxc(Ha,Hb,beta);
+            grid.eval_Fxc(Havec,Hbvec,beta);
           }
+        }
+
+        // Bridge Fock accumulators back to the arma cubes
+        for(size_t is=0; is<Pa.n_slices; is++)
+          Ha.slice(is) = helfem::to_arma(Havec[is]);
+        if(beta) {
+          for(size_t is=0; is<Pb.n_slices; is++)
+            Hb.slice(is) = helfem::to_arma(Hbvec[is]);
         }
 
         // Save outputs

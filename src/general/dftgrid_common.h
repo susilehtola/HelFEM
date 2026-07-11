@@ -35,8 +35,8 @@ namespace helfem {
     /// density update, and Fxc reassembly.
     class DFTGridWorkerBase {
     protected:
-      /// Total quadrature weights on the current element's grid
-      arma::rowvec wtot;
+      /// Total quadrature weights on the current element's grid (Npts)
+      helfem::Vector wtot;
 
       /// Is gradient needed?
       bool do_grad;
@@ -56,27 +56,27 @@ namespace helfem {
 
       // LDA
       /// Density, Nrho x Npts
-      arma::mat rho;
+      helfem::Matrix rho;
       /// Energy density, Npts
-      arma::rowvec exc;
+      helfem::Vector exc;
       /// Functional derivative wrt density
-      arma::mat vxc;
+      helfem::Matrix vxc;
 
       // GGA
       /// Dot products of density gradient
-      arma::mat sigma;
+      helfem::Matrix sigma;
       /// Functional derivative wrt density gradient
-      arma::mat vsigma;
+      helfem::Matrix vsigma;
 
       // Meta-GGA
       /// Laplacian of density
-      arma::mat lapl;
+      helfem::Matrix lapl;
       /// Kinetic energy density
-      arma::mat tau;
+      helfem::Matrix tau;
       /// Functional derivative wrt laplacian
-      arma::mat vlapl;
+      helfem::Matrix vlapl;
       /// Functional derivative wrt kinetic energy density
-      arma::mat vtau;
+      helfem::Matrix vtau;
 
     public:
       DFTGridWorkerBase();
@@ -111,24 +111,27 @@ namespace helfem {
     /// per-point potential weights vxc (1 x Npts). Geometry-independent
     /// -- shared verbatim by all three DFTGridWorker variants (real f
     /// for sadatom, complex f for atomic/diatomic).
-    template<typename T> void increment_lda(arma::mat & H, const arma::rowvec & vxc, const arma::Mat<T> & f) {
-      if(f.n_cols != vxc.n_elem) {
+    template<typename T> void increment_lda(helfem::Matrix & H, const helfem::Vector & vxc,
+                                             const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> & f) {
+      if(f.cols() != vxc.size()) {
         std::ostringstream oss;
-        oss << "Number of functions " << f.n_cols << " and potential values " << vxc.n_elem << " do not match!\n";
+        oss << "Number of functions " << f.cols() << " and potential values " << vxc.size() << " do not match!\n";
         throw std::runtime_error(oss.str());
       }
-      if(H.n_rows != f.n_rows || H.n_cols != f.n_rows) {
+      if(H.rows() != f.rows() || H.cols() != f.rows()) {
         std::ostringstream oss;
-        oss << "Size of basis function (" << f.n_rows << "," << f.n_cols << ") and Fock matrix (" << H.n_rows << "," << H.n_cols << ") doesn't match!\n";
+        oss << "Size of basis function (" << f.rows() << "," << f.cols() << ") and Fock matrix (" << H.rows() << "," << H.cols() << ") doesn't match!\n";
         throw std::runtime_error(oss.str());
       }
 
-      // Form helper matrix
-      arma::Mat<T> fhlp(f);
-      for(size_t i=0;i<fhlp.n_rows;i++)
-        for(size_t j=0;j<fhlp.n_cols;j++)
-          fhlp(i,j)*=vxc(j);
-      H+=arma::real(fhlp*arma::trans(f));
+      // Weighted helper: fhlp(:,j) = f(:,j) * vxc(j). Then
+      // H += Re( fhlp * f^H ). arma::trans on a complex matrix is the
+      // conjugate transpose, so this is .adjoint() (== .transpose() for
+      // the real, sadatom, instantiation).
+      Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> fhlp = f;
+      for(Eigen::Index j=0;j<fhlp.cols();j++)
+        fhlp.col(j) *= vxc(j);
+      H += (fhlp * f.adjoint()).real();
     }
   }
 }
