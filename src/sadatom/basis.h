@@ -119,6 +119,54 @@ namespace helfem {
         /// Get r values
         arma::vec get_r(size_t iel) const;
 
+        /// Electron density at nucleus
+        double nuclear_density(const arma::mat & P) const;
+        /// Electron density gradient at nucleus
+        double nuclear_density_gradient(const arma::mat & P) const;
+
+        /// Get quadrature weights
+        arma::vec quadrature_weights() const;
+        /// Compute the Coulomb screening of the nucleus
+        arma::vec coulomb_screening(const arma::mat & Prad) const;
+
+        /// Radii
+        arma::vec radii() const;
+        /// Compute the radial Slater-Condon integral F^k for an orbital
+        /// specified by its coefficient vector c (length Nrad) in the
+        /// u = r * R basis.
+        double slater_F(int k, const arma::vec & c) const;
+        /// Compute radial orbitals
+        arma::mat orbitals(const arma::mat & C) const;
+        /// Compute radial orbitals' first derivative
+        arma::mat orbitals_derivative(const arma::mat & C) const;
+        /// Compute radial orbitals' second derivative
+        arma::mat orbitals_second_derivative(const arma::mat & C) const;
+
+        /// Compute the electron density in given element at wanted points
+        arma::vec electron_density(const arma::vec & x, size_t iel, const arma::mat & Prad, bool rsqweight = false) const;
+        /// Compute the electron density in given element at default quadrature points
+        arma::vec electron_density(size_t iel, const arma::mat & Prad, bool rsqweight = false) const;
+        /// Compute the position of the electron density maximum
+        double electron_density_maximum_radius(const arma::mat & Prad, bool rsqweight = true, double conv_thr=1e-10) const;
+        /// Compute the van der Waals radius, see doi:10.1002/chem.201602949
+        double vdw_radius(const arma::mat & Prad, double eps=0.001, double conv_thr=1e-10) const;
+        /// Compute the atomic radius by electron density inclusion
+        double electron_count_radius(const arma::mat & Prad, const double eps=0.001, const double conv_thr=1e-10) const;
+
+        /// Compute the electron density
+        arma::vec electron_density(const arma::mat & Prad, bool rsqweight = false) const;
+        /// Compute the electron density gradient
+        arma::vec electron_density_gradient(const arma::mat & Prad) const;
+        /// Compute the electron density laplacian
+        arma::vec electron_density_laplacian(const arma::mat & Prad) const;
+        /// Compute the kinetic energy density
+        arma::vec kinetic_energy_density(const arma::cube & Pl0) const;
+
+        /// Compute the exchange-correlation screening
+        arma::vec xc_screening(const arma::mat & Prad, int x_func, int c_func) const;
+        /// Compute the exchange-correlation screening
+        arma::mat xc_screening(const arma::mat & Parad, const arma::mat & Pbrad, int x_func, int c_func) const;
+
         /// Read-only access to the underlying radial basis. Useful for
         /// callers that want to build an NAORadialBasis on top of a
         /// converged sadatom SCF (see extract_naos_per_l below).
