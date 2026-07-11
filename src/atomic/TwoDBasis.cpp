@@ -26,6 +26,7 @@
 #include "../general/scf_helpers.h"
 #include <cassert>
 #include <cfloat>
+#include <algorithm>
 #include <helfem.h>
 
 #ifdef _OPENMP
@@ -54,15 +55,11 @@ namespace helfem {
         model=model_;
         Rrms=Rrms_;
 
-        // Bridge Eigen inputs to internal arma storage once.
+        // Bridge the Eigen boundary input to internal arma storage once
+        // (bval feeds the arma-based radial grid). lval/mval are stored
+        // as Eigen::VectorXi directly.
         arma::vec bval(bval_e.size());
         std::memcpy(bval.memptr(), bval_e.data(), sizeof(double) * (size_t) bval_e.size());
-        arma::ivec lval_arma(lval_e.size());
-        for (Eigen::Index i = 0; i < lval_e.size(); ++i)
-          lval_arma(i) = static_cast<arma::sword>(lval_e(i));
-        arma::ivec mval_arma(mval_e.size());
-        for (Eigen::Index i = 0; i < mval_e.size(); ++i)
-          mval_arma(i) = static_cast<arma::sword>(mval_e(i));
 
         // Construct radial basis
         bool zero_func_left=true;
@@ -73,8 +70,8 @@ namespace helfem {
         radial=FEMRadialBasis(fem, n_quad);
 
         // Construct angular basis
-        lval=lval_arma;
-        mval=mval_arma;
+        lval=lval_e;
+        mval=mval_e;
       }
 
       TwoDBasis::~TwoDBasis() {
@@ -105,11 +102,19 @@ namespace helfem {
       }
 
       arma::ivec TwoDBasis::get_lval() const {
-        return lval;
+        // Bridge Eigen->arma at the public boundary; consumers
+        // (checkpoint I/O, drivers) still take arma::ivec.
+        arma::ivec out(lval.size());
+        for (Eigen::Index i = 0; i < lval.size(); ++i)
+          out(i) = static_cast<arma::sword>(lval(i));
+        return out;
       }
 
       arma::ivec TwoDBasis::get_mval() const {
-        return mval;
+        arma::ivec out(mval.size());
+        for (Eigen::Index i = 0; i < mval.size(); ++i)
+          out(i) = static_cast<arma::sword>(mval(i));
+        return out;
       }
 
       int TwoDBasis::get_nquad() const {
@@ -133,7 +138,7 @@ namespace helfem {
       }
 
       size_t TwoDBasis::Ndummy() const {
-        return lval.n_elem*radial.Nbf();
+        return lval.size()*radial.Nbf();
       }
 
       size_t TwoDBasis::Nbf() const {
@@ -145,17 +150,17 @@ namespace helfem {
       }
 
       size_t TwoDBasis::Nang() const {
-        return lval.n_elem;
+        return lval.size();
       }
 
       arma::uvec TwoDBasis::m_indices(int m) const {
-        return helfem::collect_shell_indices(mval.n_elem,
+        return helfem::collect_shell_indices(mval.size(),
             [&](size_t)   { return radial.Nbf(); },
             [&](size_t i) { return mval(i) == m; });
       }
 
       arma::uvec TwoDBasis::lm_indices(int l, int m) const {
-        return helfem::collect_shell_indices(mval.n_elem,
+        return helfem::collect_shell_indices(mval.size(),
             [&](size_t)   { return radial.Nbf(); },
             [&](size_t i) { return mval(i) == m && lval(i) == l; });
       }
@@ -166,16 +171,19 @@ namespace helfem {
           idx.resize(1);
           idx[0]=arma::linspace<arma::uvec>(0,Nbf()-1,Nbf());
         } else if(symm==1) {
-          // Find unique m values
-          arma::uvec muni(arma::find_unique(mval));
-          arma::ivec mv(mval(muni));
+          // Unique m values in ascending order (matches arma::find_unique).
+          std::vector<int> mv;
+          for (Eigen::Index i = 0; i < mval.size(); ++i)
+            if (std::find(mv.begin(), mv.end(), mval(i)) == mv.end())
+              mv.push_back(mval(i));
+          std::sort(mv.begin(), mv.end());
 
-          idx.resize(mv.n_elem);
-          for(size_t i=0;i<mv.n_elem;i++)
-            idx[i]=m_indices(mv(i));
+          idx.resize(mv.size());
+          for(size_t i=0;i<mv.size();i++)
+            idx[i]=m_indices(mv[i]);
         } else if(symm==2) {
-          idx.resize(mval.n_elem);
-          for(size_t i=0;i<mval.n_elem;i++) {
+          idx.resize(mval.size());
+          for(size_t i=0;i<mval.size();i++) {
             idx[i]=lm_indices(lval(i),mval(i));
           }
         } else
@@ -229,7 +237,7 @@ namespace helfem {
             [&](size_t iel) { return radial.radial_integral(0, iel); });
 
         helfem::Matrix O = helfem::Matrix::Zero(Ndummy(), Ndummy());
-        for(size_t iang=0;iang<lval.n_elem;iang++)
+        for(size_t iang=0;iang<lval.size();iang++)
           set_sub(O,iang,iang,Orad);
 
         return O;
@@ -244,8 +252,8 @@ namespace helfem {
         const Eigen::Index n   = static_cast<Eigen::Index>(radial.Nbf());
         const Eigen::Index rhn = static_cast<Eigen::Index>(rh.radial.Nbf());
 
-        for(size_t iang=0;iang<lval.n_elem;iang++)
-          for(size_t jang=0;jang<rh.lval.n_elem;jang++)
+        for(size_t iang=0;iang<lval.size();iang++)
+          for(size_t jang=0;jang<rh.lval.size();jang++)
             if(lval(iang) == rh.lval(jang) && mval(iang) == rh.mval(jang))
               S.block(static_cast<Eigen::Index>(iang)*n,
                       static_cast<Eigen::Index>(jang)*rhn, n, rhn) = Srad;
@@ -263,7 +271,7 @@ namespace helfem {
         // Full kinetic energy matrix
         helfem::Matrix T = helfem::Matrix::Zero(Ndummy(), Ndummy());
         // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
+        for(size_t iang=0;iang<lval.size();iang++) {
           set_sub(T,iang,iang,Trad);
           if(lval(iang)>0) {
             // We also get the l(l+1) term
@@ -287,13 +295,13 @@ namespace helfem {
           if (Z != 0.0) {
             const helfem::Matrix Vrad = helfem::assemble_radial_diagonal(radial,
                 [&](size_t iel) { return radial.radial_integral(-1, iel); });
-            for (size_t iang = 0; iang < lval.n_elem; iang++)
+            for (size_t iang = 0; iang < lval.size(); iang++)
               set_sub(V, iang, iang, static_cast<double>(-Z) * Vrad);
           }
 
           if(Zl != 0.0 || Zr != 0.0) {
             // Auxiliary matrices
-            int Lmax(2*arma::max(lval));
+            int Lmax(2*lval.maxCoeff());
             std::vector<helfem::Matrix> Vaux(Lmax+1);
 #ifdef _OPENMP
 #pragma omp parallel for
@@ -303,15 +311,15 @@ namespace helfem {
                   [&](size_t iel) { return radial.nuclear_offcenter(iel, Rhalf, L); });
             }
 
-            int gmax(std::max(arma::max(lval),arma::max(mval)));
+            int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
             gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
 
             /// Loop over basis set
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
-            for(size_t iang=0;iang<lval.n_elem;iang++) {
-              for(size_t jang=0;jang<lval.n_elem;jang++) {
+            for(size_t iang=0;iang<lval.size();iang++) {
+              for(size_t jang=0;jang<lval.size();jang++) {
                 int li(lval(iang));
                 int mi(mval(iang));
 
@@ -346,7 +354,7 @@ namespace helfem {
         const helfem::Matrix Vrad = helfem::assemble_radial_diagonal(radial,
             [&](size_t iel) { return radial.model_potential(pot, iel); });
 	// Fill elements
-	for(size_t iang=0;iang<lval.n_elem;iang++)
+	for(size_t iang=0;iang<lval.size();iang++)
 	  set_sub(V,iang,iang,Vrad);
 
         return V;
@@ -365,7 +373,7 @@ namespace helfem {
             });
 
         // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++)
+        for(size_t iang=0;iang<lval.size();iang++)
           set_sub(O,iang,iang,Orad);
 
         return O;
@@ -379,15 +387,15 @@ namespace helfem {
         // Full electric couplings
         helfem::Matrix V = helfem::Matrix::Zero(Ndummy(), Ndummy());
 
-        int gmax(std::max(arma::max(lval),arma::max(mval)));
+        int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
         gaunt::Gaunt gaunt(gmax,1,gmax);
 
         // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
+        for(size_t iang=0;iang<lval.size();iang++) {
           int li(lval(iang));
           int mi(mval(iang));
 
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
+          for(size_t jang=0;jang<lval.size();jang++) {
             int lj(lval(jang));
             int mj(mval(jang));
 
@@ -409,15 +417,15 @@ namespace helfem {
         // Full electric couplings
         helfem::Matrix V = helfem::Matrix::Zero(Ndummy(), Ndummy());
 
-        int gmax(std::max(arma::max(lval),arma::max(mval)));
+        int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
         gaunt::Gaunt gaunt(gmax,2,gmax);
 
         // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
+        for(size_t iang=0;iang<lval.size();iang++) {
           int li(lval(iang));
           int mi(mval(iang));
 
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
+          for(size_t jang=0;jang<lval.size();jang++) {
             int lj(lval(jang));
             int mj(mval(jang));
 
@@ -447,15 +455,15 @@ namespace helfem {
         // Full coupling
         helfem::Matrix V = helfem::Matrix::Zero(Ndummy(), Ndummy());
 
-        int gmax(std::max(arma::max(lval),arma::max(mval)));
+        int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
         gaunt::Gaunt gaunt(gmax,4,gmax);
 
         // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
+        for(size_t iang=0;iang<lval.size();iang++) {
           int li(lval(iang));
           int mi(mval(iang));
 
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
+          for(size_t jang=0;jang<lval.size();jang++) {
             int lj(lval(jang));
             int mj(mval(jang));
 
@@ -481,7 +489,7 @@ namespace helfem {
               "Primitive teis have not been computed -- call "
               "compute_tei() before radial_df_factors().");
 
-        const int N_L = 2 * arma::max(lval) + 1;
+        const int N_L = 2 * lval.maxCoeff() + 1;
         const size_t Nrad = radial.Nbf();
         const size_t Nel  = radial.Nel();
 
@@ -620,7 +628,7 @@ namespace helfem {
         // disjoint_L / disjoint_m1L from radial.radial_integral and
         // prim_tei (in-element only; cross-element is assembled on the
         // fly from the disjoint factors inside the cached J/K helpers).
-        const int N_L = 2 * arma::max(lval) + 1;
+        const int N_L = 2 * lval.maxCoeff() + 1;
         atomic::basis::compute_disjoint_radial_integrals(
             radial, N_L, disjoint_L, disjoint_m1L);
         atomic::basis::compute_in_element_tei(radial, N_L, prim_tei);
@@ -636,7 +644,7 @@ namespace helfem {
       void TwoDBasis::compute_yukawa(double lambda_) {
         lambda = lambda_;
         yukawa = true;
-        const int N_L = 2 * arma::max(lval) + 1;
+        const int N_L = 2 * lval.maxCoeff() + 1;
         // Yukawa-mode disjoint factors (bessel i / bessel k) + in-element
         // Yukawa 2e + the exchange-permuted form needed by the cached K
         // assembly.
@@ -656,7 +664,7 @@ namespace helfem {
         // (iel, jel) pairs are stored explicitly in rs_ktei.
         disjoint_iL.clear();
         disjoint_kL.clear();
-        const int N_L = 2 * arma::max(lval) + 1;
+        const int N_L = 2 * lval.maxCoeff() + 1;
         atomic::basis::compute_erfc_ktei(radial, N_L, lambda, rs_ktei);
       }
 
@@ -673,14 +681,14 @@ namespace helfem {
         // Number of radial functions
         const Eigen::Index Nrad = static_cast<Eigen::Index>(radial.Nbf());
         // Gaunt coefficient table
-        int gmax(std::max(arma::max(lval),arma::max(mval)));
+        int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
         gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
 
         // maximal M value
-        int Mmax=arma::max(mval)-arma::min(mval);
+        int Mmax=mval.maxCoeff()-mval.minCoeff();
 
         // Radial helper matrices
-        std::vector< std::vector<helfem::Matrix> > Paux(2*arma::max(lval)+1);
+        std::vector< std::vector<helfem::Matrix> > Paux(2*lval.maxCoeff()+1);
         for(int L=0;L<(int) Paux.size();L++) {
           Paux[L].resize(2*Mmax+1);
           for(int M=-std::min(L,Mmax);M<=std::min(L,Mmax);M++) {
@@ -689,8 +697,8 @@ namespace helfem {
         }
 
         // Form radial helpers: contract ket
-        for(size_t kang=0;kang<lval.n_elem;kang++) {
-          for(size_t lang=0;lang<lval.n_elem;lang++) {
+        for(size_t kang=0;kang<lval.size();kang++) {
+          for(size_t lang=0;lang<lval.size();lang++) {
             // l and m values
             int lk(lval(kang));
             int mk(mval(kang));
@@ -711,7 +719,7 @@ namespace helfem {
         }
 
         // Helper matrices
-        std::vector< std::vector<helfem::Matrix> > Jaux(2*arma::max(lval)+1);
+        std::vector< std::vector<helfem::Matrix> > Jaux(2*lval.maxCoeff()+1);
         for(int L=0;L<(int) Jaux.size();L++) {
           Jaux[L].resize(2*Mmax+1);
           for(int M=-std::min(L,Mmax);M<=std::min(L,Mmax);M++) {
@@ -740,8 +748,8 @@ namespace helfem {
 
         // Full Coulomb matrix
         helfem::Matrix J = helfem::Matrix::Zero(Ndummy(),Ndummy());
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
+        for(size_t iang=0;iang<lval.size();iang++) {
+          for(size_t jang=0;jang<lval.size();jang++) {
             // l and m values
             int li(lval(iang));
             int mi(mval(iang));
@@ -774,7 +782,7 @@ namespace helfem {
         const helfem::Matrix & P = P0_in;
 
         // Gaunt coefficient table
-        int gmax(std::max(arma::max(lval),arma::max(mval)));
+        int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
         gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
 
         // Number of radial elements
@@ -795,8 +803,8 @@ namespace helfem {
 #ifdef _OPENMP
 #pragma omp for collapse(2)
 #endif
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
-            for(size_t kang=0;kang<lval.n_elem;kang++) {
+          for(size_t jang=0;jang<lval.size();jang++) {
+            for(size_t kang=0;kang<lval.size();kang++) {
               int lj(lval(jang));
               int mj(mval(jang));
 
@@ -804,7 +812,7 @@ namespace helfem {
               int mk(mval(kang));
 
               // Form radial helpers
-              size_t N_L(2*arma::max(lval)+1);
+              size_t N_L(2*lval.maxCoeff()+1);
               std::vector<helfem::Matrix> Rmat(N_L);
               for(size_t i=0;i<N_L;i++) {
                 Rmat[i] = helfem::Matrix::Zero(Nrad,Nrad);
@@ -813,11 +821,11 @@ namespace helfem {
               std::vector<bool> couple(N_L,false);
 
               // Perform angular sums
-              for(size_t iang=0;iang<lval.n_elem;iang++) {
+              for(size_t iang=0;iang<lval.size();iang++) {
                 int li(lval(iang));
                 int mi(mval(iang));
 
-                for(size_t lang=0;lang<lval.n_elem;lang++) {
+                for(size_t lang=0;lang<lval.size();lang++) {
                   int ll(lval(lang));
                   int ml(mval(lang));
 
@@ -887,7 +895,7 @@ namespace helfem {
         const helfem::Matrix & P = P0_in;
 
         // Gaunt coefficient table
-        int gmax(std::max(arma::max(lval),arma::max(mval)));
+        int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
         gaunt::Gaunt gaunt(gmax,2*gmax,gmax);
 
         // Number of radial elements
@@ -907,8 +915,8 @@ namespace helfem {
 #ifdef _OPENMP
 #pragma omp for collapse(2)
 #endif
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
-            for(size_t kang=0;kang<lval.n_elem;kang++) {
+          for(size_t jang=0;jang<lval.size();jang++) {
+            for(size_t kang=0;kang<lval.size();kang++) {
               int lj(lval(jang));
               int mj(mval(jang));
 
@@ -916,7 +924,7 @@ namespace helfem {
               int mk(mval(kang));
 
               // Form radial helpers
-              size_t N_L(2*arma::max(lval)+1);
+              size_t N_L(2*lval.maxCoeff()+1);
               std::vector<helfem::Matrix> Rmat(N_L);
               for(size_t i=0;i<N_L;i++) {
                 Rmat[i] = helfem::Matrix::Zero(Nrad,Nrad);
@@ -925,11 +933,11 @@ namespace helfem {
               std::vector<bool> couple(N_L,false);
 
               // Perform angular sums
-              for(size_t iang=0;iang<lval.n_elem;iang++) {
+              for(size_t iang=0;iang<lval.size();iang++) {
                 int li(lval(iang));
                 int mi(mval(iang));
 
-                for(size_t lang=0;lang<lval.n_elem;lang++) {
+                for(size_t lang=0;lang<lval.size();lang++) {
                   int ll(lval(lang));
                   int ml(mval(lang));
 
@@ -1009,16 +1017,16 @@ namespace helfem {
 
       arma::cx_mat TwoDBasis::eval_bf(size_t iel, double cth, double phi) const {
         // Evaluate spherical harmonics
-        arma::cx_vec sph(lval.n_elem);
-        for(size_t i=0;i<lval.n_elem;i++)
+        arma::cx_vec sph(lval.size());
+        for(size_t i=0;i<lval.size();i++)
           sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
         // Evaluate radial functions
         arma::mat rad(helfem::to_arma(radial.get_bf(iel)));
 
         // Form supermatrix
-        arma::cx_mat bf(rad.n_rows,lval.n_elem*rad.n_cols);
-        for(size_t i=0;i<lval.n_elem;i++)
+        arma::cx_mat bf(rad.n_rows,lval.size()*rad.n_cols);
+        for(size_t i=0;i<lval.size();i++)
           bf.cols(i*rad.n_cols,(i+1)*rad.n_cols-1)=sph(i)*rad;
 
         return bf;
@@ -1026,8 +1034,8 @@ namespace helfem {
 
       void TwoDBasis::eval_df(size_t iel, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const {
         // Evaluate spherical harmonics
-        arma::cx_vec sph(lval.n_elem);
-        for(size_t i=0;i<lval.n_elem;i++)
+        arma::cx_vec sph(lval.size());
+        for(size_t i=0;i<lval.size();i++)
           sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
         // Evaluate radial functions
@@ -1035,15 +1043,15 @@ namespace helfem {
         arma::mat drad(helfem::to_arma(radial.get_df(iel)));
 
         // Form supermatrices
-        dr.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
-        dth.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
-        dphi.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
+        dr.zeros(frad.n_rows,lval.size()*frad.n_cols);
+        dth.zeros(frad.n_rows,lval.size()*frad.n_cols);
+        dphi.zeros(frad.n_rows,lval.size()*frad.n_cols);
 
         // Radial one is easy
-        for(size_t i=0;i<lval.n_elem;i++)
+        for(size_t i=0;i<lval.size();i++)
           dr.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=sph(i)*drad;
         // and so is phi
-        for(size_t i=0;i<lval.n_elem;i++)
+        for(size_t i=0;i<lval.size();i++)
           dphi.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=std::complex<double>(0.0,mval(i))*sph(i)*frad;
         // sin^2(theta) = (1 - cth)(1 + cth) is algebraically identical to
         // 1 - cth*cth but avoids the catastrophic cancellation when cth is
@@ -1056,7 +1064,7 @@ namespace helfem {
         const double cotth = (sinth > 0.0) ? cth/sinth : 0.0;
 
         // but theta is nastier
-        for(size_t i=0;i<lval.n_elem;i++) {
+        for(size_t i=0;i<lval.size();i++) {
           int l(lval(i));
           int m(mval(i));
 
@@ -1071,8 +1079,8 @@ namespace helfem {
 
       arma::cx_mat TwoDBasis::eval_lf(size_t iel, double cth, double phi) const {
         // Evaluate spherical harmonics
-        arma::cx_vec sph(lval.n_elem);
-        for(size_t i=0;i<lval.n_elem;i++)
+        arma::cx_vec sph(lval.size());
+        for(size_t i=0;i<lval.size();i++)
           sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
         // Evaluate radial functions
@@ -1082,15 +1090,15 @@ namespace helfem {
         arma::mat lrad(helfem::to_arma(radial.get_lf(iel)));
 
         // Form supermatrix
-        arma::cx_mat lf(frad.n_rows,lval.n_elem*frad.n_cols,arma::fill::zeros);
+        arma::cx_mat lf(frad.n_rows,lval.size()*frad.n_cols,arma::fill::zeros);
         // Loop over basis function indices
-        for(size_t iang=0;iang<lval.n_elem;iang++)
+        for(size_t iang=0;iang<lval.size();iang++)
           for(size_t irad=0;irad<frad.n_cols;irad++)
             // Loop over grid-point indices
             for(size_t igrid=0;igrid<frad.n_rows;igrid++)
               lf(igrid,iang*frad.n_cols+irad) = (lrad(igrid,irad) + 2*drad(igrid,irad)/r(igrid) - lval(iang)*(lval(iang)+1)*frad(igrid,irad)/(r(igrid)*r(igrid)))*sph(iang);
 
-        //for(size_t i=0;i<lval.n_elem;i++)
+        //for(size_t i=0;i<lval.size();i++)
         //lf.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=(arma::square(r)%lrad + 2*r%drad - lval(i)*(lval(i)+1)*frad) / arma::square(r) * sph(i);
 
         return lf;
@@ -1107,8 +1115,8 @@ namespace helfem {
         size_t Nrad(radial.Nbf());
 
         // List of functions in the element
-        arma::uvec idx(Nr*lval.n_elem);
-        for(size_t iam=0;iam<lval.n_elem;iam++)
+        arma::uvec idx(Nr*lval.size());
+        for(size_t iam=0;iam<lval.size();iam++)
           for(size_t j=0;j<Nr;j++)
             idx(iam*Nr+j)=Nrad*iam+ifirst+j;
 
