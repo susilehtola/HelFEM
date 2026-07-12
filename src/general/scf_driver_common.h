@@ -19,8 +19,18 @@
 // drivers. Both driver bodies used to keep byte-identical copies of
 // these routines; extracted here so bug fixes only need to happen in
 // one place.
+//
+// The linear algebra is Eigen-native (helfem::Matrix / helfem::Vector);
+// the per-symmetry-block gather/scatter uses the arma::uvec index lists
+// the basis get_sym_idx returns, converted to Eigen index vectors once
+// per use. Keeping the working matrices Eigen (rather than arma/LAPACK)
+// is what lets the SCF driver be instantiated at extended precision --
+// Eigen's SelfAdjointEigenSolver is scalar-generic where arma::eig_sym
+// is LAPACK/double-only.
 
 #include <armadillo>
+#include <Eigen/Eigenvalues>
+#include <algorithm>
 #include <cstdio>
 #include <stdexcept>
 #include <utility>
@@ -32,18 +42,28 @@
 namespace helfem {
   namespace scf_driver {
 
+    /// Convert an arma::uvec index list (from basis get_sym_idx) into an
+    /// Eigen index vector usable in Eigen 3.4 indexed views.
+    inline std::vector<Eigen::Index> to_idx(const arma::uvec & u) {
+      std::vector<Eigen::Index> idx(u.n_elem);
+      for (arma::uword i = 0; i < u.n_elem; ++i)
+        idx[i] = static_cast<Eigen::Index>(u(i));
+      return idx;
+    }
+
     /// Per-block symmetric orthonormalisation of the AO overlap S
     /// restricted to each symmetry index set. Both drivers build this
     /// once and reuse it in the CoreH construction, the --load block
     /// projection, and the --save density reconstruction.
-    inline std::vector<arma::mat> build_per_block_Sinvh(
-        const arma::mat & S, const std::vector<arma::uvec> & dsym) {
+    inline std::vector<helfem::Matrix> build_per_block_Sinvh(
+        const helfem::Matrix & S, const std::vector<arma::uvec> & dsym) {
       const size_t nsym = dsym.size();
-      std::vector<arma::mat> out(nsym);
+      std::vector<helfem::Matrix> out(nsym);
       for (size_t k = 0; k < nsym; ++k) {
         if (!dsym[k].n_elem) continue;
-        const arma::mat Sk = S(dsym[k], dsym[k]);
-        out[k] = helfem::to_arma(scf::form_Sinvh(helfem::to_eigen(Sk), /*chol=*/false));
+        const std::vector<Eigen::Index> idx = to_idx(dsym[k]);
+        const helfem::Matrix Sk = S(idx, idx);
+        out[k] = scf::form_Sinvh(Sk, /*chol=*/false);
       }
       return out;
     }
@@ -55,9 +75,9 @@ namespace helfem {
     /// steady-state Fock builder applies.
     template <typename Real>
     inline OpenOrbitalOptimizer::FockMatrix<Real> build_coreH_from_H0(
-        const arma::mat & H0, const arma::mat & S,
+        const helfem::Matrix & H0, const helfem::Matrix & S,
         const std::vector<arma::uvec> & dsym,
-        const std::vector<arma::mat> & Sinvh_arma,
+        const std::vector<helfem::Matrix> & Sinvh,
         size_t nparttype, bool have_bfield, double Bz) {
       const size_t nsym = dsym.size();
       OpenOrbitalOptimizer::FockMatrix<Real> CoreH(nsym * nparttype);
@@ -67,11 +87,11 @@ namespace helfem {
             CoreH[t * nsym + k] = helfem::Matrix::Zero(0, 0);
             continue;
           }
-          arma::mat H_sub = H0(dsym[k], dsym[k]);
+          const std::vector<Eigen::Index> idx = to_idx(dsym[k]);
+          helfem::Matrix H_sub = H0(idx, idx);
           if (have_bfield && nparttype == 2)
-            H_sub += (t == 0 ? -0.5 : 0.5) * Bz * arma::mat(S(dsym[k], dsym[k]));
-          const arma::mat H_orth = Sinvh_arma[k].t() * H_sub * Sinvh_arma[k];
-          CoreH[t * nsym + k] = helfem::to_eigen(H_orth);
+            H_sub += (t == 0 ? -0.5 : 0.5) * Bz * helfem::Matrix(S(idx, idx));
+          CoreH[t * nsym + k] = Sinvh[k].transpose() * H_sub * Sinvh[k];
         }
       }
       return CoreH;
@@ -91,28 +111,31 @@ namespace helfem {
         size_t out_index,
         OpenOrbitalOptimizer::Orbitals<Real> & orbs,
         OpenOrbitalOptimizer::OrbitalOccupations<Real> & occs,
-        const arma::mat & Pspin, const arma::uvec & idx,
-        const arma::mat & Sinvh_block, double max_occ) {
-      if (!idx.n_elem) {
+        const helfem::Matrix & Pspin, const arma::uvec & idx_u,
+        const helfem::Matrix & Sinvh_block, double max_occ) {
+      if (!idx_u.n_elem) {
         orbs[out_index] = helfem::Matrix::Zero(0, 0);
         occs[out_index] = helfem::Vector::Zero(0);
         return;
       }
-      const arma::mat Pblk  = Pspin(idx, idx);
-      const arma::mat Porth = arma::trans(Sinvh_block) * Pblk * Sinvh_block;
-      arma::vec occ_eigs;
-      arma::mat vec_eigs;
-      if (!arma::eig_sym(occ_eigs, vec_eigs, Porth))
+      const std::vector<Eigen::Index> idx = to_idx(idx_u);
+      const helfem::Matrix Pblk  = Pspin(idx, idx);
+      const helfem::Matrix Porth = Sinvh_block.transpose() * Pblk * Sinvh_block;
+      // SelfAdjointEigenSolver returns eigenvalues in ascending order;
+      // reverse for descending (largest occupation first), matching the
+      // old arma::eig_sym + manual reversal.
+      Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(Porth);
+      if (es.info() != Eigen::Success)
         throw std::logic_error("--load: eigendecomposition of projected block density failed");
-      const arma::uword n = vec_eigs.n_cols;
-      arma::mat V(vec_eigs.n_rows, n);
-      arma::vec w(n);
-      for (arma::uword i = 0; i < n; ++i) {
-        V.col(i) = vec_eigs.col(n - 1 - i);
-        w(i)     = std::min(std::max(occ_eigs(n - 1 - i), 0.0), max_occ);
+      const Eigen::Index n = es.eigenvalues().size();
+      helfem::Matrix V(es.eigenvectors().rows(), n);
+      helfem::Vector w(n);
+      for (Eigen::Index i = 0; i < n; ++i) {
+        V.col(i) = es.eigenvectors().col(n - 1 - i);
+        w(i)     = std::min(std::max(es.eigenvalues()(n - 1 - i), 0.0), max_occ);
       }
-      orbs[out_index] = helfem::to_eigen(V);
-      occs[out_index] = helfem::to_eigen(w);
+      orbs[out_index] = V;
+      occs[out_index] = w;
     }
 
     /// Save-path helper: reconstruct the full AO alpha / beta density
@@ -121,32 +144,30 @@ namespace helfem {
     /// (max occ 2); alpha and beta both get half of it. Unrestricted:
     /// alpha in indices [0, nsym), beta in [nsym, 2*nsym).
     template <typename Real>
-    inline std::pair<arma::mat, arma::mat> assemble_final_density(
+    inline std::pair<helfem::Matrix, helfem::Matrix> assemble_final_density(
         size_t Nbf, bool restricted,
         const std::vector<arma::uvec> & dsym,
-        const std::vector<arma::mat> & Sinvh_arma,
+        const std::vector<helfem::Matrix> & Sinvh,
         const OpenOrbitalOptimizer::Orbitals<Real> & final_orbs,
         const OpenOrbitalOptimizer::OrbitalOccupations<Real> & final_occs) {
       const size_t nsym = dsym.size();
-      arma::mat Pa_final(Nbf, Nbf, arma::fill::zeros);
-      arma::mat Pb_final(Nbf, Nbf, arma::fill::zeros);
+      const Eigen::Index N = static_cast<Eigen::Index>(Nbf);
+      helfem::Matrix Pa_final = helfem::Matrix::Zero(N, N);
+      helfem::Matrix Pb_final = helfem::Matrix::Zero(N, N);
       for (size_t k = 0; k < nsym; ++k) {
         if (!dsym[k].n_elem) continue;
-        const arma::mat orb_a_ao = Sinvh_arma[k] * helfem::to_arma(final_orbs[k]);
-        const arma::vec occ_a    = helfem::to_arma(final_occs[k]);
+        const std::vector<Eigen::Index> idx = to_idx(dsym[k]);
+        const helfem::Matrix orb_a_ao = Sinvh[k] * final_orbs[k];
+        const helfem::Vector occ_a    = final_occs[k];
         if (restricted) {
-          const arma::mat P_block = 0.5 * (orb_a_ao * arma::diagmat(occ_a) * arma::trans(orb_a_ao));
-          arma::mat Pa_tmp = Pa_final; Pa_tmp(dsym[k], dsym[k]) += P_block; Pa_final = Pa_tmp;
-          arma::mat Pb_tmp = Pb_final; Pb_tmp(dsym[k], dsym[k]) += P_block; Pb_final = Pb_tmp;
+          const helfem::Matrix P_block = 0.5 * (orb_a_ao * occ_a.asDiagonal() * orb_a_ao.transpose());
+          Pa_final(idx, idx) += P_block;
+          Pb_final(idx, idx) += P_block;
         } else {
-          const arma::mat orb_b_ao = Sinvh_arma[k] * helfem::to_arma(final_orbs[nsym + k]);
-          const arma::vec occ_b    = helfem::to_arma(final_occs[nsym + k]);
-          arma::mat Pa_tmp = Pa_final;
-          Pa_tmp(dsym[k], dsym[k]) += orb_a_ao * arma::diagmat(occ_a) * arma::trans(orb_a_ao);
-          Pa_final = Pa_tmp;
-          arma::mat Pb_tmp = Pb_final;
-          Pb_tmp(dsym[k], dsym[k]) += orb_b_ao * arma::diagmat(occ_b) * arma::trans(orb_b_ao);
-          Pb_final = Pb_tmp;
+          const helfem::Matrix orb_b_ao = Sinvh[k] * final_orbs[nsym + k];
+          const helfem::Vector occ_b    = final_occs[nsym + k];
+          Pa_final(idx, idx) += orb_a_ao * occ_a.asDiagonal() * orb_a_ao.transpose();
+          Pb_final(idx, idx) += orb_b_ao * occ_b.asDiagonal() * orb_b_ao.transpose();
         }
       }
       return {Pa_final, Pb_final};
@@ -218,15 +239,13 @@ namespace helfem {
     ///   P_full(dsym[k], dsym[k]) += C_k . diag(occ_e) . C_k^T
     template <typename Real>
     inline void accumulate_density_block(
-        arma::mat & P_full, const std::vector<arma::uvec> & dsym, size_t k,
-        const std::vector<arma::mat> & Sinvh_arma,
+        helfem::Matrix & P_full, const std::vector<arma::uvec> & dsym, size_t k,
+        const std::vector<helfem::Matrix> & Sinvh,
         const helfem::Matrix & orb_e, const helfem::Vector & occ_e) {
       if (!dsym[k].n_elem) return;
-      const arma::mat orb  = helfem::to_arma(orb_e);
-      const arma::vec occ  = helfem::to_arma(occ_e);
-      const arma::mat C_k  = Sinvh_arma[k] * orb;
-      const arma::mat P_k  = C_k * arma::diagmat(occ) * C_k.t();
-      P_full(dsym[k], dsym[k]) += P_k;
+      const std::vector<Eigen::Index> idx = to_idx(dsym[k]);
+      const helfem::Matrix C_k = Sinvh[k] * orb_e;
+      P_full(idx, idx) += C_k * occ_e.asDiagonal() * C_k.transpose();
     }
 
     /// Fock-builder helper: extract block k of a full AO Fock matrix,
@@ -238,15 +257,15 @@ namespace helfem {
     inline void orthonormalize_fock_block(
         OpenOrbitalOptimizer::FockMatrix<Real> & fock, size_t b,
         const std::vector<arma::uvec> & dsym, size_t k,
-        const std::vector<arma::mat> & Sinvh_arma,
-        const arma::mat & F_full) {
+        const std::vector<helfem::Matrix> & Sinvh,
+        const helfem::Matrix & F_full) {
       if (!dsym[k].n_elem) {
         fock[b] = helfem::Matrix::Zero(0, 0);
         return;
       }
-      const arma::mat Fk_sub = F_full(dsym[k], dsym[k]);
-      const arma::mat F_orth = Sinvh_arma[k].t() * Fk_sub * Sinvh_arma[k];
-      fock[b] = helfem::to_eigen(F_orth);
+      const std::vector<Eigen::Index> idx = to_idx(dsym[k]);
+      const helfem::Matrix Fk_sub = F_full(idx, idx);
+      fock[b] = Sinvh[k].transpose() * Fk_sub * Sinvh[k];
     }
 
     /// Fock-builder helper: assemble the alpha/beta HF exchange
@@ -263,16 +282,16 @@ namespace helfem {
     /// contribution.
     template <typename ExchangeFn>
     inline void assemble_hf_exchange(
-        arma::mat & Ka, arma::mat & Kb, double & Exx,
-        const arma::mat & Pa, const arma::mat & Pb,
+        helfem::Matrix & Ka, helfem::Matrix & Kb, double & Exx,
+        const helfem::Matrix & Pa, const helfem::Matrix & Pb,
         bool restricted, bool have_exx, ExchangeFn exchange_fn) {
       Exx = 0.0;
       if (!have_exx) return;
       Ka = exchange_fn(Pa);
-      Exx = 0.5 * arma::trace(Pa * Ka);
+      Exx = 0.5 * (Pa * Ka).trace();
       if (!restricted) {
         Kb = exchange_fn(Pb);
-        Exx += 0.5 * arma::trace(Pb * Kb);
+        Exx += 0.5 * (Pb * Kb).trace();
       } else {
         Exx *= 2.0;
       }
@@ -294,23 +313,23 @@ namespace helfem {
     template <typename Real, typename ApplyMAvg, typename OrthoBlock>
     inline void assemble_fock_blocks(
         OpenOrbitalOptimizer::FockMatrix<Real> & fock,
-        const arma::mat & H1, const arma::mat & J,
-        const arma::mat & XCa, const arma::mat & XCb,
-        const arma::mat & Ka,  const arma::mat & Kb,
-        const arma::mat & S,
+        const helfem::Matrix & H1, const helfem::Matrix & J,
+        const helfem::Matrix & XCa, const helfem::Matrix & XCb,
+        const helfem::Matrix & Ka,  const helfem::Matrix & Kb,
+        const helfem::Matrix & S,
         size_t nsym, bool restricted,
         bool have_xc, bool have_exx, bool have_bfield, double Bz,
         ApplyMAvg apply_mavg, OrthoBlock orthonormalize_block) {
       if (restricted) {
-        arma::mat F_ao = H1 + J;
+        helfem::Matrix F_ao = H1 + J;
         if (have_xc)  F_ao += XCa;
         if (have_exx) F_ao += Ka;
         apply_mavg(F_ao);
         for (size_t k = 0; k < nsym; ++k)
           orthonormalize_block(fock, k, F_ao, k);
       } else {
-        arma::mat Fa_ao = H1 + J;
-        arma::mat Fb_ao = H1 + J;
+        helfem::Matrix Fa_ao = H1 + J;
+        helfem::Matrix Fb_ao = H1 + J;
         if (have_xc)  { Fa_ao += XCa; Fb_ao += XCb; }
         if (have_exx) { Fa_ao += Ka;  Fb_ao += Kb;  }
         // Spin-Zeeman: alpha <- -Bz/2 * S, beta <- +Bz/2 * S.
