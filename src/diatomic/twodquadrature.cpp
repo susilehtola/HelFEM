@@ -19,8 +19,20 @@
 #include "../general/model_potential.h"
 #include "../sadatom/scf.h"
 #include "utils.h"
+#include <ArmaEigen.h>
 #include <algorithm>
 #include <cmath>
+
+namespace {
+  // Convert an arma index list (from the still-arma TwoDBasis accessors)
+  // into the std::vector<Eigen::Index> form used by Eigen's indexed views.
+  static std::vector<Eigen::Index> to_index_vector(const arma::uvec & idx) {
+    std::vector<Eigen::Index> out(idx.n_elem);
+    for(size_t i=0;i<idx.n_elem;i++)
+      out[i]=static_cast<Eigen::Index>(idx(i));
+    return out;
+  }
+}
 
 // PBE ground states determined with 10 radial elements
 int pbe_ground_states[118][4] = {
@@ -151,8 +163,11 @@ namespace helfem {
       }
 
       TwoDGridWorker::TwoDGridWorker(const helfem::diatomic::basis::TwoDBasis * basp_, int lang) : basp(basp_) {
-        // Get angular grid
-        chebyshev::chebyshev(lang,cth,wang);
+        // Get angular grid (chebyshev shim is arma-typed; bridge to Eigen)
+        arma::vec cth_a, wang_a;
+        chebyshev::chebyshev(lang,cth_a,wang_a);
+        cth=helfem::to_eigen(cth_a);
+        wang=helfem::to_eigen(wang_a);
       }
 
       TwoDGridWorker::~TwoDGridWorker() {
@@ -162,60 +177,60 @@ namespace helfem {
         // Store m
         m=m_;
         // Update function list
-        bf_ind=basp->bf_list_dummy(iel,m);
+        bf_ind=to_index_vector(basp->bf_list_dummy(iel,m));
 
         // Get radial weights. Only do one radial quadrature point at a
         // time, since this is an easy way to save a lot of memory.
-        r.zeros(1);
+        r=helfem::Vector::Zero(1);
         r(0)=basp->get_r(iel)(irad);
-        wrad.zeros(1);
+        wrad=helfem::Vector::Zero(1);
         wrad(0)=basp->get_wrad(iel)(irad);
 
         double Rhalf(basp->get_Rhalf());
 
         // Calculate helpers
-        arma::vec shmu(arma::sinh(r));
+        helfem::Vector shmu(r.array().sinh());
 
-        arma::vec sth(cth.n_elem);
-        for(size_t ia=0;ia<cth.n_elem;ia++)
+        helfem::Vector sth(cth.size());
+        for(size_t ia=0;ia<(size_t) cth.size();ia++)
           sth(ia)=sqrt(1.0 - cth(ia)*cth(ia));
 
         // Update total weights
-        wtot.zeros(wrad.n_elem*wang.n_elem);
-        for(size_t ia=0;ia<wang.n_elem;ia++)
-          for(size_t ir=0;ir<wrad.n_elem;ir++) {
-            size_t idx=ia*wrad.n_elem+ir;
+        wtot=helfem::Vector::Zero(wrad.size()*wang.size());
+        for(size_t ia=0;ia<(size_t) wang.size();ia++)
+          for(size_t ir=0;ir<(size_t) wrad.size();ir++) {
+            size_t idx=ia*wrad.size()+ir;
             // sin(th) is already contained within wang, but we don't want to divide by it since it may be zero. Phi integrals yield 2 pi
             wtot(idx)=2.0*M_PI*wang(ia)*wrad(ir)*std::pow(Rhalf,3)*shmu(ir)*(std::pow(shmu(ir),2)+std::pow(sth(ia),2));
           }
 
         // Compute basis function values
-        bf.zeros(bf_ind.n_elem,wtot.n_elem);
+        bf=helfem::Matrix::Zero(bf_ind.size(),wtot.size());
         // Loop over angular grid
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-        for(size_t ia=0;ia<cth.n_elem;ia++) {
+        for(size_t ia=0;ia<(size_t) cth.size();ia++) {
           // Evaluate basis functions at angular point
-          arma::mat abf(basp->eval_bf(iel, irad, cth(ia), m));
-          if(abf.n_cols != bf_ind.n_elem) {
+          helfem::Matrix abf(helfem::to_eigen(basp->eval_bf(iel, irad, cth(ia), m)));
+          if((size_t) abf.cols() != bf_ind.size()) {
             std::ostringstream oss;
-            oss << "Mismatch! Have " << bf_ind.n_elem << " basis function indices but " << abf.n_cols << " basis functions!\n";
+            oss << "Mismatch! Have " << bf_ind.size() << " basis function indices but " << abf.cols() << " basis functions!\n";
             throw std::logic_error(oss.str());
           }
           // Store functions
-          bf.cols(ia*wrad.n_elem,(ia+1)*wrad.n_elem-1)=arma::trans(abf);
+          bf.middleCols(ia*wrad.size(),wrad.size())=abf.transpose();
         }
       }
 
       void TwoDGridWorker::model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2) {
         double Rhalf(basp->get_Rhalf());
-        arma::vec chmu(arma::cosh(r));
+        helfem::Vector chmu(r.array().cosh());
 
-        itg.zeros(1,wtot.n_elem);
-        for(size_t ia=0;ia<wang.n_elem;ia++)
-          for(size_t ir=0;ir<wrad.n_elem;ir++) {
-            size_t idx=ia*wrad.n_elem+ir;
+        itg=helfem::Matrix::Zero(1,wtot.size());
+        for(size_t ia=0;ia<(size_t) wang.size();ia++)
+          for(size_t ir=0;ir<(size_t) wrad.size();ir++) {
+            size_t idx=ia*wrad.size()+ir;
 
             double r1=Rhalf*(chmu(ir) + cth(ia));
             double r2=Rhalf*(chmu(ir) - cth(ia));
@@ -223,15 +238,15 @@ namespace helfem {
 	    double V1(p1->V(r1));
 	    double V2(p2->V(r2));
 	    if(std::isnormal(V1))
-	      itg(idx)+=V1;
+	      itg(0,idx)+=V1;
 	    if(std::isnormal(V2))
-	      itg(idx)+=V2;
+	      itg(0,idx)+=V2;
           }
       }
 
       void TwoDGridWorker::multiply_Plm(int l, int m, probe_t p) {
-        arma::vec chmu(arma::cosh(r));
-        arma::vec shmu(arma::sinh(r));
+        helfem::Vector chmu(r.array().cosh());
+        helfem::Vector shmu(r.array().sinh());
 
         // The cthval rationals can drift slightly outside [-1, 1] under
         // round-off near the cusps; clamp before std::acos so we never
@@ -243,64 +258,64 @@ namespace helfem {
         };
 
         if(p==PROBE_LEFT) {
-          for(size_t ia=0;ia<wang.n_elem;ia++)
-            for(size_t ir=0;ir<wrad.n_elem;ir++) {
-              size_t idx=ia*wrad.n_elem+ir;
+          for(size_t ia=0;ia<wang.size();ia++)
+            for(size_t ir=0;ir<wrad.size();ir++) {
+              size_t idx=ia*wrad.size()+ir;
               double cthval = (1.0 + chmu(ir)*cth(ia))/(chmu(ir) + cth(ia));
               double Plm = eval_Plm(cthval);
-              for(size_t ix=0;ix<itg.n_rows;ix++)
+              for(size_t ix=0;ix<itg.rows();ix++)
                 itg(ix,idx)*=Plm;
             }
 
         } else if(p==PROBE_RIGHT) {
-          for(size_t ia=0;ia<wang.n_elem;ia++)
-            for(size_t ir=0;ir<wrad.n_elem;ir++) {
-              size_t idx=ia*wrad.n_elem+ir;
+          for(size_t ia=0;ia<wang.size();ia++)
+            for(size_t ir=0;ir<wrad.size();ir++) {
+              size_t idx=ia*wrad.size()+ir;
               double cthval = (1.0 - chmu(ir)*cth(ia))/(chmu(ir) - cth(ia));
               double Plm = eval_Plm(cthval);
-              for(size_t ix=0;ix<itg.n_rows;ix++)
+              for(size_t ix=0;ix<itg.rows();ix++)
                 itg(ix,idx)*=Plm;
             }
 
         } else if(p==PROBE_MIDDLE) {
-          for(size_t ia=0;ia<wang.n_elem;ia++)
-            for(size_t ir=0;ir<wrad.n_elem;ir++) {
-              size_t idx=ia*wrad.n_elem+ir;
+          for(size_t ia=0;ia<wang.size();ia++)
+            for(size_t ir=0;ir<wrad.size();ir++) {
+              size_t idx=ia*wrad.size()+ir;
               double cthval = cth(ia);
               double Plm = eval_Plm(cthval);
-              for(size_t ix=0;ix<itg.n_rows;ix++)
+              for(size_t ix=0;ix<itg.rows();ix++)
                 itg(ix,idx)*=Plm;
             }
         }
       }
 
-      void TwoDGridWorker::ao_projection(const std::function<arma::vec(double r)> & compute_ao, probe_t p) {
+      void TwoDGridWorker::ao_projection(const std::function<helfem::Vector(double r)> & compute_ao, probe_t p) {
         double Rhalf(basp->get_Rhalf());
-        arma::vec chmu(arma::cosh(r));
+        helfem::Vector chmu(r.array().cosh());
 
-        itg.zeros(compute_ao(0.0).n_elem,wtot.n_elem);
+        itg=helfem::Matrix::Zero(compute_ao(0.0).size(),wtot.size());
         if(p==PROBE_LEFT) {
-          for(size_t ia=0;ia<wang.n_elem;ia++)
-            for(size_t ir=0;ir<wrad.n_elem;ir++) {
-              size_t idx=ia*wrad.n_elem+ir;
+          for(size_t ia=0;ia<wang.size();ia++)
+            for(size_t ir=0;ir<wrad.size();ir++) {
+              size_t idx=ia*wrad.size()+ir;
 
               double ra(Rhalf*(chmu(ir) + cth(ia)));
               itg.col(idx) = compute_ao(ra);
             }
 
         } else if(p==PROBE_RIGHT) {
-          for(size_t ia=0;ia<wang.n_elem;ia++)
-            for(size_t ir=0;ir<wrad.n_elem;ir++) {
-              size_t idx=ia*wrad.n_elem+ir;
+          for(size_t ia=0;ia<wang.size();ia++)
+            for(size_t ir=0;ir<wrad.size();ir++) {
+              size_t idx=ia*wrad.size()+ir;
 
               double rb(Rhalf*(chmu(ir) - cth(ia)));
               itg.col(idx) = compute_ao(rb);
             }
 
         } else if(p==PROBE_MIDDLE) {
-          for(size_t ia=0;ia<wang.n_elem;ia++)
-            for(size_t ir=0;ir<wrad.n_elem;ir++) {
-              size_t idx=ia*wrad.n_elem+ir;
+          for(size_t ia=0;ia<wang.size();ia++)
+            for(size_t ir=0;ir<wrad.size();ir++) {
+              size_t idx=ia*wrad.size()+ir;
 
               // chmu^2 + cth^2 - 1 = sinh^2(mu) + cth^2 is mathematically
               // non-negative but can underflow to a tiny negative under
@@ -312,8 +327,8 @@ namespace helfem {
       }
 
       void TwoDGridWorker::gto(int l, const arma::vec & expn, probe_t p) {
-        std::function<arma::vec(double r)> compute_gto = [expn, l](double r) {
-          arma::vec f(expn.n_elem);
+        std::function<helfem::Vector(double r)> compute_gto = [expn, l](double r) {
+          helfem::Vector f(expn.n_elem);
           for(size_t ix=0;ix<expn.n_elem;ix++)
             f(ix)=lcao::radial_GTO(r,l,expn(ix));
           return f;
@@ -322,8 +337,8 @@ namespace helfem {
       }
 
       void TwoDGridWorker::sto(int l, const arma::vec & expn, probe_t p) {
-        std::function<arma::vec(double r)> compute_sto = [expn, l](double r) {
-          arma::vec f(expn.n_elem);
+        std::function<helfem::Vector(double r)> compute_sto = [expn, l](double r) {
+          helfem::Vector f(expn.n_elem);
           for(size_t ix=0;ix<expn.n_elem;ix++)
             f(ix)=lcao::radial_STO(r,l,expn(ix));
           return f;
@@ -331,18 +346,21 @@ namespace helfem {
         ao_projection(compute_sto, p);
       }
 
-      void TwoDGridWorker::eval_pot(arma::mat & Vo) const {
-        if(itg.n_rows != 1)
+      void TwoDGridWorker::eval_pot(helfem::Matrix & Vo) const {
+        if(itg.rows() != 1)
           throw std::logic_error("Should only have one column in integrand!\n");
-        Vo.submat(bf_ind,bf_ind)+=bf*arma::diagmat(itg%wtot)*arma::trans(bf);
+        // Elementwise product of the (single-row) integrand with the total
+        // quadrature weights, used as the diagonal of the weighting matrix.
+        helfem::Vector w = itg.row(0).transpose().array() * wtot.array();
+        Vo(bf_ind,bf_ind)+=bf*w.asDiagonal()*bf.transpose();
       }
 
-      void TwoDGridWorker::eval_proj(arma::mat & Vo) const {
-        Vo.cols(bf_ind)+=itg*arma::diagmat(wtot)*arma::trans(bf);
+      void TwoDGridWorker::eval_proj(helfem::Matrix & Vo) const {
+        Vo(Eigen::all,bf_ind)+=itg*wtot.asDiagonal()*bf.transpose();
       }
 
-      void TwoDGridWorker::eval_proj_overlap(arma::mat & Vo) const {
-        Vo+=itg*arma::diagmat(wtot)*arma::trans(itg);
+      void TwoDGridWorker::eval_proj_overlap(helfem::Matrix & Vo) const {
+        Vo+=itg*wtot.asDiagonal()*itg.transpose();
       }
 
       TwoDGrid::TwoDGrid() {
@@ -355,8 +373,7 @@ namespace helfem {
       }
 
       arma::mat TwoDGrid::model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2) {
-        arma::mat H;
-        H.zeros(basp->Ndummy(),basp->Ndummy());
+        helfem::Matrix H = helfem::Matrix::Zero(basp->Ndummy(),basp->Ndummy());
 
         // Get unique m values in basis set
         arma::ivec muni(basp->get_mval());
@@ -375,14 +392,12 @@ namespace helfem {
           }
         }
 
-        H=basp->remove_boundaries(H);
-
-        return H;
+        // remove_boundaries is still arma-typed; bridge around it.
+        return basp->remove_boundaries(helfem::to_arma(H));
       }
 
       arma::mat TwoDGrid::gto_projection(int l, int m, const arma::vec & expn, probe_t p) {
-        arma::mat S;
-        S.zeros(expn.n_elem,basp->Ndummy());
+        helfem::Matrix S = helfem::Matrix::Zero(expn.n_elem,basp->Ndummy());
         TwoDGridWorker grid(basp,lang);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
@@ -394,14 +409,11 @@ namespace helfem {
           }
         }
 
-        S=S.cols(basp->pure_indices());
-
-        return S;
+        return helfem::to_arma(helfem::Matrix(S(Eigen::all,to_index_vector(basp->pure_indices()))));
       }
 
       arma::mat TwoDGrid::gto_overlap(int l, int m, const arma::vec & expn, probe_t p) {
-        arma::mat S;
-        S.zeros(expn.n_elem,expn.n_elem);
+        helfem::Matrix S = helfem::Matrix::Zero(expn.n_elem,expn.n_elem);
         TwoDGridWorker grid(basp,lang);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
@@ -413,12 +425,11 @@ namespace helfem {
           }
         }
 
-        return S;
+        return helfem::to_arma(S);
       }
 
       arma::mat TwoDGrid::sto_projection(int l, int m, const arma::vec & expn, probe_t p) {
-        arma::mat S;
-        S.zeros(expn.n_elem,basp->Ndummy());
+        helfem::Matrix S = helfem::Matrix::Zero(expn.n_elem,basp->Ndummy());
         TwoDGridWorker grid(basp,lang);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
@@ -430,14 +441,11 @@ namespace helfem {
           }
         }
 
-        S=S.cols(basp->pure_indices());
-
-        return S;
+        return helfem::to_arma(helfem::Matrix(S(Eigen::all,to_index_vector(basp->pure_indices()))));
       }
 
       arma::mat TwoDGrid::sto_overlap(int l, int m, const arma::vec & expn, probe_t p) {
-        arma::mat S;
-        S.zeros(expn.n_elem,expn.n_elem);
+        helfem::Matrix S = helfem::Matrix::Zero(expn.n_elem,expn.n_elem);
         TwoDGridWorker grid(basp,lang);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
@@ -449,7 +457,7 @@ namespace helfem {
           }
         }
 
-        return S;
+        return helfem::to_arma(S);
       }
 
       arma::mat TwoDGrid::atomic_projection(int l, int m, probe_t p) {
@@ -476,12 +484,12 @@ namespace helfem {
         } else
           throw std::logic_error("No AOs on bond center!\n");
 
-        std::function<arma::vec(double r)> eval_ao = [basis, C](double r) {
-          return basis.eval_orbs(C, r);
+        // eval_orbs is arma-typed; bridge each evaluation to Eigen.
+        std::function<helfem::Vector(double r)> eval_ao = [basis, C](double r) {
+          return helfem::to_eigen(basis.eval_orbs(C, r));
         };
 
-        arma::mat S;
-        S.zeros(C.n_cols,basp->Ndummy());
+        helfem::Matrix S = helfem::Matrix::Zero(C.n_cols,basp->Ndummy());
         TwoDGridWorker grid(basp,lang);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
@@ -493,9 +501,7 @@ namespace helfem {
           }
         }
 
-        S=S.cols(basp->pure_indices());
-
-        return S;
+        return helfem::to_arma(helfem::Matrix(S(Eigen::all,to_index_vector(basp->pure_indices()))));
       }
 
       void TwoDGrid::compute_atoms(int Zl, int Zr) {

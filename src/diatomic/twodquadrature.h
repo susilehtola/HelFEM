@@ -40,23 +40,23 @@ namespace helfem {
         const helfem::diatomic::basis::TwoDBasis *basp;
 
         /// Angular grid
-        arma::vec cth, wang;
+        helfem::Vector cth, wang;
         /// Radial grid
-        arma::vec r;
+        helfem::Vector r;
         /// Radial weight
-        arma::rowvec wrad;
+        helfem::Vector wrad;
         /// Total quadrature weight
-        arma::rowvec wtot;
+        helfem::Vector wtot;
 
         /// Value of m
         int m;
         /// List of basis functions in element
-        arma::uvec bf_ind;
+        std::vector<Eigen::Index> bf_ind;
         /// Values of important functions in grid points, Nbf * Ngrid
-        arma::mat bf;
+        helfem::Matrix bf;
 
         /// Value of integrand, Ngrid
-        arma::mat itg;
+        helfem::Matrix itg;
 
       public:
         /// Dummy constructor
@@ -73,7 +73,7 @@ namespace helfem {
         void model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2);
 
         /// Compute AO projection
-        void ao_projection(const std::function<arma::vec(double r)> & compute_ao, probe_t p);
+        void ao_projection(const std::function<helfem::Vector(double r)> & compute_ao, probe_t p);
         /// Compute GTO projection
         void gto(int l, const arma::vec & expn, probe_t p);
         /// Compute STO projection
@@ -82,11 +82,11 @@ namespace helfem {
         void multiply_Plm(int l, int m, probe_t p);
 
         /// Evaluate potential energy matrix elements
-        void eval_pot(arma::mat & V) const;
+        void eval_pot(helfem::Matrix & V) const;
         /// Evaluate basis set projection
-        void eval_proj(arma::mat & S) const;
+        void eval_proj(helfem::Matrix & S) const;
         /// Evaluate projection's overlap
-        void eval_proj_overlap(arma::mat & S) const;
+        void eval_proj_overlap(helfem::Matrix & S) const;
       };
 
       /// Wrapper routine
