@@ -312,8 +312,13 @@ namespace helfem {
         arma::vec get_wrad(size_t iel) const;
         /// Get r values
         arma::vec get_r(size_t iel) const;
-        /// Get radial basis functions
+        /// Get radial basis functions at the quadrature points of element iel
+        /// (rows = radial points, cols = element primitives)
         arma::mat get_rad_bf(size_t iel) const;
+        /// Get their first mu derivatives, same layout
+        arma::mat get_rad_df(size_t iel) const;
+        /// Get their second mu derivatives, same layout
+        arma::mat get_rad_d2f(size_t iel) const;
 
         /// Electron density at nuclei
       };

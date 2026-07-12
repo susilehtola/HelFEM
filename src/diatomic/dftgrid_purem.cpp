@@ -15,6 +15,7 @@
 #include "dftgrid_purem.h"
 #include "dftgrid.h"     // increment_gga
 #include "chebyshev.h"
+#include "../general/spherical_harmonics.h"
 #include <ArmaEigen.h>
 #include <algorithm>
 #include <cmath>
@@ -44,6 +45,46 @@ namespace helfem {
             mlist.push_back(m);
         }
         std::sort(mlist.begin(), mlist.end());
+
+        // Angular factors depend only on (l, m, nu) -- not on the radial point
+        // -- so build them once here rather than per element / per radial point.
+        const arma::ivec lv(basp->get_lval());
+        const Eigen::Index nang = cth.size();
+        lval_m.assign(mlist.size(), std::vector<int>());
+        sph_m.assign(mlist.size(), std::vector<helfem::Vector>());
+        dsph_m.assign(mlist.size(), std::vector<helfem::Vector>());
+        for (size_t im = 0; im < mlist.size(); im++) {
+          const int m = mlist[im];
+          // Shells of this m block, in the order bf_list_dummy lists them
+          for (size_t i = 0; i < mv.n_elem; i++) {
+            if ((int) mv(i) != m) continue;
+            const int l = (int) lv(i);
+            lval_m[im].push_back(l);
+
+            helfem::Vector sph(nang), dsph(nang);
+            for (Eigen::Index ia = 0; ia < nang; ia++) {
+              const double c = cth(ia);
+              // sin(nu) written as (1-c)(1+c) to avoid cancellation near |c| = 1
+              const double sth = std::sqrt(std::max((1.0 - c) * (1.0 + c), 0.0));
+              const double cotth = (sth > 0.0) ? c / sth : 0.0;
+
+              const double Y = std::real(::spherical_harmonics(l, m, c, 0.0));
+              sph(ia) = Y;
+              // d Y_l^m / d nu = m cot(nu) Y_l^m + sqrt((l-m)(l+m+1)) Y_l^{m+1}
+              // (the e^{-i phi} of the raising term is unity at phi = 0)
+              double dY = m * cotth * Y;
+              if (m < l)
+                dY += std::sqrt((double)(l - m) * (double)(l + m + 1))
+                       * std::real(::spherical_harmonics(l, m + 1, c, 0.0));
+              dsph(ia) = dY;
+            }
+            sph_m[im].push_back(sph);
+            dsph_m[im].push_back(dsph);
+          }
+        }
+
+        cached_iel  = (size_t) -1;
+        cache_valid = false;
       }
 
       void PureMDFTGridWorker::compute_bf(size_t iel, size_t irad) {
@@ -78,6 +119,26 @@ namespace helfem {
                       * (shmu * shmu + sth * sth);
         }
 
+        // The FEM polynomials depend only on the element, so evaluate them
+        // once per element instead of once per (radial point, angular point,
+        // m block) -- see the note in the header.
+        if (!cache_valid || iel != cached_iel) {
+          rad_f = helfem::to_eigen(basp->get_rad_bf(iel));
+          if (need_df) {
+            rad_df = helfem::to_eigen(basp->get_rad_df(iel));
+            if (do_lapl)
+              rad_d2f = helfem::to_eigen(basp->get_rad_d2f(iel));
+          }
+          cached_iel  = iel;
+          cache_valid = true;
+        }
+
+        // mu-dependent pieces of the Laplacian (see TwoDBasis::eval_lf)
+        const double chmu   = std::cosh(r0);
+        const double cothmu = (shmu > 0.0) ? chmu / shmu : 0.0;
+        const double m2_base = (shmu > 0.0) ? 1.0 / (shmu * shmu) : 0.0;
+        helfem::Vector inv_h2 = inv_scale_r2;   // 1/h^2 at each angular point
+
         // Per-m real basis functions (and in-plane derivatives if needed)
         const size_t nm = mlist.size();
         bf_ind_m.assign(nm, std::vector<Eigen::Index>());
@@ -103,19 +164,42 @@ namespace helfem {
           if (do_lapl)
             bf_lapl_m[im] = helfem::Matrix::Zero(nbf, nang);
 
-          for (Eigen::Index ia = 0; ia < nang; ia++) {
-            const helfem::Matrix abf(helfem::to_eigen(basp->eval_bf(iel, irad, cth(ia), m)));
-            bf_m[im].col(ia) = abf.transpose();
-            if (need_df) {
-              arma::mat dr_a, dth_a;
-              basp->eval_df(iel, irad, cth(ia), m, dr_a, dth_a);
-              dr_m[im].col(ia)  = helfem::to_eigen(dr_a).transpose();
-              dth_m[im].col(ia) = helfem::to_eigen(dth_a).transpose();
-            }
+          const double m2_sh2 = (double)(m * m) * m2_base;
+
+          // Radial row for this quadrature point, and the angular shells of
+          // this m block. The layout matches bf_list_dummy: shell-major,
+          // radial-minor, i.e. row (ish * Nr + j).
+          const Eigen::Index Nr = rad_f.cols();
+          const size_t nsh = lval_m[im].size();
+
+          for (size_t ish = 0; ish < nsh; ish++) {
+            const int l = lval_m[im][ish];
+            const helfem::Vector & Y  = sph_m[im][ish];
+            const helfem::Vector & dY = dsph_m[im][ish];
+
+            // Radial operator for the Laplacian is common to every angular
+            // point of this shell:
+            //   R'' + coth(mu) R' - ( l(l+1) + m^2/sinh^2(mu) ) R
+            helfem::Vector radop;
             if (do_lapl) {
-              arma::mat lf_a;
-              basp->eval_lf(iel, irad, cth(ia), m, lf_a);
-              bf_lapl_m[im].col(ia) = helfem::to_eigen(lf_a).transpose();
+              const double lfac = l * (l + 1) + m2_sh2;
+              radop.resize(Nr);
+              for (Eigen::Index j = 0; j < Nr; j++)
+                radop(j) = rad_d2f(irad, j) + cothmu * rad_df(irad, j)
+                            - lfac * rad_f(irad, j);
+            }
+
+            for (Eigen::Index j = 0; j < Nr; j++) {
+              const Eigen::Index row = (Eigen::Index) ish * Nr + j;
+              const double f  = rad_f(irad, j);
+              bf_m[im].row(row) = Y.transpose() * f;
+              if (need_df) {
+                dr_m[im].row(row)  = Y.transpose()  * rad_df(irad, j);
+                dth_m[im].row(row) = dY.transpose() * f;
+              }
+              if (do_lapl)
+                bf_lapl_m[im].row(row) =
+                    (Y.array() * inv_h2.array()).matrix().transpose() * radop(j);
             }
           }
         }

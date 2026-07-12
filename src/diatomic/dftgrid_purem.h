@@ -69,6 +69,25 @@ namespace helfem {
 
         /// The m values present in the basis
         std::vector<int> mlist;
+        /// l values of the angular shells in each m block, in the same order
+        /// as bf_list_dummy lists them
+        std::vector<std::vector<int>> lval_m;
+        /// Angular factors, precomputed ONCE: they depend only on (l, m, nu),
+        /// never on the radial point, so they must not be rebuilt per element.
+        /// sph_m[im][ish](ia) = Y_l^m(nu_ia, 0);
+        /// dsph_m[im][ish](ia) = d Y_l^m / d nu at nu_ia.
+        std::vector<std::vector<helfem::Vector>> sph_m, dsph_m;
+
+        /// One-element cache of the radial FEM functions and their first two
+        /// mu derivatives at the element's quadrature points (rows = radial
+        /// points, cols = element primitives). The FEM polynomials depend only
+        /// on the element, so evaluating them per angular point -- which is
+        /// what going through TwoDBasis::eval_bf(iel,irad,cth,m) does -- redoes
+        /// the same work nrad * nang * n_m times and throws all but one row
+        /// away. Profiling put >50% of the run time there.
+        size_t cached_iel;
+        bool cache_valid;
+        helfem::Matrix rad_f, rad_df, rad_d2f;
         /// Dummy-basis indices of the functions in each m block
         std::vector<std::vector<Eigen::Index>> bf_ind_m;
         /// Per-m REAL basis function values and (mu, nu) derivatives,
