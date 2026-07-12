@@ -70,6 +70,11 @@ target_link_libraries(1e_atom helfem-common legendre)
 add_executable(diatomic_purem_test diatomic/purem_test.cpp)
 target_link_libraries(diatomic_purem_test helfem-common legendre)
 
+# Measures how compressible the in-element two-electron integrals are, i.e.
+# what a thresholded Cholesky / low-rank factorization would buy.
+add_executable(diatomic_teirank diatomic/teirank.cpp)
+target_link_libraries(diatomic_teirank helfem-common legendre)
+
 add_library(legendre
   legendre/Legendre.cpp general/legendretable.cpp)
 target_compile_features(legendre PUBLIC cxx_std_17)

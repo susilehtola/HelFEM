@@ -144,10 +144,36 @@ namespace helfem {
         std::vector<helfem::Matrix> disjoint_P0, disjoint_P2;
         /// Auxiliary integrals, Qlm
         std::vector<helfem::Matrix> disjoint_Q0, disjoint_Q2;
-        /// Primitive two-electron integrals: <Nel^2 * N_L>
-        std::vector<helfem::Matrix> prim_tei00, prim_tei02, prim_tei20, prim_tei22;
-        /// Primitive two-electron integrals: <Nel^2 * N_L> sorted for exchange
-        std::vector<helfem::Matrix> prim_ktei00, prim_ktei02, prim_ktei20, prim_ktei22;
+        /// Low-rank (Cholesky-type) factorization of the IN-ELEMENT two-electron
+        /// integrals, indexed [ilm*Nel + iel].
+        ///
+        /// The in-element block is the only 4-index object in the code -- the
+        /// cross-element contributions to J and K are already contracted in
+        /// factorized (disjoint P/Q) form. Written as the symmetric 2-channel
+        /// kernel
+        ///
+        ///     W = [  T00  -T02 ]        (T20 = T02', by construction)
+        ///         [ -T02'  T22 ]
+        ///
+        /// it is 2*Nprim^2 square but has a numerical rank of only about
+        /// 2*Nprim -- ~30 of 450 for 15-node LIPs, flat from 1e-6 down to
+        /// 1e-12, since the P_L(cosh mu_<) Q_L(cosh mu_>) Green's function is
+        /// semi-separable. Storing
+        ///
+        ///     W = B diag(sigma) B'      B: (2*Nprim^2 x r),  sigma = +-1
+        ///
+        /// replaces O(Nprim^4) storage and contraction by O(Nprim^2 * r), and
+        /// puts the integrals in DF/RI form, so exchange follows from the
+        /// standard RI-K contraction and prim_ktei is not needed at all. (The
+        /// exchange PAIRING is full rank -- 225 of 225 -- so compressing that
+        /// directly is not an option; one has to go through RI.)
+        ///
+        /// W is indefinite for odd |M|, hence the signs: this is an
+        /// eigenvalue-thresholded factorization, not a plain Cholesky.
+        std::vector<helfem::Matrix> cd_B;
+        std::vector<helfem::Vector> cd_sigma;
+        /// Relative eigenvalue threshold for the factorization above
+        double cd_thresh;
 
         /// Add to radial submatrix
         void add_sub(helfem::Matrix & M, size_t iang, size_t jang, const helfem::Matrix & Msub) const;
@@ -249,6 +275,31 @@ namespace helfem {
         /// bridging convention as coulomb() above).
         helfem::Matrix exchange(const helfem::Matrix & P) const;
 
+
+        /// Assemble the symmetric 2-channel in-element two-electron kernel for
+        /// (element, L, |M|):
+        ///     W = [  T00  -T02 ]
+        ///         [ -T02'  T22 ]
+        /// This is the only 4-index object left in the code -- the
+        /// cross-element contributions to J and K are already contracted in
+        /// factorized (disjoint P/Q) form. Exposed so its compressibility can
+        /// be measured.
+        helfem::Matrix in_element_kernel(size_t iel, int L, int M) const;
+
+        /// The same in-element integrals, but re-paired the way exchange uses
+        /// them: ktei[(j,k),(i,l)] = (ij|kl). Low rank in the Coulomb pairing
+        /// says nothing about the exchange pairing, so it has to be measured
+        /// separately. Returns the four blocks concatenated as
+        /// [ktei00 | ktei02 | ktei20 | ktei22], which is what the K contraction
+        /// applies to [R00; R02; R20; R22].
+        helfem::Matrix in_element_kernel_exchange(size_t iel, int L, int M) const;
+
+        /// Self-check of the Cholesky/RI machinery for one (element, L, |M|):
+        ///  - how well B diag(sigma) B' reproduces the exact kernel W, and
+        ///  - whether the RI-K contraction reproduces what the exact
+        ///    exchange-ordered tensor gives, for a supplied set of R blocks.
+        /// Returns {relative kernel error, relative RI-K error}.
+        std::pair<double,double> check_cd(size_t iel, int L, int M) const;
 
         /// Get indices of basis functions with wanted m quantum number
         arma::uvec m_indices(int m) const;
