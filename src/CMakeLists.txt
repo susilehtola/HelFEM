@@ -10,7 +10,7 @@ atomic/TwoDBasis.cpp
 atomic/dftgrid.cpp sadatom/basis.cpp
 sadatom/dftgrid.cpp sadatom/scf.cpp
 general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
-diatomic/dftgrid.cpp diatomic/twodquadrature.cpp
+diatomic/dftgrid.cpp diatomic/dftgrid_purem.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp
 general/tei_utils.cpp
 )

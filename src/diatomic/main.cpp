@@ -43,6 +43,7 @@
 #include "utils.h"
 #include "basis.h"
 #include "dftgrid.h"
+#include "dftgrid_purem.h"
 #include "twodquadrature.h"
 #include "../atomic/basis.h"
 #include <ArmaEigen.h>
@@ -74,7 +75,8 @@ int main(int argc, char **argv) {
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
   parser.add<std::string>("method", 0, "DFT method to use", false, "lda_x");
   parser.add<int>("ldft", 0, "theta rule for dft quadrature (0 for auto)", false, 0);
-  parser.add<int>("mdft", 0, "phi rule for dft quadrature (0 for auto)", false, 0);
+  parser.add<int>("mdft", 0, "phi rule for dft quadrature (0 for auto; unused by the pure-m path)", false, 0);
+  parser.add<int>("purem", 0, "pure-m XC fast path (analytic phi): -1 auto (on when symmetry>=1), 0 off, 1 force on", false, -1);
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
   parser.add<int>("finitenuc", 0, "finite nuclear model: 0 point, 1 Gaussian, 2 spherical, 3 hollow, 4 regularized", false, 0);
@@ -135,6 +137,7 @@ int main(int argc, char **argv) {
   const std::string method = parser.get<std::string>("method");
   const int ldft_arg  = parser.get<int>("ldft");
   const int mdft_arg  = parser.get<int>("mdft");
+  const int purem_arg = parser.get<int>("purem");
   const double dftthr = parser.get<double>("dftthr");
   const int primbas   = parser.get<int>("primbas");
   const int finitenuc = parser.get<int>("finitenuc");
@@ -309,7 +312,19 @@ int main(int argc, char **argv) {
 
   const int lang = ldft_arg > 0 ? ldft_arg : 4 * arma::max(lval) + 12;
   const int mang = mdft_arg > 0 ? mdft_arg : 4 * mmax + 12;
-  auto grid = helfem::diatomic::dftgrid::DFTGrid(&basis, lang, mang);
+
+  // Pure-m fast path. With --symmetry >= 1 the orbitals cannot mix m, so every
+  // orbital is a pure-m function and |e^{i m phi}| = 1 makes the density
+  // phi-independent. The phi integral of a matrix element is then analytic,
+  // 2 pi delta(m_i, m_j): V_xc is m-block diagonal and each block carries a
+  // factor 2 pi. The XC quadrature therefore runs over the (mu, nu) plane
+  // only, in REAL arithmetic, with no phi grid at all. The m-mixing case
+  // (--symmetry=0) keeps the general 3D complex grid.
+  const bool purem_xc = (purem_arg < 0) ? (symm >= 1) : (purem_arg != 0);
+  if (purem_xc && symm < 1)
+    throw std::logic_error("The pure-m XC path requires --symmetry >= 1: with symmetry=0 the orbitals may mix m and the density is no longer phi-independent.\n");
+  auto grid   = helfem::diatomic::dftgrid::DFTGrid(&basis, lang, mang);
+  auto pmgrid = helfem::diatomic::dftgrid_purem::PureMDFTGrid(&basis, lang);
   basis.compute_tei(have_exx);
 
   const double Enucr = Z1 * Z2 / Rbond;
@@ -361,9 +376,14 @@ int main(int argc, char **argv) {
     if (restricted) {
       for (size_t k = 0; k < nsym; ++k)
         accumulate_density(P, k, orbitals[k], occupations[k]);
-      if (have_xc)
-        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa,
-                       Exc, nelnum, ekin_grid, dftthr);
+      if (have_xc) {
+        if (purem_xc)
+          pmgrid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa,
+                           Exc, nelnum, ekin_grid, dftthr);
+        else
+          grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa,
+                         Exc, nelnum, ekin_grid, dftthr);
+      }
       if (have_exx) Pa = 0.5 * P;
     } else {
       Pa = helfem::Matrix::Zero(Nbf, Nbf);
@@ -373,9 +393,14 @@ int main(int argc, char **argv) {
         accumulate_density(Pb, k, orbitals[nsym + k], occupations[nsym + k]);
       }
       P = Pa + Pb;
-      if (have_xc)
-        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb,
-                       XCa, XCb, Exc, nelnum, ekin_grid, nelb > 0, dftthr);
+      if (have_xc) {
+        if (purem_xc)
+          pmgrid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb,
+                           XCa, XCb, Exc, nelnum, ekin_grid, nelb > 0, dftthr);
+        else
+          grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb,
+                         XCa, XCb, Exc, nelnum, ekin_grid, nelb > 0, dftthr);
+      }
     }
 
     const double Ekin = (P * T).trace();
