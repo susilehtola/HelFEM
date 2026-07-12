@@ -1774,6 +1774,14 @@ namespace helfem {
         return helfem::to_arma(radial.get_bf(iel));
       }
 
+      arma::mat TwoDBasis::get_rad_df(size_t iel) const {
+        return helfem::to_arma(radial.get_df(iel));
+      }
+
+      arma::mat TwoDBasis::get_rad_d2f(size_t iel) const {
+        return helfem::to_arma(radial.get_d2f(iel));
+      }
+
       arma::vec TwoDBasis::get_wrad(size_t iel) const {
         return helfem::to_arma(radial.get_wrad(iel));
       }
