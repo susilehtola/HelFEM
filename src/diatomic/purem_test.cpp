@@ -41,6 +41,7 @@
 #include <ArmaEigen.h>
 #include <Eigen/Eigenvalues>
 #include <set>
+#include <map>
 
 using namespace helfem;
 
@@ -166,13 +167,18 @@ int main(int argc, char **argv) {
   if (parser.get<bool>("fd")) {
     double worst = 0.0;
     size_t nchecked = 0;
-    // NOTE: restricted to m = 0. The arbitrary-point evaluator
-    // eval_bf(mu,cth,phi) does NOT agree with eval_bf(iel,irad,cth,m) for
-    // m != 0 -- their dummy-index mappings differ by one radial function --
-    // so an FD reference built from it would difference the wrong basis
-    // function. The m dependence of eval_lf is instead covered by the
-    // Legendre-ODE check above, which touches no basis indexing at all.
-    for (int m = 0; m <= 0; m++) {
+    // eval_bf(mu,cth,phi) returns the vector in the REAL basis (it ends with
+    // `return bf(pure_indices())`), while eval_lf's columns and bf_list_dummy
+    // live in the DUMMY basis. The two coincide only up to the first m != 0
+    // shell, whose psi(mu=0,nu) function the boundary condition drops. So map
+    // dummy -> real explicitly, and skip the dropped functions, which have no
+    // real-basis counterpart to difference.
+    const arma::uvec pure(basis.pure_indices());
+    std::map<arma::uword, arma::uword> dummy2real;
+    for (size_t r = 0; r < pure.n_elem; r++)
+      dummy2real[pure(r)] = r;
+
+    for (int m = 0; m <= std::min(mmax, 2); m++) {
       // A radial point comfortably inside the second element, and a few nu
       const size_t iel = std::min<size_t>(1, basis.get_rad_Nel() - 1);
       const arma::vec rr(basis.get_r(iel));
@@ -193,29 +199,12 @@ int main(int argc, char **argv) {
           // Map the m-block columns back to dummy indices so the same
           // function can be evaluated by eval_bf(mu, cth, phi).
           const arma::uvec dummy(basis.bf_list_dummy(iel, m));
-          {
-            static std::set<int> seen;
-            if (!seen.count(m)) {
-              seen.insert(m);
-              const arma::mat abf(basis.eval_bf(iel, irad, std::cos(nu), m));
-              printf("  [sizes] m=%d: eval_lf cols=%llu  eval_bf cols=%llu  bf_list_dummy=%llu\n",
-                     m, (unsigned long long) lf.n_cols,
-                     (unsigned long long) abf.n_cols,
-                     (unsigned long long) dummy.n_elem);
-              // CONTROL: do the per-m evaluator and the arbitrary-point
-              // evaluator even agree on the FUNCTION VALUES at this point?
-              for (size_t q = 0; q < std::min<size_t>(4, dummy.n_elem); q++) {
-                const double v_blk = abf(0, q);
-                const double v_pt  = std::real(basis.eval_bf(mu, std::cos(nu), 0.0)(dummy(q)));
-                printf("    bf m=%d q=%zu: eval_bf(iel,irad)=%13.6e   eval_bf(mu)=%13.6e   ratio=%.6f\n",
-                       m, q, v_blk, v_pt, (v_pt != 0.0) ? v_blk/v_pt : 0.0);
-              }
-            }
-          }
           const double d = 1e-4;
           for (size_t k = 0; k < dummy.n_elem; k++) {
+            auto it = dummy2real.find(dummy(k));
+            if (it == dummy2real.end()) continue;   // dropped by the m != 0 BC
             const double ana = lf(0, k);
-            const double num = fd_laplacian(basis, dummy(k), m, mu, nu, Rhalf, d);
+            const double num = fd_laplacian(basis, it->second, m, mu, nu, Rhalf, d);
             const double scale = std::max(1.0, std::abs(num));
             const double err = std::abs(ana - num) / scale;
             if (parser.get<bool>("dumplf") && k < 3)
