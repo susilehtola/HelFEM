@@ -15,36 +15,28 @@
 #include "quadrature.h"
 #include "chebyshev.h"
 #include <ArmaEigen.h>
-#include <cstring>
-
-namespace {
-  // Phase 5.2 bridge: lib1dfem PolynomialBasis::eval_dnf takes/returns
-  // Eigen. The diatomic quadrature routines below are still arma-typed.
-  inline arma::mat eval_poly_dnf(
-      const std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis> & poly,
-      const arma::vec & x, int n, double element_length) {
-    helfem::lib1dfem::Vec<double> xe(x.n_elem);
-    std::memcpy(xe.data(), x.memptr(), sizeof(double) * x.n_elem);
-    helfem::lib1dfem::Mat<double> me;
-    poly->eval_dnf(xe, me, n, element_length);
-    arma::mat out(me.rows(), me.cols());
-    std::memcpy(out.memptr(), me.data(),
-                sizeof(double) * static_cast<size_t>(me.size()));
-    return out;
-  }
-} // namespace
+#include <sstream>
 
 namespace helfem {
   namespace diatomic {
     namespace quadrature {
-      static arma::vec twoe_inner_integral_wrk(double mumin, double mumax, double mumin0, double mumax0, int l, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
+      // Legendre P/Q tables are still arma-typed (legendre subsystem);
+      // evaluate against a bridged arma copy and return Eigen.
+      static helfem::Vector Plm(const legendretable::LegendreTable & tab, int L, int M, const helfem::Vector & chmu) {
+        return helfem::to_eigen(tab.get_Plm(L, M, helfem::to_arma(chmu)));
+      }
+      static helfem::Vector Qlm(const legendretable::LegendreTable & tab, int L, int M, const helfem::Vector & chmu) {
+        return helfem::to_eigen(tab.get_Qlm(L, M, helfem::to_arma(chmu)));
+      }
+
+      static helfem::Vector twoe_inner_integral_wrk(double mumin, double mumax, double mumin0, double mumax0, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
         // Midpoint is at
         double mumid(0.5*(mumax+mumin));
         // and half-length of interval is
         double mulen(0.5*(mumax-mumin));
         // mu values are then
-        arma::vec mu(mumid*arma::ones<arma::vec>(x.n_elem)+mulen*x);
-        arma::vec chmu(arma::cosh(mu));
+        helfem::Vector mu = mumid*helfem::Vector::Ones(x.size()) + mulen*x;
+        helfem::Vector chmu = mu.array().cosh();
 
         // Midpoint of original interval is at
         double mumid0(0.5*(mumax0+mumin0));
@@ -52,93 +44,88 @@ namespace helfem {
         double mulen0(0.5*(mumax0-mumin0));
 
         // Calculate total weight per point
-        arma::vec wp(wx*mulen);
-        wp%=arma::sinh(mu);
+        helfem::Vector wp = mulen*wx;
+        wp.array() *= mu.array().sinh();
         if(l!=0)
           // cosh term
-          wp%=arma::pow(chmu,l);
+          wp.array() *= chmu.array().pow(l);
         // Legendre polynomial
-        wp%=tab.get_Plm(L,M,chmu);
+        wp.array() *= Plm(tab, L, M, chmu).array();
 
         // Calculate x values the polynomials should be evaluated at
-        arma::vec xpoly((mu-mumid0*arma::ones<arma::vec>(x.n_elem))/mulen0);
+        helfem::Vector xpoly = (mu - mumid0*helfem::Vector::Ones(x.size())) / mulen0;
         // Evaluate the polynomials at these points
-        arma::mat bf(eval_poly_dnf(poly, xpoly, 0, mulen0));
+        helfem::Matrix bf = poly->eval_dnf(xpoly, 0, mulen0);
 
         // Put in weight
-        arma::mat wbf(bf);
-        for(size_t i=0;i<wbf.n_cols;i++)
-          wbf.col(i)%=wp;
+        helfem::Matrix wbf = bf;
+        for(Eigen::Index i=0;i<wbf.cols();i++)
+          wbf.col(i).array() *= wp.array();
 
-        // The integrals are then
-        arma::vec inner(arma::vectorise(arma::trans(wbf)*bf));
-
-        return inner;
+        // The integrals are then (column-major flatten of wbf^T bf)
+        const helfem::Matrix prod = wbf.transpose()*bf;
+        return Eigen::Map<const helfem::Vector>(prod.data(), prod.size());
       }
 
-      arma::mat twoe_inner_integral(double mumin, double mumax, int l, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
+      helfem::Matrix twoe_inner_integral(double mumin, double mumax, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
         // Midpoint is at
         double mumid(0.5*(mumax+mumin));
         // and half-length of interval is
         double mulen(0.5*(mumax-mumin));
         // r values are then
-        arma::vec mu(mumid*arma::ones<arma::vec>(x.n_elem)+mulen*x);
+        helfem::Vector mu = mumid*helfem::Vector::Ones(x.size()) + mulen*x;
 
         // Compute the "inner" integrals as function of r.
-        arma::mat inner(x.n_elem,std::pow(poly->get_nbf(),2));
-        inner.row(0)=arma::trans(twoe_inner_integral_wrk(mumin, mu(0), mumin, mumax, l, x, wx, poly, L, M, tab));
+        helfem::Matrix inner(x.size(), (Eigen::Index) std::pow(poly->get_nbf(),2));
+        inner.row(0)=twoe_inner_integral_wrk(mumin, mu(0), mumin, mumax, l, x, wx, poly, L, M, tab).transpose();
         // Every subinterval uses a fresh nquad points!
-        for(size_t ip=1;ip<x.n_elem;ip++)
-          inner.row(ip)=inner.row(ip-1)+arma::trans(twoe_inner_integral_wrk(mu(ip-1), mu(ip), mumin, mumax, l, x, wx, poly, L, M, tab));
+        for(Eigen::Index ip=1;ip<x.size();ip++)
+          inner.row(ip)=inner.row(ip-1)+twoe_inner_integral_wrk(mu(ip-1), mu(ip), mumin, mumax, l, x, wx, poly, L, M, tab).transpose();
 
         return inner;
       }
 
-      static arma::mat twoe_integral_wrk(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
-#ifndef ARMA_NO_DEBUG
-        if(x.n_elem != wx.n_elem) {
+      static helfem::Matrix twoe_integral_wrk(double mumin, double mumax, int k, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
+        if(x.size() != wx.size()) {
           std::ostringstream oss;
-          oss << "x and wx not compatible: " << x.n_elem << " vs " << wx.n_elem << "!\n";
+          oss << "x and wx not compatible: " << x.size() << " vs " << wx.size() << "!\n";
           throw std::logic_error(oss.str());
         }
-#endif
         // Midpoint is at
         double mumid(0.5*(mumax+mumin));
         // and half-length of interval is
         double mulen(0.5*(mumax-mumin));
         // mu values are then
-        arma::vec mu(mumid*arma::ones<arma::vec>(x.n_elem)+mulen*x);
-        arma::vec chmu(arma::cosh(mu));
+        helfem::Vector mu = mumid*helfem::Vector::Ones(x.size()) + mulen*x;
+        helfem::Vector chmu = mu.array().cosh();
 
         // Compute the inner integrals
-        arma::mat inner(twoe_inner_integral(mumin, mumax, l, x, wx, poly, L, M, tab));
+        const helfem::Matrix inner = twoe_inner_integral(mumin, mumax, l, x, wx, poly, L, M, tab);
 
         // Evaluate basis functions at quadrature points
-        arma::mat bf(eval_poly_dnf(poly, x, 0, mulen));
+        const helfem::Matrix bf = poly->eval_dnf(x, 0, mulen);
 
         // Product functions
-        arma::mat bfprod(bf.n_rows,bf.n_cols*bf.n_cols);
-        for(size_t fi=0;fi<bf.n_cols;fi++)
-          for(size_t fj=0;fj<bf.n_cols;fj++)
-            bfprod.col(fi*bf.n_cols+fj)=bf.col(fi)%bf.col(fj);
+        helfem::Matrix bfprod(bf.rows(), bf.cols()*bf.cols());
+        for(Eigen::Index fi=0;fi<bf.cols();fi++)
+          for(Eigen::Index fj=0;fj<bf.cols();fj++)
+            bfprod.col(fi*bf.cols()+fj)=bf.col(fi).cwiseProduct(bf.col(fj));
         // Put in the weights for the outer integral
-        arma::vec wp(wx*mulen);
-        wp%=arma::sinh(mu);
+        helfem::Vector wp = mulen*wx;
+        wp.array() *= mu.array().sinh();
         if(k!=0)
-          wp%=arma::pow(chmu,k);
-        wp%=tab.get_Qlm(L,M,chmu);
+          wp.array() *= chmu.array().pow(k);
+        wp.array() *= Qlm(tab, L, M, chmu).array();
 
-        for(size_t i=0;i<bfprod.n_cols;i++)
-          bfprod.col(i)%=wp;
+        for(Eigen::Index i=0;i<bfprod.cols();i++)
+          bfprod.col(i).array() *= wp.array();
 
         // Integrals are then
-        arma::mat ints(arma::trans(bfprod)*inner);
-
-        return ints;
+        return bfprod.transpose()*inner;
       }
 
-      arma::mat twoe_integral(double mumin, double mumax, int k, int l, const arma::vec & x, const arma::vec & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
-        return twoe_integral_wrk(mumin,mumax,k,l,x,wx,poly,L,M,tab) + arma::trans(twoe_integral_wrk(mumin,mumax,l,k,x,wx,poly,L,M,tab));
+      helfem::Matrix twoe_integral(double mumin, double mumax, int k, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
+        return twoe_integral_wrk(mumin,mumax,k,l,x,wx,poly,L,M,tab) + twoe_integral_wrk(mumin,mumax,l,k,x,wx,poly,L,M,tab).transpose();
       }
     }
   }

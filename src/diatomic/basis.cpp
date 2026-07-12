@@ -191,7 +191,7 @@ namespace helfem {
 
         // Integral by quadrature
         std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis> p(fem.get_basis(iel));
-        helfem::Matrix tei(helfem::to_eigen(quadrature::twoe_integral(mumin,mumax,alpha,beta,helfem::to_arma(xq),helfem::to_arma(wq),p,L,M,legtab)));
+        helfem::Matrix tei(quadrature::twoe_integral(mumin,mumax,alpha,beta,xq,wq,p,L,M,legtab));
 
         return tei;
       }
