@@ -48,7 +48,7 @@ namespace helfem {
 
       void PureMDFTGridWorker::compute_bf(size_t iel, size_t irad) {
         const Eigen::Index nang = cth.size();
-        const bool need_df = do_grad || do_tau;
+        const bool need_df = do_grad || do_tau || do_lapl;
 
         const double r0    = basp->get_r(iel)(irad);
         const double wr    = basp->get_wrad(iel)(irad);
@@ -84,6 +84,7 @@ namespace helfem {
         bf_m.assign(nm, helfem::Matrix());
         dr_m.assign(nm, helfem::Matrix());
         dth_m.assign(nm, helfem::Matrix());
+        bf_lapl_m.assign(nm, helfem::Matrix());
 
         for (size_t im = 0; im < nm; im++) {
           const int m = mlist[im];
@@ -99,6 +100,8 @@ namespace helfem {
             dr_m[im]  = helfem::Matrix::Zero(nbf, nang);
             dth_m[im] = helfem::Matrix::Zero(nbf, nang);
           }
+          if (do_lapl)
+            bf_lapl_m[im] = helfem::Matrix::Zero(nbf, nang);
 
           for (Eigen::Index ia = 0; ia < nang; ia++) {
             const helfem::Matrix abf(helfem::to_eigen(basp->eval_bf(iel, irad, cth(ia), m)));
@@ -108,6 +111,11 @@ namespace helfem {
               basp->eval_df(iel, irad, cth(ia), m, dr_a, dth_a);
               dr_m[im].col(ia)  = helfem::to_eigen(dr_a).transpose();
               dth_m[im].col(ia) = helfem::to_eigen(dth_a).transpose();
+            }
+            if (do_lapl) {
+              arma::mat lf_a;
+              basp->eval_lf(iel, irad, cth(ia), m, lf_a);
+              bf_lapl_m[im].col(ia) = helfem::to_eigen(lf_a).transpose();
             }
           }
         }
@@ -123,10 +131,17 @@ namespace helfem {
         return out;
       }
 
-      void PureMDFTGridWorker::update_density(const helfem::Matrix & P) {
-        if (!P.size())
+      void PureMDFTGridWorker::update_density(const helfem::Matrix & P0) {
+        if (!P0.size())
           throw std::runtime_error("Error - density matrix is empty!\n");
         polarized = false;
+
+        // bf_ind_m holds DUMMY basis indices (the boundary-condition-dropped
+        // functions are still counted there), so the density has to be
+        // expanded into the dummy basis before it can be gathered -- exactly
+        // as the general 3D worker does. Nbf() == Ndummy() only when every m
+        // block keeps all its radial functions, i.e. mmax == 0.
+        const helfem::Matrix P(helfem::to_eigen(basp->expand_boundaries(helfem::to_arma(P0))));
 
         const Eigen::Index nang = cth.size();
         const size_t nm = mlist.size();
@@ -162,8 +177,10 @@ namespace helfem {
           }
         }
 
-        if (do_tau) {
-          tau = helfem::Matrix::Zero(1, nang);
+        if (do_tau || do_lapl) {
+          // The gradient sum kin = sum_ij P_ij grad phi_i . grad phi_j serves
+          // both tau (= kin/2) and the Laplacian identity below.
+          helfem::Vector kin = helfem::Vector::Zero(nang);
           Pv_dr_m.assign(nm, helfem::Matrix());
           Pv_dth_m.assign(nm, helfem::Matrix());
           for (size_t im = 0; im < nm; im++) {
@@ -178,19 +195,39 @@ namespace helfem {
               // Analytic phi contribution: d psi / d phi = i m psi, so
               // |d psi / d phi|^2 = m^2 |psi|^2 -> m^2 rho_m / h_phi^2.
               const double kp = m2 * rho_m[im](ia) * inv_scale_phi2(ia);
-              tau(0, ia) += 0.5 * (kr + kt + kp);
+              kin(ia) += kr + kt + kp;
             }
           }
-        }
 
-        if (do_lapl)
-          throw std::logic_error("Laplacian not implemented.\n");
+          if (do_tau) {
+            tau = helfem::Matrix::Zero(1, nang);
+            tau.row(0) = 0.5 * kin.transpose();
+          }
+
+          if (do_lapl) {
+            // grad^2 rho = sum_ij P_ij grad^2 (phi_i phi_j*)
+            //            = 2 sum_ij P_ij phi_i (grad^2 phi)_j + 2 kin,
+            // using grad^2(fg) = f grad^2 g + g grad^2 f + 2 grad f . grad g.
+            // The phi pieces of the two contributions cancel identically --
+            // as they must, since rho is phi-independent.
+            lapl = helfem::Matrix::Zero(1, nang);
+            for (size_t im = 0; im < nm; im++) {
+              if (bf_ind_m[im].empty()) continue;
+              lapl.row(0) += 2.0 * (Pv_m[im].array() * bf_lapl_m[im].array()).colwise().sum().matrix();
+            }
+            lapl.row(0) += 2.0 * kin.transpose();
+          }
+        }
       }
 
-      void PureMDFTGridWorker::update_density(const helfem::Matrix & Pa, const helfem::Matrix & Pb) {
-        if (!Pa.size() || !Pb.size())
+      void PureMDFTGridWorker::update_density(const helfem::Matrix & Pa0, const helfem::Matrix & Pb0) {
+        if (!Pa0.size() || !Pb0.size())
           throw std::runtime_error("Error - density matrix is empty!\n");
         polarized = true;
+
+        // See the restricted overload: bf_ind_m indexes the dummy basis.
+        const helfem::Matrix Pa(helfem::to_eigen(basp->expand_boundaries(helfem::to_arma(Pa0))));
+        const helfem::Matrix Pb(helfem::to_eigen(basp->expand_boundaries(helfem::to_arma(Pb0))));
 
         const Eigen::Index nang = cth.size();
         const size_t nm = mlist.size();
@@ -235,8 +272,9 @@ namespace helfem {
           }
         }
 
-        if (do_tau) {
-          tau = helfem::Matrix::Zero(2, nang);
+        if (do_tau || do_lapl) {
+          helfem::Vector kina = helfem::Vector::Zero(nang);
+          helfem::Vector kinb = helfem::Vector::Zero(nang);
           Pav_dr_m.assign(nm, helfem::Matrix());
           Pav_dth_m.assign(nm, helfem::Matrix());
           Pbv_dr_m.assign(nm, helfem::Matrix());
@@ -257,14 +295,30 @@ namespace helfem {
               const double kbr = (Pbv_dr_m[im].col(ia).array()  * dr_m[im].col(ia).array()).sum()  * inv_scale_r2(ia);
               const double kbt = (Pbv_dth_m[im].col(ia).array() * dth_m[im].col(ia).array()).sum() * inv_scale_r2(ia);
               const double kbp = m2 * rhob_m[im](ia) * inv_scale_phi2(ia);
-              tau(0, ia) += 0.5 * (kar + kat + kap);
-              tau(1, ia) += 0.5 * (kbr + kbt + kbp);
+              kina(ia) += kar + kat + kap;
+              kinb(ia) += kbr + kbt + kbp;
             }
           }
-        }
 
-        if (do_lapl)
-          throw std::logic_error("Laplacian not implemented.\n");
+          if (do_tau) {
+            tau = helfem::Matrix::Zero(2, nang);
+            tau.row(0) = 0.5 * kina.transpose();
+            tau.row(1) = 0.5 * kinb.transpose();
+          }
+
+          if (do_lapl) {
+            // See the restricted branch: grad^2 rho_s = 2 sum_ij P^s_ij phi_i
+            // (grad^2 phi)_j + 2 kin_s, per spin channel.
+            lapl = helfem::Matrix::Zero(2, nang);
+            for (size_t im = 0; im < nm; im++) {
+              if (bf_ind_m[im].empty()) continue;
+              lapl.row(0) += 2.0 * (Pav_m[im].array() * bf_lapl_m[im].array()).colwise().sum().matrix();
+              lapl.row(1) += 2.0 * (Pbv_m[im].array() * bf_lapl_m[im].array()).colwise().sum().matrix();
+            }
+            lapl.row(0) += 2.0 * kina.transpose();
+            lapl.row(1) += 2.0 * kinb.transpose();
+          }
+        }
       }
 
       double PureMDFTGridWorker::compute_Ekin() const {
@@ -313,8 +367,13 @@ namespace helfem {
             dftgrid::increment_gga<double>(Hm, gr, bf_m[im], dr_m[im], dth_m[im], bf_m[im]);
           }
 
-          if (do_mgga_t) {
-            helfem::Vector vtl = 0.5 * vtau.row(0).transpose();
+          if (do_mgga_t || do_mgga_l) {
+            // The Laplacian's gradient part has the same structure as tau's,
+            // so it folds into the same weight: d(grad^2 rho)/dP_ij carries
+            // 2 grad phi_i . grad phi_j, versus tau's 1/2.
+            helfem::Vector vtl = helfem::Vector::Zero(nang);
+            if (do_mgga_t) vtl += 0.5 * vtau.row(0).transpose();
+            if (do_mgga_l) vtl += 2.0 * vlapl.row(0).transpose();
             vtl.array() *= wtot.array();
             helfem::Vector wr = vtl.array() * inv_scale_r2.array();
             helfem::dftgrid_common::increment_lda<double>(Hm, wr, dr_m[im]);
@@ -327,6 +386,12 @@ namespace helfem {
               helfem::Vector wp = vtl.array() * inv_scale_phi2.array() * m2;
               helfem::dftgrid_common::increment_lda<double>(Hm, wp, bf_m[im]);
             }
+          }
+
+          if (do_mgga_l) {
+            // Remaining cross term: phi_i (grad^2 phi)_j + (grad^2 phi)_i phi_j
+            helfem::Vector vl = vlapl.row(0).transpose().array() * wtot.array();
+            helfem::dftgrid_common::increment_mgga_lapl<double>(Hm, vl, bf_m[im], bf_lapl_m[im]);
           }
 
           for (Eigen::Index i = 0; i < nbf; i++)
@@ -384,8 +449,10 @@ namespace helfem {
             }
           }
 
-          if (do_mgga_t) {
-            helfem::Vector vtl_a = 0.5 * vtau.row(0).transpose();
+          if (do_mgga_t || do_mgga_l) {
+            helfem::Vector vtl_a = helfem::Vector::Zero(nang);
+            if (do_mgga_t) vtl_a += 0.5 * vtau.row(0).transpose();
+            if (do_mgga_l) vtl_a += 2.0 * vlapl.row(0).transpose();
             vtl_a.array() *= wtot.array();
             helfem::Vector wra = vtl_a.array() * inv_scale_r2.array();
             helfem::dftgrid_common::increment_lda<double>(Hma, wra, dr_m[im]);
@@ -395,7 +462,9 @@ namespace helfem {
               helfem::dftgrid_common::increment_lda<double>(Hma, wpa, bf_m[im]);
             }
             if (beta) {
-              helfem::Vector vtl_b = 0.5 * vtau.row(1).transpose();
+              helfem::Vector vtl_b = helfem::Vector::Zero(nang);
+              if (do_mgga_t) vtl_b += 0.5 * vtau.row(1).transpose();
+              if (do_mgga_l) vtl_b += 2.0 * vlapl.row(1).transpose();
               vtl_b.array() *= wtot.array();
               helfem::Vector wrb = vtl_b.array() * inv_scale_r2.array();
               helfem::dftgrid_common::increment_lda<double>(Hmb, wrb, dr_m[im]);
@@ -404,6 +473,15 @@ namespace helfem {
                 helfem::Vector wpb = vtl_b.array() * inv_scale_phi2.array() * m2;
                 helfem::dftgrid_common::increment_lda<double>(Hmb, wpb, bf_m[im]);
               }
+            }
+          }
+
+          if (do_mgga_l) {
+            helfem::Vector vla = vlapl.row(0).transpose().array() * wtot.array();
+            helfem::dftgrid_common::increment_mgga_lapl<double>(Hma, vla, bf_m[im], bf_lapl_m[im]);
+            if (beta) {
+              helfem::Vector vlb = vlapl.row(1).transpose().array() * wtot.array();
+              helfem::dftgrid_common::increment_mgga_lapl<double>(Hmb, vlb, bf_m[im], bf_lapl_m[im]);
             }
           }
 

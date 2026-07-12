@@ -91,6 +91,8 @@ namespace helfem {
         helfem::Matrix get_bf(size_t iel, const helfem::Vector & x) const;
         /// Evaluate derivatives of basis functions at quadrature points
         helfem::Matrix get_df(size_t iel) const;
+        /// Evaluate second derivatives of basis functions at quadrature points
+        helfem::Matrix get_d2f(size_t iel) const;
         /// Get quadrature weights
         helfem::Vector get_wrad(size_t iel) const;
         /// Get r values
@@ -272,6 +274,29 @@ namespace helfem {
         /// tau); the density gradient has no phi component at all since
         /// |e^{i m phi}| = 1 makes rho phi-independent.
         void eval_df(size_t iel, size_t irad, double cth, int m, arma::mat & dr, arma::mat & dth) const;
+
+        /// Evaluate the REAL Laplacian of the m-block basis functions at a
+        /// (mu, nu) quadrature point. Used by the pure-m DFT grid for
+        /// Laplacian-dependent meta-GGAs.
+        ///
+        /// In prolate spheroidal coordinates, with h = h_mu = h_nu and
+        /// h_phi = Rhalf sinh(mu) sin(nu),
+        ///
+        ///   grad^2 f = (1/h^2) [ f_mumu + coth(mu) f_mu
+        ///                        + f_nunu + cot(nu) f_nu ] - (m^2/h_phi^2) f.
+        ///
+        /// For f = R(mu) Y_l^m(nu) e^{i m phi} the angular combination is
+        /// given in closed form by the associated Legendre equation,
+        ///
+        ///   Y_nunu + cot(nu) Y_nu = [ m^2/sin^2(nu) - l(l+1) ] Y,
+        ///
+        /// and its 1/sin^2(nu) cancels exactly against the -m^2/h_phi^2 term.
+        /// No second angular derivative is needed and nothing diverges at the
+        /// poles; what is left is purely radial:
+        ///
+        ///   grad^2 f = (1/h^2) [ R'' + coth(mu) R'
+        ///                        - ( l(l+1) + m^2/sinh^2(mu) ) R ] Y_l^m.
+        void eval_lf(size_t iel, size_t irad, double cth, int m, arma::mat & lf) const;
         /// Translate dummy indices to real indices
         arma::uvec dummy_idx_to_real_idx(const arma::uvec & idx) const;
         /// Get list of basis function dummy indices in element

@@ -247,6 +247,10 @@ namespace helfem {
         return fem.eval_df(xq, iel);
       }
 
+      helfem::Matrix RadialBasis::get_d2f(size_t iel) const {
+        return fem.eval_d2f(xq, iel);
+      }
+
       helfem::Vector RadialBasis::get_wrad(size_t iel) const {
         // This is just the radial rule, no r^2 factor included here
         return fem.scaling_factor(iel)*wq;
@@ -1640,6 +1644,47 @@ namespace helfem {
         for(size_t i=0;i<flist.size();i++) {
           dr.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=sph(i)*drad;
           dth.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=dsph(i)*frad;
+        }
+      }
+
+      void TwoDBasis::eval_lf(size_t iel, size_t irad, double cth, int m, arma::mat & lf) const {
+        // Same function selection as eval_bf(iel,irad,cth,m) so the columns
+        // line up.
+        std::vector<arma::uword> flist;
+        for(size_t i=0;i<mval.n_elem;i++)
+          if(mval(i)==m)
+            flist.push_back(i);
+
+        // Geometry at this (mu, nu) point
+        const double mu(radial.get_r(iel)(irad));
+        const double shmu(std::sinh(mu)), chmu(std::cosh(mu));
+        // sin^2(nu), written to avoid cancellation near |cth| = 1
+        const double sth2(std::max((1.0-cth)*(1.0+cth), 0.0));
+        // h^2 = Rhalf^2 (sinh^2 mu + sin^2 nu)
+        const double h2(Rhalf*Rhalf*(shmu*shmu + sth2));
+        const double cothmu((shmu>0.0) ? chmu/shmu : 0.0);
+        // m^2/sinh^2(mu). Regular on the quadrature grid, where mu > 0; for
+        // m != 0 the basis functions vanish as sinh^|m|(mu) on the axis anyway.
+        const double m2_sh2((shmu>0.0) ? (m*m)/(shmu*shmu) : 0.0);
+
+        // Radial functions and their first two mu derivatives
+        arma::mat frad(helfem::to_arma(radial.get_bf(iel)));
+        arma::mat drad(helfem::to_arma(radial.get_df(iel)));
+        arma::mat d2rad(helfem::to_arma(radial.get_d2f(iel)));
+        frad=frad.rows(irad,irad);
+        drad=drad.rows(irad,irad);
+        d2rad=d2rad.rows(irad,irad);
+
+        // R'' + coth(mu) R' is common to every l in the block
+        const arma::mat radop(d2rad + cothmu*drad);
+
+        lf.zeros(frad.n_rows,flist.size()*frad.n_cols);
+        for(size_t i=0;i<flist.size();i++) {
+          const int l(lval(flist[i]));
+          const double sph(std::real(::spherical_harmonics(l,m,cth,0.0)));
+          const double lfac(l*(l+1) + m2_sh2);
+          lf.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)
+            = (sph/h2)*(radop - lfac*frad);
         }
       }
 
