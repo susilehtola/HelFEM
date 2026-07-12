@@ -1601,6 +1601,48 @@ namespace helfem {
         }
       }
 
+      void TwoDBasis::eval_df(size_t iel, size_t irad, double cth, int m, arma::mat & dr, arma::mat & dth) const {
+        // Functions belonging to this m block (same selection as
+        // eval_bf(iel,irad,cth,m), so the columns line up).
+        std::vector<arma::uword> flist;
+        for(size_t i=0;i<mval.n_elem;i++)
+          if(mval(i)==m)
+            flist.push_back(i);
+
+        // sin^2(theta) = (1 - cth)(1 + cth) avoids the catastrophic
+        // cancellation in 1 - cth*cth when cth is close to +/- 1.
+        const double sinth = std::sqrt(std::max((1.0-cth)*(1.0+cth), 0.0));
+        const double cotth = (sinth > 0.0) ? cth/sinth : 0.0;
+
+        // Angular factors, evaluated at phi = 0 where they are real.
+        arma::vec sph(flist.size()), dsph(flist.size());
+        for(size_t i=0;i<flist.size();i++) {
+          const int l(lval(flist[i]));
+          const int mm(mval(flist[i]));
+          sph(i)=std::real(::spherical_harmonics(l,mm,cth,0.0));
+          // d Y_l^m / d theta = m cot(th) Y_l^m + sqrt((l-m)(l+m+1)) Y_l^{m+1}
+          // (the e^{-i phi} of the raising term is unity at phi = 0).
+          double angfac = mm*cotth*sph(i);
+          if(mm < l)
+            angfac += std::sqrt((double)(l-mm)*(double)(l+mm+1))
+                       * std::real(::spherical_harmonics(l,mm+1,cth,0.0));
+          dsph(i)=angfac;
+        }
+
+        // Radial functions and their derivatives at the single radial point
+        arma::mat frad(helfem::to_arma(radial.get_bf(iel)));
+        arma::mat drad(helfem::to_arma(radial.get_df(iel)));
+        frad=frad.rows(irad,irad);
+        drad=drad.rows(irad,irad);
+
+        dr.zeros(frad.n_rows,flist.size()*frad.n_cols);
+        dth.zeros(frad.n_rows,flist.size()*frad.n_cols);
+        for(size_t i=0;i<flist.size();i++) {
+          dr.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=sph(i)*drad;
+          dth.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=dsph(i)*frad;
+        }
+      }
+
       arma::uvec TwoDBasis::dummy_idx_to_real_idx(const arma::uvec & idx) const {
         if(arma::max(idx)>=Ndummy())
           throw std::logic_error("Invalid index vector!\n");
