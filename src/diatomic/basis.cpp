@@ -17,6 +17,7 @@
 #include "PolynomialBasis.h"
 #include "chebyshev.h"
 #include <ArmaEigen.h>
+#include <Eigen/Eigenvalues>
 #include "../general/angular_index_helpers.h"
 #include <cstring>
 #include "../general/spherical_harmonics.h"
@@ -493,6 +494,114 @@ namespace helfem {
         return idx;
       }
 
+      helfem::Matrix TwoDBasis::in_element_kernel(size_t iel, int L, int M) const {
+        const quadrature::TwoElectronElement el(radial.twoe_element(iel));
+        const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, legtab));
+        const helfem::Matrix T02(quadrature::twoe_integral(el, 0, 2, L, M, legtab));
+        const helfem::Matrix T22(quadrature::twoe_integral(el, 2, 2, L, M, legtab));
+
+        const Eigen::Index n = T00.rows();
+        helfem::Matrix W(2*n, 2*n);
+        W.topLeftCorner(n,n)     =  T00;
+        W.topRightCorner(n,n)    = -T02;
+        W.bottomLeftCorner(n,n)  = -T02.transpose();
+        W.bottomRightCorner(n,n) =  T22;
+        // Symmetrize away roundoff
+        return helfem::Matrix(0.5*(W + W.transpose()));
+      }
+
+      helfem::Matrix TwoDBasis::in_element_kernel_exchange(size_t iel, int L, int M) const {
+        const quadrature::TwoElectronElement el(radial.twoe_element(iel));
+        const size_t Ni(radial.Nprim(iel));
+
+        const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, legtab));
+        const helfem::Matrix T02(quadrature::twoe_integral(el, 0, 2, L, M, legtab));
+        const helfem::Matrix T20(quadrature::twoe_integral(el, 2, 0, L, M, legtab));
+        const helfem::Matrix T22(quadrature::twoe_integral(el, 2, 2, L, M, legtab));
+
+        const helfem::Matrix K00(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T00),Ni,Ni,Ni,Ni)));
+        const helfem::Matrix K02(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T02),Ni,Ni,Ni,Ni)));
+        const helfem::Matrix K20(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T20),Ni,Ni,Ni,Ni)));
+        const helfem::Matrix K22(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T22),Ni,Ni,Ni,Ni)));
+
+        const Eigen::Index n = K00.rows();
+        helfem::Matrix Kcat(n, 4*n);
+        Kcat.block(0,0*n,n,n) = K00;
+        Kcat.block(0,1*n,n,n) = K02;
+        Kcat.block(0,2*n,n,n) = K20;
+        Kcat.block(0,3*n,n,n) = K22;
+        return Kcat;
+      }
+
+      std::pair<double,double> TwoDBasis::check_cd(size_t iel, int L, int M) const {
+        const size_t Ni(radial.Nprim(iel));
+        const size_t ilm(lmind(L,M));
+        const size_t Nel(radial.Nel());
+
+        // Exact kernel and the exact exchange-ordered tensors
+        const quadrature::TwoElectronElement el(radial.twoe_element(iel));
+        const helfem::Matrix T00(quadrature::twoe_integral(el,0,0,L,M,legtab));
+        const helfem::Matrix T02(quadrature::twoe_integral(el,0,2,L,M,legtab));
+        const helfem::Matrix T20(quadrature::twoe_integral(el,2,0,L,M,legtab));
+        const helfem::Matrix T22(quadrature::twoe_integral(el,2,2,L,M,legtab));
+
+        const Eigen::Index n = T00.rows();
+        helfem::Matrix W(2*n,2*n);
+        W.topLeftCorner(n,n)     =  T00;
+        W.topRightCorner(n,n)    = -T02;
+        W.bottomLeftCorner(n,n)  = -T02.transpose();
+        W.bottomRightCorner(n,n) =  T22;
+        W = (0.5*(W + W.transpose())).eval();
+
+        // 1) Does B diag(sigma) B' reproduce W?
+        const helfem::Matrix & B = cd_B[ilm*Nel+iel];
+        const helfem::Vector & sigma = cd_sigma[ilm*Nel+iel];
+        helfem::Matrix Wrec(helfem::Matrix::Zero(2*n,2*n));
+        for(Eigen::Index p=0;p<B.cols();p++)
+          Wrec += sigma(p)*(B.col(p)*B.col(p).transpose());
+        const double kerr = (W - Wrec).norm() / W.norm();
+
+        // 2) Does the RI-K contraction match the exact exchange-ordered one?
+        //    Use deterministic pseudo-random R blocks.
+        helfem::Matrix R00(Ni,Ni), R02(Ni,Ni), R20(Ni,Ni), R22(Ni,Ni);
+        for(size_t i=0;i<Ni;i++)
+          for(size_t j=0;j<Ni;j++) {
+            const double t = (double)(i*Ni + j + 1);
+            R00(i,j) = std::sin(0.7*t);
+            R02(i,j) = std::cos(1.3*t);
+            R20(i,j) = std::sin(2.1*t + 0.4);
+            R22(i,j) = std::cos(0.9*t + 1.1);
+          }
+
+        // Exact: Ksub = sum_ab ktei_ab * vec(R_ab)
+        const helfem::Matrix K00(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T00),Ni,Ni,Ni,Ni)));
+        const helfem::Matrix K02(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T02),Ni,Ni,Ni,Ni)));
+        const helfem::Matrix K20(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T20),Ni,Ni,Ni,Ni)));
+        const helfem::Matrix K22(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T22),Ni,Ni,Ni,Ni)));
+        helfem::Vector kex(helfem::Vector::Zero(Ni*Ni));
+        kex += K00*Eigen::Map<const helfem::Vector>(R00.data(),R00.size());
+        kex += K02*Eigen::Map<const helfem::Vector>(R02.data(),R02.size());
+        kex += K20*Eigen::Map<const helfem::Vector>(R20.data(),R20.size());
+        kex += K22*Eigen::Map<const helfem::Vector>(R22.data(),R22.size());
+        Eigen::Map<const helfem::Matrix> Kexact(kex.data(),Ni,Ni);
+
+        // RI-K, exactly as exchange() does it
+        helfem::Matrix Kri(helfem::Matrix::Zero(Ni,Ni));
+        for(Eigen::Index p=0;p<B.cols();p++) {
+          Eigen::Map<const helfem::Matrix> M0(B.col(p).data(),     Ni, Ni);
+          Eigen::Map<const helfem::Matrix> M2(B.col(p).data() + n, Ni, Ni);
+          const helfem::Matrix M0t(M0.transpose());
+          const helfem::Matrix M2t(M2.transpose());
+          Kri += sigma(p)*helfem::Matrix(  M0t*R00*M0t
+                                         - M0t*R02*M2t
+                                         - M2t*R20*M0t
+                                         + M2t*R22*M2t );
+        }
+
+        const double rerr = (Kexact - Kri).norm() / Kexact.norm();
+        return std::make_pair(kerr, rerr);
+      }
+
       arma::uvec TwoDBasis::m_indices(int m) const {
         return helfem::collect_shell_indices(mval.n_elem,
             [&](size_t i) { return (mval(i) == 0) ? radial.Nbf() : radial.Nbf() - 1; },
@@ -892,18 +1001,26 @@ namespace helfem {
           }
         }
 
-        // Form primitive two-electron integrals
-        prim_tei00.resize(Nel*Nel*lm_map.size());
-        prim_tei02.resize(Nel*Nel*lm_map.size());
-        prim_tei20.resize(Nel*Nel*lm_map.size());
-        prim_tei22.resize(Nel*Nel*lm_map.size());
+        // Factorize the in-element two-electron integrals.
+        //
+        // The kernel is the symmetric 2-channel matrix
+        //     W = [  T00  -T02 ]
+        //         [ -T02'  T22 ]
+        // (T20 = T02' by construction, since twoe_integral(a,b) is the
+        // transpose of twoe_integral(b,a)). It is 2*Nprim^2 square but has a
+        // numerical rank of only ~2*Nprim, because the P_L(cosh mu_<)
+        // Q_L(cosh mu_>) Green's function is semi-separable. Keep the
+        // eigenvectors above a relative threshold and store
+        //     W = B diag(sigma) B',  sigma = +-1,
+        // which is a Cholesky-type factorization that also tolerates the
+        // indefiniteness the odd-|M| blocks show.
+        //
+        // This puts the integrals in DF/RI form, so exchange comes out of the
+        // standard RI-K contraction and no exchange-ordered tensor is needed.
+        cd_thresh = 1e-12;
+        cd_B.assign(Nel*lm_map.size(), helfem::Matrix());
+        cd_sigma.assign(Nel*lm_map.size(), helfem::Vector());
 
-        // Element loop is OUTSIDE the (L,M) loop: everything about the element
-        // -- its basis functions, the B_i B_j product table, and the
-        // subinterval geometry of the inner integral -- is independent of
-        // (L, M) and of (alpha, beta), so it is built once here instead of
-        // being re-derived for each of the 4 x lm_map.size() calls that used
-        // to go through radial.twoe_integral(alpha,beta,iel,L,M).
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
@@ -913,107 +1030,75 @@ namespace helfem {
           for(size_t ilm=0;ilm<lm_map.size();ilm++) {
             int L(lm_map[ilm].first);
             int M(lm_map[ilm].second);
-            {
-              const size_t idx(Nel*Nel*ilm + iel*Nel + iel);
 
-              // In-element integrals
-              prim_tei00[idx]=radial.twoe_integral(0,0,eldata,L,M,legtab);
-              prim_tei02[idx]=radial.twoe_integral(0,2,eldata,L,M,legtab);
-              prim_tei20[idx]=radial.twoe_integral(2,0,eldata,L,M,legtab);
-              prim_tei22[idx]=radial.twoe_integral(2,2,eldata,L,M,legtab);
+            const helfem::Matrix T00(radial.twoe_integral(0,0,eldata,L,M,legtab));
+            const helfem::Matrix T02(radial.twoe_integral(0,2,eldata,L,M,legtab));
+            const helfem::Matrix T22(radial.twoe_integral(2,2,eldata,L,M,legtab));
+
+            const Eigen::Index n = T00.rows();
+            helfem::Matrix W(2*n, 2*n);
+            W.topLeftCorner(n,n)     =  T00;
+            W.topRightCorner(n,n)    = -T02;
+            W.bottomLeftCorner(n,n)  = -T02.transpose();
+            W.bottomRightCorner(n,n) =  T22;
+            // Symmetrize away roundoff
+            W = (0.5*(W + W.transpose())).eval();
+
+            // Diagonal-pivoted, sign-aware Cholesky: the usual Cholesky
+            // decomposition of the integrals, but picking the pivot by largest
+            // |diagonal| and carrying its sign, so the indefinite odd-|M|
+            // blocks are handled too. Costs O(n^2 r) rather than the O(n^3) of
+            // a full eigendecomposition, which matters because this runs for
+            // every (element, L, |M|).
+            const Eigen::Index N = 2*n;
+            helfem::Vector d(W.diagonal());
+            const double dmax0 = d.cwiseAbs().maxCoeff();
+
+            std::vector<helfem::Vector> Bcols;
+            std::vector<double> sgn;
+            for(Eigen::Index p=0;p<N;p++) {
+              // Largest remaining diagonal, by magnitude
+              Eigen::Index piv = 0;
+              const double dpiv = d.cwiseAbs().maxCoeff(&piv);
+              if(dmax0 <= 0.0 || dpiv <= cd_thresh*dmax0)
+                break;
+
+              const double dp = d(piv);
+              const double s = (dp >= 0.0) ? 1.0 : -1.0;
+
+              // Residual column: W(:,piv) with the vectors found so far removed
+              helfem::Vector col(W.col(piv));
+              for(size_t q=0;q<Bcols.size();q++)
+                col -= sgn[q]*Bcols[q](piv)*Bcols[q];
+              col /= std::sqrt(std::abs(dp));
+
+              // Deflate the diagonal
+              d.array() -= s*col.array().square();
+              d(piv) = 0.0;
+
+              Bcols.push_back(col);
+              sgn.push_back(s);
             }
 
-            /*
-            for(size_t jel=0;jel<Nel;jel++) {
-              // Index in disjoint array
-              const size_t iidx(ilm*Nel+iel);
-              const size_t jidx(ilm*Nel+jel);
-
-              // when r(iel)>r(jel), iel gets Q
-              const arma::mat & i0=(iel>jel) ? disjoint_Q0[iidx] : disjoint_P0[iidx];
-              const arma::mat & i2=(iel>jel) ? disjoint_Q2[iidx] : disjoint_P2[iidx];
-              // and jel gets P
-              const arma::mat & j0=(iel>jel) ? disjoint_P0[jidx] : disjoint_Q0[jidx];
-              const arma::mat & j2=(iel>jel) ? disjoint_P2[jidx] : disjoint_Q2[jidx];
-
-              // Store integrals
-              prim_tei00[idx]=utils::product_tei(i0,j0);
-              prim_tei02[idx]=utils::product_tei(i0,j2);
-              prim_tei20[idx]=utils::product_tei(i2,j0);
-              prim_tei22[idx]=utils::product_tei(i2,j2);
+            const Eigen::Index r = (Eigen::Index) Bcols.size();
+            helfem::Matrix B(N, r);
+            helfem::Vector sigma(r);
+            for(Eigen::Index p=0;p<r;p++) {
+              B.col(p) = Bcols[p];
+              sigma(p) = sgn[p];
             }
-            */
+
+            cd_B[ilm*Nel+iel]     = B;
+            cd_sigma[ilm*Nel+iel] = sigma;
           }
         }
 
-        // Make sure teis are symmetric
-        /*
-        for(size_t ilm=0;ilm<lm_map.size();ilm++)
-          for(size_t iel=0;iel<Nel;iel++)
-            for(size_t jel=0;jel<Nel;jel++) {
-              size_t idx=Nel*Nel*ilm + iel*Nel + jel;
-              size_t Ni(radial.Nprim(iel));
-              size_t Nj(radial.Nprim(jel));
-              printf("ilm = %i, iel = %i, jel = %i\n",(int) ilm, (int) iel, (int) jel);
-              utils::check_tei_symmetry(prim_tei00[idx],Ni,Ni,Nj,Nj);
-              utils::check_tei_symmetry(prim_tei02[idx],Ni,Ni,Nj,Nj);
-              utils::check_tei_symmetry(prim_tei20[idx],Ni,Ni,Nj,Nj);
-              utils::check_tei_symmetry(prim_tei22[idx],Ni,Ni,Nj,Nj);
-            }
-        */
-
-        /*
-          The exchange matrix is given by
-          K(jk) = (ij|kl) P(il)
-          i.e. the complex conjugation hits i and l as
-          in the density matrix.
-
-          To get this in the proper order, we permute the integrals
-          K(jk) = (jk;il) P(il)
-          so we don't have to reform the permutations in the exchange routine.
-        */
-        if(exchange) {
-          prim_ktei00.resize(prim_tei00.size());
-          prim_ktei02.resize(prim_tei02.size());
-          prim_ktei20.resize(prim_tei20.size());
-          prim_ktei22.resize(prim_tei22.size());
-          for(size_t ilm=0;ilm<lm_map.size();ilm++)
-            for(size_t iel=0;iel<Nel;iel++) {
-              // Diagonal integrals
-              {
-                size_t idx=Nel*Nel*ilm + iel*Nel + iel;
-                size_t Ni(radial.Nprim(iel));
-                size_t Nj(radial.Nprim(iel));
-                prim_ktei00[idx]=helfem::to_eigen(utils::exchange_tei(helfem::to_arma(prim_tei00[idx]),Ni,Ni,Nj,Nj));
-                prim_ktei02[idx]=helfem::to_eigen(utils::exchange_tei(helfem::to_arma(prim_tei02[idx]),Ni,Ni,Nj,Nj));
-                prim_ktei20[idx]=helfem::to_eigen(utils::exchange_tei(helfem::to_arma(prim_tei20[idx]),Ni,Ni,Nj,Nj));
-                prim_ktei22[idx]=helfem::to_eigen(utils::exchange_tei(helfem::to_arma(prim_tei22[idx]),Ni,Ni,Nj,Nj));
-              }
-
-              // Off-diagonal integrals (not used since faster to
-              // contract the integrals in factorized form)
-              /*
-                for(size_t jel=0;jel<iel;jel++) {
-                size_t idx=Nel*Nel*ilm + iel*Nel + jel;
-                size_t Ni(radial.Nprim(iel));
-                size_t Nj(radial.Nprim(jel));
-                prim_ktei00[idx]=utils::exchange_tei(prim_tei00[idx],Ni,Ni,Nj,Nj);
-                prim_ktei02[idx]=utils::exchange_tei(prim_tei02[idx],Ni,Ni,Nj,Nj);
-                prim_ktei20[idx]=utils::exchange_tei(prim_tei20[idx],Ni,Ni,Nj,Nj);
-                prim_ktei22[idx]=utils::exchange_tei(prim_tei22[idx],Ni,Ni,Nj,Nj);
-                }
-                for(size_t jel=iel+1;jel<Nel;jel++) {
-                size_t idx=Nel*Nel*ilm + iel*Nel + jel;
-                size_t Ni(radial.Nprim(iel));
-                size_t Nj(radial.Nprim(jel));
-                prim_ktei00[idx]=utils::exchange_tei(prim_tei00[idx],Ni,Ni,Nj,Nj);
-                prim_ktei02[idx]=utils::exchange_tei(prim_tei02[idx],Ni,Ni,Nj,Nj);
-                prim_ktei20[idx]=utils::exchange_tei(prim_tei20[idx],Ni,Ni,Nj,Nj);
-                prim_ktei22[idx]=utils::exchange_tei(prim_tei22[idx],Ni,Ni,Nj,Nj);
-                }
-              */
-            }
-        }
+        // No exchange-ordered tensor is built. The exchange PAIRING of these
+        // integrals is full rank -- 225 of 225 for 15-node LIPs -- so it
+        // cannot be compressed directly. Instead the factorization above puts
+        // the integrals in DF/RI form, and exchange() gets K from the standard
+        // RI-K contraction, which needs only cd_B / cd_sigma.
+        (void) exchange;
       }
 
       std::vector<double> TwoDBasis::build_LMfac_abs() const {
@@ -1095,7 +1180,7 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDBasis::coulomb(const helfem::Matrix & P_in) const {
-        if(!prim_tei00.size())
+        if(!cd_B.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
         // Public boundary Eigen. The boundary-expansion trimmer is still
@@ -1222,13 +1307,25 @@ namespace helfem {
               Eigen::Map<const helfem::Vector> pv0(Psub0.data(), Psub0.size());
               Eigen::Map<const helfem::Vector> pv2(Psub2.data(), Psub2.size());
 
-              const size_t idx(Nel*Nel*ilm + iel*Nel + jel);
-              helfem::Vector jv0(helfem::Vector::Zero(Ni*Ni));
-              helfem::Vector jv2(helfem::Vector::Zero(Ni*Ni));
-              jv0+=LMfac*(prim_tei00[idx]*pv0);
-              jv0-=LMfac*(prim_tei02[idx]*pv2);
-              jv2-=LMfac*(prim_tei20[idx]*pv0);
-              jv2+=LMfac*(prim_tei22[idx]*pv2);
+              // In-element block, from the low-rank factorization
+              //   W = B diag(sigma) B',
+              // applied to the 2-channel density [pv0; pv2]. This is the same
+              // contraction the four T00/T02/T20/T22 matvecs used to do, at
+              // O(Nprim^2 * r) instead of O(Nprim^4).
+              const helfem::Matrix & B = cd_B[ilm*Nel+iel];
+              const helfem::Vector & sigma = cd_sigma[ilm*Nel+iel];
+              const Eigen::Index nn = (Eigen::Index) (Ni*Ni);
+
+              helfem::Vector p2ch(2*nn);
+              p2ch.head(nn) = pv0;
+              p2ch.tail(nn) = pv2;
+
+              helfem::Vector c = B.transpose()*p2ch;
+              c.array() *= sigma.array();
+              const helfem::Vector jv2ch = LMfac*(B*c);
+
+              const helfem::Vector jv0 = jv2ch.head(nn);
+              const helfem::Vector jv2 = jv2ch.tail(nn);
 
               // Reshape back to (Ni x Ni), column-major
               Eigen::Map<const helfem::Matrix> Jsub0(jv0.data(), Ni, Ni);
@@ -1276,7 +1373,7 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDBasis::exchange(const helfem::Matrix & P_in) const {
-        if(!prim_ktei00.size())
+        if(!cd_B.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
         // Public boundary Eigen. Bridge around the still-arma boundary
@@ -1404,28 +1501,49 @@ namespace helfem {
                       K(jk) = (jk;il) P(il)
                     */
 
-                    // Exchange submatrix (column-major vectorised)
-                    helfem::Vector Ksub(helfem::Vector::Zero(Ni*Nj));
+                    // RI-K contraction. The in-element integrals are stored as
+                    //   T_ab[(i,j),(k,l)] = s_ab sum_P sigma_P M^P_a[i,j] M^P_b[k,l]
+                    // with s_00 = s_22 = +1, s_02 = s_20 = -1 (the signs of the
+                    // 2-channel kernel W), and M^P_a the a-channel part of
+                    // Cholesky vector P reshaped to (Ni x Ni), column-major --
+                    // the same (i,j) -> j*Ni+i order the tensors used.
+                    //
+                    // K(j,k) = sum_ab s_ab sum_il T_ab[(i,j),(k,l)] R_ab(i,l)
+                    //        = sum_P sigma_P sum_ab s_ab M^P_a' R_ab M^P_b'
+                    //
+                    // i.e. the standard RI-K: two (Ni x Ni) matrix products per
+                    // Cholesky vector. No exchange-ordered tensor is needed --
+                    // which is just as well, since that pairing is full rank.
+                    helfem::Matrix Ksubm(helfem::Matrix::Zero(Ni,Nj));
 
                     for(size_t ilm=0;ilm<lm_map.size();ilm++) {
                       if(!couple[ilm])
                         continue;
-                      // Index in tei array
-                      size_t idx=Nel*Nel*ilm + iel*Nel + jel;
-                      // Materialise the (Ni x Nj) Rmat blocks so the Map
-                      // reproduces arma::vectorise (column-major) exactly.
-                      helfem::Matrix Rb00(Rmat00[ilm].block(ifirst,jfirst,Ni,Nj));
-                      helfem::Matrix Rb02(Rmat02[ilm].block(ifirst,jfirst,Ni,Nj));
-                      helfem::Matrix Rb20(Rmat20[ilm].block(ifirst,jfirst,Ni,Nj));
-                      helfem::Matrix Rb22(Rmat22[ilm].block(ifirst,jfirst,Ni,Nj));
-                      Ksub+=prim_ktei00[idx]*Eigen::Map<const helfem::Vector>(Rb00.data(),Rb00.size());
-                      Ksub+=prim_ktei02[idx]*Eigen::Map<const helfem::Vector>(Rb02.data(),Rb02.size());
-                      Ksub+=prim_ktei20[idx]*Eigen::Map<const helfem::Vector>(Rb20.data(),Rb20.size());
-                      Ksub+=prim_ktei22[idx]*Eigen::Map<const helfem::Vector>(Rb22.data(),Rb22.size());
-                    }
 
-                    // Reshape to (Ni x Nj), column-major
-                    Eigen::Map<const helfem::Matrix> Ksubm(Ksub.data(),Ni,Nj);
+                      const helfem::Matrix & B = cd_B[ilm*Nel+iel];
+                      const helfem::Vector & sigma = cd_sigma[ilm*Nel+iel];
+                      const Eigen::Index nn = (Eigen::Index) (Ni*Ni);
+
+                      const helfem::Matrix Rb00(Rmat00[ilm].block(ifirst,jfirst,Ni,Nj));
+                      const helfem::Matrix Rb02(Rmat02[ilm].block(ifirst,jfirst,Ni,Nj));
+                      const helfem::Matrix Rb20(Rmat20[ilm].block(ifirst,jfirst,Ni,Nj));
+                      const helfem::Matrix Rb22(Rmat22[ilm].block(ifirst,jfirst,Ni,Nj));
+
+                      for(Eigen::Index p=0;p<B.cols();p++) {
+                        // Channel blocks of Cholesky vector p, as (Ni x Ni)
+                        Eigen::Map<const helfem::Matrix> M0(B.col(p).data(),      Ni, Ni);
+                        Eigen::Map<const helfem::Matrix> M2(B.col(p).data() + nn, Ni, Ni);
+
+                        const helfem::Matrix M0t(M0.transpose());
+                        const helfem::Matrix M2t(M2.transpose());
+
+                        helfem::Matrix contrib(  M0t*Rb00*M0t
+                                               - M0t*Rb02*M2t
+                                               - M2t*Rb20*M0t
+                                               + M2t*Rb22*M2t );
+                        Ksubm += sigma(p)*contrib;
+                      }
+                    }
 
                     // Increment global exchange matrix
                     K.block(jang*Nrad+ifirst,kang*Nrad+jfirst,Ni,Nj)-=Ksubm;
