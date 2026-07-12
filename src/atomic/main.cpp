@@ -273,25 +273,25 @@ int main(int argc, char **argv) {
   printf("Mode: %s, symmetry=%d, nela=%d nelb=%d\n",
           restricted ? "restricted" : "unrestricted", symm, nela, nelb);
 
-  // --- One-electron + overlap in arma (chemistry-layer buffers stay arma).
-  const arma::mat S    = helfem::to_arma(basis.overlap());
-  const arma::mat T    = helfem::to_arma(basis.kinetic());
-  const arma::mat Vnuc = helfem::to_arma(basis.nuclear());
+  // --- One-electron + overlap (basis returns helfem::Matrix directly).
+  const helfem::Matrix S    = basis.overlap();
+  const helfem::Matrix T    = basis.kinetic();
+  const helfem::Matrix Vnuc = basis.nuclear();
 
   // --- External static-field one-electron matrices. All four are added
   //     into H0 (and hence into every Fock build), and their trace
   //     contribution is broken out in the energy print for parity with
   //     the bespoke atomic driver. Left as zeros when the corresponding
   //     coupling is off, so the additions cost nothing but a trace pass.
-  arma::mat Vconf(Nbf, Nbf, arma::fill::zeros);
+  helfem::Matrix Vconf = helfem::Matrix::Zero(Nbf, Nbf);
   if (iconf) {
     printf("Computing confinement potential\n");
-    Vconf = helfem::to_arma(basis.confinement(conf_N, conf_R, iconf, conf_barrier, shift_conf));
+    Vconf = basis.confinement(conf_N, conf_R, iconf, conf_barrier, shift_conf);
   }
-  const arma::mat dip  = helfem::to_arma(basis.dipole_z());
-  const arma::mat quad = helfem::to_arma(basis.quadrupole_zz());
-  const arma::mat Vel  = Ez * dip + Qzz * quad / 3.0;
-  const arma::mat Vmag = helfem::to_arma(basis.Bz_field(Bz));
+  const helfem::Matrix dip  = basis.dipole_z();
+  const helfem::Matrix quad = basis.quadrupole_zz();
+  const helfem::Matrix Vel  = Ez * dip + Qzz * quad / 3.0;
+  const helfem::Matrix Vmag = basis.Bz_field(Bz);
   const bool have_efield = (Ez != 0.0 || Qzz != 0.0);
   const bool have_bfield = (Bz != 0.0);
   const bool have_conf   = (iconf != 0);
@@ -336,7 +336,7 @@ int main(int argc, char **argv) {
   const size_t nsym = dsym.size();
 
   // Per-block Sinvh_k = symmetric orthonormalization of S(dsym[k], dsym[k]).
-  const std::vector<arma::mat> Sinvh_arma =
+  const std::vector<helfem::Matrix> Sinvh =
       helfem::scf_driver::build_per_block_Sinvh(S, dsym);
 
   const int ldft = ldft_arg > 0 ? ldft_arg : 4 * lmax + 12;
@@ -364,18 +364,18 @@ int main(int argc, char **argv) {
   // Accumulate a per-block density (C_k * diag(occ_k) * C_k^T) into the
   // full-Nbf density matrix P_full through the block's basis-function
   // scatter index dsym[k].
-  auto accumulate_density = [&](arma::mat & P_full, size_t k,
+  auto accumulate_density = [&](helfem::Matrix & P_full, size_t k,
                                  const helfem::Matrix & orb_e,
                                  const helfem::Vector & occ_e) {
     helfem::scf_driver::accumulate_density_block<OOO_Real>(
-        P_full, dsym, k, Sinvh_arma, orb_e, occ_e);
+        P_full, dsym, k, Sinvh, orb_e, occ_e);
   };
 
   auto orthonormalize_block =
       [&](OpenOrbitalOptimizer::FockMatrix<OOO_Real> & fock, size_t b,
-          const arma::mat & F_full, size_t k) {
+          const helfem::Matrix & F_full, size_t k) {
     helfem::scf_driver::orthonormalize_fock_block<OOO_Real>(
-        fock, b, dsym, k, Sinvh_arma, F_full);
+        fock, b, dsym, k, Sinvh, F_full);
   };
 
   OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> fock_builder =
@@ -387,56 +387,51 @@ int main(int argc, char **argv) {
     //     channel with max_occ = 2, so P comes straight from the alpha
     //     channel; no Pa/Pb split, no *0.5 double-scatter, no unused Pb.
     OpenOrbitalOptimizer::FockMatrix<OOO_Real> fock(nsym * nparttype);
-    arma::mat P(Nbf, Nbf, arma::fill::zeros);
+    helfem::Matrix P = helfem::Matrix::Zero(Nbf, Nbf);
     // Spin-density buffers used for both the XC branch and the HF
     // exchange branch; for restricted the alpha density is 0.5 * P.
-    arma::mat Pa, Pb;
+    helfem::Matrix Pa, Pb;
     double Exc = 0.0;
     double nelnum = 0.0, ekin_grid = 0.0;
-    arma::mat XCa, XCb;
+    helfem::Matrix XCa, XCb;
 
-    // grid.eval_Fxc takes/returns Eigen at its public boundary; bridge the
-    // arma-native driver density into it and the XC potential back out.
+    // grid.eval_Fxc takes/returns Eigen at its public boundary; the driver
+    // density is now Eigen-native, so pass it straight through.
     if (restricted) {
       for (size_t k = 0; k < nsym; ++k)
         accumulate_density(P, k, orbitals[k], occupations[k]);
       if (have_xc) {
-        helfem::Matrix XCa_e;
-        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, helfem::to_eigen(P), XCa_e,
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa,
                        Exc, nelnum, ekin_grid, dftthr);
-        XCa = helfem::to_arma(XCa_e);
       }
       if (have_exx) Pa = 0.5 * P;
     } else {
-      Pa.zeros(Nbf, Nbf);
-      Pb.zeros(Nbf, Nbf);
+      Pa = helfem::Matrix::Zero(Nbf, Nbf);
+      Pb = helfem::Matrix::Zero(Nbf, Nbf);
       for (size_t k = 0; k < nsym; ++k) {
         accumulate_density(Pa, k, orbitals[k],        occupations[k]);
         accumulate_density(Pb, k, orbitals[nsym + k], occupations[nsym + k]);
       }
       P = Pa + Pb;
       if (have_xc) {
-        helfem::Matrix XCa_e, XCb_e;
-        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, helfem::to_eigen(Pa), helfem::to_eigen(Pb),
-                       XCa_e, XCb_e, Exc, nelnum, ekin_grid, nelb > 0, dftthr);
-        XCa = helfem::to_arma(XCa_e);
-        XCb = helfem::to_arma(XCb_e);
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb,
+                       XCa, XCb, Exc, nelnum, ekin_grid, nelb > 0, dftthr);
       }
     }
 
-    const double Ekin = arma::trace(P * T);
-    const double Enuc = arma::trace(P * Vnuc);
+    const double Ekin = (P * T).trace();
+    const double Enuc = (P * Vnuc).trace();
     // External-field contributions. Vel/Vmag/Vconf are zero matrices when
     // the corresponding coupling is disabled, so the traces cost O(Nbf).
     // The -Bz/2 * (nela-nelb) piece is the Ms.Bz spin-Zeeman term:
     // restricted mode has nela == nelb so it vanishes there.
-    const double Eefield = have_efield ? arma::trace(P * Vel)  : 0.0;
+    const double Eefield = have_efield ? (P * Vel).trace()  : 0.0;
     const double Emfield = have_bfield
-        ? arma::trace(P * Vmag) - 0.5 * Bz * (nela - nelb) : 0.0;
-    const double Econf   = have_conf   ? arma::trace(P * Vconf) : 0.0;
+        ? (P * Vmag).trace() - 0.5 * Bz * (nela - nelb) : 0.0;
+    const double Econf   = have_conf   ? (P * Vconf).trace() : 0.0;
 
-    const arma::mat J = helfem::to_arma(basis.coulomb(helfem::to_eigen(P)));
-    const double Ecoul = 0.5 * arma::trace(P * J);
+    const helfem::Matrix J = basis.coulomb(P);
+    const double Ecoul = 0.5 * (P * J).trace();
 
     // --- HF exchange: K = kfrac * basis.exchange(P) + kshort * basis.rs_exchange(P).
     //     Sign convention is baked into basis.exchange (it returns the
@@ -448,13 +443,13 @@ int main(int argc, char **argv) {
     // Atomic exchange kernel: kfrac * K + kshort * K_rs. Empty
     // branches contribute zero, so RS hybrids and plain hybrids all
     // flow through the same builder.
-    auto exchange_fn = [&](const arma::mat & P) {
-      arma::mat K(Nbf, Nbf, arma::fill::zeros);
-      if (kfrac  != 0.0) K += kfrac  * helfem::to_arma(basis.exchange(helfem::to_eigen(P)));
-      if (kshort != 0.0) K += kshort * helfem::to_arma(basis.rs_exchange(helfem::to_eigen(P)));
+    auto exchange_fn = [&](const helfem::Matrix & P) {
+      helfem::Matrix K = helfem::Matrix::Zero(Nbf, Nbf);
+      if (kfrac  != 0.0) K += kfrac  * basis.exchange(P);
+      if (kshort != 0.0) K += kshort * basis.rs_exchange(P);
       return K;
     };
-    arma::mat Ka, Kb;
+    helfem::Matrix Ka, Kb;
     double Exx = 0.0;
     helfem::scf_driver::assemble_hf_exchange(
         Ka, Kb, Exx, Pa, Pb, restricted, have_exx, exchange_fn);
@@ -476,11 +471,11 @@ int main(int argc, char **argv) {
     // Pre-assembled 1-electron core matrix. Vel/Vmag/Vconf are zero when
     // their coupling is off so this is unchanged from H0 = T + Vnuc in
     // the no-field case.
-    const arma::mat H1 = T + Vnuc + Vel + Vmag + Vconf;
+    const helfem::Matrix H1 = T + Vnuc + Vel + Vmag + Vconf;
     // Apply the maverage post-processor once per channel; noop otherwise.
-    auto apply_mavg = [&](arma::mat & F) {
+    auto apply_mavg = [&](helfem::Matrix & F) {
       if (maverage)
-        F = helfem::to_arma(scf::fock_symmetry_average(helfem::to_eigen(F), l_idx));
+        F = scf::fock_symmetry_average(F, l_idx);
     };
     helfem::scf_driver::assemble_fock_blocks<OOO_Real>(
         fock, H1, J, XCa, XCb, Ka, Kb, S,
@@ -497,7 +492,7 @@ int main(int argc, char **argv) {
   //   1..3 model potential (GSZ / SAP / Thomas-Fermi) instead of Vnuc.
   //     Restores the bespoke-atomic guess menu; SAP is the default
   //     because it typically converges materially faster than core-H.
-  arma::mat Vguess;
+  helfem::Matrix Vguess;
   if (iguess == 0) {
     printf("Guess orbitals from core Hamiltonian\n");
     Vguess = Vnuc;
@@ -519,13 +514,13 @@ int main(int argc, char **argv) {
     default:
       throw std::logic_error("Unsupported iguess value (expected 0..3).\n");
     }
-    Vguess = helfem::to_arma(basis.model_potential(model));
+    Vguess = basis.model_potential(model);
     delete model;
   }
-  const arma::mat H0 = T + Vguess + Vel + Vmag + Vconf;
+  const helfem::Matrix H0 = T + Vguess + Vel + Vmag + Vconf;
   const OpenOrbitalOptimizer::FockMatrix<OOO_Real> CoreH =
       helfem::scf_driver::build_coreH_from_H0<OOO_Real>(
-          H0, S, dsym, Sinvh_arma, nparttype, have_bfield, Bz);
+          H0, S, dsym, Sinvh, nparttype, have_bfield, Bz);
 
   OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(
       number_of_blocks_per_particle_type, maximum_occupation,
@@ -612,20 +607,21 @@ int main(int argc, char **argv) {
       throw std::logic_error("--load: checkpoint nela/nelb do not match current run.");
 
     // Cross-basis overlap S12 = <this | oldbasis>, shape (Nbf, Nbf_old).
-    const arma::mat S12         = helfem::to_arma(basis.overlap(oldbasis));
+    const helfem::Matrix S12         = basis.overlap(oldbasis);
     // Full-basis Sinvh (symmetric orthonormalisation, no per-symmetry
     // block). S^-1 = Sinvh * Sinvh^T since Sinvh = S^{-1/2}.
-    const arma::mat Sinvh_full  = helfem::to_arma(basis.Sinvh(/*chol*/false, /*sym*/0));
-    const arma::mat Pproj       = Sinvh_full * arma::trans(Sinvh_full) * S12;
+    const helfem::Matrix Sinvh_full  = basis.Sinvh(/*chol*/false, /*sym*/0);
+    const helfem::Matrix Pproj       = Sinvh_full * Sinvh_full.transpose() * S12;
 
     // Project the old AO densities to the current basis, then rescale
     // so the total trace P*S recovers the exact electron count (the
     // projection itself is not particle-conserving when the two bases
-    // do not span the same subspace).
-    arma::mat Pa_new = Pproj * Pa_old * arma::trans(Pproj);
-    arma::mat Pb_new = Pproj * Pb_old * arma::trans(Pproj);
-    const double na = arma::trace(Pa_new * S);
-    const double nb = arma::trace(Pb_new * S);
+    // do not span the same subspace). Pa_old/Pb_old came in via arma
+    // checkpoint I/O; bridge them into Eigen for the projection.
+    helfem::Matrix Pa_new = Pproj * helfem::to_eigen(Pa_old) * Pproj.transpose();
+    helfem::Matrix Pb_new = Pproj * helfem::to_eigen(Pb_old) * Pproj.transpose();
+    const double na = (Pa_new * S).trace();
+    const double nb = (Pb_new * S).trace();
     if (na > 0 && nela > 0) Pa_new *= static_cast<double>(nela) / na;
     if (nb > 0 && nelb > 0) Pb_new *= static_cast<double>(nelb) / nb;
 
@@ -642,16 +638,16 @@ int main(int argc, char **argv) {
     const double max_occ_open  = 1.0;
     if (restricted) {
       // Single channel: eigenvalues of total P should be in [0, 2].
-      const arma::mat P_total = Pa_new + Pb_new;
+      const helfem::Matrix P_total = Pa_new + Pb_new;
       for (size_t k = 0; k < nsym; ++k)
         helfem::scf_driver::fill_block_from_density(
-            k, loaded_orbs, loaded_occs, P_total, dsym[k], Sinvh_arma[k], max_occ_restr);
+            k, loaded_orbs, loaded_occs, P_total, dsym[k], Sinvh[k], max_occ_restr);
     } else {
       for (size_t k = 0; k < nsym; ++k) {
         helfem::scf_driver::fill_block_from_density(
-            k,        loaded_orbs, loaded_occs, Pa_new, dsym[k], Sinvh_arma[k], max_occ_open);
+            k,        loaded_orbs, loaded_occs, Pa_new, dsym[k], Sinvh[k], max_occ_open);
         helfem::scf_driver::fill_block_from_density(
-            nsym + k, loaded_orbs, loaded_occs, Pb_new, dsym[k], Sinvh_arma[k], max_occ_open);
+            nsym + k, loaded_orbs, loaded_occs, Pb_new, dsym[k], Sinvh[k], max_occ_open);
       }
     }
     scfsolver.initialize_with_orbitals(loaded_orbs, loaded_occs);
@@ -670,11 +666,12 @@ int main(int argc, char **argv) {
     savechk.write(basis);
     const auto final_orbs = scfsolver.get_orbitals();
     const auto final_occs = scfsolver.get_orbital_occupations();
-    arma::mat Pa_final, Pb_final;
+    helfem::Matrix Pa_final, Pb_final;
     std::tie(Pa_final, Pb_final) = helfem::scf_driver::assemble_final_density<OOO_Real>(
-        Nbf, restricted, dsym, Sinvh_arma, final_orbs, final_occs);
-    savechk.write("Pa", Pa_final);
-    savechk.write("Pb", Pb_final);
+        Nbf, restricted, dsym, Sinvh, final_orbs, final_occs);
+    // Checkpoint I/O stays arma; bridge the Eigen densities out.
+    savechk.write("Pa", helfem::to_arma(Pa_final));
+    savechk.write("Pb", helfem::to_arma(Pb_final));
     savechk.write("nela", nela);
     savechk.write("nelb", nelb);
     printf("Saved results to %s\n", savefile.c_str());
