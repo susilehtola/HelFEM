@@ -206,13 +206,22 @@ namespace helfem {
 
         // Compute basis function values
         bf=helfem::Matrix::Zero(bf_ind.size(),wtot.size());
+
+        // The element's FEM polynomials depend only on the element, so
+        // evaluate them ONCE here rather than once per angular point:
+        // eval_bf(iel,irad,...) evaluates the whole element at every
+        // quadrature point and then keeps a single row, so calling it inside
+        // the angular loop redid that work cth.size() times over. Hoisted
+        // above the parallel region, which also keeps it read-only shared.
+        const arma::mat rad_all(basp->get_rad_bf(iel));
+
         // Loop over angular grid
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
         for(size_t ia=0;ia<(size_t) cth.size();ia++) {
           // Evaluate basis functions at angular point
-          helfem::Matrix abf(helfem::to_eigen(basp->eval_bf(iel, irad, cth(ia), m)));
+          helfem::Matrix abf(helfem::to_eigen(basp->eval_bf(iel, irad, cth(ia), m, rad_all)));
           if((size_t) abf.cols() != bf_ind.size()) {
             std::ostringstream oss;
             oss << "Mismatch! Have " << bf_ind.size() << " basis function indices but " << abf.cols() << " basis functions!\n";

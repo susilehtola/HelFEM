@@ -19,6 +19,7 @@
 #include "FiniteElementBasis.h"
 #include "../general/gaunt.h"
 #include "../general/legendretable.h"
+#include "quadrature.h"
 
 namespace helfem {
   namespace diatomic {
@@ -82,6 +83,13 @@ namespace helfem {
         helfem::Matrix Qlm_integral(int alpha, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
         /// Compute primitive two-electron integral
         helfem::Matrix twoe_integral(int alpha, int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
+
+        /// Build the element-only two-electron data (basis functions, product
+        /// table, subinterval geometry). Independent of (alpha, beta, L, M), so
+        /// compute_tei builds it once per element and reuses it across them.
+        quadrature::TwoElectronElement twoe_element(size_t iel) const;
+        /// Primitive two-electron integral from precomputed element data
+        helfem::Matrix twoe_integral(int alpha, int beta, const quadrature::TwoElectronElement & el, int L, int M, const legendretable::LegendreTable & legtab) const;
 
         /// Get quadrature points
         helfem::Vector get_chmu_quad() const;
@@ -254,6 +262,12 @@ namespace helfem {
         /// Evaluate basis functions at wanted x value
         /// Evaluate basis functions with m=m at quadrature point
         arma::mat eval_bf(size_t iel, size_t irad, double cth, int m) const;
+        /// Same, but with the element's radial functions already evaluated
+        /// (rad_all = get_rad_bf(iel), rows = radial points). The FEM
+        /// polynomials depend only on the element, so callers that loop over
+        /// angular points should hoist that evaluation out of the loop rather
+        /// than redo it -- and throw away all but one row -- per angular point.
+        arma::mat eval_bf(size_t iel, size_t irad, double cth, int m, const arma::mat & rad_all) const;
 
 	/// Evaluate basis functions at wanted point
 	arma::cx_vec eval_bf(double mu, double cth, double phi) const;

@@ -127,6 +127,112 @@ namespace helfem {
       helfem::Matrix twoe_integral(double mumin, double mumax, int k, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
         return twoe_integral_wrk(mumin,mumax,k,l,x,wx,poly,L,M,tab) + twoe_integral_wrk(mumin,mumax,l,k,x,wx,poly,L,M,tab).transpose();
       }
+
+      TwoElectronElement twoe_element(double mumin, double mumax, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly) {
+        if(x.size() != wx.size()) {
+          std::ostringstream oss;
+          oss << "x and wx not compatible: " << x.size() << " vs " << wx.size() << "!\n";
+          throw std::logic_error(oss.str());
+        }
+
+        TwoElectronElement el;
+        el.x  = x;
+        el.wx = wx;
+
+        // Element midpoint and half-length
+        const double mumid(0.5*(mumax+mumin));
+        el.mulen = 0.5*(mumax-mumin);
+
+        // Outer quadrature points
+        el.mu   = mumid*helfem::Vector::Ones(x.size()) + el.mulen*x;
+        el.chmu = el.mu.array().cosh();
+        el.shmu = el.mu.array().sinh();
+
+        // Outer basis functions and the product table B_i B_j. Neither depends
+        // on k, l, L or M.
+        el.bf = poly->eval_dnf(x, 0, el.mulen);
+        const Eigen::Index nbf = el.bf.cols();
+        el.bfprod.resize(el.bf.rows(), nbf*nbf);
+        for(Eigen::Index fi=0;fi<nbf;fi++)
+          for(Eigen::Index fj=0;fj<nbf;fj++)
+            el.bfprod.col(fi*nbf+fj) = el.bf.col(fi).cwiseProduct(el.bf.col(fj));
+
+        // Inner (cumulative) integral: subinterval ip spans [mu(ip-1), mu(ip)],
+        // with [mumin, mu(0)] for ip = 0. Each uses a fresh set of nquad points,
+        // and the polynomials there depend only on where those points fall.
+        el.sub.resize(x.size());
+        for(Eigen::Index ip=0;ip<x.size();ip++) {
+          const double submin = (ip==0) ? mumin : el.mu(ip-1);
+          const double submax = el.mu(ip);
+
+          const double submid(0.5*(submax+submin));
+          const double sublen(0.5*(submax-submin));
+
+          const helfem::Vector submu = submid*helfem::Vector::Ones(x.size()) + sublen*x;
+
+          TwoElectronElement::Subinterval & si = el.sub[ip];
+          si.mulen = sublen;
+          si.chmu  = submu.array().cosh();
+          si.shmu  = submu.array().sinh();
+          // The polynomials are those of the PARENT element, evaluated at the
+          // subinterval's points -- hence the element midpoint / half-length.
+          const helfem::Vector xpoly = (submu - mumid*helfem::Vector::Ones(x.size())) / el.mulen;
+          si.bf = poly->eval_dnf(xpoly, 0, el.mulen);
+        }
+
+        return el;
+      }
+
+      helfem::Matrix twoe_integral(const TwoElectronElement & el, int k, int l, int L, int M, const legendretable::LegendreTable & tab) {
+        const Eigen::Index nq  = el.x.size();
+        const Eigen::Index nbf = el.bf.cols();
+
+        // Inner integrals as a function of the outer point, accumulated over
+        // the subintervals. Depends on l (through cosh^l) and on (L, M)
+        // (through P_{L|M|}), but on no polynomial evaluation.
+        auto inner_integral = [&](int lval) {
+          helfem::Matrix inner(nq, nbf*nbf);
+          helfem::Vector acc = helfem::Vector::Zero(nbf*nbf);
+          for(Eigen::Index ip=0;ip<nq;ip++) {
+            const TwoElectronElement::Subinterval & si = el.sub[ip];
+
+            helfem::Vector wp = si.mulen*el.wx;
+            wp.array() *= si.shmu.array();
+            if(lval!=0)
+              wp.array() *= si.chmu.array().pow(lval);
+            wp.array() *= Plm(tab, L, M, si.chmu).array();
+
+            helfem::Matrix wbf = si.bf;
+            for(Eigen::Index i=0;i<wbf.cols();i++)
+              wbf.col(i).array() *= wp.array();
+
+            const helfem::Matrix prod = wbf.transpose()*si.bf;
+            acc += Eigen::Map<const helfem::Vector>(prod.data(), prod.size());
+            inner.row(ip) = acc.transpose();
+          }
+          return inner;
+        };
+
+        // Outer integral, for the (k, l) ordering
+        auto outer = [&](int kval, int lval) {
+          const helfem::Matrix inner = inner_integral(lval);
+
+          helfem::Vector wp = el.mulen*el.wx;
+          wp.array() *= el.shmu.array();
+          if(kval!=0)
+            wp.array() *= el.chmu.array().pow(kval);
+          wp.array() *= Qlm(tab, L, M, el.chmu).array();
+
+          helfem::Matrix bfprod = el.bfprod;
+          for(Eigen::Index i=0;i<bfprod.cols();i++)
+            bfprod.col(i).array() *= wp.array();
+
+          return helfem::Matrix(bfprod.transpose()*inner);
+        };
+
+        return outer(k,l) + helfem::Matrix(outer(l,k).transpose());
+      }
+
     }
   }
 }

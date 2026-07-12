@@ -196,6 +196,15 @@ namespace helfem {
         return tei;
       }
 
+      quadrature::TwoElectronElement RadialBasis::twoe_element(size_t iel) const {
+        std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis> p(fem.get_basis(iel));
+        return quadrature::twoe_element(fem.element_begin(iel), fem.element_end(iel), xq, wq, p);
+      }
+
+      helfem::Matrix RadialBasis::twoe_integral(int alpha, int beta, const quadrature::TwoElectronElement & el, int L, int M, const legendretable::LegendreTable & legtab) const {
+        return quadrature::twoe_integral(el, alpha, beta, L, M, legtab);
+      }
+
       helfem::Vector RadialBasis::get_chmu_quad() const {
         // Quadrature points for normal integrals
         helfem::Vector muq(fem.get_nelem()*xq.size()*(xq.size()+1));
@@ -889,20 +898,29 @@ namespace helfem {
         prim_tei20.resize(Nel*Nel*lm_map.size());
         prim_tei22.resize(Nel*Nel*lm_map.size());
 
-        for(size_t ilm=0;ilm<lm_map.size();ilm++) {
-          int L(lm_map[ilm].first);
-          int M(lm_map[ilm].second);
+        // Element loop is OUTSIDE the (L,M) loop: everything about the element
+        // -- its basis functions, the B_i B_j product table, and the
+        // subinterval geometry of the inner integral -- is independent of
+        // (L, M) and of (alpha, beta), so it is built once here instead of
+        // being re-derived for each of the 4 x lm_map.size() calls that used
+        // to go through radial.twoe_integral(alpha,beta,iel,L,M).
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+        for(size_t iel=0;iel<Nel;iel++) {
+          const quadrature::TwoElectronElement eldata(radial.twoe_element(iel));
 
-          for(size_t iel=0;iel<Nel;iel++) {
-            // Index in array
+          for(size_t ilm=0;ilm<lm_map.size();ilm++) {
+            int L(lm_map[ilm].first);
+            int M(lm_map[ilm].second);
             {
               const size_t idx(Nel*Nel*ilm + iel*Nel + iel);
 
               // In-element integrals
-              prim_tei00[idx]=radial.twoe_integral(0,0,iel,L,M,legtab);
-              prim_tei02[idx]=radial.twoe_integral(0,2,iel,L,M,legtab);
-              prim_tei20[idx]=radial.twoe_integral(2,0,iel,L,M,legtab);
-              prim_tei22[idx]=radial.twoe_integral(2,2,iel,L,M,legtab);
+              prim_tei00[idx]=radial.twoe_integral(0,0,eldata,L,M,legtab);
+              prim_tei02[idx]=radial.twoe_integral(0,2,eldata,L,M,legtab);
+              prim_tei20[idx]=radial.twoe_integral(2,0,eldata,L,M,legtab);
+              prim_tei22[idx]=radial.twoe_integral(2,2,eldata,L,M,legtab);
             }
 
             /*
@@ -1502,6 +1520,10 @@ namespace helfem {
       }
 
       arma::mat TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, int m) const {
+        return eval_bf(iel, irad, cth, m, helfem::to_arma(radial.get_bf(iel)));
+      }
+
+      arma::mat TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, int m, const arma::mat & rad_all) const {
         // Figure out list of functions
         std::vector<arma::uword> flist;
         for(size_t i=0;i<mval.n_elem;i++)
@@ -1513,9 +1535,8 @@ namespace helfem {
         for(size_t i=0;i<flist.size();i++)
           sph(i)=std::real(::spherical_harmonics(lval(flist[i]),mval(flist[i]),cth,0.0));
 
-        // Evaluate radial functions
-        arma::mat rad(helfem::to_arma(radial.get_bf(iel)));
-        rad=rad.rows(irad,irad);
+        // Radial functions at this quadrature point
+        arma::mat rad(rad_all.rows(irad,irad));
 
         // Form supermatrix
         arma::mat bf(rad.n_rows,flist.size()*rad.n_cols);
