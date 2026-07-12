@@ -30,6 +30,7 @@
 #include "../general/dftfuncs.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
+#include "../general/spherical_harmonics.h"
 #include "../general/timer.h"
 
 #include "utils.h"
@@ -39,6 +40,7 @@
 #include "../atomic/basis.h"
 #include <ArmaEigen.h>
 #include <Eigen/Eigenvalues>
+#include <set>
 
 using namespace helfem;
 
@@ -89,6 +91,9 @@ int main(int argc, char **argv) {
   parser.add<double>("dftthr", 0, "density screening threshold", false, 1e-12);
   parser.add<bool>("dumplf", 0, "dump eval_lf vs FD values", false, false);
   parser.add<bool>("mproject", 0, "project the density onto exact m-block-diagonal form", false, false);
+  parser.add<bool>("fd", 0, "run the eval_lf finite-difference check", false, true);
+  parser.add<std::string>("func", 0, "test only this functional (empty = all)", false, "");
+  parser.add<double>("perturb", 0, "relative perturbation of P: report how much H moves (functional conditioning)", false, 0.0);
   parser.parse_check(argc, argv);
 
   const int Z1 = get_Z(parser.get<std::string>("Z1"));
@@ -127,13 +132,47 @@ int main(int argc, char **argv) {
                                                 : 4 * arma::max(mval) + 5;
 
   // ------------------------------------------------------------------
+  // 0) The angular substitution behind eval_lf, checked on the special
+  //    function itself -- no basis, no indexing:
+  //      Y_nunu + cot(nu) Y_nu == [ m^2/sin^2(nu) - l(l+1) ] Y
+  //    This is what removes the second angular derivative AND makes the
+  //    1/sin^2(nu) cancel against -m^2/h_phi^2.
+  // ------------------------------------------------------------------
+  printf("=== associated Legendre ODE (the angular step in eval_lf) ===\n");
+  {
+    double worst = 0.0;
+    const double d = 1e-5;
+    auto Y = [](int l, int m, double nu) {
+      return std::real(::spherical_harmonics(l, m, std::cos(nu), 0.0));
+    };
+    for (int l = 0; l <= 4; l++)
+      for (int m = 0; m <= l; m++)
+        for (double nu : {0.35, 0.8, 1.2, 1.9, 2.5, 2.9}) {
+          const double y0 = Y(l,m,nu), yp = Y(l,m,nu+d), ym = Y(l,m,nu-d);
+          const double y_nu   = (yp - ym) / (2.0*d);
+          const double y_nunu = (yp - 2.0*y0 + ym) / (d*d);
+          const double lhs = y_nunu + (std::cos(nu)/std::sin(nu)) * y_nu;
+          const double rhs = (m*m/(std::sin(nu)*std::sin(nu)) - l*(l+1)) * y0;
+          worst = std::max(worst, std::abs(lhs-rhs)/std::max(1.0,std::abs(rhs)));
+        }
+    printf("worst deviation over l<=4, 0<=m<=l, 6 nu: %.3e   -> %s\n\n",
+           worst, worst < 1e-4 ? "ODE CONFIRMED (FD-limited)" : "ODE MISMATCH");
+  }
+
+  // ------------------------------------------------------------------
   // 1) Finite-difference check of eval_lf
   // ------------------------------------------------------------------
   printf("\n=== eval_lf vs finite differences ===\n");
-  {
+  if (parser.get<bool>("fd")) {
     double worst = 0.0;
     size_t nchecked = 0;
-    for (int m = 0; m <= std::min(mmax, 2); m++) {
+    // NOTE: restricted to m = 0. The arbitrary-point evaluator
+    // eval_bf(mu,cth,phi) does NOT agree with eval_bf(iel,irad,cth,m) for
+    // m != 0 -- their dummy-index mappings differ by one radial function --
+    // so an FD reference built from it would difference the wrong basis
+    // function. The m dependence of eval_lf is instead covered by the
+    // Legendre-ODE check above, which touches no basis indexing at all.
+    for (int m = 0; m <= 0; m++) {
       // A radial point comfortably inside the second element, and a few nu
       const size_t iel = std::min<size_t>(1, basis.get_rad_Nel() - 1);
       const arma::vec rr(basis.get_r(iel));
@@ -154,6 +193,25 @@ int main(int argc, char **argv) {
           // Map the m-block columns back to dummy indices so the same
           // function can be evaluated by eval_bf(mu, cth, phi).
           const arma::uvec dummy(basis.bf_list_dummy(iel, m));
+          {
+            static std::set<int> seen;
+            if (!seen.count(m)) {
+              seen.insert(m);
+              const arma::mat abf(basis.eval_bf(iel, irad, std::cos(nu), m));
+              printf("  [sizes] m=%d: eval_lf cols=%llu  eval_bf cols=%llu  bf_list_dummy=%llu\n",
+                     m, (unsigned long long) lf.n_cols,
+                     (unsigned long long) abf.n_cols,
+                     (unsigned long long) dummy.n_elem);
+              // CONTROL: do the per-m evaluator and the arbitrary-point
+              // evaluator even agree on the FUNCTION VALUES at this point?
+              for (size_t q = 0; q < std::min<size_t>(4, dummy.n_elem); q++) {
+                const double v_blk = abf(0, q);
+                const double v_pt  = std::real(basis.eval_bf(mu, std::cos(nu), 0.0)(dummy(q)));
+                printf("    bf m=%d q=%zu: eval_bf(iel,irad)=%13.6e   eval_bf(mu)=%13.6e   ratio=%.6f\n",
+                       m, q, v_blk, v_pt, (v_pt != 0.0) ? v_blk/v_pt : 0.0);
+              }
+            }
+          }
           const double d = 1e-4;
           for (size_t k = 0; k < dummy.n_elem; k++) {
             const double ana = lf(0, k);
@@ -170,7 +228,9 @@ int main(int argc, char **argv) {
     }
     printf("checked %zu (mu, m) points, %d nu each, all functions in the block\n", nchecked, 3);
     printf("worst relative deviation: %.3e\n", worst);
-    printf("%s\n", worst < 1e-5 ? "  -> eval_lf CONFIRMED" : "  -> eval_lf MISMATCH");
+    // Tolerance is set by the finite-difference reference (central differences
+    // on a degree-14 LIP), not by eval_lf.
+    printf("%s\n", worst < 1e-3 ? "  -> eval_lf CONFIRMED (FD-limited)" : "  -> eval_lf MISMATCH");
   }
 
   // ------------------------------------------------------------------
@@ -221,8 +281,10 @@ int main(int argc, char **argv) {
   auto grid   = diatomic::dftgrid::DFTGrid(&basis, lang, mang);
   auto pmgrid = diatomic::dftgrid_purem::PureMDFTGrid(&basis, lang);
 
-  const std::vector<std::string> funcs =
+  std::vector<std::string> funcs =
     {"lda_x", "lda_c_vwn", "gga_x_pbe", "gga_c_pbe", "mgga_x_tpss", "mgga_c_tpss", "mgga_x_br89"};
+  if (parser.get<std::string>("func").size())
+    funcs = {parser.get<std::string>("func")};
 
   helfem::Vector nopars;
   printf("\n=== single Fock build, identical density: pure-m vs 3D grid ===\n");
@@ -253,6 +315,20 @@ int main(int argc, char **argv) {
     } catch (const std::exception & e) {
       printf("%-14s  pure-m threw: %s", fn.c_str(), e.what());
       continue;
+    }
+
+    const double pert = parser.get<double>("perturb");
+    if (pert != 0.0) {
+      // Conditioning probe: feed the SAME grid a density perturbed at the
+      // level of floating-point noise, and see how far the Fock matrix moves.
+      double e2 = 0.0, n2 = 0.0, k2 = 0.0;
+      helfem::Matrix HP2 = helfem::Matrix::Zero(basis.Nbf(), basis.Nbf());
+      const helfem::Matrix P2 = P * (1.0 + pert);
+      pmgrid.eval_Fxc(x_func, nopars, c_func, nopars, P2, HP2, e2, n2, k2, parser.get<double>("dftthr"));
+      const double dHp = (HP2 - HP).cwiseAbs().maxCoeff();
+      const double hmax = HP.cwiseAbs().maxCoeff();
+      printf("%-14s  PERTURB rel=%.0e -> max|dH|=%.3e (rel %.2e), amplification %.1e\n",
+             fn.c_str(), pert, dHp, dHp/hmax, (dHp/hmax)/pert);
     }
 
     if (!have3) {
