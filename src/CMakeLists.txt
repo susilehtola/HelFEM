@@ -75,6 +75,10 @@ target_link_libraries(diatomic_purem_test helfem-common legendre)
 add_executable(diatomic_teirank diatomic/teirank.cpp)
 target_link_libraries(diatomic_teirank helfem-common legendre)
 
+# Same measurement for the atomic in-element integrals.
+add_executable(atomic_teirank atomic/teirank.cpp)
+target_link_libraries(atomic_teirank helfem-common legendre)
+
 add_library(legendre
   legendre/Legendre.cpp general/legendretable.cpp)
 target_compile_features(legendre PUBLIC cxx_std_17)

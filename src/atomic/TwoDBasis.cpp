@@ -502,7 +502,7 @@ namespace helfem {
 
       std::vector<std::vector<helfem::Matrix>>
       TwoDBasis::radial_df_factors(double tol) const {
-        if (!prim_tei.size())
+        if (!prim_chol.size())
           throw std::logic_error(
               "Primitive teis have not been computed -- call "
               "compute_tei() before radial_df_factors().");
@@ -526,7 +526,7 @@ namespace helfem {
             return disjoint_m1L[(size_t) L * Nel + iel];
           };
           auto tw = [&, L](size_t iel) -> const helfem::Matrix & {
-            return prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel];
+            return prim_chol[(size_t) L * Nel + iel];
           };
 
           // -- 2. Initial diagonal D(i, j) = R^L(i, j, i, j) over the
@@ -570,7 +570,7 @@ namespace helfem {
                   P(j, i) = 0.5;
                 }
                 const helfem::Matrix J =
-                    helfem::atomic::basis::assemble_J_FE_one_multipole_cached(
+                    helfem::atomic::basis::assemble_J_FE_one_multipole_cached_chol(
                         radial, rs, rb, tw, P);
                 D(i, j) = J(i, j);
                 D(j, i) = D(i, j);
@@ -608,7 +608,7 @@ namespace helfem {
               P(j_star, i_star) = 0.5;
             }
             helfem::Matrix col =
-                helfem::atomic::basis::assemble_J_FE_one_multipole_cached(
+                helfem::atomic::basis::assemble_J_FE_one_multipole_cached_chol(
                     radial, rs, rb, tw, P);
 
             // Subtract projections onto already-found Cholesky vectors.
@@ -644,14 +644,23 @@ namespace helfem {
         const int N_L = 2 * lval.maxCoeff() + 1;
         atomic::basis::compute_disjoint_radial_integrals(
             radial, N_L, disjoint_L, disjoint_m1L);
-        atomic::basis::compute_in_element_tei(radial, N_L, prim_tei);
-        // The exchange matrix is K(jk) = (ij|kl) P(il); we precompute the
-        // (jk;il)-permuted form here so the cached K assembly path can
-        // consume the cache without re-permuting.
-        if (exchange) {
-          atomic::basis::compute_in_element_ktei_from_tei(
-              radial, N_L, prim_tei, prim_ktei);
-        }
+
+        // In-element integrals, kept in factorized form: T = L L' with L of
+        // shape (Ni^2 x r) and r ~ 30 rather than Ni^2 ~ 200. Both J and K are
+        // assembled from this one factor -- K via the RI contraction -- so no
+        // exchange-ordered tensor is built. (Its pairing is full rank, so
+        // there would be nothing to gain by compressing it anyway.)
+        const size_t Nel = radial.Nel();
+        prim_chol.assign((size_t) N_L * Nel, helfem::Matrix());
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+        for (int L = 0; L < N_L; ++L)
+          for (size_t iel = 0; iel < Nel; ++iel)
+            prim_chol[(size_t) L * Nel + iel] =
+                radial.twoe_integral_cholesky(L, iel, chol_tol);
+
+        (void) exchange;
       }
 
       void TwoDBasis::compute_yukawa(double lambda_) {
@@ -663,11 +672,19 @@ namespace helfem {
         // assembly.
         atomic::basis::compute_disjoint_radial_integrals(
             radial, N_L, disjoint_iL, disjoint_kL, /*yukawa=*/true, lambda);
-        std::vector<helfem::Matrix> rs_tei_yk;
-        atomic::basis::compute_in_element_tei(
-            radial, N_L, rs_tei_yk, /*yukawa=*/true, lambda);
-        atomic::basis::compute_in_element_ktei_from_tei(
-            radial, N_L, rs_tei_yk, rs_ktei);
+
+        // In-element Yukawa integrals, factorized exactly as the bare ones.
+        // The rank bound is a property of the orbital product basis, not of the
+        // kernel, so it carries over unchanged.
+        const size_t Nel = radial.Nel();
+        rs_chol.assign((size_t) N_L * Nel, helfem::Matrix());
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+        for (int L = 0; L < N_L; ++L)
+          for (size_t iel = 0; iel < Nel; ++iel)
+            rs_chol[(size_t) L * Nel + iel] =
+                radial.yukawa_integral_cholesky(L, lambda, iel, chol_tol);
       }
 
       void TwoDBasis::compute_erfc(double mu) {
@@ -682,7 +699,7 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDBasis::coulomb(const helfem::Matrix & P0_in) const {
-        if(!prim_tei.size())
+        if(!prim_chol.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
         // The atomic basis has no boundary reduction (expand/remove_boundaries
@@ -750,11 +767,11 @@ namespace helfem {
             return disjoint_m1L[L*Nel+iel];
           };
           auto tw = [&,L](size_t iel) -> const helfem::Matrix & {
-            return prim_tei[Nel*Nel*L + iel*Nel + iel];
+            return prim_chol[(size_t) L * Nel + iel];
           };
           for(int M=-std::min(L,Mmax);M<=std::min(L,Mmax);M++) {
             Jaux[L][M+Mmax] += Lfac *
-              helfem::atomic::basis::assemble_J_FE_one_multipole_cached(
+              helfem::atomic::basis::assemble_J_FE_one_multipole_cached_chol(
                 radial, rs, rb, tw, Paux[L][M+Mmax]);
           }
         }
@@ -787,7 +804,7 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDBasis::exchange(const helfem::Matrix & P0_in) const {
-        if(!prim_ktei.size())
+        if(!prim_chol.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
         // No boundary reduction in the atomic basis (expand/remove are
@@ -886,9 +903,12 @@ namespace helfem {
                   return disjoint_m1L[Lc*Nel+iel];
                 };
                 auto kt = [&,Lc](size_t iel) -> const helfem::Matrix & {
-                  return prim_ktei[Nel*Nel*Lc + iel*Nel + iel];
+                  return prim_chol[(size_t) Lc * Nel + iel];
                 };
-                K_block += helfem::atomic::basis::assemble_K_FE_one_multipole_cached(
+                // RI-K on the J-ordered Cholesky factor: K_ac = sum_p M_p P M_p'.
+                // The exchange-ordered tensor is full rank, so this is the only
+                // way to compress K -- and it means none needs to be stored.
+                K_block += helfem::atomic::basis::assemble_K_FE_one_multipole_cached_chol(
                     radial, rs, rb, kt, Rmat[Lc]);
               }
               K.block(static_cast<Eigen::Index>(jang)*Nrad, static_cast<Eigen::Index>(kang)*Nrad, Nrad, Nrad) -= K_block;
@@ -900,7 +920,7 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDBasis::rs_exchange(const helfem::Matrix & P0_in) const {
-        if(!rs_ktei.size())
+        if(!rs_ktei.size() && !rs_chol.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
         // No boundary reduction in the atomic basis (expand/remove are
@@ -999,9 +1019,9 @@ namespace helfem {
                     return disjoint_kL[Lc*Nel+iel];
                   };
                   auto kt = [&,Lc](size_t iel) -> const helfem::Matrix & {
-                    return rs_ktei[Nel*Nel*Lc + iel*Nel + iel];
+                    return rs_chol[(size_t) Lc * Nel + iel];
                   };
-                  K_block += helfem::atomic::basis::assemble_K_FE_one_multipole_cached(
+                  K_block += helfem::atomic::basis::assemble_K_FE_one_multipole_cached_chol(
                       radial, rs, rb, kt, Rmat[Lc]);
                 }
                 K.block(static_cast<Eigen::Index>(jang)*Nrad, static_cast<Eigen::Index>(kang)*Nrad, Nrad, Nrad) -= K_block;
