@@ -60,9 +60,34 @@ namespace helfem {
         /// Auxiliary integrals for Yukawa separation
         std::vector<helfem::Matrix> disjoint_iL, disjoint_kL;
         /// Primitive two-electron integrals: <Nel^2 * (2L+1)>
-        std::vector<helfem::Matrix> prim_tei;
-        /// Primitive two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
-        std::vector<helfem::Matrix> prim_ktei;
+        /// Pivoted-Cholesky factors of the IN-ELEMENT two-electron integrals,
+        /// indexed [L*Nel + iel]: L_p of shape (Ni^2 x r) with T = L L'.
+        ///
+        /// The in-element block is the only 4-index object left -- the
+        /// cross-element contributions to J and K are already contracted in
+        /// factorized (disjoint r^L / r^-L-1) form. The kernel here is the
+        /// single-channel r_<^L / r_>^(L+1), which is a positive kernel, so a
+        /// genuine pivoted Cholesky applies (unlike the diatomic 2-channel
+        /// kernel, which is indefinite for odd |M| and needs signs).
+        ///
+        /// It compresses hard: rank 27-29 out of Ni^2 = 196-225 for 15-node
+        /// LIPs, reproducing the exact tensor to ~1e-16. Storage and the J
+        /// contraction go from O(Ni^4) to O(Ni^2 r).
+        ///
+        /// The exchange PAIRING of the same integrals is full rank (196/196),
+        /// so it cannot be compressed directly; K instead comes from the
+        /// standard RI contraction on these J-ordered factors, which is why no
+        /// exchange-ordered tensor is stored.
+        std::vector<helfem::Matrix> prim_chol;
+        /// Tolerance for the pivoted Cholesky above
+        double chol_tol = 1e-12;
+        /// Same factorization for the Yukawa-screened in-element integrals.
+        /// The rank bound 2*Nprim-1 is a property of the orbital PRODUCT basis,
+        /// not of the kernel, so it applies to the Yukawa kernel unchanged.
+        /// (The erfc path keeps its explicit tensors for now: there the
+        /// cross-element blocks are not multipole-separable and are stored in
+        /// full, so it needs its own treatment.)
+        std::vector<helfem::Matrix> rs_chol;
         /// Primitive range-separated two-electron integrals: <Nel^2 * (2L+1)> sorted for exchange
         std::vector<helfem::Matrix> rs_ktei;
 
