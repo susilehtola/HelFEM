@@ -64,6 +64,12 @@ endif()
 add_executable(1e_atom sadatom/1e.cpp)
 target_link_libraries(1e_atom helfem-common legendre)
 
+# Validates the pure-m (analytic-phi) DFT grid against the general 3D grid
+# on a single Fock build with an identical density, and finite-difference-
+# checks TwoDBasis::eval_lf.
+add_executable(diatomic_purem_test diatomic/purem_test.cpp)
+target_link_libraries(diatomic_purem_test helfem-common legendre)
+
 add_library(legendre
   legendre/Legendre.cpp general/legendretable.cpp)
 target_compile_features(legendre PUBLIC cxx_std_17)

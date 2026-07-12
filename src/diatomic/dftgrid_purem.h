@@ -74,6 +74,10 @@ namespace helfem {
         /// Per-m REAL basis function values and (mu, nu) derivatives,
         /// each (nbf_m x npts)
         std::vector<helfem::Matrix> bf_m, dr_m, dth_m;
+        /// Per-m REAL Laplacian of the basis functions (nbf_m x npts). Only
+        /// built for Laplacian-dependent meta-GGAs; see TwoDBasis::eval_lf --
+        /// the associated Legendre equation makes it purely radial.
+        std::vector<helfem::Matrix> bf_lapl_m;
         /// Per-m density helper P^m * bf_m (and the derivative analogues)
         std::vector<helfem::Matrix> Pv_m, Pv_dr_m, Pv_dth_m;
         std::vector<helfem::Matrix> Pav_m, Pav_dr_m, Pav_dth_m;

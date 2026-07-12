@@ -355,7 +355,7 @@ namespace helfem {
         }
         if(do_mgga_l) {
           helfem::Vector vl=vlapl.row(0).transpose().array()*wtot.array();
-          increment_mgga_lapl< std::complex<double> >(H,vl,bf,bf_lapl);
+          helfem::dftgrid_common::increment_mgga_lapl< std::complex<double> >(H,vl,bf,bf_lapl);
         }
 
         for(size_t i=0;i<bf_ind.size();i++)
@@ -456,8 +456,8 @@ namespace helfem {
         if(do_mgga_l) {
           helfem::Vector vl_a=vlapl.row(0).transpose().array()*wtot.array();
           helfem::Vector vl_b=vlapl.row(1).transpose().array()*wtot.array();
-          increment_mgga_lapl< std::complex<double> >(Ha,vl_a,bf,bf_lapl);
-          increment_mgga_lapl< std::complex<double> >(Hb,vl_b,bf,bf_lapl);
+          helfem::dftgrid_common::increment_mgga_lapl< std::complex<double> >(Ha,vl_a,bf,bf_lapl);
+          helfem::dftgrid_common::increment_mgga_lapl< std::complex<double> >(Hb,vl_b,bf,bf_lapl);
         }
 
         for(size_t i=0;i<bf_ind.size();i++)

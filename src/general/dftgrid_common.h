@@ -133,6 +133,32 @@ namespace helfem {
         fhlp.col(j) *= vxc(j);
       H += (fhlp * f.adjoint()).real();
     }
+
+    /// BLAS routine for the Laplacian part of meta-GGA quadrature:
+    ///   H += f diag(w vlapl) l^dagger + l diag(w vlapl) f^dagger
+    template<typename T> void increment_mgga_lapl(helfem::Matrix & H, const helfem::Vector & vlapl, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> & f, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> & l) {
+      if(f.cols() != vlapl.size()) {
+        std::ostringstream oss;
+        oss << "Number of functions " << f.cols() << " and potential values " << vlapl.size() << " do not match!\n";
+        throw std::runtime_error(oss.str());
+      }
+      if(H.rows() != f.rows() || H.cols() != f.rows()) {
+        std::ostringstream oss;
+        oss << "Size of basis function (" << f.rows() << "," << f.cols() << ") and Fock matrix (" << H.rows() << "," << H.cols() << ") doesn't match!\n";
+        throw std::runtime_error(oss.str());
+      }
+      if(l.rows() != f.rows() || l.cols() != f.cols()) {
+        std::ostringstream oss;
+        oss << "Size of basis function (" << f.rows() << "," << f.cols() << ") and Laplacian matrix (" << l.rows() << "," << l.cols() << ") doesn't match!\n";
+        throw std::runtime_error(oss.str());
+      }
+
+      // Form helper matrix
+      Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> fhlp = f;
+      for(Eigen::Index j=0;j<fhlp.cols();j++)
+        fhlp.col(j) *= vlapl(j);
+      H += (fhlp*l.adjoint() + l*fhlp.adjoint()).real();
+    }
   }
 }
 
