@@ -258,6 +258,20 @@ namespace helfem {
 
         /// Evaluate basis functions derivatives at quadrature points
         void eval_df(size_t iel, size_t irad, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const;
+
+        /// Evaluate the REAL derivatives of the m-block basis functions at a
+        /// (mu, nu) quadrature point. Companion to eval_bf(iel,irad,cth,m):
+        /// used by the pure-m (analytic-phi) DFT grid.
+        ///
+        /// For a pure-m function psi = R(mu) Y_l^m(nu) e^{i m phi}, evaluating
+        /// at phi = 0 makes both derivatives real:
+        ///   d/dmu : Y_l^m(nu,0) * R'(mu)
+        ///   d/dnu : [ m cot(th) Y_l^m + sqrt((l-m)(l+m+1)) Y_l^{m+1} ] * R(mu)
+        /// The phi derivative is NOT returned: d psi/d phi = i m psi, so it
+        /// contributes only the analytic term m^2 |psi|^2 / h_phi^2 (needed for
+        /// tau); the density gradient has no phi component at all since
+        /// |e^{i m phi}| = 1 makes rho phi-independent.
+        void eval_df(size_t iel, size_t irad, double cth, int m, arma::mat & dr, arma::mat & dth) const;
         /// Translate dummy indices to real indices
         arma::uvec dummy_idx_to_real_idx(const arma::uvec & idx) const;
         /// Get list of basis function dummy indices in element
