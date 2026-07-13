@@ -23,15 +23,22 @@
 
 namespace helfem {
   namespace polynomial_basis {
-    /// Finite element basis set
-    class FiniteElementBasis {
+    /// Finite element basis set.
+    ///
+    /// Templated on the scalar type. Everything below this class -- lib1dfem's
+    /// PolynomialBasis<T>, LIPBasis<T>, HIPBasis<T>, LegendreBasis<T>,
+    /// lobatto_compute<T> -- was already generic; libhelfem was the only layer
+    /// pinning T = double, which is what blocked running HelFEM in higher
+    /// precision. Instantiated below for double, long double and __float128.
+    template<typename T>
+    class FiniteElementBasisT {
     protected:
       /// Polynomial basis
-      std::shared_ptr<const polynomial_basis::PolynomialBasis> poly;
+      std::shared_ptr<const helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> poly;
 
       /// Element boundary values
       // Phase 5.5: members migrated to Eigen.
-      helfem::Vector bval;
+      helfem::Vec<T> bval;
       /// Zero out function at left end?
       bool zero_func_left;
       /// Zero out derivative at left end?
@@ -56,22 +63,22 @@ namespace helfem {
 
     public:
       /// Dummy constructor
-      FiniteElementBasis();
+      FiniteElementBasisT();
       /// Constructor. Phase 5.26: bval is Eigen at the public boundary
-      /// (matches the internal helfem::Vector storage introduced in
+      /// (matches the internal helfem::Vec<T> storage introduced in
       /// Phase 5.5).
-      FiniteElementBasis(const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly,
-                         const helfem::Vector &bval, bool zero_func_left, bool zero_deriv_left, bool zero_func_right, bool zero_deriv_right);
+      FiniteElementBasisT(const std::shared_ptr<const helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> &poly,
+                         const helfem::Vec<T> &bval, bool zero_func_left, bool zero_deriv_left, bool zero_func_right, bool zero_deriv_right);
       /// Destructor
-      ~FiniteElementBasis();
+      ~FiniteElementBasisT();
 
       /// Add an element boundary
-      void add_boundary(double r);
+      void add_boundary(T r);
 
       /// Get the polynomial basis
-      std::shared_ptr<polynomial_basis::PolynomialBasis>  get_poly() const;
+      std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>>  get_poly() const;
       /// Get basis functions in element
-      std::shared_ptr<polynomial_basis::PolynomialBasis>
+      std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>>
       get_basis(size_t iel) const;
 
       /// Get the numerical id of the polynomial basis
@@ -80,34 +87,34 @@ namespace helfem {
       int get_poly_nnodes() const;
 
       /// Get the element boundaries
-      helfem::Vector get_bval() const;
+      helfem::Vec<T> get_bval() const;
       /// Element begins at
-      double element_begin(size_t iel) const;
+      T element_begin(size_t iel) const;
       /// Element ends at
-      double element_end(size_t iel) const;
+      T element_end(size_t iel) const;
       /// Element midpoint is at
       double element_midpoint(size_t iel) const;
       /// Element length
-      double element_length(size_t iel) const;
+      T element_length(size_t iel) const;
 
       /// Find the element the point is at
       size_t find_element(double x) const;
 
       /// Evaluate real coordinate values from primitive coordinates
-      helfem::Vector eval_coord(const helfem::Vector & xprim, size_t iel) const;
+      helfem::Vec<T> eval_coord(const helfem::Vec<T> & xprim, size_t iel) const;
       /// Evaluate real coordinate values from primitive coordinates
       double eval_coord(double xprim, size_t iel) const;
       /// Evaluate full set of coordinate valuess from primitive coordinates
-      helfem::Vector eval_coord(const helfem::Vector & xq) const;
+      helfem::Vec<T> eval_coord(const helfem::Vec<T> & xq) const;
 
       /// Evaluate primitive coordinate values from real coordinates
-      helfem::Vector eval_prim(const helfem::Vector & xreal, size_t iel) const;
+      helfem::Vec<T> eval_prim(const helfem::Vec<T> & xreal, size_t iel) const;
 
       /// Evaluate full set of weights for primitive weights
-      helfem::Vector eval_weights(const helfem::Vector & wq) const;
+      helfem::Vec<T> eval_weights(const helfem::Vec<T> & wq) const;
 
       /// Element size scaling factor
-      double scaling_factor(size_t iel) const;
+      T scaling_factor(size_t iel) const;
 
       /// Get the consecutive index range of the basis functions in the element
       void get_idx(size_t iel, size_t &ifirst, size_t &ilast) const;
@@ -122,44 +129,44 @@ namespace helfem {
       size_t get_nelem() const;
 
       /// Evaluate polynomials at given points
-      void eval_f  (const helfem::Vector & x, helfem::Matrix & f,   size_t iel) const;
+      void eval_f  (const helfem::Vec<T> & x, helfem::Mat<T> & f,   size_t iel) const;
       /// Evaluate derivatives of polynomials at given points
-      void eval_df (const helfem::Vector & x, helfem::Matrix & df,  size_t iel) const;
+      void eval_df (const helfem::Vec<T> & x, helfem::Mat<T> & df,  size_t iel) const;
       /// Evaluate second derivatives of polynomials at given points
-      void eval_d2f(const helfem::Vector & x, helfem::Matrix & d2f, size_t iel) const;
+      void eval_d2f(const helfem::Vec<T> & x, helfem::Mat<T> & d2f, size_t iel) const;
       /// Evaluate third derivatives of polynomials at given points
-      void eval_d3f(const helfem::Vector & x, helfem::Matrix & d3f, size_t iel) const;
+      void eval_d3f(const helfem::Vec<T> & x, helfem::Mat<T> & d3f, size_t iel) const;
       /// Evaluate fourth derivatives of polynomials at given points
-      void eval_d4f(const helfem::Vector & x, helfem::Matrix & d4f, size_t iel) const;
+      void eval_d4f(const helfem::Vec<T> & x, helfem::Mat<T> & d4f, size_t iel) const;
       /// Evaluate fifth derivatives of polynomials at given points
-      void eval_d5f(const helfem::Vector & x, helfem::Matrix & d5f, size_t iel) const;
+      void eval_d5f(const helfem::Vec<T> & x, helfem::Mat<T> & d5f, size_t iel) const;
       /// Evaluate nth derivative
-      void eval_dnf(const helfem::Vector & x, helfem::Matrix & dnf, int n, size_t iel) const;
+      void eval_dnf(const helfem::Vec<T> & x, helfem::Mat<T> & dnf, int n, size_t iel) const;
 
       /// Evaluate polynomials at given points
-      helfem::Matrix eval_f  (const helfem::Vector & x, size_t iel) const;
+      helfem::Mat<T> eval_f  (const helfem::Vec<T> & x, size_t iel) const;
       /// Evaluate derivatives of polynomials at given points
-      helfem::Matrix eval_df (const helfem::Vector & x, size_t iel) const;
+      helfem::Mat<T> eval_df (const helfem::Vec<T> & x, size_t iel) const;
       /// Evaluate second derivatives of polynomials at given points
-      helfem::Matrix eval_d2f(const helfem::Vector & x, size_t iel) const;
+      helfem::Mat<T> eval_d2f(const helfem::Vec<T> & x, size_t iel) const;
       /// Evaluate third derivatives of polynomials at given points
-      helfem::Matrix eval_d3f(const helfem::Vector & x, size_t iel) const;
+      helfem::Mat<T> eval_d3f(const helfem::Vec<T> & x, size_t iel) const;
       /// Evaluate fourth derivatives of polynomials at given points
-      helfem::Matrix eval_d4f(const helfem::Vector & x, size_t iel) const;
+      helfem::Mat<T> eval_d4f(const helfem::Vec<T> & x, size_t iel) const;
       /// Evaluate fifth derivatives of polynomials at given points
-      helfem::Matrix eval_d5f(const helfem::Vector & x, size_t iel) const;
+      helfem::Mat<T> eval_d5f(const helfem::Vec<T> & x, size_t iel) const;
       /// Evaluate nth derivative
-      helfem::Matrix eval_dnf(const helfem::Vector & x, int n, size_t iel) const;
+      helfem::Mat<T> eval_dnf(const helfem::Vec<T> & x, int n, size_t iel) const;
 
       /// Evaluate the nth derivative at all quadrature points
-      helfem::Matrix eval_dnf(const helfem::Vector & xq, int n) const;
+      helfem::Mat<T> eval_dnf(const helfem::Vec<T> & xq, int n) const;
 
       /// Evaluate the n-th r-derivative of B_u(r)/r for the surviving shape
       /// functions on element iel. Only valid when element iel starts at
       /// r=0 (the Dirichlet-induced (x+1) factor in each B_u is what makes
       /// the deflation work). Delegates to PolynomialBasis::eval_over_r
       /// with the element's scaling_factor as the size argument.
-      helfem::Matrix eval_over_r(const helfem::Vector & x, int n, size_t iel) const;
+      helfem::Mat<T> eval_over_r(const helfem::Vec<T> & x, int n, size_t iel) const;
 
       /**
        * Compute matrix elements in the finite element basis <lh|f|rh>
@@ -172,10 +179,10 @@ namespace helfem {
        */
       // Phase 5.4: matrix_element / vector_element overloads migrated to
       // Eigen. The fn-pointer overload's lambda signature is now
-      // helfem::Matrix(helfem::Vector, size_t).
-      helfem::Matrix matrix_element(int lhder, int rhder, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
+      // helfem::Mat<T>(helfem::Vec<T>, size_t).
+      helfem::Mat<T> matrix_element(int lhder, int rhder, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
       /// Same as above, but only in a single element
-      helfem::Matrix matrix_element(size_t iel, int lhder, int rhder, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
+      helfem::Mat<T> matrix_element(size_t iel, int lhder, int rhder, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
 
       /**
        * Compute vector elements in the finite element basis <lh|f|rh>
@@ -185,9 +192,9 @@ namespace helfem {
        * wq:    quadrature weights
        * f(r):  additional weight function, use nullptr for unit weight
        */
-      helfem::Vector vector_element(int der, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
+      helfem::Vec<T> vector_element(int der, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
       /// Same as above, but only in a single element
-      helfem::Vector vector_element(size_t iel, int der, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
+      helfem::Vec<T> vector_element(size_t iel, int der, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
 
       /**
        * Compute matrix elements in the finite element basis <lh|f|rh>
@@ -198,9 +205,9 @@ namespace helfem {
        * wq:    quadrature weights
        * f(r):  additional weight function, use nullptr for unit weight
        */
-      helfem::Matrix matrix_element(const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_lh, const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_rh, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
+      helfem::Mat<T> matrix_element(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
       /// The driver function
-      helfem::Matrix matrix_element(size_t iel, const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_lh, const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_rh, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f, double x_left = -1.0, double x_right = 1.0) const;
+      helfem::Mat<T> matrix_element(size_t iel, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f, double x_left = -1.0, double x_right = 1.0) const;
 
 
       /**
@@ -211,13 +218,16 @@ namespace helfem {
        * wq:    quadrature weights
        * f(r):  additional weight function, use nullptr for unit weight
        */
-      helfem::Vector vector_element(const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_bf, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
+      helfem::Vec<T> vector_element(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_bf, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
       /// The driver function
-      helfem::Vector vector_element(size_t iel, const std::function<helfem::Matrix(helfem::Vector,size_t)> & eval_bf, const helfem::Vector & xq, const helfem::Vector & wq, const std::function<double(double)> & f) const;
+      helfem::Vec<T> vector_element(size_t iel, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_bf, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
 
       /// Print out the basis functions
       void print(const std::string & str="") const;
     };
+
+    /// The double instantiation, which every existing caller uses.
+    using FiniteElementBasis = FiniteElementBasisT<double>;
   }
 }
 #endif

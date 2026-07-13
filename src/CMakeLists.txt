@@ -72,6 +72,10 @@ target_link_libraries(diatomic_purem_test helfem-common legendre)
 
 # Measures how compressible the in-element two-electron integrals are, i.e.
 # what a thresholded Cholesky / low-rank factorization would buy.
+# Arbitrary-precision demonstration: the same FEM code at several scalar types.
+add_executable(precision harmonic/precision.cpp)
+target_link_libraries(precision helfem-common legendre)
+
 add_executable(diatomic_teirank diatomic/teirank.cpp)
 target_link_libraries(diatomic_teirank helfem-common legendre)
 
