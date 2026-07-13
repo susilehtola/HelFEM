@@ -404,6 +404,15 @@ namespace helfem {
 
           gaunt=gaunt::Gaunt(lrval,midval,lrval);
         }
+
+        // Cache the real->dummy index map once. pure_indices() rebuilds it on
+        // every call, and boundary expansion / removal runs on every Fock build.
+        {
+          const arma::uvec idx(pure_indices());
+          pure_idx.resize(idx.n_elem);
+          for(size_t i=0;i<idx.n_elem;i++)
+            pure_idx[i] = (Eigen::Index) idx(i);
+        }
       }
 
       TwoDBasis::~TwoDBasis() {
@@ -722,7 +731,7 @@ namespace helfem {
         // Plug in prefactor
         S*=std::pow(Rhalf,3);
 
-        return helfem::to_eigen(remove_boundaries(helfem::to_arma(S)));
+        return remove_boundaries(S);
       }
 
       helfem::Matrix TwoDBasis::overlap(const TwoDBasis & rh) const {
@@ -785,7 +794,7 @@ namespace helfem {
         // Plug in prefactor
         T*=Rhalf/2.0;
 
-        return helfem::to_eigen(remove_boundaries(helfem::to_arma(T)));
+        return remove_boundaries(T);
       }
 
       helfem::Matrix TwoDBasis::nuclear() const {
@@ -823,7 +832,7 @@ namespace helfem {
         // Plug in prefactor
         V*=-std::pow(Rhalf,2);
 
-        return helfem::to_eigen(remove_boundaries(helfem::to_arma(V)));
+        return remove_boundaries(V);
       }
 
       helfem::Matrix TwoDBasis::dipole_z() const {
@@ -861,7 +870,7 @@ namespace helfem {
         // Plug in prefactors
         V*=std::pow(Rhalf,4);
 
-        return helfem::to_eigen(remove_boundaries(helfem::to_arma(V)));
+        return remove_boundaries(V);
       }
 
       helfem::Matrix TwoDBasis::quadrupole_zz() const {
@@ -904,7 +913,7 @@ namespace helfem {
         // Plug in prefactors
         V*=std::pow(Rhalf,5)/2;
 
-        return helfem::to_eigen(remove_boundaries(helfem::to_arma(V)));
+        return remove_boundaries(V);
       }
 
       helfem::Matrix TwoDBasis::Bz_field(double B) const {
@@ -956,7 +965,7 @@ namespace helfem {
           }
         }
 
-        return helfem::to_eigen(remove_boundaries(helfem::to_arma(V)));
+        return remove_boundaries(V);
       }
 
 
@@ -1183,10 +1192,8 @@ namespace helfem {
         if(!cd_B.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
-        // Public boundary Eigen. The boundary-expansion trimmer is still
-        // arma, so bridge around it: to_arma -> expand_boundaries -> to_eigen.
-        // The interior is Eigen-native.
-        helfem::Matrix P(helfem::to_eigen(expand_boundaries(helfem::to_arma(P_in))));
+        // Eigen throughout: no arma bridge on the Fock path.
+        const helfem::Matrix P(expand_boundaries(P_in));
 
         // Number of radial elements
         size_t Nel(radial.Nel());
@@ -1369,16 +1376,15 @@ namespace helfem {
           }
         }
 
-        return helfem::to_eigen(remove_boundaries(helfem::to_arma(J)));
+        return remove_boundaries(J);
       }
 
       helfem::Matrix TwoDBasis::exchange(const helfem::Matrix & P_in) const {
         if(!cd_B.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
-        // Public boundary Eigen. Bridge around the still-arma boundary
-        // expander; the interior is Eigen-native.
-        helfem::Matrix P(helfem::to_eigen(expand_boundaries(helfem::to_arma(P_in))));
+        // Eigen throughout: no arma bridge on the Fock path.
+        const helfem::Matrix P(expand_boundaries(P_in));
 
         // Number of radial elements
         size_t Nel(radial.Nel());
@@ -1576,7 +1582,36 @@ namespace helfem {
           }
         }
 
-        return helfem::to_eigen(remove_boundaries(helfem::to_arma(K)));
+        return remove_boundaries(K);
+      }
+
+      helfem::Matrix TwoDBasis::remove_boundaries(const helfem::Matrix & Fnob) const {
+        const Eigen::Index N = (Eigen::Index) Ndummy();
+        if(Fnob.rows() != N || Fnob.cols() != N) {
+          std::ostringstream oss;
+          oss << "Matrix does not have expected size! Got " << Fnob.rows() << " x " << Fnob.cols() << ", expected " << N << " x " << N << "!\n";
+          throw std::logic_error(oss.str());
+        }
+        const Eigen::Index n = (Eigen::Index) pure_idx.size();
+        helfem::Matrix Fpure(n, n);
+        for(Eigen::Index j=0;j<n;j++)
+          for(Eigen::Index i=0;i<n;i++)
+            Fpure(i,j) = Fnob(pure_idx[i], pure_idx[j]);
+        return Fpure;
+      }
+
+      helfem::Matrix TwoDBasis::expand_boundaries(const helfem::Matrix & Ppure) const {
+        const Eigen::Index n = (Eigen::Index) pure_idx.size();
+        if(Ppure.rows() != n || Ppure.cols() != n) {
+          std::ostringstream oss;
+          oss << "Matrix does not have expected size! Got " << Ppure.rows() << " x " << Ppure.cols() << ", expected " << n << " x " << n << "!\n";
+          throw std::logic_error(oss.str());
+        }
+        helfem::Matrix Pnob(helfem::Matrix::Zero((Eigen::Index) Ndummy(), (Eigen::Index) Ndummy()));
+        for(Eigen::Index j=0;j<n;j++)
+          for(Eigen::Index i=0;i<n;i++)
+            Pnob(pure_idx[i], pure_idx[j]) = Ppure(i,j);
+        return Pnob;
       }
 
       arma::mat TwoDBasis::remove_boundaries(const arma::mat & Fnob) const {

@@ -57,8 +57,7 @@ namespace helfem {
         if(!P0.size()) {
           throw std::runtime_error("Error - density matrix is empty!\n");
         }
-        // expand_boundaries stays arma at the basis boundary; bridge locally.
-        arma::mat Pexp(basp->expand_boundaries(helfem::to_arma(P0)));
+        const helfem::Matrix Pexp(basp->expand_boundaries(P0));
         helfem::Matrix P(bf_ind.size(), bf_ind.size());
         for(size_t i=0;i<bf_ind.size();i++)
           for(size_t j=0;j<bf_ind.size();j++)
@@ -571,7 +570,7 @@ namespace helfem {
         Ekin=ekin;
         Nel=nel;
 
-        H_e=helfem::to_eigen(basp->remove_boundaries(helfem::to_arma(H)));
+        H_e=basp->remove_boundaries(H);
       }
 
       void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & Pa_e, const helfem::Matrix & Pb_e, helfem::Matrix & Ha_e, helfem::Matrix & Hb_e, double & Exc, double & Nel, double & Ekin, bool beta, double thr) {
@@ -612,8 +611,8 @@ namespace helfem {
         Nel=nel;
 
         // Clean up matrices
-        Ha_e=helfem::to_eigen(basp->remove_boundaries(helfem::to_arma(Ha)));
-        Hb_e=helfem::to_eigen(basp->remove_boundaries(helfem::to_arma(Hb)));
+        Ha_e=basp->remove_boundaries(Ha);
+        Hb_e=basp->remove_boundaries(Hb);
       }
 
     }

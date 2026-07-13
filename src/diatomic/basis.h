@@ -136,6 +136,11 @@ namespace helfem {
         /// Legendre function table
         legendretable::LegendreTable legtab;
 
+        /// Cached pure_indices(): dummy index of each real basis function.
+        /// Built once; pure_indices() itself rebuilt it on every call, and it
+        /// is called on every boundary expansion / removal.
+        std::vector<Eigen::Index> pure_idx;
+
         /// L, |M| map
         std::vector<lmidx_t> lm_map;
         /// L, M map
@@ -230,6 +235,17 @@ namespace helfem {
         arma::mat expand_boundaries(const arma::mat & H) const;
         /// Remove boundary conditions
         arma::mat remove_boundaries(const arma::mat & H) const;
+
+        /// Eigen-native boundary expansion / removal.
+        ///
+        /// These run on every Fock build -- coulomb(), exchange() and the XC
+        /// grid all bridge a density in and a matrix out -- and the arma
+        /// versions above went through arma's generic index-pair submatrix
+        /// (subview_elem2), which showed up as ~5% of the run time. They also
+        /// rebuilt the index list on every call. These use the cached index
+        /// list and a plain gather/scatter loop.
+        helfem::Matrix expand_boundaries(const helfem::Matrix & Ppure) const;
+        helfem::Matrix remove_boundaries(const helfem::Matrix & Fnob) const;
 
 
         /// Compute two-electron integrals
