@@ -225,7 +225,7 @@ namespace helfem {
         // expanded into the dummy basis before it can be gathered -- exactly
         // as the general 3D worker does. Nbf() == Ndummy() only when every m
         // block keeps all its radial functions, i.e. mmax == 0.
-        const helfem::Matrix P(helfem::to_eigen(basp->expand_boundaries(helfem::to_arma(P0))));
+        const helfem::Matrix P(basp->expand_boundaries(P0));
 
         const Eigen::Index nang = cth.size();
         const size_t nm = mlist.size();
@@ -310,8 +310,8 @@ namespace helfem {
         polarized = true;
 
         // See the restricted overload: bf_ind_m indexes the dummy basis.
-        const helfem::Matrix Pa(helfem::to_eigen(basp->expand_boundaries(helfem::to_arma(Pa0))));
-        const helfem::Matrix Pb(helfem::to_eigen(basp->expand_boundaries(helfem::to_arma(Pb0))));
+        const helfem::Matrix Pa(basp->expand_boundaries(Pa0));
+        const helfem::Matrix Pb(basp->expand_boundaries(Pb0));
 
         const Eigen::Index nang = cth.size();
         const size_t nm = mlist.size();
@@ -618,7 +618,7 @@ namespace helfem {
           }
         }
         Exc = exc; Ekin = ekin; Nel = nel;
-        H_e = helfem::to_eigen(basp->remove_boundaries(helfem::to_arma(H)));
+        H_e = basp->remove_boundaries(H);
       }
 
       void PureMDFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars,
@@ -649,9 +649,9 @@ namespace helfem {
           }
         }
         Exc = exc; Ekin = ekin; Nel = nel;
-        Ha_e = helfem::to_eigen(basp->remove_boundaries(helfem::to_arma(Ha)));
+        Ha_e = basp->remove_boundaries(Ha);
         if (beta)
-          Hb_e = helfem::to_eigen(basp->remove_boundaries(helfem::to_arma(Hb)));
+          Hb_e = basp->remove_boundaries(Hb);
       }
 
     }
