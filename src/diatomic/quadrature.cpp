@@ -187,50 +187,71 @@ namespace helfem {
         const Eigen::Index nq  = el.x.size();
         const Eigen::Index nbf = el.bf.cols();
 
+        // Scratch, allocated ONCE per call and reused. Previously every one of
+        // the nq subintervals allocated its own wp/wbf/prod, and each outer()
+        // call copied the whole (nq x nbf^2) bfprod table just to scale it by
+        // the weights -- hundreds of MB of allocation traffic through
+        // compute_tei, which the profile saw as malloc/memmove/memset.
+        helfem::Matrix inner(nq, nbf*nbf);
+        helfem::Matrix wbf(nq, nbf);
+        helfem::Matrix prod(nbf, nbf);
+        helfem::Vector acc(nbf*nbf);
+        helfem::Vector wp(nq);
+        helfem::Matrix wbfprod(nq, nbf*nbf);
+        helfem::Vector legscratch(nq);
+
         // Inner integrals as a function of the outer point, accumulated over
         // the subintervals. Depends on l (through cosh^l) and on (L, M)
         // (through P_{L|M|}), but on no polynomial evaluation.
         auto inner_integral = [&](int lval) {
-          helfem::Matrix inner(nq, nbf*nbf);
-          helfem::Vector acc = helfem::Vector::Zero(nbf*nbf);
+          acc.setZero();
           for(Eigen::Index ip=0;ip<nq;ip++) {
             const TwoElectronElement::Subinterval & si = el.sub[ip];
 
-            helfem::Vector wp = si.mulen*el.wx;
+            wp = si.mulen*el.wx;
             wp.array() *= si.shmu.array();
             if(lval!=0)
               wp.array() *= si.chmu.array().pow(lval);
-            wp.array() *= Plm(tab, L, M, si.chmu).array();
+            // Fill via the scalar accessor: the vector-returning overload
+            // bridges Eigen -> arma, allocates, and copies back, three
+            // allocations per subinterval.
+            for(Eigen::Index i=0;i<nq;i++)
+              legscratch(i) = tab.get_Plm(L, M, si.chmu(i));
+            wp.array() *= legscratch.array();
 
-            helfem::Matrix wbf = si.bf;
+            wbf = si.bf;
             for(Eigen::Index i=0;i<wbf.cols();i++)
               wbf.col(i).array() *= wp.array();
 
-            const helfem::Matrix prod = wbf.transpose()*si.bf;
+            prod.noalias() = wbf.transpose()*si.bf;
             acc += Eigen::Map<const helfem::Vector>(prod.data(), prod.size());
             inner.row(ip) = acc.transpose();
           }
-          return inner;
         };
 
         // Outer integral, for the (k, l) ordering
-        auto outer = [&](int kval, int lval) {
-          const helfem::Matrix inner = inner_integral(lval);
+        auto outer = [&](int kval, int lval, helfem::Matrix & out) {
+          inner_integral(lval);
 
-          helfem::Vector wp = el.mulen*el.wx;
+          wp = el.mulen*el.wx;
           wp.array() *= el.shmu.array();
           if(kval!=0)
             wp.array() *= el.chmu.array().pow(kval);
-          wp.array() *= Qlm(tab, L, M, el.chmu).array();
+          for(Eigen::Index i=0;i<nq;i++)
+            legscratch(i) = tab.get_Qlm(L, M, el.chmu(i));
+          wp.array() *= legscratch.array();
 
-          helfem::Matrix bfprod = el.bfprod;
-          for(Eigen::Index i=0;i<bfprod.cols();i++)
-            bfprod.col(i).array() *= wp.array();
+          wbfprod = el.bfprod;
+          for(Eigen::Index i=0;i<wbfprod.cols();i++)
+            wbfprod.col(i).array() *= wp.array();
 
-          return helfem::Matrix(bfprod.transpose()*inner);
+          out.noalias() = wbfprod.transpose()*inner;
         };
 
-        return outer(k,l) + helfem::Matrix(outer(l,k).transpose());
+        helfem::Matrix t1(nbf*nbf, nbf*nbf), t2(nbf*nbf, nbf*nbf);
+        outer(k, l, t1);
+        outer(l, k, t2);
+        return helfem::Matrix(t1 + t2.transpose());
       }
 
     }

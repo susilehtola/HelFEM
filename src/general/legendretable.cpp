@@ -34,10 +34,17 @@ namespace helfem {
     }
 
     size_t LegendreTable::get_index(double xi, bool check) const {
-      legendre_table_t p;
-      p.xi=xi;
-
-      std::vector<legendre_table_t>::const_iterator low(std::lower_bound(stor.begin(),stor.end(),p));
+      // Search on xi alone. Constructing a legendre_table_t just to carry the
+      // search key would construct -- and immediately destroy -- its two
+      // arma::mat members on EVERY lookup, and get_index is called once per
+      // quadrature point, inside the (L, M, subinterval) loops of the
+      // two-electron integral build. That churn showed up as several percent
+      // of the run time in malloc/memmove.
+      std::vector<legendre_table_t>::const_iterator low(
+          std::lower_bound(stor.begin(), stor.end(), xi,
+                           [](const legendre_table_t & e, double v) {
+                             return e.xi < v;
+                           }));
       if(check && low == stor.end()) {
         std::ostringstream oss;
         oss << "Could not find xi=" << xi << " on the list!\n";
