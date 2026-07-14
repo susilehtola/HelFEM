@@ -25,6 +25,8 @@
 #include <lib1dfem/PolynomialBasis.h>
 #include <lib1dfem/LIPBasis.h>
 #include <lib1dfem/HIPBasis.h>
+#include <lib1dfem/HIP2Basis.h>
+#include <lib1dfem/HIP3Basis.h>
 #include <lib1dfem/LegendreBasis.h>
 #include <lib1dfem/lobatto.h>
 #include <stdexcept>
@@ -59,6 +61,18 @@ namespace helfem {
         helfem::lib1dfem::Vec<T> x, w;
         helfem::lib1dfem::lobatto::lobatto_compute<T>(Nnodes, x, w);
         return new pb::HIPBasis<T>(x, primbas);
+      }
+      case 8: {
+        // Analytic HIP2 (closed-form Hermite, 2nd order)
+        helfem::lib1dfem::Vec<T> x, w;
+        helfem::lib1dfem::lobatto::lobatto_compute<T>(Nnodes, x, w);
+        return new pb::HIP2Basis<T>(x, primbas);
+      }
+      case 9: {
+        // Analytic HIP3 (closed-form Hermite, 3rd order)
+        helfem::lib1dfem::Vec<T> x, w;
+        helfem::lib1dfem::lobatto::lobatto_compute<T>(Nnodes, x, w);
+        return new pb::HIP3Basis<T>(x, primbas);
       }
       default:
         throw std::logic_error("Unsupported primitive basis for the templated factory.\n");
