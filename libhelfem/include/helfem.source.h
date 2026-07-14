@@ -53,9 +53,13 @@ namespace helfem {
 
     /**
      * Calculates the half-inverse of a matrix.
-     * Phase 5.10: Eigen-typed.
+     * Phase 5.10: Eigen-typed. Templated on the scalar type so the
+     * symmetric orthonormalization does not cap an otherwise
+     * higher-precision SCF at double; instantiated for double, long
+     * double and (under HELFEM_HAVE_FLOAT128) _Float128.
      */
-    helfem::Matrix invh(helfem::Matrix S, bool chol);
+    template <typename T>
+    helfem::Mat<T> invh(helfem::Mat<T> S, bool chol);
   } // namespace utils
 } // namespace helfem
 

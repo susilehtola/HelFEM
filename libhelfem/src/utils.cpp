@@ -18,6 +18,7 @@
 #include <Eigen/Eigenvalues>
 #include <Eigen/LU>
 #include <cmath>
+#include <type_traits>
 
 namespace helfem {
   namespace utils {
@@ -46,11 +47,13 @@ namespace helfem {
     template _Float128 bessel_kl<_Float128>(_Float128, int);
 #endif
 
-    helfem::Matrix exchange_tei(const helfem::Matrix & tei,
-                                 size_t Ni, size_t Nj, size_t Nk, size_t Nl) {
+    template <typename T>
+    helfem::Mat<T> exchange_tei(const helfem::Mat<T> & tei,
+                                size_t Ni, size_t Nj, size_t Nk, size_t Nl) {
       // Eigen overload of the same scalar-by-scalar (ij|kl) -> (jk|il)
       // permutation. Both arma and Eigen are column-major so the
-      // packed-pair index layout (a-fast, b-slow) is identical.
+      // packed-pair index layout (a-fast, b-slow) is identical. Pure
+      // index shuffling -- no arithmetic -- so it is exact at any T.
       if (static_cast<size_t>(tei.rows()) != Ni*Nj) {
         std::ostringstream oss;
         oss << "Invalid input tei: was supposed to get " << Ni*Nj
@@ -63,7 +66,7 @@ namespace helfem {
             << " cols but got " << tei.cols() << "!\n";
         throw std::logic_error(oss.str());
       }
-      helfem::Matrix ktei = helfem::Matrix::Zero(Nj*Nk, Ni*Nl);
+      helfem::Mat<T> ktei = helfem::Mat<T>::Zero(Nj*Nk, Ni*Nl);
       for (size_t ii = 0; ii < Ni; ++ii)
         for (size_t jj = 0; jj < Nj; ++jj)
           for (size_t kk = 0; kk < Nk; ++kk)
@@ -72,42 +75,85 @@ namespace helfem {
       return ktei;
     }
 
+    template helfem::Mat<double>      exchange_tei<double>     (const helfem::Mat<double> &,      size_t, size_t, size_t, size_t);
+    template helfem::Mat<long double> exchange_tei<long double>(const helfem::Mat<long double> &, size_t, size_t, size_t, size_t);
+#ifdef HELFEM_HAVE_FLOAT128
+    template helfem::Mat<_Float128>   exchange_tei<_Float128>  (const helfem::Mat<_Float128> &,   size_t, size_t, size_t, size_t);
+#endif
+
     int stricmp(const std::string & str1, const std::string & str2) {
       return strcasecmp(str1.c_str(),str2.c_str());
     }
 
-    // Phase 5.10: invh migrated to Eigen.
-    helfem::Matrix invh(helfem::Matrix S, bool chol) {
+    namespace {
+      // Elementwise x^(-1/2).
+      //
+      // Eigen's Array::pow(scalar) is SFINAE-gated on Eigen's OWN
+      // internal::is_arithmetic trait, whose list of floating types does not
+      // include _Float128, so the templated invh below cannot spell it that
+      // way for every T. double keeps the original .pow(-0.5) expression
+      // verbatim -- std::pow(x, -0.5) and 1/std::sqrt(x) may differ in the
+      // last ulp, and the point of this whole exercise is that the double
+      // results stay bit-for-bit what they were.
+      template <typename T>
+      helfem::Vec<T> inv_sqrt(const helfem::Vec<T> & v) {
+        if constexpr (std::is_same_v<T, double>) {
+          return v.array().pow(-0.5).matrix();
+        } else {
+          return v.unaryExpr([](T x) { return T(1) / std::sqrt(x); });
+        }
+      }
+    }
+
+    // Phase 5.10: invh migrated to Eigen. Now templated on the scalar type:
+    // the symmetric orthonormalization sits directly on the SCF path, so
+    // pinning it to double would cap an otherwise higher-precision
+    // calculation right where it matters. Eigen's LLT and
+    // SelfAdjointEigenSolver are themselves generic in the scalar, so the
+    // body is unchanged apart from the types -- and the T = double
+    // instantiation is bit-identical to the pre-template code (see inv_sqrt
+    // above, which preserves the original .pow(-0.5) spelling at double).
+    template <typename T>
+    helfem::Mat<T> invh(helfem::Mat<T> S, bool chol) {
       // Basis function norms: 1 / sqrt(diag(S))
-      const helfem::Vector bfnormlz = S.diagonal().array().pow(-0.5).matrix();
+      const helfem::Vec<T> Sdiag = S.diagonal();
+      const helfem::Vec<T> bfnormlz = inv_sqrt<T>(Sdiag);
 
       // Go to normalized basis: S -> diag(bfnormlz) S diag(bfnormlz)
       S = bfnormlz.asDiagonal() * S * bfnormlz.asDiagonal();
 
-      helfem::Matrix Sinvh;
+      helfem::Mat<T> Sinvh;
       if (chol) {
         // Sinvh = inv(chol(S))  -- upper-triangular L from LLT, inverted.
-        Eigen::LLT<helfem::Matrix> llt(S);
+        Eigen::LLT<helfem::Mat<T>> llt(S);
         if (llt.info() != Eigen::Success)
           throw std::logic_error("Cholesky decomposition of overlap matrix failed\n");
         // arma::chol(S) returns the upper triangular U with U^T U = S;
         // Eigen LLT stores L (lower) with L L^T = S. To mirror arma we
         // take L^T then invert.
-        const helfem::Matrix U = llt.matrixL().transpose();
+        const helfem::Mat<T> U = llt.matrixL().transpose();
         Sinvh = U.inverse();
       } else {
-        Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(S);
+        Eigen::SelfAdjointEigenSolver<helfem::Mat<T>> es(S);
         if (es.info() != Eigen::Success)
           throw std::logic_error("Diagonalization of overlap matrix failed\n");
-        const helfem::Vector Sval = es.eigenvalues();
-        const helfem::Matrix Svec = es.eigenvectors();
+        const helfem::Vec<T> Sval = es.eigenvalues();
+        const helfem::Mat<T> Svec = es.eigenvectors();
+        // printf has no conversion for T; go through double at the I/O
+        // boundary only (the arithmetic above stays in T).
         printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",
-               Sval(0), Sval(Sval.size() - 1) / Sval(0));
-        Sinvh = Svec * Sval.array().pow(-0.5).matrix().asDiagonal() * Svec.transpose();
+               (double) Sval(0), (double) (Sval(Sval.size() - 1) / Sval(0)));
+        Sinvh = Svec * inv_sqrt<T>(Sval).asDiagonal() * Svec.transpose();
       }
 
       Sinvh = bfnormlz.asDiagonal() * Sinvh;
       return Sinvh;
     }
+
+    template helfem::Mat<double>      invh<double>     (helfem::Mat<double>,      bool);
+    template helfem::Mat<long double> invh<long double>(helfem::Mat<long double>, bool);
+#ifdef HELFEM_HAVE_FLOAT128
+    template helfem::Mat<_Float128>   invh<_Float128>  (helfem::Mat<_Float128>,   bool);
+#endif
   }
 }

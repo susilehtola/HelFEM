@@ -76,6 +76,13 @@ target_link_libraries(diatomic_purem_test helfem-common legendre)
 add_executable(precision harmonic/precision.cpp)
 target_link_libraries(precision helfem-common legendre)
 
+# The same, one layer up: the whole atomic Hartree-Fock path (TwoDBasisT<T>,
+# GauntT<T>, the 2e integrals, Coulomb, exchange, orthonormalisation) at
+# double / long double / _Float128, on helium, whose HF basis-set limit is
+# known from the literature.
+add_executable(atomic_precision atomic/precision.cpp)
+target_link_libraries(atomic_precision helfem-common legendre)
+
 add_executable(diatomic_teirank diatomic/teirank.cpp)
 target_link_libraries(diatomic_teirank helfem-common legendre)
 

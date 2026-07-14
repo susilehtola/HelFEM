@@ -17,6 +17,7 @@
 
 #include <Matrix.h>
 #include <RadialBasis.h>
+#include <type_traits>
 
 namespace helfem {
   // Assemble a block-diagonal radial matrix by summing per-element
@@ -32,11 +33,17 @@ namespace helfem {
   //   }
   // that appears ~13 times across src/atomic/TwoDBasis.cpp and
   // src/sadatom/basis.cpp.
+  // The scalar type is deduced from the kernel's return type (every
+  // per-element block is an Eigen matrix, which carries ::Scalar), so a
+  // FEMRadialBasisT<long double> assembles a long-double matrix and every
+  // existing double caller is unchanged.
   template <typename RadialBasis, typename Kernel>
-  inline helfem::Matrix assemble_radial_diagonal(const RadialBasis & radial,
-                                                  Kernel && kernel) {
+  inline auto assemble_radial_diagonal(const RadialBasis & radial,
+                                       Kernel && kernel)
+      -> helfem::Mat<typename std::decay_t<decltype(kernel(size_t(0)))>::Scalar> {
+    using T = typename std::decay_t<decltype(kernel(size_t(0)))>::Scalar;
     const Eigen::Index Nrad = static_cast<Eigen::Index>(radial.Nbf());
-    helfem::Matrix M = helfem::Matrix::Zero(Nrad, Nrad);
+    helfem::Mat<T> M = helfem::Mat<T>::Zero(Nrad, Nrad);
     for (size_t iel = 0; iel < radial.Nel(); ++iel) {
       size_t ifirst, ilast;
       radial.get_idx(iel, ifirst, ilast);
