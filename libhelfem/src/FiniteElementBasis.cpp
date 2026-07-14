@@ -311,18 +311,6 @@ namespace helfem {
 
     // Phase 5.3: eval_* migrated to Eigen; internal lib1dfem call no longer
     // bridges (its signature matches).
-    template<typename T>
-    void FiniteElementBasisT<T>::eval_f  (const helfem::Vec<T> & x, helfem::Mat<T> & f,   size_t iel) const { eval_dnf(x, f,   0, iel); }
-    template<typename T>
-    void FiniteElementBasisT<T>::eval_df (const helfem::Vec<T> & x, helfem::Mat<T> & df,  size_t iel) const { eval_dnf(x, df,  1, iel); }
-    template<typename T>
-    void FiniteElementBasisT<T>::eval_d2f(const helfem::Vec<T> & x, helfem::Mat<T> & d2f, size_t iel) const { eval_dnf(x, d2f, 2, iel); }
-    template<typename T>
-    void FiniteElementBasisT<T>::eval_d3f(const helfem::Vec<T> & x, helfem::Mat<T> & d3f, size_t iel) const { eval_dnf(x, d3f, 3, iel); }
-    template<typename T>
-    void FiniteElementBasisT<T>::eval_d4f(const helfem::Vec<T> & x, helfem::Mat<T> & d4f, size_t iel) const { eval_dnf(x, d4f, 4, iel); }
-    template<typename T>
-    void FiniteElementBasisT<T>::eval_d5f(const helfem::Vec<T> & x, helfem::Mat<T> & d5f, size_t iel) const { eval_dnf(x, d5f, 5, iel); }
 
     template<typename T>
     void FiniteElementBasisT<T>::eval_dnf(const helfem::Vec<T> & x, helfem::Mat<T> & dnf, int n, size_t iel) const {
@@ -332,18 +320,6 @@ namespace helfem {
       p->eval_dnf(x, dnf, n, scaling_factor(iel));
     }
 
-    template<typename T>
-    helfem::Mat<T> FiniteElementBasisT<T>::eval_f  (const helfem::Vec<T> & x, size_t iel) const { return eval_dnf(x, 0, iel); }
-    template<typename T>
-    helfem::Mat<T> FiniteElementBasisT<T>::eval_df (const helfem::Vec<T> & x, size_t iel) const { return eval_dnf(x, 1, iel); }
-    template<typename T>
-    helfem::Mat<T> FiniteElementBasisT<T>::eval_d2f(const helfem::Vec<T> & x, size_t iel) const { return eval_dnf(x, 2, iel); }
-    template<typename T>
-    helfem::Mat<T> FiniteElementBasisT<T>::eval_d3f(const helfem::Vec<T> & x, size_t iel) const { return eval_dnf(x, 3, iel); }
-    template<typename T>
-    helfem::Mat<T> FiniteElementBasisT<T>::eval_d4f(const helfem::Vec<T> & x, size_t iel) const { return eval_dnf(x, 4, iel); }
-    template<typename T>
-    helfem::Mat<T> FiniteElementBasisT<T>::eval_d5f(const helfem::Vec<T> & x, size_t iel) const { return eval_dnf(x, 5, iel); }
 
     template<typename T>
     helfem::Mat<T> FiniteElementBasisT<T>::eval_dnf(const helfem::Vec<T> & x, int n, size_t iel) const {
