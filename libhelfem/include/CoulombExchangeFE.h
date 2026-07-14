@@ -24,11 +24,13 @@ namespace helfem {
   // public include path; the symbol is resolved at link time -- callers
   // of these helpers link against libhelfem anyway).
   namespace utils {
-    /// (ij|kl) -> (jk|il) permutation on the helfem::Matrix-typed
+    /// (ij|kl) -> (jk|il) permutation on the helfem::Mat<T>-typed
     /// in-element TEI. Used internally by the assemble_K_FE_one_multipole
-    /// helpers below.
-    helfem::Matrix exchange_tei(const helfem::Matrix & tei, size_t Ni, size_t Nj,
-                                 size_t Nk, size_t Nl);
+    /// helpers below. Explicitly instantiated in libhelfem/src/utils.cpp
+    /// for double, long double and (under HELFEM_HAVE_FLOAT128) _Float128.
+    template <typename T>
+    helfem::Mat<T> exchange_tei(const helfem::Mat<T> & tei, size_t Ni, size_t Nj,
+                                size_t Nk, size_t Nl);
   }
   namespace atomic {
     namespace basis {
@@ -77,24 +79,39 @@ namespace helfem {
       /// driven from an SCF loop) avoid recomputing on every call.
       // Phase 2c: accessor types now return Eigen Matrix references,
       // matching the new TwoDBasis cache types (std::vector<helfem::Matrix>).
-      using PerElementAccessor =
-          std::function<const helfem::Matrix & (size_t iel)>;
+      template <typename T = double>
+      using PerElementAccessorT =
+          std::function<const helfem::Mat<T> & (size_t iel)>;
+      using PerElementAccessor = PerElementAccessorT<double>;
+
+      // Every entry point below is templated on the scalar type T, which is
+      // deduced from `radial` (a FEMRadialBasisT<T>) and from the density
+      // matrix. The per-element accessors are taken as GENERIC callables
+      // rather than as a fixed std::function type: template argument
+      // deduction does not see through the user-defined conversion from a
+      // lambda to std::function, so a std::function parameter would break
+      // every existing call site. As a bonus the lambdas are now called
+      // directly, with no type-erasure indirection.
 
       // -- Uncached entry points --------------------------------------
 
-      helfem::Matrix assemble_J_FE_one_multipole(
-          const FEMRadialBasis & radial, int L, const helfem::Matrix & P_FE);
+      template <typename T>
+      helfem::Mat<T> assemble_J_FE_one_multipole(
+          const FEMRadialBasisT<T> & radial, int L, const helfem::Mat<T> & P_FE);
 
-      helfem::Matrix assemble_K_FE_one_multipole(
-          const FEMRadialBasis & radial, int L, const helfem::Matrix & P_FE);
+      template <typename T>
+      helfem::Mat<T> assemble_K_FE_one_multipole(
+          const FEMRadialBasisT<T> & radial, int L, const helfem::Mat<T> & P_FE);
 
-      helfem::Matrix assemble_J_FE_one_multipole_yukawa(
-          const FEMRadialBasis & radial, int L, double lambda,
-          const helfem::Matrix & P_FE);
+      template <typename T>
+      helfem::Mat<T> assemble_J_FE_one_multipole_yukawa(
+          const FEMRadialBasisT<T> & radial, int L, helfem::NonDeduced<T> lambda,
+          const helfem::Mat<T> & P_FE);
 
-      helfem::Matrix assemble_K_FE_one_multipole_yukawa(
-          const FEMRadialBasis & radial, int L, double lambda,
-          const helfem::Matrix & P_FE);
+      template <typename T>
+      helfem::Mat<T> assemble_K_FE_one_multipole_yukawa(
+          const FEMRadialBasisT<T> & radial, int L, helfem::NonDeduced<T> lambda,
+          const helfem::Mat<T> & P_FE);
 
       // -- Cached entry points ----------------------------------------
 
@@ -105,105 +122,43 @@ namespace helfem {
       /// twoe_in_element (= twoe_integral(L, iel) or yukawa_integral) are
       /// supplied by the caller via accessors. Same assembly, no
       /// recomputation -- meant for SCF inner-loop callers.
-      helfem::Matrix assemble_J_FE_one_multipole_cached(
-          const FEMRadialBasis & radial,
-          const PerElementAccessor & r_small,
-          const PerElementAccessor & r_big,
-          const PerElementAccessor & twoe_in_element,
-          const helfem::Matrix & P_FE);
-
-      /// As above for K. Note `ktei_in_element` here returns the
-      /// EXCHANGE-PERMUTED in-element tensor (i.e.
+      ///
+      /// As above for K: `ktei_in_element` returns the EXCHANGE-PERMUTED
+      /// in-element tensor (i.e.
       ///   utils::exchange_tei(twoe_in_element(iel), Ni, Ni, Ni, Ni))
       /// so SCF-driven callers (TwoDBasis, which precomputes prim_ktei)
       /// can pass the cached permuted form directly with zero overhead.
-      helfem::Matrix assemble_K_FE_one_multipole_cached(
-          const FEMRadialBasis & radial,
-          const PerElementAccessor & r_small,
-          const PerElementAccessor & r_big,
-          const PerElementAccessor & ktei_in_element,
-          const helfem::Matrix & P_FE);
 
-      /// Per-(iel, jel) accessor variant of the above K helper, for
-      /// kernels whose r1/r2 coupling does NOT factorise into a
-      /// small/big disjoint product (in particular: the error-function
-      /// kernel used by HelFEM's compute_erfc / rs_exchange). Every
-      /// element pair gets its own dense ktei from the cache, then the
-      /// standard K contraction is applied. No disjoint optimisation
-      /// available -- O(Nel^2) per call.
-      using PerElementPairAccessor =
-          std::function<const helfem::Matrix & (size_t iel, size_t jel)>;
-      helfem::Matrix assemble_K_FE_one_multipole_cached_pairwise(
-          const FEMRadialBasis & radial,
-          const PerElementPairAccessor & ktei_pairwise,
-          const helfem::Matrix & P_FE);
-
-      /// Cholesky-factored variants of the cached J / K helpers. Both
-      /// take the SAME per-element J-ordered Cholesky factor of shape
-      /// (Ni^2 x r) such that
-      ///     T(ab, cd) = twoe_integral(L, iel)(ab, cd)
-      ///              = Sum_p factor(ab, p) * factor(cd, p)
-      /// where (ab) is the row pair (vec(.) column-major; a-fast b-slow).
-      /// Build via FEMRadialBasis::twoe_integral_cholesky.
-      ///
-      /// Asymmetric cost picture (per element):
-      ///   J: O(r * Ni^2) -- inner product per Cholesky vector then
-      ///                     scalar * outer; ~4x FASTER than dense
-      ///                     matvec at typical FE rank ~ 2*Ni.
-      ///   K: O(r * Ni^3) -- two matmuls per Cholesky vector via
-      ///                     K = Sum_p M_p . P . M_p^T (M_p = reshape
-      ///                     of the p-th Cholesky column to Ni x Ni).
-      ///                     SLOWER than dense K (O(Ni^4)) for typical
-      ///                     FE rank-vs-Ni ratios; the K-PERMUTED tensor
-      ///                     happens to be ~full-rank (the bivariate
-      ///                     space u_a(r1) u_c(r2) is Ni^2-dimensional),
-      ///                     so K-side Cholesky compression buys nothing.
-      ///
-      /// Why expose the K factored form anyway: it is the canonical
-      /// RI / density-fitting representation expected by external
-      /// drivers (PySCF's DF backend forms K from the same (mu nu | P)
-      /// 3-index factor that backs J). Memory-wise, callers who store
-      /// only the J-ordered Cholesky factor save ~Ni^2/r ~ 7x relative
-      /// to caching the full in-element tensor; the slower K contraction
-      /// is the price paid for that compression.
-      ///
-      /// Cross-element pieces are unchanged -- still use the disjoint
-      /// r_small / r_big factorisation. Only the in-element 4-index
-      /// path is factored.
-      helfem::Matrix assemble_J_FE_one_multipole_cached_chol(
-          const FEMRadialBasis & radial,
-          const PerElementAccessor & r_small,
-          const PerElementAccessor & r_big,
-          const PerElementAccessor & twoe_chol_J,
-          const helfem::Matrix & P_FE);
-
-      helfem::Matrix assemble_K_FE_one_multipole_cached_chol(
-          const FEMRadialBasis & radial,
-          const PerElementAccessor & r_small,
-          const PerElementAccessor & r_big,
-          const PerElementAccessor & twoe_chol_J,
-          const helfem::Matrix & P_FE);
+      /// Per-element integral accessor: given an element index `iel`,
+      /// returns the per-element matrix for the multipole the caller has
+      /// in mind. Kept as a named alias for callers who want to store one;
+      /// the assemblers themselves take any callable with this shape.
+      template <typename T = double>
+      using PerElementPairAccessorT =
+          std::function<const helfem::Mat<T> & (size_t iel, size_t jel)>;
+      using PerElementPairAccessor = PerElementPairAccessorT<double>;
 
       // Inline implementations -- header-only to match the rest of the
-      // libhelfem/include/ NAO surface. ~150 LOC total.
+      // libhelfem/include/ NAO surface.
 
       namespace detail_fe_2e {
 
-        // Phase 2c: caches are std::vector<helfem::Matrix>; the bridges
-        // these used to do are no longer needed -- direct return.
-        inline helfem::Matrix r_small(const FEMRadialBasis & fem, int L, size_t iel,
-                                       bool yukawa, double lambda) {
+        template <typename T>
+        inline helfem::Mat<T> r_small(const FEMRadialBasisT<T> & fem, int L, size_t iel,
+                                      bool yukawa, T lambda) {
           return yukawa ? fem.bessel_il_integral(L, lambda, iel)
                         : fem.radial_integral(L, iel);
         }
-        inline helfem::Matrix r_big(const FEMRadialBasis & fem, int L, size_t iel,
-                                     bool yukawa, double lambda) {
+        template <typename T>
+        inline helfem::Mat<T> r_big(const FEMRadialBasisT<T> & fem, int L, size_t iel,
+                                    bool yukawa, T lambda) {
           return yukawa ? fem.bessel_kl_integral(L, lambda, iel)
                         : fem.radial_integral(-L - 1, iel);
         }
-        inline helfem::Matrix in_element_tei(const FEMRadialBasis & fem, int L,
-                                              size_t iel,
-                                              bool yukawa, double lambda) {
+        template <typename T>
+        inline helfem::Mat<T> in_element_tei(const FEMRadialBasisT<T> & fem, int L,
+                                             size_t iel,
+                                             bool yukawa, T lambda) {
           return yukawa ? fem.yukawa_integral(L, lambda, iel)
                         : fem.twoe_integral(L, iel);
         }
@@ -212,18 +167,9 @@ namespace helfem {
 
       // -- Per-element cache construction helpers ---------------------
       //
-      // The cached assembly helpers below
-      // (assemble_*_FE_one_multipole_cached) take per-(L, iel) integrals
-      // via accessor lambdas; SCF-driven callers (atomic::TwoDBasis,
-      // sadatom::TwoDBasis) populate those caches once per basis change.
-      // The fill loops are identical in structure between the two
-      // callers, so we share them here.
-      //
       // Convention: caches are flat vectors with index = L*Nel + iel
       // (or L*Nel*Nel + iel*Nel + jel for cross-element). Matches the
-      // existing TwoDBasis cache layouts exactly so the helpers below
-      // can be dropped into existing call sites without changing the
-      // surrounding accessor lambdas.
+      // existing TwoDBasis cache layouts exactly.
 
       /// Per-(L, iel) disjoint radial integrals for the multipole
       /// decomposition.
@@ -231,22 +177,23 @@ namespace helfem {
       ///            disjoint_big  [L*Nel+iel] = radial.radial_integral(-L-1, iel)
       ///   Yukawa:  disjoint_small = radial.bessel_il_integral(L, lambda, iel)
       ///            disjoint_big   = radial.bessel_kl_integral(L, lambda, iel)
+      template <typename T>
       inline void compute_disjoint_radial_integrals(
-          const FEMRadialBasis & radial,
+          const FEMRadialBasisT<T> & radial,
           int N_L,
-          std::vector<helfem::Matrix> & disjoint_small,
-          std::vector<helfem::Matrix> & disjoint_big,
+          std::vector<helfem::Mat<T>> & disjoint_small,
+          std::vector<helfem::Mat<T>> & disjoint_big,
           bool yukawa = false,
-          double lambda = 0.0) {
+          helfem::NonDeduced<T> lambda = T(0)) {
         const size_t Nel = radial.Nel();
         disjoint_small.resize((size_t) N_L * Nel);
         disjoint_big  .resize((size_t) N_L * Nel);
         for (int L = 0; L < N_L; ++L) {
           for (size_t iel = 0; iel < Nel; ++iel) {
             disjoint_small[(size_t) L * Nel + iel] =
-                detail_fe_2e::r_small(radial, L, iel, yukawa, lambda);
+                detail_fe_2e::r_small<T>(radial, L, iel, yukawa, lambda);
             disjoint_big  [(size_t) L * Nel + iel] =
-                detail_fe_2e::r_big  (radial, L, iel, yukawa, lambda);
+                detail_fe_2e::r_big<T>  (radial, L, iel, yukawa, lambda);
           }
         }
       }
@@ -256,14 +203,13 @@ namespace helfem {
       /// assembled on the fly from the disjoint factors in the
       /// assemble_*_FE_one_multipole_cached path. Layout:
       ///   prim_tei[L*Nel*Nel + iel*Nel + iel] = in-element 4-index tensor
-      /// For bare Coulomb (default): radial.twoe_integral(L, iel).
-      /// For Yukawa: radial.yukawa_integral(L, lambda, iel).
+      template <typename T>
       inline void compute_in_element_tei(
-          const FEMRadialBasis & radial,
+          const FEMRadialBasisT<T> & radial,
           int N_L,
-          std::vector<helfem::Matrix> & prim_tei,
+          std::vector<helfem::Mat<T>> & prim_tei,
           bool yukawa = false,
-          double lambda = 0.0) {
+          helfem::NonDeduced<T> lambda = T(0)) {
         const size_t Nel = radial.Nel();
         prim_tei.resize(Nel * Nel * (size_t) N_L);
 #ifdef _OPENMP
@@ -272,7 +218,7 @@ namespace helfem {
         for (int L = 0; L < N_L; ++L) {
           for (size_t iel = 0; iel < Nel; ++iel) {
             prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel] =
-                detail_fe_2e::in_element_tei(radial, L, iel, yukawa, lambda);
+                detail_fe_2e::in_element_tei<T>(radial, L, iel, yukawa, lambda);
           }
         }
       }
@@ -280,11 +226,12 @@ namespace helfem {
       /// Apply utils::exchange_tei to each in-element prim_tei entry to
       /// produce the exchange-permuted form (prim_ktei) used by the
       /// cached K assembly. Only diagonal entries.
+      template <typename T>
       inline void compute_in_element_ktei_from_tei(
-          const FEMRadialBasis & radial,
+          const FEMRadialBasisT<T> & radial,
           int N_L,
-          const std::vector<helfem::Matrix> & prim_tei,
-          std::vector<helfem::Matrix> & prim_ktei) {
+          const std::vector<helfem::Mat<T>> & prim_tei,
+          std::vector<helfem::Mat<T>> & prim_ktei) {
         const size_t Nel = radial.Nel();
         prim_ktei.resize(Nel * Nel * (size_t) N_L);
 #ifdef _OPENMP
@@ -294,7 +241,7 @@ namespace helfem {
           for (size_t iel = 0; iel < Nel; ++iel) {
             const size_t Ni = radial.Nprim(iel);
             prim_ktei[Nel * Nel * (size_t) L + iel * Nel + iel] =
-                helfem::utils::exchange_tei(
+                helfem::utils::exchange_tei<T>(
                     prim_tei[Nel * Nel * (size_t) L + iel * Nel + iel],
                     Ni, Ni, Ni, Ni);
           }
@@ -305,15 +252,13 @@ namespace helfem {
       ///   rs_ktei[L*Nel*Nel + iel*Nel + jel]
       ///     = exchange-permuted erfc 4-index tensor for (iel, jel).
       /// The erfc kernel does NOT factorise into disjoint small/big
-      /// factors, so all Nel*Nel pairs are stored explicitly. The
-      /// pairwise K assembly path
-      /// (assemble_K_FE_one_multipole_cached_pairwise) consumes this
-      /// layout.
+      /// factors, so all Nel*Nel pairs are stored explicitly.
+      template <typename T>
       inline void compute_erfc_ktei(
-          const FEMRadialBasis & radial,
+          const FEMRadialBasisT<T> & radial,
           int N_L,
-          double mu,
-          std::vector<helfem::Matrix> & rs_ktei) {
+          helfem::NonDeduced<T> mu,
+          std::vector<helfem::Mat<T>> & rs_ktei) {
         const size_t Nel = radial.Nel();
         rs_ktei.resize(Nel * Nel * (size_t) N_L);
 #ifdef _OPENMP
@@ -324,10 +269,8 @@ namespace helfem {
             for (size_t jel = 0; jel < Nel; ++jel) {
               const size_t Ni = radial.Nprim(iel);
               const size_t Nj = radial.Nprim(jel);
-              // Phase 2c wrap-up: utils::exchange_tei Eigen overload
-              // -- direct erfc_integral (Eigen) -> rs_ktei (Eigen).
               rs_ktei[Nel * Nel * (size_t) L + iel * Nel + jel] =
-                  helfem::utils::exchange_tei(
+                  helfem::utils::exchange_tei<T>(
                       radial.erfc_integral(L, mu, iel, jel),
                       Ni, Ni, Nj, Nj);
             }
@@ -340,24 +283,25 @@ namespace helfem {
       // NAO use) and cached (look-up-from-SCF-cache, TwoDBasis use)
       // entry points.
 
-      inline helfem::Matrix assemble_J_FE_one_multipole_cached(
-          const FEMRadialBasis & radial,
-          const PerElementAccessor & r_small,
-          const PerElementAccessor & r_big,
-          const PerElementAccessor & twoe_in_element,
-          const helfem::Matrix & P_FE) {
+      template <typename T, typename RSmall, typename RBig, typename TwoE>
+      inline helfem::Mat<T> assemble_J_FE_one_multipole_cached(
+          const FEMRadialBasisT<T> & radial,
+          const RSmall & r_small,
+          const RBig & r_big,
+          const TwoE & twoe_in_element,
+          const helfem::Mat<T> & P_FE) {
         const size_t Nel  = radial.Nel();
         const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
-        const helfem::Matrix & P_E = P_FE;
-        helfem::Matrix J_E = helfem::Matrix::Zero(Nrad, Nrad);
+        const helfem::Mat<T> & P_E = P_FE;
+        helfem::Mat<T> J_E = helfem::Mat<T>::Zero(Nrad, Nrad);
         for (size_t jel = 0; jel < Nel; ++jel) {
           size_t jfirst, jlast;
           radial.get_idx(jel, jfirst, jlast);
           const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
-          const helfem::Matrix Psub =
+          const helfem::Mat<T> Psub =
               P_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj);
-          const double jsmall = (r_small(jel) * Psub).trace();
-          const double jbig   = (r_big  (jel) * Psub).trace();
+          const T jsmall = (r_small(jel) * Psub).trace();
+          const T jbig   = (r_big  (jel) * Psub).trace();
           for (size_t iel = 0; iel < jel; ++iel) {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
@@ -374,24 +318,25 @@ namespace helfem {
           }
           // In-element 4-index contribution: J_sub = twoe * vec(Psub),
           // then reshape back to Nj x Nj.
-          const Eigen::Map<const Eigen::VectorXd> Psub_v(Psub.data(), Nj * Nj);
-          const Eigen::VectorXd Jsub_v = twoe_in_element(jel) * Psub_v;
+          const Eigen::Map<const helfem::Vec<T>> Psub_v(Psub.data(), Nj * Nj);
+          const helfem::Vec<T> Jsub_v = twoe_in_element(jel) * Psub_v;
           J_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj)
-              += Eigen::Map<const Eigen::MatrixXd>(Jsub_v.data(), Nj, Nj);
+              += Eigen::Map<const helfem::Mat<T>>(Jsub_v.data(), Nj, Nj);
         }
         return J_E;
       }
 
-      inline helfem::Matrix assemble_K_FE_one_multipole_cached(
-          const FEMRadialBasis & radial,
-          const PerElementAccessor & r_small,
-          const PerElementAccessor & r_big,
-          const PerElementAccessor & ktei_in_element,
-          const helfem::Matrix & P_FE) {
+      template <typename T, typename RSmall, typename RBig, typename KTei>
+      inline helfem::Mat<T> assemble_K_FE_one_multipole_cached(
+          const FEMRadialBasisT<T> & radial,
+          const RSmall & r_small,
+          const RBig & r_big,
+          const KTei & ktei_in_element,
+          const helfem::Mat<T> & P_FE) {
         const size_t Nel  = radial.Nel();
         const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
-        const helfem::Matrix & P_E = P_FE;
-        helfem::Matrix K_E = helfem::Matrix::Zero(Nrad, Nrad);
+        const helfem::Mat<T> & P_E = P_FE;
+        helfem::Mat<T> K_E = helfem::Mat<T>::Zero(Nrad, Nrad);
         for (size_t iel = 0; iel < Nel; ++iel) {
           size_t ifirst, ilast;
           radial.get_idx(iel, ifirst, ilast);
@@ -401,16 +346,16 @@ namespace helfem {
             radial.get_idx(jel, jfirst, jlast);
             const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
             if (iel == jel) {
-              const helfem::Matrix Psub =
+              const helfem::Mat<T> Psub =
                   P_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj);
-              const Eigen::Map<const Eigen::VectorXd> Psub_v(Psub.data(), Ni * Nj);
-              const Eigen::VectorXd Ksub_v = ktei_in_element(iel) * Psub_v;
+              const Eigen::Map<const helfem::Vec<T>> Psub_v(Psub.data(), Ni * Nj);
+              const helfem::Vec<T> Ksub_v = ktei_in_element(iel) * Psub_v;
               K_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj)
-                  += Eigen::Map<const Eigen::MatrixXd>(Ksub_v.data(), Ni, Nj);
+                  += Eigen::Map<const helfem::Mat<T>>(Ksub_v.data(), Ni, Nj);
             } else {
-              const helfem::Matrix & iint = (iel > jel) ? r_big(iel) : r_small(iel);
-              const helfem::Matrix & jint = (iel > jel) ? r_small(jel) : r_big(jel);
-              const helfem::Matrix Psub =
+              const helfem::Mat<T> & iint = (iel > jel) ? r_big(iel) : r_small(iel);
+              const helfem::Mat<T> & jint = (iel > jel) ? r_small(jel) : r_big(jel);
+              const helfem::Mat<T> Psub =
                   P_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj);
               K_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj)
                   += iint * (Psub * jint.transpose());
@@ -420,14 +365,20 @@ namespace helfem {
         return K_E;
       }
 
-      inline helfem::Matrix assemble_K_FE_one_multipole_cached_pairwise(
-          const FEMRadialBasis & radial,
-          const PerElementPairAccessor & ktei_pairwise,
-          const helfem::Matrix & P_FE) {
+      /// Per-(iel, jel) accessor variant of the above K helper, for
+      /// kernels whose r1/r2 coupling does NOT factorise into a
+      /// small/big disjoint product (in particular: the error-function
+      /// kernel used by compute_erfc / rs_exchange). Every element pair
+      /// gets its own dense ktei from the cache. O(Nel^2) per call.
+      template <typename T, typename KTeiPair>
+      inline helfem::Mat<T> assemble_K_FE_one_multipole_cached_pairwise(
+          const FEMRadialBasisT<T> & radial,
+          const KTeiPair & ktei_pairwise,
+          const helfem::Mat<T> & P_FE) {
         const size_t Nel  = radial.Nel();
         const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
-        const helfem::Matrix & P_E = P_FE;
-        helfem::Matrix K_E = helfem::Matrix::Zero(Nrad, Nrad);
+        const helfem::Mat<T> & P_E = P_FE;
+        helfem::Mat<T> K_E = helfem::Mat<T>::Zero(Nrad, Nrad);
         for (size_t iel = 0; iel < Nel; ++iel) {
           size_t ifirst, ilast;
           radial.get_idx(iel, ifirst, ilast);
@@ -436,12 +387,12 @@ namespace helfem {
             size_t jfirst, jlast;
             radial.get_idx(jel, jfirst, jlast);
             const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
-            const helfem::Matrix Psub =
+            const helfem::Mat<T> Psub =
                 P_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj);
-            const Eigen::Map<const Eigen::VectorXd> Psub_v(Psub.data(), Ni * Nj);
-            const Eigen::VectorXd Ksub_v = ktei_pairwise(iel, jel) * Psub_v;
+            const Eigen::Map<const helfem::Vec<T>> Psub_v(Psub.data(), Ni * Nj);
+            const helfem::Vec<T> Ksub_v = ktei_pairwise(iel, jel) * Psub_v;
             K_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj)
-                += Eigen::Map<const Eigen::MatrixXd>(Ksub_v.data(), Ni, Nj);
+                += Eigen::Map<const helfem::Mat<T>>(Ksub_v.data(), Ni, Nj);
           }
         }
         return K_E;
@@ -450,26 +401,30 @@ namespace helfem {
       // --- Cholesky-factored cached helpers -----------------------------
       // Same FE structure as the dense cached J / K helpers above, but
       // the in-element 4-index contraction is rewritten as a sum of
-      // outer products over the Cholesky rank.
+      // outer products over the Cholesky rank. Both take the SAME
+      // per-element J-ordered Cholesky factor of shape (Ni^2 x r) with
+      //     T(ab, cd) = Sum_p factor(ab, p) * factor(cd, p),
+      // built via FEMRadialBasisT::twoe_integral_cholesky.
 
-      inline helfem::Matrix assemble_J_FE_one_multipole_cached_chol(
-          const FEMRadialBasis & radial,
-          const PerElementAccessor & r_small,
-          const PerElementAccessor & r_big,
-          const PerElementAccessor & twoe_chol_J,
-          const helfem::Matrix & P_FE) {
+      template <typename T, typename RSmall, typename RBig, typename Chol>
+      inline helfem::Mat<T> assemble_J_FE_one_multipole_cached_chol(
+          const FEMRadialBasisT<T> & radial,
+          const RSmall & r_small,
+          const RBig & r_big,
+          const Chol & twoe_chol_J,
+          const helfem::Mat<T> & P_FE) {
         const size_t Nel  = radial.Nel();
         const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
-        const helfem::Matrix & P_E = P_FE;
-        helfem::Matrix J_E = helfem::Matrix::Zero(Nrad, Nrad);
+        const helfem::Mat<T> & P_E = P_FE;
+        helfem::Mat<T> J_E = helfem::Mat<T>::Zero(Nrad, Nrad);
         for (size_t jel = 0; jel < Nel; ++jel) {
           size_t jfirst, jlast;
           radial.get_idx(jel, jfirst, jlast);
           const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
-          const helfem::Matrix Psub =
+          const helfem::Mat<T> Psub =
               P_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj);
-          const double jsmall = (r_small(jel) * Psub).trace();
-          const double jbig   = (r_big  (jel) * Psub).trace();
+          const T jsmall = (r_small(jel) * Psub).trace();
+          const T jbig   = (r_big  (jel) * Psub).trace();
           for (size_t iel = 0; iel < jel; ++iel) {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
@@ -488,26 +443,27 @@ namespace helfem {
           //   J_{ab} = Sum_p L(ab, p) . <L_p, P>
           // with the (ab) pair packed column-major (a-fast, b-slow) so
           // vec(P) (Eigen also column-major) matches L's row layout.
-          const helfem::Matrix & L = twoe_chol_J(jel);
-          const Eigen::Map<const Eigen::VectorXd> Psub_v(Psub.data(), Nj * Nj);
-          const Eigen::VectorXd scalars = L.transpose() * Psub_v;  // length r
-          const Eigen::VectorXd Jsub_v  = L * scalars;             // length Nj^2
+          const helfem::Mat<T> & L = twoe_chol_J(jel);
+          const Eigen::Map<const helfem::Vec<T>> Psub_v(Psub.data(), Nj * Nj);
+          const helfem::Vec<T> scalars = L.transpose() * Psub_v;  // length r
+          const helfem::Vec<T> Jsub_v  = L * scalars;             // length Nj^2
           J_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj)
-              += Eigen::Map<const Eigen::MatrixXd>(Jsub_v.data(), Nj, Nj);
+              += Eigen::Map<const helfem::Mat<T>>(Jsub_v.data(), Nj, Nj);
         }
         return J_E;
       }
 
-      inline helfem::Matrix assemble_K_FE_one_multipole_cached_chol(
-          const FEMRadialBasis & radial,
-          const PerElementAccessor & r_small,
-          const PerElementAccessor & r_big,
-          const PerElementAccessor & twoe_chol_J,
-          const helfem::Matrix & P_FE) {
+      template <typename T, typename RSmall, typename RBig, typename Chol>
+      inline helfem::Mat<T> assemble_K_FE_one_multipole_cached_chol(
+          const FEMRadialBasisT<T> & radial,
+          const RSmall & r_small,
+          const RBig & r_big,
+          const Chol & twoe_chol_J,
+          const helfem::Mat<T> & P_FE) {
         const size_t Nel  = radial.Nel();
         const Eigen::Index Nrad = (Eigen::Index) radial.Nbf();
-        const helfem::Matrix & P_E = P_FE;
-        helfem::Matrix K_E = helfem::Matrix::Zero(Nrad, Nrad);
+        const helfem::Mat<T> & P_E = P_FE;
+        helfem::Mat<T> K_E = helfem::Mat<T>::Zero(Nrad, Nrad);
         for (size_t iel = 0; iel < Nel; ++iel) {
           size_t ifirst, ilast;
           radial.get_idx(iel, ifirst, ilast);
@@ -522,20 +478,20 @@ namespace helfem {
               // with M_p = reshape(L.col(p), Ni, Ni) (column-major so
               // M_p(a, b) = L(a + b*Ni, p), matching the (ab) row pair
               // in twoe_integral).
-              const helfem::Matrix & L = twoe_chol_J(iel);
-              const helfem::Matrix Psub =
+              const helfem::Mat<T> & L = twoe_chol_J(iel);
+              const helfem::Mat<T> Psub =
                   P_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj);
-              helfem::Matrix Ksub = helfem::Matrix::Zero(Ni, Nj);
+              helfem::Mat<T> Ksub = helfem::Mat<T>::Zero(Ni, Nj);
               for (Eigen::Index p = 0; p < L.cols(); ++p) {
-                Eigen::Map<const Eigen::MatrixXd> Mp(L.col(p).data(), Ni, Ni);
+                Eigen::Map<const helfem::Mat<T>> Mp(L.col(p).data(), Ni, Ni);
                 Ksub += Mp * (Psub * Mp.transpose());
               }
               K_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj)
                   += Ksub;
             } else {
-              const helfem::Matrix & iint = (iel > jel) ? r_big(iel) : r_small(iel);
-              const helfem::Matrix & jint = (iel > jel) ? r_small(jel) : r_big(jel);
-              const helfem::Matrix Psub =
+              const helfem::Mat<T> & iint = (iel > jel) ? r_big(iel) : r_small(iel);
+              const helfem::Mat<T> & jint = (iel > jel) ? r_small(jel) : r_big(jel);
+              const helfem::Mat<T> Psub =
                   P_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj);
               K_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj)
                   += iint * (Psub * jint.transpose());
@@ -548,56 +504,56 @@ namespace helfem {
       // The uncached entry points just wire on-the-fly accessors that
       // call the FE primitives directly.
 
-      // Phase 2c: scratchpads are now std::vector<helfem::Matrix>; the
-      // is_empty check becomes .size() == 0 (Eigen's empty-by-default).
-      inline helfem::Matrix assemble_J_FE_one_multipole(
-          const FEMRadialBasis & radial, int L, const helfem::Matrix & P_FE) {
+      template <typename T>
+      inline helfem::Mat<T> assemble_J_FE_one_multipole(
+          const FEMRadialBasisT<T> & radial, int L, const helfem::Mat<T> & P_FE) {
         // Per-call temporaries to keep the accessor lambdas returning a
         // stable const reference (storing each computed matrix in a
         // capture-list scratchpad).
-        std::vector<helfem::Matrix> scratch_small(radial.Nel());
-        std::vector<helfem::Matrix> scratch_big  (radial.Nel());
-        std::vector<helfem::Matrix> scratch_twoe (radial.Nel());
-        auto rs = [&](size_t iel) -> const helfem::Matrix & {
+        std::vector<helfem::Mat<T>> scratch_small(radial.Nel());
+        std::vector<helfem::Mat<T>> scratch_big  (radial.Nel());
+        std::vector<helfem::Mat<T>> scratch_twoe (radial.Nel());
+        auto rs = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_small[iel].size() == 0)
-            scratch_small[iel] = detail_fe_2e::r_small(radial, L, iel, false, 0.0);
+            scratch_small[iel] = detail_fe_2e::r_small<T>(radial, L, iel, false, T(0));
           return scratch_small[iel];
         };
-        auto rb = [&](size_t iel) -> const helfem::Matrix & {
+        auto rb = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_big[iel].size() == 0)
-            scratch_big[iel] = detail_fe_2e::r_big(radial, L, iel, false, 0.0);
+            scratch_big[iel] = detail_fe_2e::r_big<T>(radial, L, iel, false, T(0));
           return scratch_big[iel];
         };
-        auto tw = [&](size_t iel) -> const helfem::Matrix & {
+        auto tw = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_twoe[iel].size() == 0)
-            scratch_twoe[iel] = detail_fe_2e::in_element_tei(radial, L, iel, false, 0.0);
+            scratch_twoe[iel] = detail_fe_2e::in_element_tei<T>(radial, L, iel, false, T(0));
           return scratch_twoe[iel];
         };
         return assemble_J_FE_one_multipole_cached(radial, rs, rb, tw, P_FE);
       }
 
-      inline helfem::Matrix assemble_K_FE_one_multipole(
-          const FEMRadialBasis & radial, int L, const helfem::Matrix & P_FE) {
-        std::vector<helfem::Matrix> scratch_small(radial.Nel());
-        std::vector<helfem::Matrix> scratch_big  (radial.Nel());
-        std::vector<helfem::Matrix> scratch_ktei (radial.Nel());
-        auto rs = [&](size_t iel) -> const helfem::Matrix & {
+      template <typename T>
+      inline helfem::Mat<T> assemble_K_FE_one_multipole(
+          const FEMRadialBasisT<T> & radial, int L, const helfem::Mat<T> & P_FE) {
+        std::vector<helfem::Mat<T>> scratch_small(radial.Nel());
+        std::vector<helfem::Mat<T>> scratch_big  (radial.Nel());
+        std::vector<helfem::Mat<T>> scratch_ktei (radial.Nel());
+        auto rs = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_small[iel].size() == 0)
-            scratch_small[iel] = detail_fe_2e::r_small(radial, L, iel, false, 0.0);
+            scratch_small[iel] = detail_fe_2e::r_small<T>(radial, L, iel, false, T(0));
           return scratch_small[iel];
         };
-        auto rb = [&](size_t iel) -> const helfem::Matrix & {
+        auto rb = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_big[iel].size() == 0)
-            scratch_big[iel] = detail_fe_2e::r_big(radial, L, iel, false, 0.0);
+            scratch_big[iel] = detail_fe_2e::r_big<T>(radial, L, iel, false, T(0));
           return scratch_big[iel];
         };
-        auto kt = [&](size_t iel) -> const helfem::Matrix & {
+        auto kt = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_ktei[iel].size() == 0) {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
             const size_t Ni = ilast - ifirst + 1;
-            scratch_ktei[iel] = utils::exchange_tei(
-                detail_fe_2e::in_element_tei(radial, L, iel, false, 0.0),
+            scratch_ktei[iel] = utils::exchange_tei<T>(
+                detail_fe_2e::in_element_tei<T>(radial, L, iel, false, T(0)),
                 Ni, Ni, Ni, Ni);
           }
           return scratch_ktei[iel];
@@ -605,60 +561,61 @@ namespace helfem {
         return assemble_K_FE_one_multipole_cached(radial, rs, rb, kt, P_FE);
       }
 
-      inline helfem::Matrix assemble_J_FE_one_multipole_yukawa(
-          const FEMRadialBasis & radial, int L, double lambda,
-          const helfem::Matrix & P_FE) {
-        std::vector<helfem::Matrix> scratch_small(radial.Nel());
-        std::vector<helfem::Matrix> scratch_big  (radial.Nel());
-        std::vector<helfem::Matrix> scratch_twoe (radial.Nel());
-        auto rs = [&](size_t iel) -> const helfem::Matrix & {
+      template <typename T>
+      inline helfem::Mat<T> assemble_J_FE_one_multipole_yukawa(
+          const FEMRadialBasisT<T> & radial, int L, helfem::NonDeduced<T> lambda,
+          const helfem::Mat<T> & P_FE) {
+        std::vector<helfem::Mat<T>> scratch_small(radial.Nel());
+        std::vector<helfem::Mat<T>> scratch_big  (radial.Nel());
+        std::vector<helfem::Mat<T>> scratch_twoe (radial.Nel());
+        auto rs = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_small[iel].size() == 0)
-            scratch_small[iel] = detail_fe_2e::r_small(radial, L, iel, true, lambda);
+            scratch_small[iel] = detail_fe_2e::r_small<T>(radial, L, iel, true, lambda);
           return scratch_small[iel];
         };
-        auto rb = [&](size_t iel) -> const helfem::Matrix & {
+        auto rb = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_big[iel].size() == 0)
-            scratch_big[iel] = detail_fe_2e::r_big(radial, L, iel, true, lambda);
+            scratch_big[iel] = detail_fe_2e::r_big<T>(radial, L, iel, true, lambda);
           return scratch_big[iel];
         };
-        auto tw = [&](size_t iel) -> const helfem::Matrix & {
+        auto tw = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_twoe[iel].size() == 0)
-            scratch_twoe[iel] = detail_fe_2e::in_element_tei(radial, L, iel, true, lambda);
+            scratch_twoe[iel] = detail_fe_2e::in_element_tei<T>(radial, L, iel, true, lambda);
           return scratch_twoe[iel];
         };
         return assemble_J_FE_one_multipole_cached(radial, rs, rb, tw, P_FE);
       }
 
-      inline helfem::Matrix assemble_K_FE_one_multipole_yukawa(
-          const FEMRadialBasis & radial, int L, double lambda,
-          const helfem::Matrix & P_FE) {
-        std::vector<helfem::Matrix> scratch_small(radial.Nel());
-        std::vector<helfem::Matrix> scratch_big  (radial.Nel());
-        std::vector<helfem::Matrix> scratch_ktei (radial.Nel());
-        auto rs = [&](size_t iel) -> const helfem::Matrix & {
+      template <typename T>
+      inline helfem::Mat<T> assemble_K_FE_one_multipole_yukawa(
+          const FEMRadialBasisT<T> & radial, int L, helfem::NonDeduced<T> lambda,
+          const helfem::Mat<T> & P_FE) {
+        std::vector<helfem::Mat<T>> scratch_small(radial.Nel());
+        std::vector<helfem::Mat<T>> scratch_big  (radial.Nel());
+        std::vector<helfem::Mat<T>> scratch_ktei (radial.Nel());
+        auto rs = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_small[iel].size() == 0)
-            scratch_small[iel] = detail_fe_2e::r_small(radial, L, iel, true, lambda);
+            scratch_small[iel] = detail_fe_2e::r_small<T>(radial, L, iel, true, lambda);
           return scratch_small[iel];
         };
-        auto rb = [&](size_t iel) -> const helfem::Matrix & {
+        auto rb = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_big[iel].size() == 0)
-            scratch_big[iel] = detail_fe_2e::r_big(radial, L, iel, true, lambda);
+            scratch_big[iel] = detail_fe_2e::r_big<T>(radial, L, iel, true, lambda);
           return scratch_big[iel];
         };
-        auto kt = [&](size_t iel) -> const helfem::Matrix & {
+        auto kt = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_ktei[iel].size() == 0) {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
             const size_t Ni = ilast - ifirst + 1;
-            scratch_ktei[iel] = utils::exchange_tei(
-                detail_fe_2e::in_element_tei(radial, L, iel, true, lambda),
+            scratch_ktei[iel] = utils::exchange_tei<T>(
+                detail_fe_2e::in_element_tei<T>(radial, L, iel, true, lambda),
                 Ni, Ni, Ni, Ni);
           }
           return scratch_ktei[iel];
         };
         return assemble_K_FE_one_multipole_cached(radial, rs, rb, kt, P_FE);
       }
-
     } // namespace basis
   } // namespace atomic
 } // namespace helfem

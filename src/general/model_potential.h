@@ -21,8 +21,18 @@ namespace helfem {
           REGULARIZED_NUCLEUS,
           NOSUCH_NUCLEUS
     } nuclear_model_t;
-    /// Get nuclear model
-    ModelPotential * get_nuclear_model(nuclear_model_t model, int Z, double Rrms);
+    /// Get nuclear model.
+    ///
+    /// Templated on the scalar type: every nucleus model below it
+    /// (PointNucleusT, GaussianNucleusT, ...) already follows T, so the
+    /// factory must too, otherwise a FEMRadialBasisT<long double> would
+    /// evaluate a double-precision potential inside its quadrature. T is
+    /// deduced from Rrms, so every existing double caller is unchanged
+    /// (and gets back a ModelPotentialT<double>* == ModelPotential*).
+    /// Instantiated for double, long double and (under
+    /// HELFEM_HAVE_FLOAT128) _Float128.
+    template <typename T>
+    ModelPotentialT<T> * get_nuclear_model(nuclear_model_t model, int Z, T Rrms);
 
     /// Thomas-Fermi atom
     class TFAtom : public ModelPotential {

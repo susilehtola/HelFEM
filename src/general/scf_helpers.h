@@ -28,9 +28,12 @@ namespace helfem {
     /// Solve generalized eigenvalue problem in subspaces (Phase 5.12: Eigen matrices; m_idx kept arma::uvec).
     void eig_gsym_sub(helfem::Vector & E, helfem::Matrix & C, const helfem::Matrix & F, const helfem::Matrix & Sinvh, const std::vector<arma::uvec> & m_idx, bool verbose=true);
 
-    /// Form half-inverse overlap (Phase 5.10: Eigen-typed).
-    inline helfem::Matrix form_Sinvh(helfem::Matrix S, bool chol=false) {
-      return utils::invh(S, chol);
+    /// Form half-inverse overlap (Phase 5.10: Eigen-typed). Templated on
+    /// the scalar type; T is deduced from S, so every existing
+    /// double-precision caller is unchanged.
+    template <typename T>
+    inline helfem::Mat<T> form_Sinvh(helfem::Mat<T> S, bool chol=false) {
+      return utils::invh<T>(S, chol);
     }
 
     /// Parse number of alpha and beta electrons
