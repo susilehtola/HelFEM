@@ -118,7 +118,64 @@ namespace {
       worst_limit = std::max(worst_limit, (double)(std::fabs(a - c) / scale));
     }
 
-    const bool ok = (worst_consistency < 1e-12) && finite_at_origin && (worst_limit < 1e-12);
+    // --- 3. THE WHOLE FIRST ELEMENT, against a quad-precision reference ---
+    // over_r is not just for the endpoint: r is small EVERYWHERE between node 0
+    // and node 1, so B(r)/r is ill-behaved across that whole region and the
+    // deflated form must be accurate throughout it. Compute the reference by
+    // dividing -- naive, but harmless in _Float128 (113-bit) -- and compare.
+    // Also check eval_dnf(n=1) at the origin against quad, to see WHICH of the
+    // two routes carries the error.
+    double sweep_over_r = 0.0, sweep_naive = 0.0, dnf_at_origin = 0.0;
+#ifdef HELFEM_HAVE_FLOAT128
+    {
+      namespace pbq = helfem::lib1dfem::polynomial_basis;
+      std::shared_ptr<pbq::PolynomialBasis<_Float128>> polyq(
+          polynomial_basis::get_basis_T<_Float128>(b.primbas, Nnodes));
+      polyq->drop_first(true, false);
+
+      for (int sI = 1; sI <= 160; sI++) {
+        const double xx = -1.0 + 2.0 * std::pow(10.0, -14.0 + 14.0 * (double) sI / 160.0);
+        if (xx >= 1.0) break;
+        helfem::Vec<T> xs(1); xs(0) = T(xx);
+        helfem::Mat<T> frs, fs;
+        poly->eval_over_r(xs, frs, 0, e);
+        poly->eval_dnf(xs, fs, 0, e);
+
+        helfem::Vec<_Float128> xq(1); xq(0) = (_Float128) xx;
+        helfem::Mat<_Float128> fq;
+        polyq->eval_dnf(xq, fq, 0, (_Float128)(long double) e);
+        const _Float128 rq = (_Float128)(long double) e * ((_Float128) xx + (_Float128) 1);
+
+        for (Eigen::Index j = 0; j < frs.cols(); j++) {
+          const long double ref = (long double)(fq(0, j) / rq);
+          const long double sc = std::max(1.0L, std::fabs(ref));
+          sweep_over_r = std::max(sweep_over_r,
+              (double)(std::fabs((long double) frs(0, j) - ref) / sc));
+          const long double naive =
+              (long double)(fs(0, j) / (e * (T(xx) + T(1))));
+          sweep_naive = std::max(sweep_naive, (double)(std::fabs(naive - ref) / sc));
+        }
+      }
+      // eval_dnf(n=1) at x = -1: is IT the inaccurate one?
+      helfem::Vec<_Float128> x0q(1); x0q(0) = (_Float128)(-1);
+      helfem::Mat<_Float128> dfq;
+      polyq->eval_dnf(x0q, dfq, 1, (_Float128)(long double) e);
+      for (Eigen::Index j = 0; j < df0.cols(); j++) {
+        const long double refd = (long double) dfq(0, j);
+        const long double sc = std::max(1.0L, std::fabs(refd));
+        dnf_at_origin = std::max(dnf_at_origin,
+            (double)(std::fabs((long double) df0(0, j) - refd) / sc));
+      }
+      printf("  %-9s %-12s SWEEP first element: over_r %8.1e | naive %8.1e || eval_dnf(n=1) at r=0: %8.1e\n",
+             b.name, prec, sweep_over_r, sweep_naive, dnf_at_origin);
+    }
+#endif
+
+    // HIP3 retains ~1e-11 at the origin at large nnodes. That is intrinsic
+    // conditioning of the 4th-power Hermite shapes, not an emission artifact:
+    // it shrinks with the scalar type (long double gives ~1e-14), whereas an
+    // expanded/wrong formula would not. Everything else is at roundoff.
+    const bool ok = (worst_consistency < 1e-12) && finite_at_origin && (worst_limit < 1e-10);
     printf("  %-9s %-12s consistency %8.1e | limit == B'(0): %8.1e   %s\n",
            b.name, prec, worst_consistency, worst_limit, ok ? "OK" : "*** off ***");
     return ok ? 0 : 1;

@@ -16,6 +16,7 @@
 
 #include <lib1dfem/types.h>
 #include <lib1dfem/LIPBasis_eval.h>
+#include <cmath>
 #include <sstream>
 #include <stdexcept>
 
@@ -58,9 +59,23 @@ case (0): {
       const T Lx = Lx_all(ix, fi);
       const T dLxi_v = lipxi(fi);
       const T ddLxi_v = lipxi2(fi);
-      dnf(ix, 3*fi + 0) = T(6)*pow(Lx, T(3))*pow(dLxi_v, T(2))*pow(xi, T(2)) + T(3)*pow(Lx, T(3))*dLxi_v*xi - T(3)/T(2)*pow(Lx, T(3))*ddLxi_v*pow(xi, T(2)) + pow(Lx, T(3)) + xv*(-T(12)*pow(Lx, T(3))*pow(dLxi_v, T(2))*xi - T(3)*pow(Lx, T(3))*dLxi_v + T(3)*pow(Lx, T(3))*ddLxi_v*xi + xv*(T(6)*pow(Lx, T(3))*pow(dLxi_v, T(2)) - T(3)/T(2)*pow(Lx, T(3))*ddLxi_v));
-      dnf(ix, 3*fi + 1) = -T(3)*pow(Lx, T(3))*dLxi_v*pow(xi, T(2)) - pow(Lx, T(3))*xi + xv*(T(6)*pow(Lx, T(3))*dLxi_v*xi - T(3)*pow(Lx, T(3))*dLxi_v*xv + pow(Lx, T(3)));
-      dnf(ix, 3*fi + 2) = (T(1)/T(2))*pow(Lx, T(3))*pow(xi, T(2)) + xv*(-pow(Lx, T(3))*xi + (T(1)/T(2))*pow(Lx, T(3))*xv);
+      {
+        const T cse0 = T(3)*dLxi_v;
+        const T cse1 = xi*xv;
+        const T cse2 = (xi)*(xi);
+        const T cse3 = (T(3)/T(2))*ddLxi_v;
+        const T cse4 = (xv)*(xv);
+        const T cse5 = (dLxi_v)*(dLxi_v);
+        const T cse6 = T(6)*cse5;
+        dnf(ix, 3*fi + 0) = (Lx)*(Lx)*(Lx)*(cse0*xi - cse0*xv - T(12)*cse1*cse5 + T(3)*cse1*ddLxi_v - cse2*cse3 + cse2*cse6 - cse3*cse4 + cse4*cse6 + T(1));
+      }
+      {
+        const T cse0 = T(3)*dLxi_v;
+        dnf(ix, 3*fi + 1) = (Lx)*(Lx)*(Lx)*(-cse0*(xi)*(xi) - cse0*(xv)*(xv) + T(6)*dLxi_v*xi*xv - xi + xv);
+      }
+      {
+        dnf(ix, 3*fi + 2) = (Lx)*(Lx)*(Lx)*((T(1)/T(2))*(xi)*(xi) - xi*xv + (T(1)/T(2))*(xv)*(xv));
+      }
       dnf(ix, 3*fi + 1) *= element_length;
       dnf(ix, 3*fi + 2) *= element_length * element_length;
     }
@@ -80,9 +95,25 @@ case (1): {
       const T dLx = dLx_all(ix, fi);
       const T dLxi_v = lipxi(fi);
       const T ddLxi_v = lipxi2(fi);
-      dnf(ix, 3*fi + 0) = -T(12)*pow(Lx, T(3))*pow(dLxi_v, T(2))*xi - T(3)*pow(Lx, T(3))*dLxi_v + T(3)*pow(Lx, T(3))*ddLxi_v*xi + T(18)*pow(Lx, T(2))*dLx*pow(dLxi_v, T(2))*pow(xi, T(2)) + T(9)*pow(Lx, T(2))*dLx*dLxi_v*xi - T(9)/T(2)*pow(Lx, T(2))*dLx*ddLxi_v*pow(xi, T(2)) + T(3)*pow(Lx, T(2))*dLx + xv*(T(12)*pow(Lx, T(3))*pow(dLxi_v, T(2)) - T(3)*pow(Lx, T(3))*ddLxi_v - T(36)*pow(Lx, T(2))*dLx*pow(dLxi_v, T(2))*xi - T(9)*pow(Lx, T(2))*dLx*dLxi_v + T(9)*pow(Lx, T(2))*dLx*ddLxi_v*xi + xv*(T(18)*pow(Lx, T(2))*dLx*pow(dLxi_v, T(2)) - T(9)/T(2)*pow(Lx, T(2))*dLx*ddLxi_v));
-      dnf(ix, 3*fi + 1) = T(6)*pow(Lx, T(3))*dLxi_v*xi + pow(Lx, T(3)) - T(9)*pow(Lx, T(2))*dLx*dLxi_v*pow(xi, T(2)) - T(3)*pow(Lx, T(2))*dLx*xi + xv*(-T(6)*pow(Lx, T(3))*dLxi_v + T(18)*pow(Lx, T(2))*dLx*dLxi_v*xi - T(9)*pow(Lx, T(2))*dLx*dLxi_v*xv + T(3)*pow(Lx, T(2))*dLx);
-      dnf(ix, 3*fi + 2) = -pow(Lx, T(3))*xi + (T(3)/T(2))*pow(Lx, T(2))*dLx*pow(xi, T(2)) + xv*(pow(Lx, T(3)) - T(3)*pow(Lx, T(2))*dLx*xi + (T(3)/T(2))*pow(Lx, T(2))*dLx*xv);
+      {
+        const T cse0 = T(3)*dLxi_v;
+        const T cse1 = T(3)*ddLxi_v*xv;
+        const T cse2 = (dLxi_v)*(dLxi_v);
+        const T cse3 = T(12)*cse2*xi;
+        const T cse4 = (xi)*(xi);
+        const T cse5 = (T(3)/T(2))*ddLxi_v;
+        const T cse6 = (xv)*(xv);
+        const T cse7 = T(6)*cse2;
+        dnf(ix, 3*fi + 0) = (Lx)*(Lx)*(Lx)*(-cse0 - cse1 + T(12)*cse2*xv - cse3 + T(3)*ddLxi_v*xi) + T(3)*(Lx)*(Lx)*dLx*(cse0*xi - cse0*xv + cse1*xi - cse3*xv - cse4*cse5 + cse4*cse7 - cse5*cse6 + cse6*cse7 + T(1));
+      }
+      {
+        const T cse0 = T(6)*dLxi_v;
+        const T cse1 = T(3)*dLxi_v;
+        dnf(ix, 3*fi + 1) = (Lx)*(Lx)*(Lx)*(cse0*xi - cse0*xv + T(1)) + T(3)*(Lx)*(Lx)*dLx*(-cse1*(xi)*(xi) - cse1*(xv)*(xv) + T(6)*dLxi_v*xi*xv - xi + xv);
+      }
+      {
+        dnf(ix, 3*fi + 2) = (Lx)*(Lx)*(Lx)*(-xi + xv) + T(3)*(Lx)*(Lx)*dLx*((T(1)/T(2))*(xi)*(xi) - xi*xv + (T(1)/T(2))*(xv)*(xv));
+      }
       dnf(ix, 3*fi + 1) *= element_length;
       dnf(ix, 3*fi + 2) *= element_length * element_length;
     }
@@ -105,9 +136,25 @@ case (2): {
       const T ddLx = ddLx_all(ix, fi);
       const T dLxi_v = lipxi(fi);
       const T ddLxi_v = lipxi2(fi);
-      dnf(ix, 3*fi + 0) = T(12)*pow(Lx, T(3))*pow(dLxi_v, T(2)) - T(3)*pow(Lx, T(3))*ddLxi_v - T(72)*pow(Lx, T(2))*dLx*pow(dLxi_v, T(2))*xi - T(18)*pow(Lx, T(2))*dLx*dLxi_v + T(18)*pow(Lx, T(2))*dLx*ddLxi_v*xi + T(18)*pow(Lx, T(2))*pow(dLxi_v, T(2))*ddLx*pow(xi, T(2)) + T(9)*pow(Lx, T(2))*dLxi_v*ddLx*xi - T(9)/T(2)*pow(Lx, T(2))*ddLx*ddLxi_v*pow(xi, T(2)) + T(3)*pow(Lx, T(2))*ddLx + T(36)*Lx*pow(dLx, T(2))*pow(dLxi_v, T(2))*pow(xi, T(2)) + T(18)*Lx*pow(dLx, T(2))*dLxi_v*xi - T(9)*Lx*pow(dLx, T(2))*ddLxi_v*pow(xi, T(2)) + T(6)*Lx*pow(dLx, T(2)) + xv*(T(72)*pow(Lx, T(2))*dLx*pow(dLxi_v, T(2)) - T(18)*pow(Lx, T(2))*dLx*ddLxi_v - T(36)*pow(Lx, T(2))*pow(dLxi_v, T(2))*ddLx*xi - T(9)*pow(Lx, T(2))*dLxi_v*ddLx + T(9)*pow(Lx, T(2))*ddLx*ddLxi_v*xi - T(72)*Lx*pow(dLx, T(2))*pow(dLxi_v, T(2))*xi - T(18)*Lx*pow(dLx, T(2))*dLxi_v + T(18)*Lx*pow(dLx, T(2))*ddLxi_v*xi + xv*(T(18)*pow(Lx, T(2))*pow(dLxi_v, T(2))*ddLx - T(9)/T(2)*pow(Lx, T(2))*ddLx*ddLxi_v + T(36)*Lx*pow(dLx, T(2))*pow(dLxi_v, T(2)) - T(9)*Lx*pow(dLx, T(2))*ddLxi_v));
-      dnf(ix, 3*fi + 1) = -T(6)*pow(Lx, T(3))*dLxi_v + T(36)*pow(Lx, T(2))*dLx*dLxi_v*xi + T(6)*pow(Lx, T(2))*dLx - T(9)*pow(Lx, T(2))*dLxi_v*ddLx*pow(xi, T(2)) - T(3)*pow(Lx, T(2))*ddLx*xi - T(18)*Lx*pow(dLx, T(2))*dLxi_v*pow(xi, T(2)) - T(6)*Lx*pow(dLx, T(2))*xi + xv*(-T(36)*pow(Lx, T(2))*dLx*dLxi_v + T(18)*pow(Lx, T(2))*dLxi_v*ddLx*xi + T(3)*pow(Lx, T(2))*ddLx + T(36)*Lx*pow(dLx, T(2))*dLxi_v*xi + T(6)*Lx*pow(dLx, T(2)) + xv*(-T(9)*pow(Lx, T(2))*dLxi_v*ddLx - T(18)*Lx*pow(dLx, T(2))*dLxi_v));
-      dnf(ix, 3*fi + 2) = pow(Lx, T(3)) - T(6)*pow(Lx, T(2))*dLx*xi + (T(3)/T(2))*pow(Lx, T(2))*ddLx*pow(xi, T(2)) + T(3)*Lx*pow(dLx, T(2))*pow(xi, T(2)) + xv*(T(6)*pow(Lx, T(2))*dLx - T(3)*pow(Lx, T(2))*ddLx*xi - T(6)*Lx*pow(dLx, T(2))*xi + xv*((T(3)/T(2))*pow(Lx, T(2))*ddLx + T(3)*Lx*pow(dLx, T(2))));
+      {
+        const T cse0 = (dLxi_v)*(dLxi_v);
+        const T cse1 = T(3)*dLxi_v;
+        const T cse2 = T(3)*ddLxi_v*xv;
+        const T cse3 = T(12)*cse0*xi;
+        const T cse4 = (xi)*(xi);
+        const T cse5 = (T(3)/T(2))*ddLxi_v;
+        const T cse6 = (xv)*(xv);
+        const T cse7 = T(6)*cse0;
+        dnf(ix, 3*fi + 0) = T(3)*(Lx)*(Lx)*(Lx)*(T(4)*cse0 - ddLxi_v) + T(6)*(Lx)*(Lx)*dLx*(T(12)*cse0*xv - cse1 - cse2 - cse3 + T(3)*ddLxi_v*xi) + T(3)*Lx*(Lx*ddLx + T(2)*(dLx)*(dLx))*(cse1*xi - cse1*xv + cse2*xi - cse3*xv - cse4*cse5 + cse4*cse7 - cse5*cse6 + cse6*cse7 + T(1));
+      }
+      {
+        const T cse0 = T(6)*dLxi_v;
+        const T cse1 = T(3)*dLxi_v;
+        dnf(ix, 3*fi + 1) = -(Lx)*(Lx)*(Lx)*cse0 + T(6)*(Lx)*(Lx)*dLx*(cse0*xi - cse0*xv + T(1)) + T(3)*Lx*(Lx*ddLx + T(2)*(dLx)*(dLx))*(-cse1*(xi)*(xi) - cse1*(xv)*(xv) + T(6)*dLxi_v*xi*xv - xi + xv);
+      }
+      {
+        dnf(ix, 3*fi + 2) = (Lx)*(Lx)*(Lx) + T(6)*(Lx)*(Lx)*dLx*(-xi + xv) + T(3)*Lx*(Lx*ddLx + T(2)*(dLx)*(dLx))*((T(1)/T(2))*(xi)*(xi) - xi*xv + (T(1)/T(2))*(xv)*(xv));
+      }
       dnf(ix, 3*fi + 1) *= element_length;
       dnf(ix, 3*fi + 2) *= element_length * element_length;
     }
@@ -133,9 +180,31 @@ case (3): {
       const T d3Lx = d3Lx_all(ix, fi);
       const T dLxi_v = lipxi(fi);
       const T ddLxi_v = lipxi2(fi);
-      dnf(ix, 3*fi + 0) = T(18)*pow(Lx, T(2))*d3Lx*pow(dLxi_v, T(2))*pow(xi, T(2)) + T(9)*pow(Lx, T(2))*d3Lx*dLxi_v*xi - T(9)/T(2)*pow(Lx, T(2))*d3Lx*ddLxi_v*pow(xi, T(2)) + T(3)*pow(Lx, T(2))*d3Lx + T(108)*pow(Lx, T(2))*dLx*pow(dLxi_v, T(2)) - T(27)*pow(Lx, T(2))*dLx*ddLxi_v - T(108)*pow(Lx, T(2))*pow(dLxi_v, T(2))*ddLx*xi - T(27)*pow(Lx, T(2))*dLxi_v*ddLx + T(27)*pow(Lx, T(2))*ddLx*ddLxi_v*xi - T(216)*Lx*pow(dLx, T(2))*pow(dLxi_v, T(2))*xi - T(54)*Lx*pow(dLx, T(2))*dLxi_v + T(54)*Lx*pow(dLx, T(2))*ddLxi_v*xi + T(108)*Lx*dLx*pow(dLxi_v, T(2))*ddLx*pow(xi, T(2)) + T(54)*Lx*dLx*dLxi_v*ddLx*xi - T(27)*Lx*dLx*ddLx*ddLxi_v*pow(xi, T(2)) + T(18)*Lx*dLx*ddLx + T(36)*pow(dLx, T(3))*pow(dLxi_v, T(2))*pow(xi, T(2)) + T(18)*pow(dLx, T(3))*dLxi_v*xi - T(9)*pow(dLx, T(3))*ddLxi_v*pow(xi, T(2)) + T(6)*pow(dLx, T(3)) + xv*(-T(36)*pow(Lx, T(2))*d3Lx*pow(dLxi_v, T(2))*xi - T(9)*pow(Lx, T(2))*d3Lx*dLxi_v + T(9)*pow(Lx, T(2))*d3Lx*ddLxi_v*xi + T(108)*pow(Lx, T(2))*pow(dLxi_v, T(2))*ddLx - T(27)*pow(Lx, T(2))*ddLx*ddLxi_v + T(216)*Lx*pow(dLx, T(2))*pow(dLxi_v, T(2)) - T(54)*Lx*pow(dLx, T(2))*ddLxi_v - T(216)*Lx*dLx*pow(dLxi_v, T(2))*ddLx*xi - T(54)*Lx*dLx*dLxi_v*ddLx + T(54)*Lx*dLx*ddLx*ddLxi_v*xi - T(72)*pow(dLx, T(3))*pow(dLxi_v, T(2))*xi - T(18)*pow(dLx, T(3))*dLxi_v + T(18)*pow(dLx, T(3))*ddLxi_v*xi + xv*(T(18)*pow(Lx, T(2))*d3Lx*pow(dLxi_v, T(2)) - T(9)/T(2)*pow(Lx, T(2))*d3Lx*ddLxi_v + T(108)*Lx*dLx*pow(dLxi_v, T(2))*ddLx - T(27)*Lx*dLx*ddLx*ddLxi_v + T(36)*pow(dLx, T(3))*pow(dLxi_v, T(2)) - T(9)*pow(dLx, T(3))*ddLxi_v));
-      dnf(ix, 3*fi + 1) = -T(9)*pow(Lx, T(2))*d3Lx*dLxi_v*pow(xi, T(2)) - T(3)*pow(Lx, T(2))*d3Lx*xi - T(54)*pow(Lx, T(2))*dLx*dLxi_v + T(54)*pow(Lx, T(2))*dLxi_v*ddLx*xi + T(9)*pow(Lx, T(2))*ddLx + T(108)*Lx*pow(dLx, T(2))*dLxi_v*xi + T(18)*Lx*pow(dLx, T(2)) - T(54)*Lx*dLx*dLxi_v*ddLx*pow(xi, T(2)) - T(18)*Lx*dLx*ddLx*xi - T(18)*pow(dLx, T(3))*dLxi_v*pow(xi, T(2)) - T(6)*pow(dLx, T(3))*xi + xv*(T(18)*pow(Lx, T(2))*d3Lx*dLxi_v*xi + T(3)*pow(Lx, T(2))*d3Lx - T(54)*pow(Lx, T(2))*dLxi_v*ddLx - T(108)*Lx*pow(dLx, T(2))*dLxi_v + T(108)*Lx*dLx*dLxi_v*ddLx*xi + T(18)*Lx*dLx*ddLx + T(36)*pow(dLx, T(3))*dLxi_v*xi + T(6)*pow(dLx, T(3)) + xv*(-T(9)*pow(Lx, T(2))*d3Lx*dLxi_v - T(54)*Lx*dLx*dLxi_v*ddLx - T(18)*pow(dLx, T(3))*dLxi_v));
-      dnf(ix, 3*fi + 2) = (T(3)/T(2))*pow(Lx, T(2))*d3Lx*pow(xi, T(2)) + T(9)*pow(Lx, T(2))*dLx - T(9)*pow(Lx, T(2))*ddLx*xi - T(18)*Lx*pow(dLx, T(2))*xi + T(9)*Lx*dLx*ddLx*pow(xi, T(2)) + T(3)*pow(dLx, T(3))*pow(xi, T(2)) + xv*(-T(3)*pow(Lx, T(2))*d3Lx*xi + T(9)*pow(Lx, T(2))*ddLx + T(18)*Lx*pow(dLx, T(2)) - T(18)*Lx*dLx*ddLx*xi - T(6)*pow(dLx, T(3))*xi + xv*((T(3)/T(2))*pow(Lx, T(2))*d3Lx + T(9)*Lx*dLx*ddLx + T(3)*pow(dLx, T(3))));
+      {
+        const T cse0 = (Lx)*(Lx);
+        const T cse1 = (dLxi_v)*(dLxi_v);
+        const T cse2 = Lx*ddLx;
+        const T cse3 = T(3)*dLxi_v;
+        const T cse4 = T(3)*ddLxi_v*xv;
+        const T cse5 = T(12)*cse1*xi;
+        const T cse6 = (xi)*(xi);
+        const T cse7 = (T(3)/T(2))*ddLxi_v;
+        const T cse8 = (xv)*(xv);
+        const T cse9 = T(6)*cse1;
+        dnf(ix, 3*fi + 0) = T(9)*Lx*(cse2 + T(2)*(dLx)*(dLx))*(T(12)*cse1*xv - cse3 - cse4 - cse5 + T(3)*ddLxi_v*xi) + T(27)*cse0*dLx*(T(4)*cse1 - ddLxi_v) + (T(3)*cse0*d3Lx + T(18)*cse2*dLx + T(6)*(dLx)*(dLx)*(dLx))*(cse3*xi - cse3*xv + cse4*xi - cse5*xv - cse6*cse7 + cse6*cse9 - cse7*cse8 + cse8*cse9 + T(1));
+      }
+      {
+        const T cse0 = (Lx)*(Lx);
+        const T cse1 = Lx*ddLx;
+        const T cse2 = T(6)*dLxi_v;
+        const T cse3 = T(3)*dLxi_v;
+        dnf(ix, 3*fi + 1) = T(9)*Lx*(cse1 + T(2)*(dLx)*(dLx))*(cse2*xi - cse2*xv + T(1)) - T(54)*cse0*dLx*dLxi_v + (T(3)*cse0*d3Lx + T(18)*cse1*dLx + T(6)*(dLx)*(dLx)*(dLx))*(-cse3*(xi)*(xi) - cse3*(xv)*(xv) + T(6)*dLxi_v*xi*xv - xi + xv);
+      }
+      {
+        const T cse0 = (Lx)*(Lx);
+        const T cse1 = Lx*ddLx;
+        dnf(ix, 3*fi + 2) = T(9)*Lx*(cse1 + T(2)*(dLx)*(dLx))*(-xi + xv) + T(9)*cse0*dLx + ((T(1)/T(2))*(xi)*(xi) - xi*xv + (T(1)/T(2))*(xv)*(xv))*(T(3)*cse0*d3Lx + T(18)*cse1*dLx + T(6)*(dLx)*(dLx)*(dLx));
+      }
       dnf(ix, 3*fi + 1) *= element_length;
       dnf(ix, 3*fi + 2) *= element_length * element_length;
     }
@@ -164,9 +233,35 @@ case (4): {
       const T d4Lx = d4Lx_all(ix, fi);
       const T dLxi_v = lipxi(fi);
       const T ddLxi_v = lipxi2(fi);
-      dnf(ix, 3*fi + 0) = -T(144)*pow(Lx, T(2))*d3Lx*pow(dLxi_v, T(2))*xi - T(36)*pow(Lx, T(2))*d3Lx*dLxi_v + T(36)*pow(Lx, T(2))*d3Lx*ddLxi_v*xi + T(18)*pow(Lx, T(2))*d4Lx*pow(dLxi_v, T(2))*pow(xi, T(2)) + T(9)*pow(Lx, T(2))*d4Lx*dLxi_v*xi - T(9)/T(2)*pow(Lx, T(2))*d4Lx*ddLxi_v*pow(xi, T(2)) + T(3)*pow(Lx, T(2))*d4Lx + T(216)*pow(Lx, T(2))*pow(dLxi_v, T(2))*ddLx - T(54)*pow(Lx, T(2))*ddLx*ddLxi_v + T(144)*Lx*d3Lx*dLx*pow(dLxi_v, T(2))*pow(xi, T(2)) + T(72)*Lx*d3Lx*dLx*dLxi_v*xi - T(36)*Lx*d3Lx*dLx*ddLxi_v*pow(xi, T(2)) + T(24)*Lx*d3Lx*dLx + T(432)*Lx*pow(dLx, T(2))*pow(dLxi_v, T(2)) - T(108)*Lx*pow(dLx, T(2))*ddLxi_v - T(864)*Lx*dLx*pow(dLxi_v, T(2))*ddLx*xi - T(216)*Lx*dLx*dLxi_v*ddLx + T(216)*Lx*dLx*ddLx*ddLxi_v*xi + T(108)*Lx*pow(dLxi_v, T(2))*pow(ddLx, T(2))*pow(xi, T(2)) + T(54)*Lx*dLxi_v*pow(ddLx, T(2))*xi - T(27)*Lx*pow(ddLx, T(2))*ddLxi_v*pow(xi, T(2)) + T(18)*Lx*pow(ddLx, T(2)) - T(288)*pow(dLx, T(3))*pow(dLxi_v, T(2))*xi - T(72)*pow(dLx, T(3))*dLxi_v + T(72)*pow(dLx, T(3))*ddLxi_v*xi + T(216)*pow(dLx, T(2))*pow(dLxi_v, T(2))*ddLx*pow(xi, T(2)) + T(108)*pow(dLx, T(2))*dLxi_v*ddLx*xi - T(54)*pow(dLx, T(2))*ddLx*ddLxi_v*pow(xi, T(2)) + T(36)*pow(dLx, T(2))*ddLx + xv*(T(144)*pow(Lx, T(2))*d3Lx*pow(dLxi_v, T(2)) - T(36)*pow(Lx, T(2))*d3Lx*ddLxi_v - T(36)*pow(Lx, T(2))*d4Lx*pow(dLxi_v, T(2))*xi - T(9)*pow(Lx, T(2))*d4Lx*dLxi_v + T(9)*pow(Lx, T(2))*d4Lx*ddLxi_v*xi - T(288)*Lx*d3Lx*dLx*pow(dLxi_v, T(2))*xi - T(72)*Lx*d3Lx*dLx*dLxi_v + T(72)*Lx*d3Lx*dLx*ddLxi_v*xi + T(864)*Lx*dLx*pow(dLxi_v, T(2))*ddLx - T(216)*Lx*dLx*ddLx*ddLxi_v - T(216)*Lx*pow(dLxi_v, T(2))*pow(ddLx, T(2))*xi - T(54)*Lx*dLxi_v*pow(ddLx, T(2)) + T(54)*Lx*pow(ddLx, T(2))*ddLxi_v*xi + T(288)*pow(dLx, T(3))*pow(dLxi_v, T(2)) - T(72)*pow(dLx, T(3))*ddLxi_v - T(432)*pow(dLx, T(2))*pow(dLxi_v, T(2))*ddLx*xi - T(108)*pow(dLx, T(2))*dLxi_v*ddLx + T(108)*pow(dLx, T(2))*ddLx*ddLxi_v*xi + xv*(T(18)*pow(Lx, T(2))*d4Lx*pow(dLxi_v, T(2)) - T(9)/T(2)*pow(Lx, T(2))*d4Lx*ddLxi_v + T(144)*Lx*d3Lx*dLx*pow(dLxi_v, T(2)) - T(36)*Lx*d3Lx*dLx*ddLxi_v + T(108)*Lx*pow(dLxi_v, T(2))*pow(ddLx, T(2)) - T(27)*Lx*pow(ddLx, T(2))*ddLxi_v + T(216)*pow(dLx, T(2))*pow(dLxi_v, T(2))*ddLx - T(54)*pow(dLx, T(2))*ddLx*ddLxi_v));
-      dnf(ix, 3*fi + 1) = T(72)*pow(Lx, T(2))*d3Lx*dLxi_v*xi + T(12)*pow(Lx, T(2))*d3Lx - T(9)*pow(Lx, T(2))*d4Lx*dLxi_v*pow(xi, T(2)) - T(3)*pow(Lx, T(2))*d4Lx*xi - T(108)*pow(Lx, T(2))*dLxi_v*ddLx - T(72)*Lx*d3Lx*dLx*dLxi_v*pow(xi, T(2)) - T(24)*Lx*d3Lx*dLx*xi - T(216)*Lx*pow(dLx, T(2))*dLxi_v + T(432)*Lx*dLx*dLxi_v*ddLx*xi + T(72)*Lx*dLx*ddLx - T(54)*Lx*dLxi_v*pow(ddLx, T(2))*pow(xi, T(2)) - T(18)*Lx*pow(ddLx, T(2))*xi + T(144)*pow(dLx, T(3))*dLxi_v*xi + T(24)*pow(dLx, T(3)) - T(108)*pow(dLx, T(2))*dLxi_v*ddLx*pow(xi, T(2)) - T(36)*pow(dLx, T(2))*ddLx*xi + xv*(-T(72)*pow(Lx, T(2))*d3Lx*dLxi_v + T(18)*pow(Lx, T(2))*d4Lx*dLxi_v*xi + T(3)*pow(Lx, T(2))*d4Lx + T(144)*Lx*d3Lx*dLx*dLxi_v*xi + T(24)*Lx*d3Lx*dLx - T(432)*Lx*dLx*dLxi_v*ddLx + T(108)*Lx*dLxi_v*pow(ddLx, T(2))*xi + T(18)*Lx*pow(ddLx, T(2)) - T(144)*pow(dLx, T(3))*dLxi_v + T(216)*pow(dLx, T(2))*dLxi_v*ddLx*xi + T(36)*pow(dLx, T(2))*ddLx + xv*(-T(9)*pow(Lx, T(2))*d4Lx*dLxi_v - T(72)*Lx*d3Lx*dLx*dLxi_v - T(54)*Lx*dLxi_v*pow(ddLx, T(2)) - T(108)*pow(dLx, T(2))*dLxi_v*ddLx));
-      dnf(ix, 3*fi + 2) = -T(12)*pow(Lx, T(2))*d3Lx*xi + (T(3)/T(2))*pow(Lx, T(2))*d4Lx*pow(xi, T(2)) + T(18)*pow(Lx, T(2))*ddLx + T(12)*Lx*d3Lx*dLx*pow(xi, T(2)) + T(36)*Lx*pow(dLx, T(2)) - T(72)*Lx*dLx*ddLx*xi + T(9)*Lx*pow(ddLx, T(2))*pow(xi, T(2)) - T(24)*pow(dLx, T(3))*xi + T(18)*pow(dLx, T(2))*ddLx*pow(xi, T(2)) + xv*(T(12)*pow(Lx, T(2))*d3Lx - T(3)*pow(Lx, T(2))*d4Lx*xi - T(24)*Lx*d3Lx*dLx*xi + T(72)*Lx*dLx*ddLx - T(18)*Lx*pow(ddLx, T(2))*xi + T(24)*pow(dLx, T(3)) - T(36)*pow(dLx, T(2))*ddLx*xi + xv*((T(3)/T(2))*pow(Lx, T(2))*d4Lx + T(12)*Lx*d3Lx*dLx + T(9)*Lx*pow(ddLx, T(2)) + T(18)*pow(dLx, T(2))*ddLx));
+      {
+        const T cse0 = (dLxi_v)*(dLxi_v);
+        const T cse1 = Lx*ddLx;
+        const T cse2 = (dLx)*(dLx);
+        const T cse3 = (Lx)*(Lx);
+        const T cse4 = T(3)*dLxi_v;
+        const T cse5 = T(3)*ddLxi_v*xv;
+        const T cse6 = T(12)*cse0*xi;
+        const T cse7 = (xi)*(xi);
+        const T cse8 = (T(3)/T(2))*ddLxi_v;
+        const T cse9 = (xv)*(xv);
+        const T cse10 = T(6)*cse0;
+        dnf(ix, 3*fi + 0) = T(54)*Lx*(T(4)*cse0 - ddLxi_v)*(cse1 + T(2)*cse2) + (T(72)*cse1*dLx + T(12)*cse3*d3Lx + T(24)*(dLx)*(dLx)*(dLx))*(T(12)*cse0*xv - cse4 - cse5 - cse6 + T(3)*ddLxi_v*xi) + (T(24)*Lx*d3Lx*dLx + T(18)*Lx*(ddLx)*(ddLx) + T(36)*cse2*ddLx + T(3)*cse3*d4Lx)*(cse10*cse7 + cse10*cse9 + cse4*xi - cse4*xv + cse5*xi - cse6*xv - cse7*cse8 - cse8*cse9 + T(1));
+      }
+      {
+        const T cse0 = Lx*ddLx;
+        const T cse1 = (dLx)*(dLx);
+        const T cse2 = T(6)*dLxi_v;
+        const T cse3 = (Lx)*(Lx);
+        const T cse4 = T(3)*dLxi_v;
+        dnf(ix, 3*fi + 1) = -T(108)*Lx*dLxi_v*(cse0 + T(2)*cse1) + (T(72)*cse0*dLx + T(12)*cse3*d3Lx + T(24)*(dLx)*(dLx)*(dLx))*(cse2*xi - cse2*xv + T(1)) + (T(24)*Lx*d3Lx*dLx + T(18)*Lx*(ddLx)*(ddLx) + T(36)*cse1*ddLx + T(3)*cse3*d4Lx)*(-cse4*(xi)*(xi) - cse4*(xv)*(xv) + T(6)*dLxi_v*xi*xv - xi + xv);
+      }
+      {
+        const T cse0 = Lx*ddLx;
+        const T cse1 = (dLx)*(dLx);
+        const T cse2 = T(18)*Lx;
+        const T cse3 = (Lx)*(Lx);
+        dnf(ix, 3*fi + 2) = cse2*(cse0 + T(2)*cse1) + (-xi + xv)*(T(72)*cse0*dLx + T(12)*cse3*d3Lx + T(24)*(dLx)*(dLx)*(dLx)) + ((T(1)/T(2))*(xi)*(xi) - xi*xv + (T(1)/T(2))*(xv)*(xv))*(T(24)*Lx*d3Lx*dLx + T(36)*cse1*ddLx + cse2*(ddLx)*(ddLx) + T(3)*cse3*d4Lx);
+      }
       dnf(ix, 3*fi + 1) *= element_length;
       dnf(ix, 3*fi + 2) *= element_length * element_length;
     }
@@ -198,9 +293,43 @@ case (5): {
       const T d5Lx = d5Lx_all(ix, fi);
       const T dLxi_v = lipxi(fi);
       const T ddLxi_v = lipxi2(fi);
-      dnf(ix, 3*fi + 0) = T(360)*pow(Lx, T(2))*d3Lx*pow(dLxi_v, T(2)) - T(90)*pow(Lx, T(2))*d3Lx*ddLxi_v - T(180)*pow(Lx, T(2))*d4Lx*pow(dLxi_v, T(2))*xi - T(45)*pow(Lx, T(2))*d4Lx*dLxi_v + T(45)*pow(Lx, T(2))*d4Lx*ddLxi_v*xi + T(18)*pow(Lx, T(2))*d5Lx*pow(dLxi_v, T(2))*pow(xi, T(2)) + T(9)*pow(Lx, T(2))*d5Lx*dLxi_v*xi - T(9)/T(2)*pow(Lx, T(2))*d5Lx*ddLxi_v*pow(xi, T(2)) + T(3)*pow(Lx, T(2))*d5Lx - T(1440)*Lx*d3Lx*dLx*pow(dLxi_v, T(2))*xi - T(360)*Lx*d3Lx*dLx*dLxi_v + T(360)*Lx*d3Lx*dLx*ddLxi_v*xi + T(360)*Lx*d3Lx*pow(dLxi_v, T(2))*ddLx*pow(xi, T(2)) + T(180)*Lx*d3Lx*dLxi_v*ddLx*xi - T(90)*Lx*d3Lx*ddLx*ddLxi_v*pow(xi, T(2)) + T(60)*Lx*d3Lx*ddLx + T(180)*Lx*d4Lx*dLx*pow(dLxi_v, T(2))*pow(xi, T(2)) + T(90)*Lx*d4Lx*dLx*dLxi_v*xi - T(45)*Lx*d4Lx*dLx*ddLxi_v*pow(xi, T(2)) + T(30)*Lx*d4Lx*dLx + T(2160)*Lx*dLx*pow(dLxi_v, T(2))*ddLx - T(540)*Lx*dLx*ddLx*ddLxi_v - T(1080)*Lx*pow(dLxi_v, T(2))*pow(ddLx, T(2))*xi - T(270)*Lx*dLxi_v*pow(ddLx, T(2)) + T(270)*Lx*pow(ddLx, T(2))*ddLxi_v*xi + T(360)*d3Lx*pow(dLx, T(2))*pow(dLxi_v, T(2))*pow(xi, T(2)) + T(180)*d3Lx*pow(dLx, T(2))*dLxi_v*xi - T(90)*d3Lx*pow(dLx, T(2))*ddLxi_v*pow(xi, T(2)) + T(60)*d3Lx*pow(dLx, T(2)) + T(720)*pow(dLx, T(3))*pow(dLxi_v, T(2)) - T(180)*pow(dLx, T(3))*ddLxi_v - T(2160)*pow(dLx, T(2))*pow(dLxi_v, T(2))*ddLx*xi - T(540)*pow(dLx, T(2))*dLxi_v*ddLx + T(540)*pow(dLx, T(2))*ddLx*ddLxi_v*xi + T(540)*dLx*pow(dLxi_v, T(2))*pow(ddLx, T(2))*pow(xi, T(2)) + T(270)*dLx*dLxi_v*pow(ddLx, T(2))*xi - T(135)*dLx*pow(ddLx, T(2))*ddLxi_v*pow(xi, T(2)) + T(90)*dLx*pow(ddLx, T(2)) + xv*(T(180)*pow(Lx, T(2))*d4Lx*pow(dLxi_v, T(2)) - T(45)*pow(Lx, T(2))*d4Lx*ddLxi_v - T(36)*pow(Lx, T(2))*d5Lx*pow(dLxi_v, T(2))*xi - T(9)*pow(Lx, T(2))*d5Lx*dLxi_v + T(9)*pow(Lx, T(2))*d5Lx*ddLxi_v*xi + T(1440)*Lx*d3Lx*dLx*pow(dLxi_v, T(2)) - T(360)*Lx*d3Lx*dLx*ddLxi_v - T(720)*Lx*d3Lx*pow(dLxi_v, T(2))*ddLx*xi - T(180)*Lx*d3Lx*dLxi_v*ddLx + T(180)*Lx*d3Lx*ddLx*ddLxi_v*xi - T(360)*Lx*d4Lx*dLx*pow(dLxi_v, T(2))*xi - T(90)*Lx*d4Lx*dLx*dLxi_v + T(90)*Lx*d4Lx*dLx*ddLxi_v*xi + T(1080)*Lx*pow(dLxi_v, T(2))*pow(ddLx, T(2)) - T(270)*Lx*pow(ddLx, T(2))*ddLxi_v - T(720)*d3Lx*pow(dLx, T(2))*pow(dLxi_v, T(2))*xi - T(180)*d3Lx*pow(dLx, T(2))*dLxi_v + T(180)*d3Lx*pow(dLx, T(2))*ddLxi_v*xi + T(2160)*pow(dLx, T(2))*pow(dLxi_v, T(2))*ddLx - T(540)*pow(dLx, T(2))*ddLx*ddLxi_v - T(1080)*dLx*pow(dLxi_v, T(2))*pow(ddLx, T(2))*xi - T(270)*dLx*dLxi_v*pow(ddLx, T(2)) + T(270)*dLx*pow(ddLx, T(2))*ddLxi_v*xi + xv*(T(18)*pow(Lx, T(2))*d5Lx*pow(dLxi_v, T(2)) - T(9)/T(2)*pow(Lx, T(2))*d5Lx*ddLxi_v + T(360)*Lx*d3Lx*pow(dLxi_v, T(2))*ddLx - T(90)*Lx*d3Lx*ddLx*ddLxi_v + T(180)*Lx*d4Lx*dLx*pow(dLxi_v, T(2)) - T(45)*Lx*d4Lx*dLx*ddLxi_v + T(360)*d3Lx*pow(dLx, T(2))*pow(dLxi_v, T(2)) - T(90)*d3Lx*pow(dLx, T(2))*ddLxi_v + T(540)*dLx*pow(dLxi_v, T(2))*pow(ddLx, T(2)) - T(135)*dLx*pow(ddLx, T(2))*ddLxi_v));
-      dnf(ix, 3*fi + 1) = -T(180)*pow(Lx, T(2))*d3Lx*dLxi_v + T(90)*pow(Lx, T(2))*d4Lx*dLxi_v*xi + T(15)*pow(Lx, T(2))*d4Lx - T(9)*pow(Lx, T(2))*d5Lx*dLxi_v*pow(xi, T(2)) - T(3)*pow(Lx, T(2))*d5Lx*xi + T(720)*Lx*d3Lx*dLx*dLxi_v*xi + T(120)*Lx*d3Lx*dLx - T(180)*Lx*d3Lx*dLxi_v*ddLx*pow(xi, T(2)) - T(60)*Lx*d3Lx*ddLx*xi - T(90)*Lx*d4Lx*dLx*dLxi_v*pow(xi, T(2)) - T(30)*Lx*d4Lx*dLx*xi - T(1080)*Lx*dLx*dLxi_v*ddLx + T(540)*Lx*dLxi_v*pow(ddLx, T(2))*xi + T(90)*Lx*pow(ddLx, T(2)) - T(180)*d3Lx*pow(dLx, T(2))*dLxi_v*pow(xi, T(2)) - T(60)*d3Lx*pow(dLx, T(2))*xi - T(360)*pow(dLx, T(3))*dLxi_v + T(1080)*pow(dLx, T(2))*dLxi_v*ddLx*xi + T(180)*pow(dLx, T(2))*ddLx - T(270)*dLx*dLxi_v*pow(ddLx, T(2))*pow(xi, T(2)) - T(90)*dLx*pow(ddLx, T(2))*xi + xv*(-T(90)*pow(Lx, T(2))*d4Lx*dLxi_v + T(18)*pow(Lx, T(2))*d5Lx*dLxi_v*xi + T(3)*pow(Lx, T(2))*d5Lx - T(720)*Lx*d3Lx*dLx*dLxi_v + T(360)*Lx*d3Lx*dLxi_v*ddLx*xi + T(60)*Lx*d3Lx*ddLx + T(180)*Lx*d4Lx*dLx*dLxi_v*xi + T(30)*Lx*d4Lx*dLx - T(540)*Lx*dLxi_v*pow(ddLx, T(2)) + T(360)*d3Lx*pow(dLx, T(2))*dLxi_v*xi + T(60)*d3Lx*pow(dLx, T(2)) - T(1080)*pow(dLx, T(2))*dLxi_v*ddLx + T(540)*dLx*dLxi_v*pow(ddLx, T(2))*xi + T(90)*dLx*pow(ddLx, T(2)) + xv*(-T(9)*pow(Lx, T(2))*d5Lx*dLxi_v - T(180)*Lx*d3Lx*dLxi_v*ddLx - T(90)*Lx*d4Lx*dLx*dLxi_v - T(180)*d3Lx*pow(dLx, T(2))*dLxi_v - T(270)*dLx*dLxi_v*pow(ddLx, T(2))));
-      dnf(ix, 3*fi + 2) = T(30)*pow(Lx, T(2))*d3Lx - T(15)*pow(Lx, T(2))*d4Lx*xi + (T(3)/T(2))*pow(Lx, T(2))*d5Lx*pow(xi, T(2)) - T(120)*Lx*d3Lx*dLx*xi + T(30)*Lx*d3Lx*ddLx*pow(xi, T(2)) + T(15)*Lx*d4Lx*dLx*pow(xi, T(2)) + T(180)*Lx*dLx*ddLx - T(90)*Lx*pow(ddLx, T(2))*xi + T(30)*d3Lx*pow(dLx, T(2))*pow(xi, T(2)) + T(60)*pow(dLx, T(3)) - T(180)*pow(dLx, T(2))*ddLx*xi + T(45)*dLx*pow(ddLx, T(2))*pow(xi, T(2)) + xv*(T(15)*pow(Lx, T(2))*d4Lx - T(3)*pow(Lx, T(2))*d5Lx*xi + T(120)*Lx*d3Lx*dLx - T(60)*Lx*d3Lx*ddLx*xi - T(30)*Lx*d4Lx*dLx*xi + T(90)*Lx*pow(ddLx, T(2)) - T(60)*d3Lx*pow(dLx, T(2))*xi + T(180)*pow(dLx, T(2))*ddLx - T(90)*dLx*pow(ddLx, T(2))*xi + xv*((T(3)/T(2))*pow(Lx, T(2))*d5Lx + T(30)*Lx*d3Lx*ddLx + T(15)*Lx*d4Lx*dLx + T(30)*d3Lx*pow(dLx, T(2)) + T(45)*dLx*pow(ddLx, T(2))));
+      {
+        const T cse0 = (dLxi_v)*(dLxi_v);
+        const T cse1 = T(180)*ddLx;
+        const T cse2 = Lx*dLx;
+        const T cse3 = (Lx)*(Lx);
+        const T cse4 = T(90)*(ddLx)*(ddLx);
+        const T cse5 = (dLx)*(dLx);
+        const T cse6 = T(3)*dLxi_v;
+        const T cse7 = T(3)*ddLxi_v*xv;
+        const T cse8 = T(12)*cse0*xi;
+        const T cse9 = T(60)*d3Lx;
+        const T cse10 = (xi)*(xi);
+        const T cse11 = (T(3)/T(2))*ddLxi_v;
+        const T cse12 = (xv)*(xv);
+        const T cse13 = T(6)*cse0;
+        dnf(ix, 3*fi + 0) = T(3)*(T(4)*cse0 - ddLxi_v)*(cse1*cse2 + T(30)*cse3*d3Lx + T(60)*(dLx)*(dLx)*(dLx)) + (Lx*cse4 + cse1*cse5 + T(120)*cse2*d3Lx + T(15)*cse3*d4Lx)*(T(12)*cse0*xv - cse6 - cse7 - cse8 + T(3)*ddLxi_v*xi) + (Lx*cse9*ddLx + T(30)*cse2*d4Lx + T(3)*cse3*d5Lx + cse4*dLx + cse5*cse9)*(-cse10*cse11 + cse10*cse13 - cse11*cse12 + cse12*cse13 + cse6*xi - cse6*xv + cse7*xi - cse8*xv + T(1));
+      }
+      {
+        const T cse0 = T(180)*ddLx;
+        const T cse1 = Lx*dLx;
+        const T cse2 = (Lx)*(Lx);
+        const T cse3 = T(6)*dLxi_v;
+        const T cse4 = T(90)*(ddLx)*(ddLx);
+        const T cse5 = (dLx)*(dLx);
+        const T cse6 = T(3)*dLxi_v;
+        const T cse7 = T(60)*d3Lx;
+        dnf(ix, 3*fi + 1) = -cse3*(cse0*cse1 + T(30)*cse2*d3Lx + T(60)*(dLx)*(dLx)*(dLx)) + (cse3*xi - cse3*xv + T(1))*(Lx*cse4 + cse0*cse5 + T(120)*cse1*d3Lx + T(15)*cse2*d4Lx) + (-cse6*(xi)*(xi) - cse6*(xv)*(xv) + T(6)*dLxi_v*xi*xv - xi + xv)*(Lx*cse7*ddLx + T(30)*cse1*d4Lx + T(3)*cse2*d5Lx + cse4*dLx + cse5*cse7);
+      }
+      {
+        const T cse0 = T(180)*ddLx;
+        const T cse1 = Lx*dLx;
+        const T cse2 = (Lx)*(Lx);
+        const T cse3 = T(90)*(ddLx)*(ddLx);
+        const T cse4 = (dLx)*(dLx);
+        const T cse5 = T(60)*d3Lx;
+        dnf(ix, 3*fi + 2) = cse0*cse1 + T(30)*cse2*d3Lx + T(60)*(dLx)*(dLx)*(dLx) + (-xi + xv)*(Lx*cse3 + cse0*cse4 + T(120)*cse1*d3Lx + T(15)*cse2*d4Lx) + ((T(1)/T(2))*(xi)*(xi) - xi*xv + (T(1)/T(2))*(xv)*(xv))*(Lx*cse5*ddLx + T(30)*cse1*d4Lx + T(3)*cse2*d5Lx + cse3*dLx + cse4*cse5);
+      }
       dnf(ix, 3*fi + 1) *= element_length;
       dnf(ix, 3*fi + 2) *= element_length * element_length;
     }
