@@ -112,6 +112,10 @@ if(HELFEM_HAVE_FLOAT128)
   target_link_libraries(legendre_unit_test quadmath)
 endif()
 
+# Checks that psi(r) = B_u(r)/r is handled correctly as r -> 0 by EVERY basis.
+add_executable(over_r_test general/over_r_test.cpp)
+target_link_libraries(over_r_test helfem-common legendre)
+
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem-common legendre)
 
