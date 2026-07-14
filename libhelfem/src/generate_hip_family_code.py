@@ -73,6 +73,9 @@ import sympy as sp
 ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument("--order", type=int, required=True,
                 help="interpolation order nder (1 = HIP, 2 = HIP2, 3 = HIP3, ...)")
+ap.add_argument("--over-r", action="store_true",
+                help="emit the eval_over_r deflation (B(r)/r) instead of the "
+                     "plain evaluator")
 ap.add_argument("--maxderiv", type=int, default=4,
                 help="highest derivative order n to emit (default 4). The old "
                      "hand-written HIP2/HIP3 stopped at 2, which was an accident "
@@ -128,6 +131,13 @@ def deriv_of_L_power(power, n):
 
 # P^{(r)}(0) at the NODE: same expression, but with L^(k)(x_i):
 #   L(x_i) = 1 (Lagrange), L'(x_i) = lipxi, L''(x_i) = lipxi2, ...
+def deriv_of_L_power_factored(power, n):
+    """d^n/dx^n [ L(x)^power ] with L^(k) -> LX[k], WITHOUT expanding."""
+    expr = sp.diff(_L(_u) ** power, _u, n)
+    for k in range(n, -1, -1):
+        expr = expr.subs(sp.Derivative(_L(_u), (_u, k)), LX[k]) if k > 0 else expr.subs(_L(_u), LX[0])
+    return expr
+
 def P_deriv_at_node(r):
     expr = sp.diff(_L(_u) ** M, _u, r)
     for k in range(r, -1, -1):
@@ -158,22 +168,283 @@ for j in range(NSHAPE):
 # h_{i,j}^{(n)} = sum_a C(n,a) * (L^m)^{(a)} * q_j^{(n-a)}   (Leibniz)
 # ---------------------------------------------------------------------
 def shape_deriv(j, n):
+    """d^n of h_{i,j} = L^m q_j, by Leibniz, kept FACTORED.
+
+    Not expanded: h = L^m q, and near a node other than i the factor L -> 0, so
+    the expanded polynomial is a sum of large terms cancelling to something
+    tiny. That is what cost HIP3 six digits at the origin (eval_dnf(n=1) was
+    9.3e-10 there, against 0.0 for HIP and HIP2). Keeping the product a product
+    keeps every intermediate small."""
     total = 0
     for a in range(n + 1):
-        total += sp.binomial(n, a) * deriv_of_L_power(M, a) * sp.diff(q[j], xv, n - a)
-    return sp.expand(total)
+        total += sp.binomial(n, a) * deriv_of_L_power_factored(M, a) * sp.diff(q[j], xv, n - a)
+    return total
+
+# =====================================================================
+# THE 1/r DEFLATION  (eval_over_r)
+#
+# On the FIRST element r = e*(x+1), so psi(r) = B(r)/r is 0/0 at x = -1.
+# The Dirichlet BC (drop_first(zero_func=true)) removes the one shape that
+# does not vanish there; every surviving shape does, so the ratio is finite
+# -- but computing it by DIVIDING is catastrophic near the origin. Deflate
+# the (x+1) factor analytically instead:
+#
+#   node 0 (sits at x = -1):  t = x + 1, and q_j(0) = 0 for the surviving
+#       j >= 1, so q_j(t) = t * qtil_j(t) exactly. Hence
+#           h_{0,j} / (x+1)  =  L_0^m * qtil_j(t).
+#
+#   node i >= 1:  L_i(-1) = 0 (Lagrange vanishes at other nodes), so
+#           L_i(x) = (x+1) * M_i(x),   M_i = p_red / (x_i + 1)
+#       where p_red is the Lagrange polynomial of node i over the node set
+#       WITHOUT node 0. Hence
+#           h_{i,j} / (x+1)  =  (x+1)^(m-1) * M_i^m * q_j.
+#
+# Every factor is a polynomial: nothing cancels. The expressions below are
+# therefore built and emitted in FACTORED form (via sympy.cse) and are NOT
+# expanded -- expanding them is what makes the high-order Hermite deflation
+# lose digits near the origin.
+#
+# Finally, d^n/dr^n [B/r] = (1/e)^(n+1) * d^n/dx^n [ h/(x+1) ].
+# =====================================================================
+
+# p_red^(k)(x): the reduced-LIP symbols, supplied at runtime
+PR = [sp.Symbol("pr" if k == 0 else ("dpr" if k == 1 else ("ddpr" if k == 2 else f"d{k}pr")),
+                real=True) for k in range(MAXD + 1)]
+xp1 = xv + 1                       # (x+1)
+
+def deriv_of_sym_power(SYMS, power, n):
+    """d^n/dx^n [ f(x)^power ] with f^(k)(x) -> SYMS[k]."""
+    expr = sp.diff(_L(_u) ** power, _u, n)
+    for k in range(n, -1, -1):
+        expr = expr.subs(_L(_u), SYMS[0]) if k == 0 else \
+               expr.subs(sp.Derivative(_L(_u), (_u, k)), SYMS[k])
+    return expr
+
+def leibniz(factors_derivs, n):
+    """d^n of a product, given a list of callables f_i -> d^k f_i."""
+    from itertools import product as iproduct
+    total = 0
+    for ks in iproduct(*[range(n + 1)] * len(factors_derivs)):
+        if sum(ks) != n:
+            continue
+        coeff = sp.factorial(n)
+        for k in ks:
+            coeff /= sp.factorial(k)
+        term = coeff
+        for f, k in zip(factors_derivs, ks):
+            term *= f(k)
+        total += term
+    return total
+
+# qtil_j = q_j / t   for the node-0 shapes that survive (j >= 1)
+qtil = [None] + [sp.simplify(sp.cancel(q[j] / t)) for j in range(1, NSHAPE)]
+
+def over_r_node0(j, n):
+    """d^n/dx^n [ L_0^m * qtil_j ]  -- node 0, surviving shapes j >= 1."""
+    return leibniz([lambda k: deriv_of_sym_power(LX, M, k),
+                    lambda k: sp.diff(qtil[j], xv, k)], n)
+
+def over_r_nodei(j, n):
+    """d^n/dx^n [ (x+1)^(m-1) * (p_red/(xi+1))^m * q_j ]  -- nodes i >= 1."""
+    inv = 1 / (xi + 1)**M
+    return inv * leibniz([lambda k: sp.diff(xp1**(M - 1), xv, k),
+                          lambda k: deriv_of_sym_power(PR, M, k),
+                          lambda k: sp.diff(q[j], xv, k)], n)
 
 # ---------------------------------------------------------------------
 # C++ emission
 # ---------------------------------------------------------------------
+def _wrap_ints(code):
+    code = re.sub(r"(?<![\w.])([0-9]+)(?:\.0)?(?![\w.])", r"T(\1)", code)
+    # sympy emits bare pow(); _Float128 is a builtin so ADL finds nothing.
+    # Qualify it, and turn the small integer powers into plain products, which
+    # is both faster and exactly representable.
+    code = re.sub(r"\bpow\((\w+), T\(2\)\)", r"(\1)*(\1)", code)
+    code = re.sub(r"\bpow\((\w+), T\(3\)\)", r"(\1)*(\1)*(\1)", code)
+    code = re.sub(r"\bpow\((\w+), T\(4\)\)", r"(\1)*(\1)*(\1)*(\1)", code)
+    code = re.sub(r"(?<!:)(?<!\w)pow\(", "std::pow(", code)
+    return code
+
 def ccode_T(expr):
-    """ccode with bare integer literals wrapped in T(...) so the expression
-    compiles at any scalar type (double, long double, _Float128)."""
+    """Expanded + Horner. Fine for the plain evaluator, where the shapes are
+    O(1) and Horner is the numerically sensible ordering."""
     code = sp.ccode(sp.horner(sp.expand(expr), xv) if expr.free_symbols & {xv} else sp.expand(expr))
-    return re.sub(r"(?<![\w.])([0-9]+)(?:\.0)?(?![\w.])", r"T(\1)", code)
+    return _wrap_ints(code)
+
+def ccode_T_factored(expr):
+    """Emit WITHOUT expanding.
+
+    This matters, and it is the whole point of the deflation. The over_r
+    expressions are products of factors that each vanish or nearly vanish at the
+    origin -- (x+1)^(m-1), p_red^m, q_j. Expanding them turns a product of small
+    numbers into a SUM of large terms that cancel, which is exactly the
+    catastrophic cancellation the analytic deflation exists to avoid. Emitting
+    the product as a product keeps every intermediate small and the result
+    accurate. (Measured: expanding cost HIP3 six orders of magnitude at the
+    origin -- 9.3e-08 vs 1e-14.)"""
+    return _wrap_ints(sp.ccode(expr))
 
 def lipxi_params():
     return ", ".join(f"const Vec<T> & {'lipxi' if k == 1 else f'lipxi{k}'}" for k in range(1, NDER + 1))
+
+# =====================================================================
+# eval_over_r emitter
+# =====================================================================
+if args.over_r:
+    def cse_emit(expr, indent):
+        """Emit via common-subexpression elimination, in FACTORED form.
+        Deliberately no sp.expand(): expanding these products is what makes
+        the high-order deflation cancel and lose digits near the origin."""
+        reps, red = sp.cse(expr, symbols=sp.numbered_symbols('cse'), optimizations=None)
+        lines = []
+        for sym, sub in reps:
+            lines.append(f"{indent}const T {sym} = {ccode_T_factored(sub)};")
+        lines.append(f"{indent}R = {ccode_T_factored(red[0])};")
+        return "\n".join(lines)
+
+    print(f'''/*
+ * This file is autogenerated by libhelfem/src/generate_hip_family_code.py
+ *     python3 generate_hip_family_code.py --order {NDER} --maxderiv {MAXD} --over-r
+ * DO NOT EDIT BY HAND.
+ *
+ *                This source code is part of
+ *                          HelFEM
+ *
+ * Written by Susi Lehtola, 2018-
+ * Copyright (c) 2018- Susi Lehtola
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+#ifndef LIB1DFEM_{CLS.upper()}_OVER_R_H
+#define LIB1DFEM_{CLS.upper()}_OVER_R_H
+
+#include <lib1dfem/types.h>
+#include <lib1dfem/LIPBasis_eval.h>
+#include <cmath>
+#include <sstream>
+#include <stdexcept>
+
+namespace helfem {{
+namespace lib1dfem {{
+namespace polynomial_basis {{
+namespace detail {{
+
+/// d^n/dr^n of B_u(r)/r for the surviving {CLS} shapes on the FIRST element,
+/// where r = element_length * (x + 1).
+///
+/// B/r is 0/0 at x = -1. The Dirichlet BC (drop_first(zero_func=true)) removes
+/// the one shape that does not vanish there, so the ratio is finite -- but
+/// DIVIDING by r near the origin is catastrophic. The (x+1) factor is deflated
+/// analytically instead:
+///
+///   node 0 (at x = -1): q_j(0) = 0 for the surviving j >= 1, so q_j = t*qtil_j
+///       exactly, and  h/(x+1) = L_0^{M} * qtil_j.
+///
+///   node i >= 1: L_i(-1) = 0, so L_i = (x+1) * p_red/(x_i+1), giving
+///       h/(x+1) = (x+1)^{M-1} * (p_red/(x_i+1))^{M} * q_j,
+///       with p_red the Lagrange polynomial of node i over the nodes EXCLUDING
+///       node 0 (hence the reduced node vector below).
+///
+/// Every factor is a polynomial -- nothing cancels -- and the expressions are
+/// emitted in factored form for that reason.
+///
+/// enabled : dummy indices of the surviving shapes ({NSHAPE} per node).
+template <typename T>
+void eval_{TAG}_prim_over_r(const Vec<T> & x, const Vec<T> & x0,
+                       {lipxi_params()},
+                       const IVec & enabled,
+                       Mat<T> & dnf_over_r, int n, T element_length) {{
+  if (n < 0 || n > {MAXD}) {{
+    std::ostringstream oss;
+    oss << "{CLS}::eval_over_r: derivative order " << n
+        << " not implemented (0..{MAXD} supported).\\n";
+    throw std::logic_error(oss.str());
+  }}
+  if (enabled.size() == 0)
+    throw std::logic_error("{CLS}::eval_over_r: no surviving basis functions.\\n");
+  if (enabled(0) == 0)
+    throw std::logic_error(
+        "{CLS}::eval_over_r requires drop_first(zero_func=true): the value shape "
+        "at node 0 has B(-1) != 0, so B/r is genuinely singular.\\n");
+
+  const Vec<T> x0_red = x0.segment(1, x0.size() - 1);
+
+  // Full LIP (column 0 gives L_0) and reduced LIP (p_red for nodes i >= 1).
+  Mat<T> Lf[{MAXD}+1], Lr[{MAXD}+1];
+  for (int k = 0; k <= n; k++) {{
+    eval_lip_prim_dnf<T>(x, x0,     Lf[k], k);
+    eval_lip_prim_dnf<T>(x, x0_red, Lr[k], k);
+  }}
+
+  dnf_over_r.resize(x.size(), enabled.size());
+  for (Eigen::Index c = 0; c < enabled.size(); c++) {{
+    const Eigen::Index idx  = enabled(c);
+    const Eigen::Index node = idx / {NSHAPE};
+    const Eigen::Index kind = idx % {NSHAPE};
+
+    for (Eigen::Index ix = 0; ix < x.size(); ix++) {{
+      const T xv = x(ix);
+      const T xi = x0(node);
+      T R = T(0);
+''')
+
+    # ---- node 0 ----
+    print("      if (node == 0) {")
+    for k in range(MAXD + 1):
+        print(f"        const T {LX[k]} = (n >= {k}) ? Lf[{min(k, MAXD)}](ix, 0) : T(0);"
+              if k > 0 else f"        const T {LX[0]} = Lf[0](ix, 0);")
+    for k in range(1, NDER + 1):
+        src = "lipxi" if k == 1 else f"lipxi{k}"
+        print(f"        const T {LXI[k]} = {src}(node);")
+    print("        switch (n) {")
+    for n_ in range(MAXD + 1):
+        print(f"        case {n_}:")
+        print("          switch (kind) {")
+        for j in range(1, NSHAPE):     # kind 0 at node 0 is the dropped shape
+            print(f"          case {j}: {{")
+            print(cse_emit(over_r_node0(j, n_), "            "))
+            print("          } break;")
+        print("          }")
+        print("          break;")
+    print("        }")
+    print("      } else {")
+
+    # ---- nodes i >= 1 ----
+    for k in range(MAXD + 1):
+        print(f"        const T {PR[k]} = (n >= {k}) ? Lr[{min(k, MAXD)}](ix, node - 1) : T(0);"
+              if k > 0 else f"        const T {PR[0]} = Lr[0](ix, node - 1);")
+    for k in range(1, NDER + 1):
+        src = "lipxi" if k == 1 else f"lipxi{k}"
+        print(f"        const T {LXI[k]} = {src}(node);")
+    print("        switch (n) {")
+    for n_ in range(MAXD + 1):
+        print(f"        case {n_}:")
+        print("          switch (kind) {")
+        for j in range(NSHAPE):
+            print(f"          case {j}: {{")
+            print(cse_emit(over_r_nodei(j, n_), "            "))
+            print("          } break;")
+        print("          }")
+        print("          break;")
+    print("        }")
+    print("      }")
+
+    print('''
+      // d^n/dr^n [B/r] = e^(kind - 1 - n) * d^n/dx^n [h/(x+1)],
+      // the e^kind coming from the derivative-shape scaling and e^(-1-n) from
+      // r = e*(x+1) plus the chain rule.
+      dnf_over_r(ix, c) = R * std::pow(element_length, (int) kind - 1 - n);
+    }
+  }
+}
+
+} // namespace detail
+} // namespace polynomial_basis
+} // namespace lib1dfem
+} // namespace helfem
+
+#endif''')
+    raise SystemExit(0)
 
 print(f'''/*
  * This file is autogenerated by libhelfem/src/generate_hip_family_code.py
@@ -244,7 +515,13 @@ for n in range(MAXD + 1):
         src = "lipxi" if k == 1 else f"lipxi{k}"
         print(f"      const T {LXI[k]} = {src}(fi);")
     for j in range(NSHAPE):
-        print(f"      dnf(ix, {NSHAPE}*fi + {j}) = {ccode_T(shape_deriv(j, n))};")
+        # each shape gets its own scope: the cse temporaries are per-expression
+        reps, red = sp.cse(shape_deriv(j, n), symbols=sp.numbered_symbols('cse'), optimizations=None)
+        print("      {")
+        for sym, sub in reps:
+            print(f"        const T {sym} = {ccode_T_factored(sub)};")
+        print(f"        dnf(ix, {NSHAPE}*fi + {j}) = {ccode_T_factored(red[0])};")
+        print("      }")
     for j in range(1, NSHAPE):
         scale = " * ".join(["element_length"] * j)
         print(f"      dnf(ix, {NSHAPE}*fi + {j}) *= {scale};")
