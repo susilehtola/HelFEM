@@ -65,6 +65,17 @@ target_include_directories(helfem
 )
 target_link_libraries(helfem PUBLIC helfem::lib1dfem Eigen3::Eigen)
 target_compile_features(helfem PUBLIC cxx_std_17)
+
+# Quad precision: raise the standard (only) where it is needed, and switch on
+# the guarded _Float128 explicit instantiations. The sources themselves stay
+# C++17 -- this changes what they are compiled AT, not what they require.
+if(HELFEM_FLOAT128)
+  target_compile_features(helfem PUBLIC cxx_std_23)
+  target_compile_definitions(helfem PUBLIC HELFEM_HAVE_FLOAT128)
+  message(STATUS "Quad precision (_Float128) enabled: helfem compiled as C++23")
+else()
+  message(STATUS "Quad precision (_Float128) disabled (needs C++23); double and long double only")
+endif()
 # helfem::arma carries the Armadillo headers, the BLAS/LAPACK linkage
 # and the ARMA_64BIT_WORD / (ILP64) ARMA_BLAS_LONG definitions. It is
 # PUBLIC because some public headers still transitively include

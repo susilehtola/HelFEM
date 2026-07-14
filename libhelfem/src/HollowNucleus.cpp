@@ -46,5 +46,8 @@ namespace helfem {
 
     template class HollowNucleusT<double>;
     template class HollowNucleusT<long double>;
+#ifdef HELFEM_HAVE_FLOAT128
+    template class HollowNucleusT<_Float128>;
+#endif
   }
 }

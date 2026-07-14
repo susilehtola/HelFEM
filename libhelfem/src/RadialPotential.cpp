@@ -32,5 +32,8 @@ namespace helfem {
 
     template class RadialPotentialT<double>;
     template class RadialPotentialT<long double>;
+#ifdef HELFEM_HAVE_FLOAT128
+    template class RadialPotentialT<_Float128>;
+#endif
   }
 }

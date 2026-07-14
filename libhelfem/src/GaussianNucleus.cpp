@@ -55,5 +55,8 @@ namespace helfem {
 
     template class GaussianNucleusT<double>;
     template class GaussianNucleusT<long double>;
+#ifdef HELFEM_HAVE_FLOAT128
+    template class GaussianNucleusT<_Float128>;
+#endif
   }
 }

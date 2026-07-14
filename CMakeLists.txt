@@ -68,6 +68,27 @@ option(USE_OPENMP "Build the OpenMP-parallel version" ON)
 option(HELFEM_BINARIES "Build the HelFEM executables under src/" ON)
 option(HELFEM_PYTHON "Build the HelFEM Python (pybind11) bindings" OFF)
 option(HELFEM_ILP64 "Use 64-bit-integer (ILP64) BLAS/LAPACK" ON)
+
+# Quad precision (_Float128, 113-bit mantissa, ~34 decimal digits).
+#
+# The HelFEM sources are C++17 and stay that way -- nothing in them requires a
+# newer standard. But libstdc++ only provides <cmath> overloads and
+# std::numeric_limits for _Float128 under C++23, and Eigen needs both. (With
+# them, Eigen works at _Float128 with no NumTraits specialisation and no math
+# shims at all; note _Float128 is the standard C++23 extended-float type, and
+# is NOT the legacy __float128, which collides with libstdc++'s overloads.)
+#
+# So quad is an OPT-IN that raises the standard on the helfem targets only.
+# Default: on when the compiler advertises C++23, off otherwise -- so nobody's
+# compiler floor moves unless they ask for it. Everything still builds and runs
+# at double and long double either way.
+include(CheckCXXCompilerFlag)
+if(cxx_std_23 IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+  set(HELFEM_FLOAT128_DEFAULT ON)
+else()
+  set(HELFEM_FLOAT128_DEFAULT OFF)
+endif()
+option(HELFEM_FLOAT128 "Instantiate the templated core at _Float128 (needs C++23)" ${HELFEM_FLOAT128_DEFAULT})
 option(HELFEM_BLAS_PROVIDED_EXTERNALLY
        "Skip BLAS/LAPACK discovery; parent project provides them" OFF)
 

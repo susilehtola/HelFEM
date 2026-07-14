@@ -14,6 +14,7 @@
 #define HELFEM_MATRIX_H
 
 #include <Eigen/Core>
+#include <ostream>
 #include <vector>
 
 // Eigen 5 moved the indexing placeholders `all`, `last`, `lastp1`
@@ -106,5 +107,6 @@ namespace helfem {
   using Cube = CubeT<double>;
 
 } // namespace helfem
+
 
 #endif // HELFEM_MATRIX_H

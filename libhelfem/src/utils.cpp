@@ -37,8 +37,14 @@ namespace helfem {
 
     template double      bessel_il<double>     (double, int);
     template long double bessel_il<long double>(long double, int);
+#ifdef HELFEM_HAVE_FLOAT128
+    template _Float128 bessel_il<_Float128>(_Float128, int);
+#endif
     template double      bessel_kl<double>     (double, int);
     template long double bessel_kl<long double>(long double, int);
+#ifdef HELFEM_HAVE_FLOAT128
+    template _Float128 bessel_kl<_Float128>(_Float128, int);
+#endif
 
     helfem::Matrix exchange_tei(const helfem::Matrix & tei,
                                  size_t Ni, size_t Nj, size_t Nk, size_t Nl) {
