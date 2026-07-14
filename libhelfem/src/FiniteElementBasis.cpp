@@ -111,12 +111,15 @@ namespace helfem {
           std::cout << "lh values:\n" << lh   << "\n";
           std::cout << "rh values:\n" << rh   << "\n";
           std::cout << "difference:\n" << diff << "\n";
-          printf("Difference norm %e\n", dnorm(iel));
+          // printf is a double-only boundary: %e consumes a double, so a
+          // T = long double argument is undefined behaviour (it printed
+          // garbage denormals). Cast here and nowhere else.
+          printf("Difference norm %e\n", (double) dnorm(iel));
         }
       }
       Eigen::Index imax;
       dnorm.maxCoeff(&imax);
-      printf("Finite element basis set max discontinuity %e between elements %i and %i\n",dnorm(imax),(int) imax,(int) imax+1);
+      printf("Finite element basis set max discontinuity %e between elements %i and %i\n",(double) dnorm(imax),(int) imax,(int) imax+1);
       fflush(stdout);
       if(dnorm(imax) > sqrt(DBL_EPSILON)) {
         throw std::logic_error("Finite element basis set is not continuous\n");
@@ -185,12 +188,12 @@ namespace helfem {
     }
 
     template<typename T>
-    double FiniteElementBasisT<T>::element_midpoint(size_t iel) const {
-      return 0.5*(element_begin(iel) + element_end(iel));
+    T FiniteElementBasisT<T>::element_midpoint(size_t iel) const {
+      return T(0.5)*(element_begin(iel) + element_end(iel));
     }
 
     template<typename T>
-    size_t FiniteElementBasisT<T>::find_element(double x) const {
+    size_t FiniteElementBasisT<T>::find_element(T x) const {
       // Find the element x is in
       size_t element_left = 0;
       size_t element_right = get_nelem()-1;
@@ -224,7 +227,7 @@ namespace helfem {
     }
 
     template<typename T>
-    double FiniteElementBasisT<T>::eval_coord(double x, size_t iel) const {
+    T FiniteElementBasisT<T>::eval_coord(T x, size_t iel) const {
       return element_midpoint(iel) + scaling_factor(iel) * x;
     }
 
@@ -376,7 +379,7 @@ namespace helfem {
     // Function-pointer overload's lambdas now have signature
     // helfem::Mat<T>(helfem::Vec<T>, size_t), matching eval_dnf.
     template<typename T>
-    helfem::Mat<T> FiniteElementBasisT<T>::matrix_element(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const {
+    helfem::Mat<T> FiniteElementBasisT<T>::matrix_element(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const {
       // Compute matrix elements in parallel
       std::vector<helfem::Mat<T>> matel(get_nelem());
 #ifdef _OPENMP
@@ -398,7 +401,7 @@ namespace helfem {
     }
 
     template<typename T>
-    helfem::Vec<T> FiniteElementBasisT<T>::vector_element(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const {
+    helfem::Vec<T> FiniteElementBasisT<T>::vector_element(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const {
       std::vector<helfem::Vec<T>> vecel(get_nelem());
 #ifdef _OPENMP
 #pragma omp parallel for
@@ -417,24 +420,24 @@ namespace helfem {
     }
 
     template<typename T>
-    helfem::Mat<T> FiniteElementBasisT<T>::matrix_element(int lhder, int rhder, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const {
+    helfem::Mat<T> FiniteElementBasisT<T>::matrix_element(int lhder, int rhder, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const {
       auto eval_lh = [this, lhder](helfem::Vec<T> x, size_t iel) { return this->eval_dnf(x, lhder, iel); };
       auto eval_rh = [this, rhder](helfem::Vec<T> x, size_t iel) { return this->eval_dnf(x, rhder, iel); };
       return matrix_element(eval_lh, eval_rh, xq, wq, f);
     }
 
     template<typename T>
-    helfem::Mat<T> FiniteElementBasisT<T>::matrix_element(size_t iel, int lhder, int rhder, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const {
+    helfem::Mat<T> FiniteElementBasisT<T>::matrix_element(size_t iel, int lhder, int rhder, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const {
       auto eval_lh = [this, lhder](helfem::Vec<T> x, size_t iel_) { return this->eval_dnf(x, lhder, iel_); };
       auto eval_rh = [this, rhder](helfem::Vec<T> x, size_t iel_) { return this->eval_dnf(x, rhder, iel_); };
       return matrix_element(iel, eval_lh, eval_rh, xq, wq, f);
     }
 
     template<typename T>
-    helfem::Mat<T> FiniteElementBasisT<T>::matrix_element(size_t iel, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f, double x_left, double x_right) const {
+    helfem::Mat<T> FiniteElementBasisT<T>::matrix_element(size_t iel, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f, T x_left, T x_right) const {
       // Transform xq from [-1,1] to [x_left, x_right] and the same for wq.
-      const double a = (x_right - x_left) / 2.0;
-      const double b = (x_right + x_left) / 2.0;
+      const T a = (x_right - x_left) / T(2);
+      const T b = (x_right + x_left) / T(2);
       const helfem::Vec<T> x_shifted = a * xq + helfem::Vec<T>::Constant(xq.size(), b);
 
       // Get coordinate values
@@ -462,7 +465,7 @@ namespace helfem {
     }
 
     template<typename T>
-    helfem::Vec<T> FiniteElementBasisT<T>::vector_element(size_t iel, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_bf, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const {
+    helfem::Vec<T> FiniteElementBasisT<T>::vector_element(size_t iel, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_bf, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const {
       const helfem::Vec<T> r = eval_coord(xq, iel);
       helfem::Vec<T> wp = wq * scaling_factor(iel);
       if (f) {
@@ -478,13 +481,13 @@ namespace helfem {
     }
 
     template<typename T>
-    helfem::Vec<T> FiniteElementBasisT<T>::vector_element(int der, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const {
+    helfem::Vec<T> FiniteElementBasisT<T>::vector_element(int der, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const {
       auto eval_f = [this, der](helfem::Vec<T> x, size_t iel) { return this->eval_dnf(x, der, iel); };
       return vector_element(eval_f, xq, wq, f);
     }
 
     template<typename T>
-    helfem::Vec<T> FiniteElementBasisT<T>::vector_element(size_t iel, int der, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const {
+    helfem::Vec<T> FiniteElementBasisT<T>::vector_element(size_t iel, int der, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const {
       auto eval_f = [this, der](helfem::Vec<T> x, size_t iel_) { return this->eval_dnf(x, der, iel_); };
       return vector_element(iel, eval_f, xq, wq, f);
     }

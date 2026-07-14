@@ -20,17 +20,21 @@
 namespace helfem {
   namespace modelpotential {
     /// Simple r^n radial potential
-    class RadialPotential : public ModelPotential {
+    template <typename T>
+    class RadialPotentialT : public ModelPotentialT<T> {
       /// Exponent
       int n;
     public:
       /// Constructor
-      RadialPotential(int n);
+      RadialPotentialT(int n);
       /// Destructor
-      ~RadialPotential();
+      ~RadialPotentialT();
       /// Potential
-      double V(double r) const override;
+      T V(T r) const override;
     };
+
+    /// The double instantiation.
+    using RadialPotential = RadialPotentialT<double>;
   }
 }
 

@@ -93,17 +93,17 @@ namespace helfem {
       /// Element ends at
       T element_end(size_t iel) const;
       /// Element midpoint is at
-      double element_midpoint(size_t iel) const;
+      T element_midpoint(size_t iel) const;
       /// Element length
       T element_length(size_t iel) const;
 
       /// Find the element the point is at
-      size_t find_element(double x) const;
+      size_t find_element(T x) const;
 
       /// Evaluate real coordinate values from primitive coordinates
       helfem::Vec<T> eval_coord(const helfem::Vec<T> & xprim, size_t iel) const;
       /// Evaluate real coordinate values from primitive coordinates
-      double eval_coord(double xprim, size_t iel) const;
+      T eval_coord(T xprim, size_t iel) const;
       /// Evaluate full set of coordinate valuess from primitive coordinates
       helfem::Vec<T> eval_coord(const helfem::Vec<T> & xq) const;
 
@@ -180,9 +180,9 @@ namespace helfem {
       // Phase 5.4: matrix_element / vector_element overloads migrated to
       // Eigen. The fn-pointer overload's lambda signature is now
       // helfem::Mat<T>(helfem::Vec<T>, size_t).
-      helfem::Mat<T> matrix_element(int lhder, int rhder, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
+      helfem::Mat<T> matrix_element(int lhder, int rhder, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const;
       /// Same as above, but only in a single element
-      helfem::Mat<T> matrix_element(size_t iel, int lhder, int rhder, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
+      helfem::Mat<T> matrix_element(size_t iel, int lhder, int rhder, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const;
 
       /**
        * Compute vector elements in the finite element basis <lh|f|rh>
@@ -192,9 +192,9 @@ namespace helfem {
        * wq:    quadrature weights
        * f(r):  additional weight function, use nullptr for unit weight
        */
-      helfem::Vec<T> vector_element(int der, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
+      helfem::Vec<T> vector_element(int der, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const;
       /// Same as above, but only in a single element
-      helfem::Vec<T> vector_element(size_t iel, int der, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
+      helfem::Vec<T> vector_element(size_t iel, int der, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const;
 
       /**
        * Compute matrix elements in the finite element basis <lh|f|rh>
@@ -205,9 +205,9 @@ namespace helfem {
        * wq:    quadrature weights
        * f(r):  additional weight function, use nullptr for unit weight
        */
-      helfem::Mat<T> matrix_element(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
+      helfem::Mat<T> matrix_element(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const;
       /// The driver function
-      helfem::Mat<T> matrix_element(size_t iel, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f, double x_left = -1.0, double x_right = 1.0) const;
+      helfem::Mat<T> matrix_element(size_t iel, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f, T x_left = T(-1.0), T x_right = T(1.0)) const;
 
 
       /**
@@ -218,9 +218,9 @@ namespace helfem {
        * wq:    quadrature weights
        * f(r):  additional weight function, use nullptr for unit weight
        */
-      helfem::Vec<T> vector_element(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_bf, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
+      helfem::Vec<T> vector_element(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_bf, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const;
       /// The driver function
-      helfem::Vec<T> vector_element(size_t iel, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_bf, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<double(double)> & f) const;
+      helfem::Vec<T> vector_element(size_t iel, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_bf, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const;
 
       /// Print out the basis functions
       void print(const std::string & str="") const;

@@ -20,26 +20,30 @@
 namespace helfem {
   namespace modelpotential {
     /// Gaussian nucleus
-    class GaussianNucleus : public ModelPotential {
+    template <typename T>
+    class GaussianNucleusT : public ModelPotentialT<T> {
       /// Charge
       int Z;
       /// Size
-      double mu;
+      T mu;
 
       /// Cutoff for Taylor series
-      double Rcut;
+      T Rcut;
     public:
       /// Constructor
-      GaussianNucleus(int Z, double Rrms);
+      GaussianNucleusT(int Z, T Rrms);
       /// Destructor
-      ~GaussianNucleus();
+      ~GaussianNucleusT();
       /// Potential
-      double V(double r) const override;
+      T V(T r) const override;
       /// Get mu
-      double get_mu() const;
+      T get_mu() const;
       /// Set mu
-      void set_mu(double mu);
+      void set_mu(T mu);
     };
+
+    /// The double instantiation, which every existing caller uses.
+    using GaussianNucleus = GaussianNucleusT<double>;
   }
 }
 

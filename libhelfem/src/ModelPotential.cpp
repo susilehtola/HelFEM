@@ -16,10 +16,15 @@
 
 namespace helfem {
   namespace modelpotential {
-    ModelPotential::ModelPotential() {
+    template <typename T>
+    ModelPotentialT<T>::ModelPotentialT() {
     }
 
-    ModelPotential::~ModelPotential() {
+    template <typename T>
+    ModelPotentialT<T>::~ModelPotentialT() {
     }
+
+    template class ModelPotentialT<double>;
+    template class ModelPotentialT<long double>;
   }
 }
