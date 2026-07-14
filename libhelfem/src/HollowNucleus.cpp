@@ -17,13 +17,16 @@
 
 namespace helfem {
   namespace modelpotential {
-    HollowNucleus::HollowNucleus(int Z_, double R_) : Z(Z_), R(R_) {
+    template <typename T>
+    HollowNucleusT<T>::HollowNucleusT(int Z_, T R_) : Z(Z_), R(R_) {
     }
 
-    HollowNucleus::~HollowNucleus() {
+    template <typename T>
+    HollowNucleusT<T>::~HollowNucleusT() {
     }
 
-    double HollowNucleus::V(double r) const {
+    template <typename T>
+    T HollowNucleusT<T>::V(T r) const {
       if(r>=R) {
         return -Z/r;
       } else {
@@ -31,12 +34,17 @@ namespace helfem {
       }
     }
 
-    double HollowNucleus::get_R() const {
+    template <typename T>
+    T HollowNucleusT<T>::get_R() const {
       return R;
     }
 
-    void HollowNucleus::set_R(double R_) {
+    template <typename T>
+    void HollowNucleusT<T>::set_R(T R_) {
       R=R_;
     }
+
+    template class HollowNucleusT<double>;
+    template class HollowNucleusT<long double>;
   }
 }

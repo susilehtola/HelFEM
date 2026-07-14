@@ -20,17 +20,21 @@
 namespace helfem {
   namespace modelpotential {
     /// Point nucleus
-    class PointNucleus : public ModelPotential {
+    template <typename T>
+    class PointNucleusT : public ModelPotentialT<T> {
       /// Charge
       int Z;
     public:
       /// Constructor
-      PointNucleus(int Z);
+      PointNucleusT(int Z);
       /// Destructor
-      ~PointNucleus();
+      ~PointNucleusT();
       /// Potential
-      double V(double r) const override;
+      T V(T r) const override;
     };
+
+    /// The double instantiation, which every existing caller uses.
+    using PointNucleus = PointNucleusT<double>;
   }
 }
 

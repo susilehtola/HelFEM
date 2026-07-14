@@ -14,42 +14,46 @@
  */
 #include "RegularizedNucleus.h"
 #include "Matrix.h"
+#include "utils.h"
 #include <lib1dfem/chebyshev.h>
-#include <cfloat>
 #include <cmath>
+#include <functional>
+#include <limits>
+#include <stdexcept>
 
 namespace helfem {
   namespace modelpotential {
-    static double phi(double a, double b, double r) {
-      double h=-r*std::erf(a*r)-b*std::exp(-std::pow(a*r,2));
-      return std::exp(h)/sqrt(M_PI);
+    template <typename T>
+    static T phi(T a, T b, T r) {
+      T h=-r*std::erf(a*r)-b*std::exp(-std::pow(a*r,2));
+      return std::exp(h)/std::sqrt(utils::pi<T>());
     }
 
-    static double normalization_slice(int N, std::function<double(double)> & phif) {
+    template <typename T>
+    static T normalization_slice(int N, std::function<T(T)> & phif) {
       // Get quadrature rule
-      helfem::Vector x, w;
-      helfem::lib1dfem::chebyshev::chebyshev<double>(N, x, w);
+      helfem::Vec<T> x, w;
+      helfem::lib1dfem::chebyshev::chebyshev<T>(N, x, w);
 
       // Evaluate normalization by adaptive quadrature
-      double h = 1e-1; // Slice size
+      T h = T(1e-1); // Slice size
       // Integrand
-      helfem::Vector f(N);
+      helfem::Vec<T> f(N);
 
-      double norm=0.0;
+      T norm=T(0);
       size_t islice=0;
       while(true) {
         // Integration limits
-        double r_middle = (islice+0.5)*h;
+        T r_middle = (islice+T(0.5))*h;
         // Compute function
         for(int i=0;i<N;i++) {
-          double r = r_middle + 0.5*x(i)*h;
+          T r = r_middle + T(0.5)*x(i)*h;
           f(i) = r*phif(r);
         }
         // Do quadrature
-        double slice = 2.0*h*M_PI*f.cwiseProduct(f).dot(w);
+        T slice = T(2)*h*utils::pi<T>()*f.cwiseProduct(f).dot(w);
         norm += slice;
-        if(slice == 0.0) {
-          //printf("No contribution at r_middle = %e\n",r_middle);
+        if(slice == T(0)) {
           break;
         }
         islice++;
@@ -58,72 +62,70 @@ namespace helfem {
       return norm;
     }
 
-    static double normalization_chebyshev(int N, std::function<double(double)> & phif) {
+    template <typename T>
+    static T normalization_chebyshev(int N, std::function<T(T)> & phif) {
       // Get quadrature rule
-      helfem::Vector r, wr;
-      helfem::lib1dfem::chebyshev::radial_chebyshev<double>(N, r, wr);
+      helfem::Vec<T> r, wr;
+      helfem::lib1dfem::chebyshev::radial_chebyshev<T>(N, r, wr);
 
       // Integrand
-      helfem::Vector f(N);
+      helfem::Vec<T> f(N);
       for(int i=0;i<N;i++) {
         f(i) = r(i)*phif(r(i));
       }
 
-      return 4.0*M_PI*f.cwiseProduct(f).dot(wr);
+      return T(4)*utils::pi<T>()*f.cwiseProduct(f).dot(wr);
     }
 
-    static double normalization(int N, std::function<double(double)> & phif) {
-      return normalization_chebyshev(N, phif);
-      //return normalization_slice(N, phif);
+    template <typename T>
+    static T normalization(int N, std::function<T(T)> & phif) {
+      return normalization_chebyshev<T>(N, phif);
+      //return normalization_slice<T>(N, phif);
     }
 
-    static double phi_normalization(double a, double b, int N) {
-      std::function<double(double)> phif = [a,b](double r) {return phi(a,b,r);};
-      return normalization(N,phif);
+    template <typename T>
+    static T phi_normalization(T a, T b, int N) {
+      std::function<T(T)> phif = [a,b](T r) {return phi<T>(a,b,r);};
+      return normalization<T>(N,phif);
     }
 
-    static double h_normalization(int N) {
-      std::function<double(double)> phif = [](double r) {return exp(-r)/sqrt(M_PI);};
-      return normalization(N,phif);
-    }
-
-    static double find_b(double a, int N) {
+    template <typename T>
+    static T find_b(T a, int N) {
       // Find b by bracketing; we want the normalization to be
-      const double target=1.0;
+      const T target=T(1);
 
       // The normalization behaves non-linearly in b, so we need to
       // first bracket the location of the targeted value with a brute
       // force search
       size_t Npts=1000;
-      helfem::Matrix norm(Npts,2);
+      helfem::Mat<T> norm(Npts,2);
       // logspace(-3, 1, Npts): Npts points logarithmically spaced between
       // 10^-3 and 10^1. Eigen has no logspace, so build via linspace * ln(10).
-      norm.col(0) = (helfem::Vector::LinSpaced(Npts, -3.0, 1.0).array()
-                        * std::log(10.0)).exp().matrix();
+      norm.col(0) = (helfem::Vec<T>::LinSpaced(Npts, T(-3), T(1)).array()
+                        * std::log(T(10))).exp().matrix();
       for(size_t ip=0; ip<Npts; ip++)
-        norm(ip,1) = phi_normalization(a,norm(ip,0),N);
+        norm(ip,1) = phi_normalization<T>(a,norm(ip,0),N);
 
       // Find the value that is closest to the target
-      const helfem::Vector dnorm = (norm.col(1).array() - target).abs().matrix();
+      const helfem::Vec<T> dnorm = (norm.col(1).array() - target).abs().matrix();
       Eigen::Index idx;
       dnorm.minCoeff(&idx);
 
-      double b_right=norm(idx+1,0);
-      if(phi_normalization(a,b_right,N) > target)
+      T b_right=norm(idx+1,0);
+      if(phi_normalization<T>(a,b_right,N) > target)
         throw std::logic_error("Could not right bracket normalized wf!\n");
-      double b_left=norm(idx-1,0);
-      if(phi_normalization(a,b_left,N) < target)
+      T b_left=norm(idx-1,0);
+      if(phi_normalization<T>(a,b_left,N) < target)
         throw std::logic_error("Could not left bracket normalized wf!\n");
 
-      //printf("bleft = %e normleft = %e bright = %e normright = %e\n", b_left, phi_normalization(a,b_left,N), b_right, phi_normalization(a,b_right,N));
-      double b_middle;
+      T b_middle;
       while(true) {
-        b_middle = (b_left+b_right)/2;
-        double norm = phi_normalization(a,b_middle, N);
-        //printf("Normalization for b=%e is %e, difference from target %e\n",b_middle,norm, norm-target);
-        if(norm == target || std::abs(b_right-b_left) <= 10*DBL_EPSILON*b_middle) {
+        b_middle = (b_left+b_right)/T(2);
+        // Shadows the bracketing table above in the original; renamed.
+        T bnorm = phi_normalization<T>(a,b_middle, N);
+        if(bnorm == target || std::abs(b_right-b_left) <= T(10)*std::numeric_limits<T>::epsilon()*b_middle) {
           break;
-        } else if(norm > target) {
+        } else if(bnorm > target) {
           b_left = b_middle;
         } else {
           b_right = b_middle;
@@ -133,12 +135,14 @@ namespace helfem {
       return b_middle;
     }
 
-    RegularizedNucleus::RegularizedNucleus(int Z_, double a_) : Z(Z_) {
+    template <typename T>
+    RegularizedNucleusT<T>::RegularizedNucleusT(int Z_, T a_) : Z(Z_) {
       // a and b are initialized by set_a
       set_a(a_);
     }
 
-    RegularizedNucleus::~RegularizedNucleus() {
+    template <typename T>
+    RegularizedNucleusT<T>::~RegularizedNucleusT() {
     }
 
     /* Autogenerated C code from Maple with the input
@@ -153,68 +157,83 @@ namespace helfem {
        (* Taylor series at r=0 *)
        p:=r->simplify(convert(series(V(r),r=0,8),polynom));
        C(p(r), declare = [r::numeric], optimize);
+
+       The rational constants Maple emitted as double literals (0.44e2 /
+       0.15e2 and friends) are spelled T(44)/T(15) here so that they are
+       formed at the working precision rather than computed in double and
+       promoted. Each one is an exact ratio of small integers, so the
+       double instantiation is bit-identical to the pre-template code.
     */
 
-    static const double V_analytic(double a, double b, double r) {
-      double t1 = a * a;
-      double t3 = r * r;
-      double t5 = std::exp(t3 * t1);
-      double t6 = 0.1e1 / t5;
-      double t8 = std::erf(a * r);
-      double t13 = std::sqrt(M_PI);
-      double t14 = 0.1e1 / t13;
-      double t20 = t14 * t3;
-      double t21 = t1 * a;
-      double t28 = t1 * t1;
-      double t29 = t28 * t3;
-      double t36 = t5 * t5;
-      double t37 = 0.1e1 / t36;
-      double t38 = b * b;
-      double t51 = t8 * t8;
-      return -0.2e1 * b * t8 * t6 * t1 * r + 0.2e1 * t8 * t6 * a * t14 * r + 0.2e1 * t6 * t21 * t20 - 0.4e1 * t6 * a * t14 - 0.2e1 * b * t6 * t29 + 0.3e1 * b * t6 * t1 + 0.2e1 * t38 * t37 * t29 - 0.4e1 * b * t37 * t21 * t20 + 0.2e1 * t37 * t1 / M_PI * t3 + t51 / 0.2e1 - 0.1e1 / 0.2e1 - t8 / r;
+    template <typename T>
+    static T V_analytic(T a, T b, T r) {
+      T t1 = a * a;
+      T t3 = r * r;
+      T t5 = std::exp(t3 * t1);
+      T t6 = T(1) / t5;
+      T t8 = std::erf(a * r);
+      T t13 = std::sqrt(utils::pi<T>());
+      T t14 = T(1) / t13;
+      T t20 = t14 * t3;
+      T t21 = t1 * a;
+      T t28 = t1 * t1;
+      T t29 = t28 * t3;
+      T t36 = t5 * t5;
+      T t37 = T(1) / t36;
+      T t38 = b * b;
+      T t51 = t8 * t8;
+      return -T(2) * b * t8 * t6 * t1 * r + T(2) * t8 * t6 * a * t14 * r + T(2) * t6 * t21 * t20 - T(4) * t6 * a * t14 - T(2) * b * t6 * t29 + T(3) * b * t6 * t1 + T(2) * t38 * t37 * t29 - T(4) * b * t37 * t21 * t20 + T(2) * t37 * t1 / utils::pi<T>() * t3 + t51 / T(2) - T(1) / T(2) - t8 / r;
     }
 
-    static const double V_taylor(double a, double b, double r) {
-      double t1 = r * r;
-      double t2 = t1 * t1;
-      double t3 = t2 * t1;
-      double t6 = a * a;
-      double t7 = t6 * t6;
-      double t8 = t7 * t7;
-      double t13 = t7 * t6;
-      double t24 = std::sqrt(M_PI);
-      double t25 = t24 * M_PI;
-      return 0.4e1 / t25 * (t25 * (-0.1e1 / 0.8e1 + t8 * (b - 0.3e1 / 0.8e1) * t3 * b - t13 * b * (b - 0.7e1 / 0.8e1) * t2 + t7 * (b - 0.5e1 / 0.2e1) * b * t1 / 0.2e1 + 0.3e1 / 0.4e1 * b * t6) - 0.44e2 / 0.15e2 * a * (t24 * (-0.47e2 / 0.66e2 * t3 * t7 * a + 0.10e2 / 0.11e2 * t2 * t6 * a - 0.15e2 / 0.22e2 * t1 * a) + (0.45e2 / 0.88e2 + t13 * (b - 0.45e2 / 0.308e3) * t3 - 0.25e2 / 0.22e2 * t7 * t2 * (b - 0.63e2 / 0.200e3) + 0.15e2 / 0.22e2 * t6 * (b - 0.5e1 / 0.6e1) * t1) * M_PI));
+    template <typename T>
+    static T V_taylor(T a, T b, T r) {
+      T t1 = r * r;
+      T t2 = t1 * t1;
+      T t3 = t2 * t1;
+      T t6 = a * a;
+      T t7 = t6 * t6;
+      T t8 = t7 * t7;
+      T t13 = t7 * t6;
+      T t24 = std::sqrt(utils::pi<T>());
+      T t25 = t24 * utils::pi<T>();
+      return T(4) / t25 * (t25 * (-T(1) / T(8) + t8 * (b - T(3) / T(8)) * t3 * b - t13 * b * (b - T(7) / T(8)) * t2 + t7 * (b - T(5) / T(2)) * b * t1 / T(2) + T(3) / T(4) * b * t6) - T(44) / T(15) * a * (t24 * (-T(47) / T(66) * t3 * t7 * a + T(10) / T(11) * t2 * t6 * a - T(15) / T(22) * t1 * a) + (T(45) / T(88) + t13 * (b - T(45) / T(308)) * t3 - T(25) / T(22) * t7 * t2 * (b - T(63) / T(200)) + T(15) / T(22) * t6 * (b - T(5) / T(6)) * t1) * utils::pi<T>()));
     }
 
-    double RegularizedNucleus::V(double r) const {
+    template <typename T>
+    T RegularizedNucleusT<T>::V(T r) const {
       /* Gygi eq. 18: V(Z,r) = Z^2 V(1, Zr) */
-      double Zr=Z*r;
-      double val;
-      if(Zr <= std::cbrt(DBL_EPSILON)) {
-        val=modelpotential::V_taylor(a,b,Zr);
-        //printf("Zr= %e taylor %e analytic %e diff %e\n",Zr,val,modelpotential::V_analytic(a,b,Zr),val-modelpotential::V_analytic(a,b,Zr));
+      T Zr=Z*r;
+      T val;
+      if(Zr <= std::cbrt(std::numeric_limits<T>::epsilon())) {
+        val=modelpotential::V_taylor<T>(a,b,Zr);
       } else {
-        val=modelpotential::V_analytic(a,b,Zr);
+        val=modelpotential::V_analytic<T>(a,b,Zr);
       }
-      return std::pow(Z,2)*val;
+      return std::pow(T(Z),2)*val;
     }
 
-    double RegularizedNucleus::get_a() const {
+    template <typename T>
+    T RegularizedNucleusT<T>::get_a() const {
       return a;
     }
 
-    double RegularizedNucleus::get_b() const {
+    template <typename T>
+    T RegularizedNucleusT<T>::get_b() const {
       return b;
     }
 
-    void RegularizedNucleus::set_a(double a_) {
+    template <typename T>
+    void RegularizedNucleusT<T>::set_a(T a_) {
       a = a_;
 
       // Number of quadrature points
       int N = 100;
-      b = find_b(a,N);
-      printf("a = %.15e yields b = %.15e\n",a,b);
+      b = find_b<T>(a,N);
+      // printf is a double-only boundary; cast there and nowhere else.
+      printf("a = %.15e yields b = %.15e\n",(double) a,(double) b);
     }
+
+    template class RegularizedNucleusT<double>;
+    template class RegularizedNucleusT<long double>;
   }
 }

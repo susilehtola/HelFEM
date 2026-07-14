@@ -20,23 +20,27 @@
 namespace helfem {
   namespace modelpotential {
     /// Thin hollow nucleus
-    class HollowNucleus : public ModelPotential {
+    template <typename T>
+    class HollowNucleusT : public ModelPotentialT<T> {
       /// Charge
       int Z;
       /// Size
-      double R;
+      T R;
     public:
       /// Constructor
-      HollowNucleus(int Z, double R);
+      HollowNucleusT(int Z, T R);
       /// Destructor
-      ~HollowNucleus();
+      ~HollowNucleusT();
       /// Potential
-      double V(double r) const override;
+      T V(T r) const override;
       /// Get R
-      double get_R() const;
+      T get_R() const;
       /// Set R
-      void set_R(double R);
+      void set_R(T R);
     };
+
+    /// The double instantiation, which every existing caller uses.
+    using HollowNucleus = HollowNucleusT<double>;
   }
 }
 

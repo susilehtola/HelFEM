@@ -20,23 +20,27 @@
 namespace helfem {
   namespace modelpotential {
     /// Uniformly charged spherical nucleus
-    class SphericalNucleus : public ModelPotential {
+    template <typename T>
+    class SphericalNucleusT : public ModelPotentialT<T> {
       /// Charge
       int Z;
       /// Size
-      double R0;
+      T R0;
     public:
       /// Constructor
-      SphericalNucleus(int Z, double Rrms);
+      SphericalNucleusT(int Z, T Rrms);
       /// Destructor
-      ~SphericalNucleus();
+      ~SphericalNucleusT();
       /// Potential
-      double V(double r) const override;
+      T V(T r) const override;
       /// Get R0
-      double get_R0() const;
+      T get_R0() const;
       /// Set R0
-      void set_R0(double R0);
+      void set_R0(T R0);
     };
+
+    /// The double instantiation, which every existing caller uses.
+    using SphericalNucleus = SphericalNucleusT<double>;
   }
 }
 

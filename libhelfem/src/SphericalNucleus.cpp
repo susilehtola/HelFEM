@@ -17,30 +17,38 @@
 
 namespace helfem {
   namespace modelpotential {
-    SphericalNucleus::SphericalNucleus(int Z_, double Rrms) : Z(Z_) {
+    template <typename T>
+    SphericalNucleusT<T>::SphericalNucleusT(int Z_, T Rrms) : Z(Z_) {
       // Eqn (4) in Visscher-Dyall 1997
-      R0 = sqrt(5.0/3.0)*Rrms;
+      R0 = std::sqrt(T(5)/T(3))*Rrms;
     }
 
-    SphericalNucleus::~SphericalNucleus() {
+    template <typename T>
+    SphericalNucleusT<T>::~SphericalNucleusT() {
     }
 
-    double SphericalNucleus::V(double r) const {
+    template <typename T>
+    T SphericalNucleusT<T>::V(T r) const {
       if(r>=R0) {
         // See full charge, eqn (7a) in Visscher-Dyall 1997
         return -Z/r;
       } else {
         // See only charge inside, eqn (7b) in Visscher-Dyall 1997
-        return -Z/(2.0*R0)*(3.0-std::pow(r/R0,2));
+        return -Z/(T(2)*R0)*(T(3)-std::pow(r/R0,2));
       }
     }
 
-    double SphericalNucleus::get_R0() const {
+    template <typename T>
+    T SphericalNucleusT<T>::get_R0() const {
       return R0;
     }
 
-    void SphericalNucleus::set_R0(double R0_) {
+    template <typename T>
+    void SphericalNucleusT<T>::set_R0(T R0_) {
       R0=R0_;
     }
+
+    template class SphericalNucleusT<double>;
+    template class SphericalNucleusT<long double>;
   }
 }

@@ -17,17 +17,26 @@
 
 namespace helfem {
   namespace modelpotential {
-    /// Model potential
-    class ModelPotential {
+    /// Model potential.
+    ///
+    /// Templated on the scalar type, following FiniteElementBasisT<T>: the
+    /// potential is evaluated inside the radial quadrature, so pinning it to
+    /// double would cap the precision of an otherwise long-double
+    /// FEMRadialBasisT<long double>. Instantiated for double and long double.
+    template <typename T>
+    class ModelPotentialT {
     public:
       /// Constructor
-      ModelPotential();
+      ModelPotentialT();
       /// Destructor
-      virtual ~ModelPotential();
+      virtual ~ModelPotentialT();
 
       /// Potential at a single radial point.
-      virtual double V(double r) const = 0;
+      virtual T V(T r) const = 0;
     };
+
+    /// The double instantiation, which every existing caller uses.
+    using ModelPotential = ModelPotentialT<double>;
   }
 }
 

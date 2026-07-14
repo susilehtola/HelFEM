@@ -23,10 +23,24 @@ namespace helfem {
     /// inverse cosh
     double arcosh(double x);
 
+    // Mathematical constants at the working precision. <cmath>'s M_PI /
+    // M_2_SQRTPI are double-precision macros, which would silently pin a
+    // long double computation to double accuracy. The long-double literals
+    // below round to exactly M_PI / M_2_SQRTPI at T = double, so the
+    // double instantiation is bit-identical to the pre-template code.
+    /// pi
+    template <typename T> inline T pi() {
+      return T(3.14159265358979323846264338327950288419716939937510L);
+    }
+    /// 2/sqrt(pi)
+    template <typename T> inline T two_over_sqrtpi() {
+      return T(1.12837916709551257389615890312154517168810125865800L);
+    }
+
     /// Modified Bessel function
-    double bessel_il(double x, int L);
+    template <typename T> T bessel_il(T x, int L);
     /// Modified Bessel function
-    double bessel_kl(double x, int L);
+    template <typename T> T bessel_kl(T x, int L);
 
     /// Permute indices (ij|kl) -> (jk|il).
     helfem::Matrix exchange_tei(const helfem::Matrix & tei,

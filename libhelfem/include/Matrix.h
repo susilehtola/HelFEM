@@ -84,6 +84,15 @@ namespace helfem {
   using Vector    = VectorT<double>;
   using RowVector = RowVectorT<double>;
 
+  // Non-deduced context helper. std::type_identity is C++20 and HelFEM
+  // is C++17, so roll our own. Used in the templated free functions
+  // (quadrature::*) to keep the scalar arguments (rmin, rmax, lambda,
+  // ...) from participating in template argument deduction: callers pass
+  // int / double literals there, which would otherwise clash with the T
+  // deduced from the Vec<T> arguments.
+  template <typename T> struct TypeIdentity { using type = T; };
+  template <typename T> using NonDeduced = typename TypeIdentity<T>::type;
+
   /// Integer vectors stay scalar-free; no template parameter needed.
   using IVector   = Eigen::Matrix<long long, Eigen::Dynamic, 1>;
   using UVector   = Eigen::Matrix<unsigned long long, Eigen::Dynamic, 1>;

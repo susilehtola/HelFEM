@@ -17,14 +17,20 @@
 
 namespace helfem {
   namespace modelpotential {
-    PointNucleus::PointNucleus(int Z_) : Z(Z_) {
+    template <typename T>
+    PointNucleusT<T>::PointNucleusT(int Z_) : Z(Z_) {
     }
 
-    PointNucleus::~PointNucleus() {
+    template <typename T>
+    PointNucleusT<T>::~PointNucleusT() {
     }
 
-    double PointNucleus::V(double R) const {
+    template <typename T>
+    T PointNucleusT<T>::V(T R) const {
       return -Z/R;
     }
+
+    template class PointNucleusT<double>;
+    template class PointNucleusT<long double>;
   }
 }

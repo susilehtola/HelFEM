@@ -21,16 +21,24 @@
 
 namespace helfem {
   namespace utils {
-    // Scalar-only wrappers around the templated lib1dfem math helpers.
+    // Thin wrappers around the templated lib1dfem math helpers.
+    // arcosh is only ever used from the diatomic driver at double, so it
+    // stays a scalar function; the Bessel functions are called from the
+    // templated radial layer and follow the scalar type.
     double arcosh(double x) {
       return helfem::lib1dfem::math::arcosh<double>(x);
     }
-    double bessel_il(double r, int L) {
-      return helfem::lib1dfem::math::bessel_il<double>(r, L);
+    template <typename T> T bessel_il(T r, int L) {
+      return helfem::lib1dfem::math::bessel_il<T>(r, L);
     }
-    double bessel_kl(double r, int L) {
-      return helfem::lib1dfem::math::bessel_kl<double>(r, L);
+    template <typename T> T bessel_kl(T r, int L) {
+      return helfem::lib1dfem::math::bessel_kl<T>(r, L);
     }
+
+    template double      bessel_il<double>     (double, int);
+    template long double bessel_il<long double>(long double, int);
+    template double      bessel_kl<double>     (double, int);
+    template long double bessel_kl<long double>(long double, int);
 
     helfem::Matrix exchange_tei(const helfem::Matrix & tei,
                                  size_t Ni, size_t Nj, size_t Nk, size_t Nl) {

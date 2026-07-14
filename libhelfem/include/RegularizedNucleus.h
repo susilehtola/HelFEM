@@ -22,25 +22,29 @@ namespace helfem {
     /** Regularized nucleus, i.e. Gygi's Analytic Norm-Conserving
         Regularized Potential from doi:10.1021/acs.jctc.2c01191.
      */
-    class RegularizedNucleus : public ModelPotential {
+    template <typename T>
+    class RegularizedNucleusT : public ModelPotentialT<T> {
       /// Charge
       int Z;
       /// Size parameters
-      double a, b;
+      T a, b;
     public:
       /// Constructor
-      RegularizedNucleus(int Z, double a);
+      RegularizedNucleusT(int Z, T a);
       /// Destructor
-      ~RegularizedNucleus();
+      ~RegularizedNucleusT();
       /// Potential
-      double V(double r) const override;
+      T V(T r) const override;
       /// Get a
-      double get_a() const;
+      T get_a() const;
       /// Get b
-      double get_b() const;
+      T get_b() const;
       /// Set mu
-      void set_a(double a);
+      void set_a(T a);
     };
+
+    /// The double instantiation, which every existing caller uses.
+    using RegularizedNucleus = RegularizedNucleusT<double>;
   }
 }
 
