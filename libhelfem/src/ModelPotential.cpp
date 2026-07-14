@@ -26,5 +26,8 @@ namespace helfem {
 
     template class ModelPotentialT<double>;
     template class ModelPotentialT<long double>;
+#ifdef HELFEM_HAVE_FLOAT128
+    template class ModelPotentialT<_Float128>;
+#endif
   }
 }

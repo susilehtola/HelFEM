@@ -50,5 +50,8 @@ namespace helfem {
 
     template class SphericalNucleusT<double>;
     template class SphericalNucleusT<long double>;
+#ifdef HELFEM_HAVE_FLOAT128
+    template class SphericalNucleusT<_Float128>;
+#endif
   }
 }

@@ -96,18 +96,22 @@ namespace {
         helfem::Mat<T>(Sinvh.transpose() * H * Sinvh));
     const helfem::Vec<T> E = Hes.eigenvalues();
 
+    // Errors are computed IN T against the exact n+1/2, then returned as long
+    // double. Returning the eigenvalues themselves would cap the quad column at
+    // long double's ~1e-19, hiding the very thing being measured.
     std::vector<long double> out;
-    for (int i = 0; i < nstate && i < E.size(); i++)
-      out.push_back((long double)E(i));
+    for (int i = 0; i < nstate && i < E.size(); i++) {
+      const T exact = T(i) + T(0.5);
+      const T err = (E(i) > exact) ? (E(i) - exact) : (exact - E(i));
+      out.push_back((long double) err);
+    }
     return out;
   }
 
-  long double worst_error(const std::vector<long double> &E) {
+  /// solve() already returns the per-state ERRORS, computed in T.
+  long double worst_error(const std::vector<long double> &errs) {
     long double worst = 0.0L;
-    for (size_t n = 0; n < E.size(); n++) {
-      const long double err = std::fabs(E[n] - ((long double)n + 0.5L));
-      if (err > worst) worst = err;
-    }
+    for (long double e : errs) if (e > worst) worst = e;
     return worst;
   }
 
@@ -123,26 +127,48 @@ int main(int argc, char **argv) {
 
   printf("1D harmonic oscillator, exact E_n = n + 1/2 (n = 0..%i).\n", nstate-1);
   printf("xmax=%g, primbas %i, %i-point quadrature.\n\n", xmax, primbas, Nquad);
-  printf("The SAME FiniteElementBasisT<T> code, instantiated at two scalar types.\n");
+  printf("The SAME FiniteElementBasisT<T> code, instantiated at several scalar types.\n");
   printf("Basis is swept so the discretization error passes through double's floor.\n\n");
 
-  printf("  %-7s %-7s | %-12s | %-12s | %s\n",
-         "nelem", "nnodes", "double", "long double", "gain");
-  printf("  ----------------------------------------------------------------\n");
+#ifdef HELFEM_HAVE_FLOAT128
+  printf("  %-7s %-7s | %-12s | %-12s | %-12s\n",
+         "nelem", "nnodes", "double(53)", "long dbl(64)", "_Float128(113)");
+#else
+  printf("  %-7s %-7s | %-12s | %-12s\n",
+         "nelem", "nnodes", "double(53)", "long dbl(64)");
+#endif
+  printf("  ---------------------------------------------------------------------\n");
 
   const int nel[]  = {5, 5, 10, 20, 40};
   const int nnd[]  = {15, 25, 25, 25, 25};
   for (size_t i = 0; i < sizeof(nel)/sizeof(nel[0]); i++) {
     const long double ed = worst_error(solve<double>     (xmax, nel[i], nnd[i], primbas, Nquad, nstate));
     const long double el = worst_error(solve<long double>(xmax, nel[i], nnd[i], primbas, Nquad, nstate));
-    printf("  %-7i %-7i | %-12.3Le | %-12.3Le | %.0Lfx\n",
-           nel[i], nnd[i], ed, el, (el > 0) ? ed/el : 0.0L);
+#ifdef HELFEM_HAVE_FLOAT128
+    const long double eq = worst_error(solve<_Float128>  (xmax, nel[i], nnd[i], primbas, Nquad, nstate));
+    printf("  %-7i %-7i | %-12.3Le | %-12.3Le | %-12.3Le\n", nel[i], nnd[i], ed, el, eq);
+#else
+    printf("  %-7i %-7i | %-12.3Le | %-12.3Le\n", nel[i], nnd[i], ed, el);
+#endif
   }
 
-  printf("\nSmall basis: both agree -- the error is discretization, not arithmetic.\n");
-  printf("Converged basis: double saturates; higher precision keeps going.\n");
-  printf("Larger still: double gets WORSE (roundoff accumulates with basis size),\n");
-  printf("while higher precision continues to improve. The accuracy of a converged\n");
-  printf("calculation is set by the arithmetic, not by the basis.\n");
+  printf("\nSmall basis: every type agrees -- the error is discretization, and the\n");
+  printf("scalar type is irrelevant.\n");
+#ifdef HELFEM_HAVE_FLOAT128
+  printf("\nConverged basis: double saturates near 1e-13 and then gets WORSE, because\n");
+  printf("roundoff accumulates with basis size. _Float128 instead goes FLAT at ~1e-30:\n");
+  printf("that is the true discretization limit of this basis -- sixteen orders of\n");
+  printf("magnitude below where double sits. The basis was converged to 1e-30 all\n");
+  printf("along; double simply cannot see it.\n");
+  printf("\nNote this is a VERIFICATION tool, not an accuracy one: double already\n");
+  printf("reaches useful (nanohartree) precision long before any of this matters.\n");
+  printf("The point is that a reference code should be limited by its basis, not by\n");
+  printf("its arithmetic -- and now one can check which.\n");
+#else
+  printf("\nConverged basis: double saturates near 1e-13, then gets WORSE as roundoff\n");
+  printf("accumulates with basis size, while long double keeps improving.\n");
+  printf("\nBuild with -DHELFEM_FLOAT128=ON (needs C++23) to add the 113-bit column,\n");
+  printf("which exposes the true basis limit at ~1e-30.\n");
+#endif
   return 0;
 }

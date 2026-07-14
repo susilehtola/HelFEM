@@ -767,6 +767,9 @@ namespace helfem {
       // Explicit instantiations. The scalar types HelFEM is built for.
       template class FEMRadialBasisT<double>;
       template class FEMRadialBasisT<long double>;
+#ifdef HELFEM_HAVE_FLOAT128
+      template class FEMRadialBasisT<_Float128>;
+#endif
     } // namespace basis
   } // namespace atomic
 } // namespace helfem

@@ -32,5 +32,8 @@ namespace helfem {
 
     template class PointNucleusT<double>;
     template class PointNucleusT<long double>;
+#ifdef HELFEM_HAVE_FLOAT128
+    template class PointNucleusT<_Float128>;
+#endif
   }
 }

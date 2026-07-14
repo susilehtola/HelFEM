@@ -73,11 +73,14 @@ namespace helfem {
         const helfem::Vec<T> rrh = eval_coord(xrh, iel + 1);
         const double dr = (rlh - rrh).norm();
         if(dr > 10*DBL_EPSILON*(1+rlh.norm())) {
-          std::cout << "rlh:\n"     << rlh.transpose()       << "\n";
-          std::cout << "rrh:\n"     << rrh.transpose()       << "\n";
-          std::cout << "rrh-rlh:\n" << (rrh-rlh).transpose() << "\n";
+          std::cout << "rlh:\n"     << rlh.template cast<double>().transpose()       << "\n";
+          std::cout << "rrh:\n"     << rrh.template cast<double>().transpose()       << "\n";
+          std::cout << "rrh-rlh:\n" << (rrh-rlh).template cast<double>().transpose() << "\n";
           std::ostringstream oss;
-          oss << "Coordinates do not match between elements " << iel << " and " << iel+1 << ", difference " << dr << " tolerance " << 100*DBL_EPSILON*rlh.norm() << "!\n";
+          // Narrow at the diagnostic boundary only: _Float128 has no
+          // unambiguous operator<< in libstdc++. Never narrow in the
+          // computation itself.
+          oss << "Coordinates do not match between elements " << iel << " and " << iel+1 << ", difference " << (double) dr << " tolerance " << (double)(100*DBL_EPSILON*rlh.norm()) << "!\n";
           throw std::logic_error(oss.str());
         }
 
@@ -108,9 +111,9 @@ namespace helfem {
         dnorm(iel) = diff.norm();
         if(dnorm(iel) > sqrt(DBL_EPSILON)) {
           printf("Discontinuity between elements %i and %i (C indexing)\n",(int) iel,(int) iel+1);
-          std::cout << "lh values:\n" << lh   << "\n";
-          std::cout << "rh values:\n" << rh   << "\n";
-          std::cout << "difference:\n" << diff << "\n";
+          std::cout << "lh values:\n" << lh.template cast<double>()   << "\n";
+          std::cout << "rh values:\n" << rh.template cast<double>()   << "\n";
+          std::cout << "difference:\n" << diff.template cast<double>() << "\n";
           // printf is a double-only boundary: %e consumes a double, so a
           // T = long double argument is undefined behaviour (it printed
           // garbage denormals). Cast here and nowhere else.
@@ -354,7 +357,7 @@ namespace helfem {
       if (std::abs(element_begin(iel)) > 1e-14) {
         std::ostringstream oss;
         oss << "FiniteElementBasisT<T>::eval_over_r is only valid when the element starts at r=0;"
-            " element " << iel << " starts at " << element_begin(iel) << ".\n";
+            " element " << iel << " starts at " << (double) element_begin(iel) << ".\n";
         throw std::logic_error(oss.str());
       }
       std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> p(get_basis(iel));
@@ -502,5 +505,8 @@ namespace helfem {
     // these are the precisions HelFEM is built for.
     template class FiniteElementBasisT<double>;
     template class FiniteElementBasisT<long double>;
+#ifdef HELFEM_HAVE_FLOAT128
+    template class FiniteElementBasisT<_Float128>;
+#endif
   }
 }

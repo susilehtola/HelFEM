@@ -235,5 +235,8 @@ namespace helfem {
 
     template class RegularizedNucleusT<double>;
     template class RegularizedNucleusT<long double>;
+#ifdef HELFEM_HAVE_FLOAT128
+    template class RegularizedNucleusT<_Float128>;
+#endif
   }
 }
