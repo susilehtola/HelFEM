@@ -152,8 +152,8 @@ namespace helfem {
             helfem::Vector wtot(wproj*intlen);
             wtot.array() *= mu.array().sinh();
             if(n!=0) wtot.array() *= mu.array().cosh().pow((double) n);
-            helfem::Matrix ibf(fem.eval_f(xi, iel));
-            helfem::Matrix jbf(rh.fem.eval_f(xj, jel));
+            helfem::Matrix ibf(fem.eval_dnf(xi, 0, iel));
+            helfem::Matrix jbf(rh.fem.eval_dnf(xj, 0, jel));
             helfem::Matrix s(ibf.transpose()*wtot.asDiagonal()*jbf);
             S.block(ifirst, jfirst, ilast-ifirst+1, jlast-jfirst+1) += s;
           }
@@ -250,15 +250,15 @@ namespace helfem {
       }
 
       helfem::Matrix RadialBasis::get_bf(size_t iel, const helfem::Vector & x) const {
-        return fem.eval_f(x, iel);
+        return fem.eval_dnf(x, 0, iel);
       }
 
       helfem::Matrix RadialBasis::get_df(size_t iel) const {
-        return fem.eval_df(xq, iel);
+        return fem.eval_dnf(xq, 1, iel);
       }
 
       helfem::Matrix RadialBasis::get_d2f(size_t iel) const {
-        return fem.eval_d2f(xq, iel);
+        return fem.eval_dnf(xq, 2, iel);
       }
 
       helfem::Vector RadialBasis::get_wrad(size_t iel) const {

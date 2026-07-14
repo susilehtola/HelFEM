@@ -128,33 +128,16 @@ namespace helfem {
       /// Get number of elements
       size_t get_nelem() const;
 
-      /// Evaluate polynomials at given points
-      void eval_f  (const helfem::Vec<T> & x, helfem::Mat<T> & f,   size_t iel) const;
-      /// Evaluate derivatives of polynomials at given points
-      void eval_df (const helfem::Vec<T> & x, helfem::Mat<T> & df,  size_t iel) const;
-      /// Evaluate second derivatives of polynomials at given points
-      void eval_d2f(const helfem::Vec<T> & x, helfem::Mat<T> & d2f, size_t iel) const;
-      /// Evaluate third derivatives of polynomials at given points
-      void eval_d3f(const helfem::Vec<T> & x, helfem::Mat<T> & d3f, size_t iel) const;
-      /// Evaluate fourth derivatives of polynomials at given points
-      void eval_d4f(const helfem::Vec<T> & x, helfem::Mat<T> & d4f, size_t iel) const;
-      /// Evaluate fifth derivatives of polynomials at given points
-      void eval_d5f(const helfem::Vec<T> & x, helfem::Mat<T> & d5f, size_t iel) const;
       /// Evaluate nth derivative
+      /// Evaluate the n-th derivative of the basis functions in element iel.
+      ///
+      /// This is the ONLY evaluation entry point. The fixed-order wrappers
+      /// (eval_f, eval_df, eval_d2f ... eval_d5f) are gone: they were a dozen
+      /// one-line aliases for this, they had to be extended by hand every time
+      /// a higher derivative was wanted, and eval_d3f/d4f/d5f were never called
+      /// at all. The generated code dispatches on n internally.
       void eval_dnf(const helfem::Vec<T> & x, helfem::Mat<T> & dnf, int n, size_t iel) const;
 
-      /// Evaluate polynomials at given points
-      helfem::Mat<T> eval_f  (const helfem::Vec<T> & x, size_t iel) const;
-      /// Evaluate derivatives of polynomials at given points
-      helfem::Mat<T> eval_df (const helfem::Vec<T> & x, size_t iel) const;
-      /// Evaluate second derivatives of polynomials at given points
-      helfem::Mat<T> eval_d2f(const helfem::Vec<T> & x, size_t iel) const;
-      /// Evaluate third derivatives of polynomials at given points
-      helfem::Mat<T> eval_d3f(const helfem::Vec<T> & x, size_t iel) const;
-      /// Evaluate fourth derivatives of polynomials at given points
-      helfem::Mat<T> eval_d4f(const helfem::Vec<T> & x, size_t iel) const;
-      /// Evaluate fifth derivatives of polynomials at given points
-      helfem::Mat<T> eval_d5f(const helfem::Vec<T> & x, size_t iel) const;
       /// Evaluate nth derivative
       helfem::Mat<T> eval_dnf(const helfem::Vec<T> & x, int n, size_t iel) const;
 

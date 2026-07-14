@@ -117,13 +117,13 @@ namespace helfem {
         using BK = typename FEMRadialBasisT<T>::BasisKind;
         switch (k) {
           case BK::B0: return [rb](helfem::Vec<T> x, size_t iel) {
-            return rb->get_fem().eval_f(x, iel);
+            return rb->get_fem().eval_dnf(x, 0, iel);
           };
           case BK::B1: return [rb](helfem::Vec<T> x, size_t iel) {
-            return rb->get_fem().eval_df(x, iel);
+            return rb->get_fem().eval_dnf(x, 1, iel);
           };
           case BK::B2: return [rb](helfem::Vec<T> x, size_t iel) {
-            return rb->get_fem().eval_d2f(x, iel);
+            return rb->get_fem().eval_dnf(x, 2, iel);
           };
           case BK::R0: return [rb](helfem::Vec<T> x, size_t iel) {
             return rb->get_bf(x, iel);
@@ -188,9 +188,9 @@ namespace helfem {
                                       typename FEMRadialBasisT<T>::BasisKind k) {
         using BK = typename FEMRadialBasisT<T>::BasisKind;
         switch (k) {
-          case BK::B0: return fem.eval_f  (x, iel);
-          case BK::B1: return fem.eval_df (x, iel);
-          case BK::B2: return fem.eval_d2f(x, iel);
+          case BK::B0: return fem.eval_dnf(x, 0, iel);
+          case BK::B1: return fem.eval_dnf(x, 1, iel);
+          case BK::B2: return fem.eval_dnf(x, 2, iel);
           case BK::R0: case BK::R1: case BK::R2:
             throw std::logic_error(
                 "FEMRadialBasisT::matrix_element(cross-basis): R-kinds are not "
@@ -560,7 +560,7 @@ namespace helfem {
         // Phase 5.8: local scratch is now native Eigen.
         helfem::Vec<T> xi, wi;
         helfem::lib1dfem::chebyshev::chebyshev<T>((int) Nq, xi, wi);
-        helfem::Mat<T> ibf = fem.eval_f(xi, iel);
+        helfem::Mat<T> ibf = fem.eval_dnf(xi, 0, iel);
         const T Rmini = fem.element_begin(iel);
         const T Rmaxi = fem.element_end(iel);
 
@@ -575,7 +575,7 @@ namespace helfem {
               = helfem::Vec<T>::Constant((Eigen::Index) Nq, imid) + xi * ilen;
           wk.segment((Eigen::Index)(ii * Nq), (Eigen::Index) Nq) = wi * ilen;
         }
-        const helfem::Mat<T> kbf = fem.eval_f(xk, kel);
+        const helfem::Mat<T> kbf = fem.eval_dnf(xk, 0, kel);
         const T Rmink = fem.element_begin(kel);
         const T Rmaxk = fem.element_end(kel);
 
@@ -633,7 +633,7 @@ namespace helfem {
       helfem::Mat<T> FEMRadialBasisT<T>::get_bf(const helfem::Vec<T> & x, size_t iel) const {
         if (iel == 0)
           return fem.eval_over_r(x, 0, iel);
-        helfem::Mat<T> val = fem.eval_f(x, iel);
+        helfem::Mat<T> val = fem.eval_dnf(x, 0, iel);
         const helfem::Vec<T> r = fem.eval_coord(x, iel);
         for (Eigen::Index ifun = 0; ifun < val.cols(); ++ifun)
           for (Eigen::Index ir = 0; ir < val.rows(); ++ir)
@@ -650,8 +650,8 @@ namespace helfem {
       helfem::Mat<T> FEMRadialBasisT<T>::get_df(const helfem::Vec<T> & x, size_t iel) const {
         if (iel == 0)
           return fem.eval_over_r(x, 1, iel);
-        helfem::Mat<T> fval = fem.eval_f (x, iel);
-        helfem::Mat<T> dval = fem.eval_df(x, iel);
+        helfem::Mat<T> fval = fem.eval_dnf(x, 0, iel);
+        helfem::Mat<T> dval = fem.eval_dnf(x, 1, iel);
         const helfem::Vec<T> r = fem.eval_coord(x, iel);
         helfem::Mat<T> der(fval.rows(), fval.cols());
         for (Eigen::Index ifun = 0; ifun < der.cols(); ++ifun)
@@ -671,9 +671,9 @@ namespace helfem {
       helfem::Mat<T> FEMRadialBasisT<T>::get_lf(const helfem::Vec<T> & x, size_t iel) const {
         if (iel == 0)
           return fem.eval_over_r(x, 2, iel);
-        helfem::Mat<T> fval = fem.eval_f  (x, iel);
-        helfem::Mat<T> dval = fem.eval_df (x, iel);
-        helfem::Mat<T> lval = fem.eval_d2f(x, iel);
+        helfem::Mat<T> fval = fem.eval_dnf(x, 0, iel);
+        helfem::Mat<T> dval = fem.eval_dnf(x, 1, iel);
+        helfem::Mat<T> lval = fem.eval_dnf(x, 2, iel);
         const helfem::Vec<T> r = fem.eval_coord(x, iel);
         helfem::Mat<T> lapl(fval.rows(), fval.cols());
         for (Eigen::Index ifun = 0; ifun < lapl.cols(); ++ifun)
@@ -725,7 +725,7 @@ namespace helfem {
           throw std::logic_error("nuclear_density expects a radial density matrix\n");
 
         // Derivative at nucleus.
-        const helfem::Mat<T> der = fem.eval_df(nuclear_x<T>(), (size_t) 0);
+        const helfem::Mat<T> der = fem.eval_dnf(nuclear_x<T>(), 1, (size_t) 0);
         // First-element radial index range.
         size_t ifirst, ilast;
         get_idx(0, ifirst, ilast);
@@ -743,8 +743,8 @@ namespace helfem {
           throw std::logic_error("nuclear_density_gradient expects a radial density matrix\n");
 
         const helfem::Vec<T> xn = nuclear_x<T>();
-        const helfem::Mat<T> der  = fem.eval_df (xn, (size_t) 0);
-        const helfem::Mat<T> lapl = fem.eval_d2f(xn, (size_t) 0);
+        const helfem::Mat<T> der  = fem.eval_dnf(xn, 1, (size_t) 0);
+        const helfem::Mat<T> lapl = fem.eval_dnf(xn, 2, (size_t) 0);
         size_t ifirst, ilast;
         get_idx(0, ifirst, ilast);
         const Eigen::Index n = static_cast<Eigen::Index>(ilast - ifirst + 1);
@@ -755,7 +755,7 @@ namespace helfem {
 
       template <typename T>
       helfem::RowVec<T> FEMRadialBasisT<T>::nuclear_orbital(const helfem::Mat<T> &C) const {
-        const helfem::Mat<T> der = fem.eval_df(nuclear_x<T>(), (size_t) 0);
+        const helfem::Mat<T> der = fem.eval_dnf(nuclear_x<T>(), 1, (size_t) 0);
         size_t ifirst, ilast;
         get_idx(0, ifirst, ilast);
         const Eigen::Index n = static_cast<Eigen::Index>(ilast - ifirst + 1);
