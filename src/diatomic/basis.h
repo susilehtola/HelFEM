@@ -115,7 +115,7 @@ namespace helfem {
       bool operator==(const lmidx_t & lh, const lmidx_t & rh);
 
       /// l(m) array to l, m arrays
-      void lm_to_l_m(const arma::ivec & lmmax, arma::ivec & lval, arma::ivec & mval);
+      void lm_to_l_m(const Eigen::VectorXi & lmmax, Eigen::VectorXi & lval, Eigen::VectorXi & mval);
 
       /// Two-dimensional basis set
       class TwoDBasis {
@@ -202,7 +202,7 @@ namespace helfem {
         // Dummy constructor
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z1, int Z2, double Rhalf, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, const arma::ivec & lval, const arma::ivec & mval, bool legendre=true);
+        TwoDBasis(int Z1, int Z2, double Rhalf, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const helfem::Vector & bval, const Eigen::VectorXi & lval, const Eigen::VectorXi & mval, bool legendre=true);
         /// Destructor
         ~TwoDBasis();
 
@@ -318,11 +318,11 @@ namespace helfem {
         std::pair<double,double> check_cd(size_t iel, int L, int M) const;
 
         /// Get indices of basis functions with wanted m quantum number
-        arma::uvec m_indices(int m) const;
+        std::vector<Eigen::Index> m_indices(int m) const;
         /// Get indices of basis functions with wanted m quantum number and parity
-        arma::uvec m_indices(int m, bool odd) const;
-        /// Get indices for wanted symmetry
-        std::vector<arma::uvec> get_sym_idx(int isym) const;
+        std::vector<Eigen::Index> m_indices(int m, bool odd) const;
+        /// Get indices for wanted symmetry (one index list per block)
+        std::vector<std::vector<Eigen::Index>> get_sym_idx(int isym) const;
 
         /// Evaluate basis functions at quadrature points
         arma::cx_mat eval_bf(size_t iel, size_t irad, double cth, double phi) const;

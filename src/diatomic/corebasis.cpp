@@ -32,16 +32,16 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
 
   double Rhalf=0.5*Rbond;
   double mumax(utils::arcosh(Rmax/Rhalf));
-  arma::vec bval(atomic::basis::normal_grid(Nelem, mumax, igrid, zexp));
+  const helfem::Vector bval = atomic::basis::normal_grid(Nelem, mumax, igrid, zexp);
 
-  arma::ivec lval, mval;
-  diatomic::basis::lm_to_l_m(lmmax,lval,mval);
+  Eigen::VectorXi lval, mval;
+  diatomic::basis::lm_to_l_m(helfem::to_eigen(lmmax),lval,mval);
 
   diatomic::basis::TwoDBasis basis(Z1, Z2, Rhalf, poly, Nquad, bval, lval, mval, false);
 
   bool diag=true;
   // Symmetry indices
-  std::vector<arma::uvec> dsym=basis.get_sym_idx(symm);
+  std::vector<std::vector<Eigen::Index>> dsym=basis.get_sym_idx(symm);
 
   // Form overlap matrix
   arma::mat S(helfem::to_arma(basis.overlap()));

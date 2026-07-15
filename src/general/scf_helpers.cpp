@@ -26,13 +26,6 @@ namespace helfem {
     // Phase 5.10: Eigen-typed.
 
     namespace {
-      // Convert one arma::uvec (chemistry-side index list) to a vector
-      // of Eigen::Index, suitable for Eigen 3.4 (rows/cols) indexing.
-      inline std::vector<Eigen::Index> uvec_to_indices(const arma::uvec & u) {
-        std::vector<Eigen::Index> v(u.n_elem);
-        for (size_t i = 0; i < u.n_elem; ++i) v[i] = static_cast<Eigen::Index>(u(i));
-        return v;
-      }
       // Sort indices ascending by E values.
       inline std::vector<Eigen::Index> sort_index_ascending(const helfem::Vector & E) {
         std::vector<Eigen::Index> idx(E.size());
@@ -57,18 +50,17 @@ namespace helfem {
       C = Sinvh * es.eigenvectors();
     }
 
-    // Phase 5.12: Eigen matrices; m_idx kept arma::uvec until TwoDBasis
-    // ::get_sym_idx migrates.
+    // Eigen matrices; m_idx is a per-symmetry list of Eigen index lists.
     void eig_gsym_sub(helfem::Vector & E, helfem::Matrix & C,
                       const helfem::Matrix & F, const helfem::Matrix & Sinvh,
-                      const std::vector<arma::uvec> & m_idx, bool verbose) {
+                      const std::vector<std::vector<Eigen::Index>> & m_idx, bool verbose) {
       (void) verbose;
       E = helfem::Vector::Zero(F.rows());
       C = helfem::Matrix::Zero(F.rows(), F.rows());
 
       Eigen::Index iidx = 0;
       for (size_t isym = 0; isym < m_idx.size(); ++isym) {
-        const auto rows = uvec_to_indices(m_idx[isym]);
+        const std::vector<Eigen::Index> & rows = m_idx[isym];
         // Scmp = Sinvh(rows, :).
         const helfem::Matrix Scmp = Sinvh(rows, Eigen::all);
         // Snrm(j) = ||Scmp.col(j)||.
@@ -112,18 +104,18 @@ namespace helfem {
     // Phase 5.13: Eigen-typed.
 
     helfem::Matrix fock_symmetry_average(const helfem::Matrix & Fin,
-                                          const std::vector< std::vector<arma::uvec> > & sym_idx) {
+                                          const std::vector< std::vector<std::vector<Eigen::Index>> > & sym_idx) {
       helfem::Matrix Fout = Fin;
       for (size_t isym = 0; isym < sym_idx.size(); ++isym) {
-        const Eigen::Index n = static_cast<Eigen::Index>(sym_idx[isym][0].n_elem);
+        const Eigen::Index n = static_cast<Eigen::Index>(sym_idx[isym][0].size());
         helfem::Matrix Fmean = helfem::Matrix::Zero(n, n);
         for (size_t ic = 0; ic < sym_idx[isym].size(); ++ic) {
-          const auto idx = uvec_to_indices(sym_idx[isym][ic]);
+          const std::vector<Eigen::Index> & idx = sym_idx[isym][ic];
           Fmean += Fin(idx, idx);
         }
         Fmean /= static_cast<double>(sym_idx[isym].size());
         for (size_t ic = 0; ic < sym_idx[isym].size(); ++ic) {
-          const auto idx = uvec_to_indices(sym_idx[isym][ic]);
+          const std::vector<Eigen::Index> & idx = sym_idx[isym][ic];
           Fout(idx, idx) = Fmean;
         }
       }

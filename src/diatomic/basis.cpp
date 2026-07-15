@@ -270,11 +270,11 @@ namespace helfem {
         return fem.eval_coord(xq, iel);
       }
 
-      void lm_to_l_m(const arma::ivec & lmax, arma::ivec & lval, arma::ivec & mval) {
+      void lm_to_l_m(const Eigen::VectorXi & lmax, Eigen::VectorXi & lval, Eigen::VectorXi & mval) {
         {
-          std::vector<arma::sword> lv, mv;
-          for(size_t mabs=0;mabs<lmax.n_elem;mabs++)
-            for(arma::sword l=mabs;l<=lmax(mabs);l++) {
+          std::vector<int> lv, mv;
+          for(int mabs=0;mabs<lmax.size();mabs++)
+            for(int l=mabs;l<=lmax(mabs);l++) {
               lv.push_back(l);
               mv.push_back(mabs);
               if(mabs>0) {
@@ -282,15 +282,15 @@ namespace helfem {
                 mv.push_back(-mabs);
               }
             }
-          lval=arma::conv_to<arma::ivec>::from(lv);
-          mval=arma::conv_to<arma::ivec>::from(mv);
+          lval=Eigen::Map<const Eigen::VectorXi>(lv.data(), (Eigen::Index) lv.size());
+          mval=Eigen::Map<const Eigen::VectorXi>(mv.data(), (Eigen::Index) mv.size());
         }
       }
 
       TwoDBasis::TwoDBasis() {
       }
 
-      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rhalf_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const arma::vec & bval, const arma::ivec & lval_, const arma::ivec & mval_, bool legendre) {
+      TwoDBasis::TwoDBasis(int Z1_, int Z2_, double Rhalf_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const helfem::Vector & bval, const Eigen::VectorXi & lval_, const Eigen::VectorXi & mval_, bool legendre) {
         // Nuclear charge
         Z1=Z1_;
         Z2=Z2_;
@@ -301,11 +301,12 @@ namespace helfem {
         bool zero_deriv_left=false;
         bool zero_func_right=true;
         bool zero_deriv_right=true;
-        polynomial_basis::FiniteElementBasis fem(poly, helfem::to_eigen(bval), zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
+        polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
         radial=RadialBasis(fem, n_quad);
-        // Angular basis
-        lval=lval_;
-        mval=mval_;
+        // Angular basis. Bridge the Eigen boundary inputs to the arma::ivec
+        // storage the interior still uses.
+        lval=helfem::to_arma(lval_);
+        mval=helfem::to_arma(mval_);
 
         // Gaunt coefficients
         int gmax(arma::max(lval)+2);
@@ -611,40 +612,48 @@ namespace helfem {
         return std::make_pair(kerr, rerr);
       }
 
-      arma::uvec TwoDBasis::m_indices(int m) const {
+      std::vector<Eigen::Index> TwoDBasis::m_indices(int m) const {
         return helfem::collect_shell_indices(mval.n_elem,
             [&](size_t i) { return (mval(i) == 0) ? radial.Nbf() : radial.Nbf() - 1; },
             [&](size_t i) { return mval(i) == m; });
       }
 
-      arma::uvec TwoDBasis::m_indices(int m, bool odd) const {
+      std::vector<Eigen::Index> TwoDBasis::m_indices(int m, bool odd) const {
         return helfem::collect_shell_indices(mval.n_elem,
             [&](size_t i) { return (mval(i) == 0) ? radial.Nbf() : radial.Nbf() - 1; },
             [&](size_t i) { return mval(i) == m && (lval(i) % 2 == odd); });
       }
 
-      std::vector<arma::uvec> TwoDBasis::get_sym_idx(int symm) const {
-        std::vector<arma::uvec> idx;
+      std::vector<std::vector<Eigen::Index>> TwoDBasis::get_sym_idx(int symm) const {
+        std::vector<std::vector<Eigen::Index>> idx;
         if(symm==0) {
           idx.resize(1);
-          idx[0]=arma::linspace<arma::uvec>(0,Nbf()-1,Nbf());
+          idx[0].resize(Nbf());
+          for(Eigen::Index i=0;i<(Eigen::Index) Nbf();i++)
+            idx[0][i]=i;
         } else if(symm==1) {
-          // Find unique m values
-          arma::uvec muni(arma::find_unique(mval));
-          arma::ivec mv(arma::sort(mval(muni),"ascend"));
+          // Unique m values in ascending order (matches arma::find_unique + sort).
+          std::vector<int> mv;
+          for(size_t i=0;i<mval.n_elem;i++)
+            if(std::find(mv.begin(),mv.end(),mval(i))==mv.end())
+              mv.push_back(mval(i));
+          std::sort(mv.begin(),mv.end());
 
-          idx.resize(mv.n_elem);
-          for(size_t i=0;i<mv.n_elem;i++)
-            idx[i]=m_indices(mv(i));
+          idx.resize(mv.size());
+          for(size_t i=0;i<mv.size();i++)
+            idx[i]=m_indices(mv[i]);
         } else if(symm==2) {
-          // Find unique m values
-          arma::uvec muni(arma::find_unique(mval));
-          arma::ivec mv(arma::sort(mval(muni),"ascend"));
+          // Unique m values in ascending order (matches arma::find_unique + sort).
+          std::vector<int> mv;
+          for(size_t i=0;i<mval.n_elem;i++)
+            if(std::find(mv.begin(),mv.end(),mval(i))==mv.end())
+              mv.push_back(mval(i));
+          std::sort(mv.begin(),mv.end());
 
-          idx.resize(2*mv.n_elem);
-          for(size_t i=0;i<mv.n_elem;i++) {
-            idx[2*i]=m_indices(mv(i),false);
-            idx[2*i+1]=m_indices(mv(i),true);
+          idx.resize(2*mv.size());
+          for(size_t i=0;i<mv.size();i++) {
+            idx[2*i]=m_indices(mv[i],false);
+            idx[2*i+1]=m_indices(mv[i],true);
           }
         } else
           throw std::logic_error("Unknown symmetry\n");
@@ -661,27 +670,27 @@ namespace helfem {
           return scf::form_Sinvh(S, chol);
         } else {
           // Get basis function indices
-          std::vector<arma::uvec> midx(get_sym_idx(sym));
+          std::vector<std::vector<Eigen::Index>> midx(get_sym_idx(sym));
           // Construct Sinvh in each subblock
           helfem::Matrix Sinvh(helfem::Matrix::Zero(Nbf(),Nbf()));
           size_t ioff=0;
           for(size_t i=0;i<midx.size();i++) {
-            if(!midx[i].n_elem)
+            if(midx[i].empty())
               continue;
 
             // Gather the S(midx,midx) subblock
-            const size_t n(midx[i].n_elem);
+            const size_t n(midx[i].size());
             helfem::Matrix Ssub(n,n);
             for(size_t a=0;a<n;a++)
               for(size_t b=0;b<n;b++)
-                Ssub(a,b)=S(midx[i](a), midx[i](b));
+                Ssub(a,b)=S(midx[i][a], midx[i][b]);
 
             helfem::Matrix block(scf::form_Sinvh(Ssub,chol));
 
             // Scatter into Sinvh(midx[i], ioff..ioff+n-1)
             for(size_t a=0;a<n;a++)
               for(size_t b=0;b<n;b++)
-                Sinvh(midx[i](a), ioff+b)=block(a,b);
+                Sinvh(midx[i][a], ioff+b)=block(a,b);
             // Increment offset
             ioff += n;
           }

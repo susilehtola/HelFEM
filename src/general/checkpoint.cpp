@@ -616,7 +616,7 @@ void Checkpoint::read(helfem::diatomic::basis::TwoDBasis & basis) {
   read("mval", mval);
 
   auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(poly_id,poly_nnodes)));
-  basis=helfem::diatomic::basis::TwoDBasis(Z1, Z2, Rhalf, poly, n_quad, bval, lval, mval);
+  basis=helfem::diatomic::basis::TwoDBasis(Z1, Z2, Rhalf, poly, n_quad, helfem::to_eigen(bval), helfem::to_eigen(lval), helfem::to_eigen(mval));
   
   if(cl) close();
 }

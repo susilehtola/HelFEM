@@ -116,21 +116,21 @@ int main(int argc, char **argv) {
   arma::ivec lmmax(mmax + 1);
   lmmax.ones();
   lmmax *= lmax;
-  arma::ivec lval, mval;
-  diatomic::basis::lm_to_l_m(lmmax, lval, mval);
+  Eigen::VectorXi lval, mval;
+  diatomic::basis::lm_to_l_m(helfem::to_eigen(lmmax), lval, mval);
 
   const double Rhalf = 0.5 * Rbond;
   const double mumax = utils::arcosh(Rmax / Rhalf);
-  arma::vec bval(atomic::basis::normal_grid(Nelem, mumax, 4, 1.0));
+  const helfem::Vector bval = atomic::basis::normal_grid(Nelem, mumax, 4, 1.0);
 
   diatomic::basis::TwoDBasis basis(Z1, Z2, Rhalf, poly, Nquad, bval, lval, mval);
   printf("Basis: %i angular x %i radial = %i functions\n",
           (int) basis.Nang(), (int) basis.Nrad(), (int) basis.Nbf());
 
   const int lang = parser.get<int>("ldft") > 0 ? parser.get<int>("ldft")
-                                                : 4 * arma::max(lval) + 12;
+                                                : 4 * lval.maxCoeff() + 12;
   const int mang = parser.get<int>("mdft") > 0 ? parser.get<int>("mdft")
-                                                : 4 * arma::max(mval) + 5;
+                                                : 4 * mval.maxCoeff() + 5;
 
   // ------------------------------------------------------------------
   // 0) The angular substitution behind eval_lf, checked on the special
@@ -255,11 +255,11 @@ int main(int argc, char **argv) {
     helfem::Matrix Ma = helfem::Matrix::Zero(basis.Nbf(), basis.Nbf());
     helfem::Matrix Mb = helfem::Matrix::Zero(basis.Nbf(), basis.Nbf());
     for (int m = -mmax; m <= mmax; m++) {
-      const arma::uvec idx(basis.m_indices(m));
-      for (size_t i = 0; i < idx.n_elem; i++)
-        for (size_t j = 0; j < idx.n_elem; j++) {
-          Ma(idx(i), idx(j)) = Pa(idx(i), idx(j));
-          Mb(idx(i), idx(j)) = Pb(idx(i), idx(j));
+      const std::vector<Eigen::Index> idx(basis.m_indices(m));
+      for (size_t i = 0; i < idx.size(); i++)
+        for (size_t j = 0; j < idx.size(); j++) {
+          Ma(idx[i], idx[j]) = Pa(idx[i], idx[j]);
+          Mb(idx[i], idx[j]) = Pb(idx[i], idx[j]);
         }
     }
     printf("m-projection changed the density by %.2e (alpha)\n", (Ma - Pa).cwiseAbs().maxCoeff());
@@ -341,10 +341,10 @@ int main(int argc, char **argv) {
     if (dH > 1e-8) {
       int m_bi = -99, m_bj = -99;
       for (int m = -mmax; m <= mmax; m++) {
-        const arma::uvec idx(basis.m_indices(m));
-        for (size_t q = 0; q < idx.n_elem; q++) {
-          if ((Eigen::Index) idx(q) == bi) m_bi = m;
-          if ((Eigen::Index) idx(q) == bj) m_bj = m;
+        const std::vector<Eigen::Index> idx(basis.m_indices(m));
+        for (size_t q = 0; q < idx.size(); q++) {
+          if (idx[q] == bi) m_bi = m;
+          if (idx[q] == bj) m_bj = m;
         }
       }
       printf("%-14s   H3(%d,%d)=%.10e  HP=%.10e   [m(%d)=%d, m(%d)=%d]\n", "",

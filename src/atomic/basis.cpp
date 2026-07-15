@@ -49,8 +49,8 @@ namespace helfem {
         return ret;
       }
 
-      arma::vec normal_grid(int num_el, double rmax, int igrid, double zexp) {
-        return helfem::to_arma(utils::get_grid(rmax,num_el,igrid,zexp));
+      helfem::Vector normal_grid(int num_el, double rmax, int igrid, double zexp) {
+        return utils::get_grid(rmax,num_el,igrid,zexp);
       }
 
       arma::vec finite_nuclear_grid(int num_el, double rmax, int igrid, double zexp, int num_el_nuc, double rnuc, int igrid_nuc, double zexp_nuc) {
@@ -146,7 +146,8 @@ namespace helfem {
           bval=atomic::basis::offcenter_nuclear_grid(Nelem0,Z,std::max(Zl,Zr),Rhalf,Nelem,Rmax,igrid,zexp);
         } else {
           printf("Normal grid\n");
-          bval=atomic::basis::normal_grid(Nelem,Rmax,igrid,zexp);
+          // normal_grid returns Eigen; form_grid is still arma-native.
+          bval=helfem::to_arma(atomic::basis::normal_grid(Nelem,Rmax,igrid,zexp));
         }
 
 	if(add_el) {

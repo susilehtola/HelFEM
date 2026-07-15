@@ -200,12 +200,12 @@ int main(int argc, char **argv) {
     mmax = static_cast<int>(lmmaxv.size()) - 1;
   }
 
-  arma::ivec lval, mval;
-  diatomic::basis::lm_to_l_m(lmmax, lval, mval);
+  Eigen::VectorXi lval, mval;
+  diatomic::basis::lm_to_l_m(helfem::to_eigen(lmmax), lval, mval);
 
   const double Rhalf = 0.5 * Rbond;
   const double mumax = utils::arcosh(Rmax / Rhalf);
-  arma::vec bval(atomic::basis::normal_grid(Nelem, mumax, igrid, zexp));
+  const helfem::Vector bval = atomic::basis::normal_grid(Nelem, mumax, igrid, zexp);
 
   // Homonuclear g/u symmetry is not a valid decomposition for a
   // heteronuclear molecule -- get_sym_idx(2) still splits by (m, l%2)
@@ -284,11 +284,11 @@ int main(int argc, char **argv) {
   // f(+m) == f(-m). At m == 0 there is no partner so the group has a
   // single member and the "average" is a no-op on that block. Matches
   // src/diatomic/main.cpp lines 318..328.
-  std::vector<std::vector<arma::uvec>> mavg_idx;
+  std::vector<std::vector<std::vector<Eigen::Index>>> mavg_idx;
   if (maverage) {
     const int mmax_bf = arma::max(arma::abs(basis.get_mval()));
     for (int m = 0; m <= mmax_bf; ++m) {
-      std::vector<arma::uvec> entry;
+      std::vector<std::vector<Eigen::Index>> entry;
       entry.push_back(basis.m_indices(m));
       if (m > 0) entry.push_back(basis.m_indices(-m));
       mavg_idx.push_back(entry);
@@ -296,10 +296,10 @@ int main(int argc, char **argv) {
   }
 
   // Symmetry decomposition.
-  std::vector<arma::uvec> dsym;
+  std::vector<std::vector<Eigen::Index>> dsym;
   if (symm == 0) {
-    arma::uvec all(Nbf);
-    for (size_t i = 0; i < Nbf; ++i) all(i) = i;
+    std::vector<Eigen::Index> all(Nbf);
+    for (size_t i = 0; i < Nbf; ++i) all[i] = static_cast<Eigen::Index>(i);
     dsym.push_back(all);
   } else {
     dsym = basis.get_sym_idx(symm);
@@ -310,7 +310,7 @@ int main(int argc, char **argv) {
   const std::vector<helfem::Matrix> Sinvh =
       helfem::scf_driver::build_per_block_Sinvh(S, dsym);
 
-  const int lang = ldft_arg > 0 ? ldft_arg : 4 * arma::max(lval) + 12;
+  const int lang = ldft_arg > 0 ? ldft_arg : 4 * lval.maxCoeff() + 12;
   const int mang = mdft_arg > 0 ? mdft_arg : 4 * mmax + 12;
 
   // Pure-m fast path. With --symmetry >= 1 the orbitals cannot mix m, so every
@@ -525,7 +525,7 @@ int main(int argc, char **argv) {
     for (arma::uword i = 0; i < occs.n_rows; ++i) {
       const int nocca_i = static_cast<int>(occs(i, 0));
       const int noccb_i = static_cast<int>(occs(i, 1));
-      arma::uvec row_idx;
+      std::vector<Eigen::Index> row_idx;
       if (occs.n_cols == 3) {
         row_idx = basis.m_indices(occs(i, 2));
       } else {
@@ -533,12 +533,11 @@ int main(int argc, char **argv) {
           throw std::logic_error("occs.dat: parity column must be +1 or -1.");
         row_idx = basis.m_indices(occs(i, 2), (occs(i, 3) == -1));
       }
-      if (!row_idx.n_elem)
+      if (row_idx.empty())
         throw std::logic_error("occs.dat: row references a symmetry block with no basis functions.");
       int matched_block = -1;
       for (size_t k = 0; k < nsym; ++k) {
-        if (dsym[k].n_elem == row_idx.n_elem &&
-            arma::all(dsym[k] == row_idx)) { matched_block = static_cast<int>(k); break; }
+        if (dsym[k] == row_idx) { matched_block = static_cast<int>(k); break; }
       }
       if (matched_block < 0)
         throw std::logic_error("occs.dat: row does not match any current symmetry block.");
