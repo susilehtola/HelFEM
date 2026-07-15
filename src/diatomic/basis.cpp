@@ -303,13 +303,12 @@ namespace helfem {
         bool zero_deriv_right=true;
         polynomial_basis::FiniteElementBasis fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
         radial=RadialBasis(fem, n_quad);
-        // Angular basis. Bridge the Eigen boundary inputs to the arma::ivec
-        // storage the interior still uses.
-        lval=helfem::to_arma(lval_);
-        mval=helfem::to_arma(mval_);
+        // Angular basis.
+        lval=lval_;
+        mval=mval_;
 
         // Gaunt coefficients
-        int gmax(arma::max(lval)+2);
+        int gmax(lval.maxCoeff()+2);
 
         // Legendre function values
         if(legendre) {
@@ -319,8 +318,8 @@ namespace helfem {
           // Form L|M| and LM maps
           lm_map.clear();
           LM_map.clear();
-          for(size_t iang=0;iang<lval.n_elem;iang++) {
-            for(size_t jang=0;jang<lval.n_elem;jang++) {
+          for(size_t iang=0;iang<lval.size();iang++) {
+            for(size_t jang=0;jang<lval.size();jang++) {
               // l and m values
               int li(lval(iang));
               int mi(mval(iang));
@@ -401,19 +400,14 @@ namespace helfem {
           // One-electron matrices need gmax,5,gmax
           int lrval(gmax);
           int midval(5);
-          int Mmax=arma::max(mval)-arma::min(mval);
+          int Mmax=mval.maxCoeff()-mval.minCoeff();
 
           gaunt=gaunt::Gaunt(lrval,midval,lrval);
         }
 
         // Cache the real->dummy index map once. pure_indices() rebuilds it on
         // every call, and boundary expansion / removal runs on every Fock build.
-        {
-          const arma::uvec idx(pure_indices());
-          pure_idx.resize(idx.n_elem);
-          for(size_t i=0;i<idx.n_elem;i++)
-            pure_idx[i] = (Eigen::Index) idx(i);
-        }
+        pure_idx = pure_indices();
       }
 
       TwoDBasis::~TwoDBasis() {
@@ -431,11 +425,11 @@ namespace helfem {
         return Rhalf;
       }
 
-      arma::ivec TwoDBasis::get_lval() const {
+      Eigen::VectorXi TwoDBasis::get_lval() const {
         return lval;
       }
 
-      arma::ivec TwoDBasis::get_mval() const {
+      Eigen::VectorXi TwoDBasis::get_mval() const {
         return mval;
       }
 
@@ -443,8 +437,8 @@ namespace helfem {
         return radial.get_nquad();
       }
 
-      arma::vec TwoDBasis::get_bval() const {
-        return helfem::to_arma(radial.get_bval());
+      helfem::Vector TwoDBasis::get_bval() const {
+        return radial.get_bval();
       }
 
       double TwoDBasis::get_mumax() const {
@@ -461,13 +455,13 @@ namespace helfem {
       }
 
       size_t TwoDBasis::Ndummy() const {
-        return lval.n_elem*radial.Nbf();
+        return lval.size()*radial.Nbf();
       }
 
       size_t TwoDBasis::Nbf() const {
         // Count total number of basis functions
         size_t nbf=0;
-        for(size_t i=0;i<mval.n_elem;i++) {
+        for(size_t i=0;i<mval.size();i++) {
           nbf+=radial.Nbf();
           if(mval(i)!=0)
             // Remove first function
@@ -482,21 +476,23 @@ namespace helfem {
       }
 
       size_t TwoDBasis::Nang() const {
-        return lval.n_elem;
+        return lval.size();
       }
 
-      arma::uvec TwoDBasis::pure_indices() const {
+      std::vector<Eigen::Index> TwoDBasis::pure_indices() const {
         // Indices of the pure functions
-        arma::uvec idx(Nbf());
+        std::vector<Eigen::Index> idx(Nbf());
 
         size_t ioff=0;
-        for(size_t i=0;i<mval.n_elem;i++) {
+        for(size_t i=0;i<(size_t) mval.size();i++) {
           if(mval(i)==0) {
-            idx.subvec(ioff,ioff+radial.Nbf()-1)=arma::linspace<arma::uvec>(i*radial.Nbf(),(i+1)*radial.Nbf()-1,radial.Nbf());
+            for(size_t j=0;j<radial.Nbf();j++)
+              idx[ioff+j]=(Eigen::Index) (i*radial.Nbf()+j);
             ioff+=radial.Nbf();
           } else {
 	    // Just drop the first function
-            idx.subvec(ioff,ioff+radial.Nbf()-2)=arma::linspace<arma::uvec>(i*radial.Nbf()+1,(i+1)*radial.Nbf()-1,radial.Nbf()-1);
+            for(size_t j=0;j<radial.Nbf()-1;j++)
+              idx[ioff+j]=(Eigen::Index) (i*radial.Nbf()+1+j);
             ioff+=radial.Nbf()-1;
           }
         }
@@ -613,13 +609,13 @@ namespace helfem {
       }
 
       std::vector<Eigen::Index> TwoDBasis::m_indices(int m) const {
-        return helfem::collect_shell_indices(mval.n_elem,
+        return helfem::collect_shell_indices(mval.size(),
             [&](size_t i) { return (mval(i) == 0) ? radial.Nbf() : radial.Nbf() - 1; },
             [&](size_t i) { return mval(i) == m; });
       }
 
       std::vector<Eigen::Index> TwoDBasis::m_indices(int m, bool odd) const {
-        return helfem::collect_shell_indices(mval.n_elem,
+        return helfem::collect_shell_indices(mval.size(),
             [&](size_t i) { return (mval(i) == 0) ? radial.Nbf() : radial.Nbf() - 1; },
             [&](size_t i) { return mval(i) == m && (lval(i) % 2 == odd); });
       }
@@ -634,7 +630,7 @@ namespace helfem {
         } else if(symm==1) {
           // Unique m values in ascending order (matches arma::find_unique + sort).
           std::vector<int> mv;
-          for(size_t i=0;i<mval.n_elem;i++)
+          for(size_t i=0;i<mval.size();i++)
             if(std::find(mv.begin(),mv.end(),mval(i))==mv.end())
               mv.push_back(mval(i));
           std::sort(mv.begin(),mv.end());
@@ -645,7 +641,7 @@ namespace helfem {
         } else if(symm==2) {
           // Unique m values in ascending order (matches arma::find_unique + sort).
           std::vector<int> mv;
-          for(size_t i=0;i<mval.n_elem;i++)
+          for(size_t i=0;i<mval.size();i++)
             if(std::find(mv.begin(),mv.end(),mval(i))==mv.end())
               mv.push_back(mval(i));
           std::sort(mv.begin(),mv.end());
@@ -716,11 +712,11 @@ namespace helfem {
         // Full overlap matrix
         helfem::Matrix S(helfem::Matrix::Zero(Ndummy(),Ndummy()));
         // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
+        for(size_t iang=0;iang<lval.size();iang++) {
           int li(lval(iang));
           int mi(mval(iang));
 
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
+          for(size_t jang=0;jang<lval.size();jang++) {
             int lj(lval(jang));
             int mj(mval(jang));
 
@@ -752,10 +748,10 @@ namespace helfem {
         const size_t Ni(radial.Nbf());
         const size_t Nj(rh.radial.Nbf());
         helfem::Matrix S(helfem::Matrix::Zero(Ndummy(), rh.Ndummy()));
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
+        for(size_t iang=0;iang<lval.size();iang++) {
           int li(lval(iang));
           int mi(mval(iang));
-          for(size_t jang=0;jang<rh.lval.n_elem;jang++) {
+          for(size_t jang=0;jang<rh.lval.size();jang++) {
             int lj(rh.lval(jang));
             int mj(rh.mval(jang));
             if(mi==mj) {
@@ -769,13 +765,13 @@ namespace helfem {
         }
         S *= std::pow(Rhalf, 3);
         // Trim boundaries on both sides so shapes align with Sinvh_new /
-        // Sinvh_old. pure_indices() (kept arma) gives the gather lists.
-        arma::uvec ridx(pure_indices());
-        arma::uvec cidx(rh.pure_indices());
-        helfem::Matrix Strim(ridx.n_elem, cidx.n_elem);
-        for(size_t a=0;a<ridx.n_elem;a++)
-          for(size_t b=0;b<cidx.n_elem;b++)
-            Strim(a,b)=S(ridx(a), cidx(b));
+        // Sinvh_old. pure_indices() gives the gather lists.
+        std::vector<Eigen::Index> ridx(pure_indices());
+        std::vector<Eigen::Index> cidx(rh.pure_indices());
+        helfem::Matrix Strim(ridx.size(), cidx.size());
+        for(size_t a=0;a<ridx.size();a++)
+          for(size_t b=0;b<cidx.size();b++)
+            Strim(a,b)=S(ridx[a], cidx[b]);
         return Strim;
       }
 
@@ -788,7 +784,7 @@ namespace helfem {
         // Full kinetic energy matrix
         helfem::Matrix T(helfem::Matrix::Zero(Ndummy(),Ndummy()));
         // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
+        for(size_t iang=0;iang<lval.size();iang++) {
           set_sub(T,iang,iang,Trad);
           if(lval(iang)!=0) {
             // We also get the l(l+1) term
@@ -815,11 +811,11 @@ namespace helfem {
         helfem::Matrix V(helfem::Matrix::Zero(Ndummy(),Ndummy()));
 
         // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
+        for(size_t iang=0;iang<lval.size();iang++) {
           int li(lval(iang));
           int mi(mval(iang));
 
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
+          for(size_t jang=0;jang<lval.size();jang++) {
             int lj(lval(jang));
             int mj(mval(jang));
 
@@ -853,11 +849,11 @@ namespace helfem {
         helfem::Matrix I13(radial.radial_integral(1,3));
 
         // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
+        for(size_t iang=0;iang<lval.size();iang++) {
           int li(lval(iang));
           int mi(mval(iang));
 
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
+          for(size_t jang=0;jang<lval.size();jang++) {
             int lj(lval(jang));
             int mj(mval(jang));
 
@@ -892,11 +888,11 @@ namespace helfem {
         helfem::Matrix I14(radial.radial_integral(1,4));
 
         // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
+        for(size_t iang=0;iang<lval.size();iang++) {
           int li(lval(iang));
           int mi(mval(iang));
 
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
+          for(size_t jang=0;jang<lval.size();jang++) {
             int lj(lval(jang));
             int mj(mval(jang));
 
@@ -936,11 +932,11 @@ namespace helfem {
         helfem::Matrix I32(radial.radial_integral(3,2)*std::pow(Rhalf,5));
 
         // Fill elements
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
+        for(size_t iang=0;iang<lval.size();iang++) {
           int li(lval(iang));
           int mi(mval(iang));
 
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
+          for(size_t jang=0;jang<lval.size();jang++) {
             int lj(lval(jang));
             int mj(mval(jang));
 
@@ -1218,8 +1214,8 @@ namespace helfem {
         }
 
         // Form radial helpers: contract ket
-        for(size_t kang=0;kang<lval.n_elem;kang++) {
-          for(size_t lang=0;lang<lval.n_elem;lang++) {
+        for(size_t kang=0;kang<lval.size();kang++) {
+          for(size_t lang=0;lang<lval.size();lang++) {
             // l and m values
             int lk(lval(kang));
             int mk(mval(kang));
@@ -1356,8 +1352,8 @@ namespace helfem {
 
         // Full Coulomb matrix
         helfem::Matrix J(helfem::Matrix::Zero(Ndummy(),Ndummy()));
-        for(size_t iang=0;iang<lval.n_elem;iang++) {
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
+        for(size_t iang=0;iang<lval.size();iang++) {
+          for(size_t jang=0;jang<lval.size();jang++) {
             // l and m values
             int li(lval(iang));
             int mi(mval(iang));
@@ -1416,8 +1412,8 @@ namespace helfem {
 #ifdef _OPENMP
 #pragma omp for collapse(2)
 #endif
-          for(size_t jang=0;jang<lval.n_elem;jang++) {
-            for(size_t kang=0;kang<lval.n_elem;kang++) {
+          for(size_t jang=0;jang<lval.size();jang++) {
+            for(size_t kang=0;kang<lval.size();kang++) {
               int lj(lval(jang));
               int mj(mval(jang));
 
@@ -1439,11 +1435,11 @@ namespace helfem {
               std::vector<bool> couple(lm_map.size(),false);
 
               // Perform angular sums
-              for(size_t iang=0;iang<lval.n_elem;iang++) {
+              for(size_t iang=0;iang<lval.size();iang++) {
                 int li(lval(iang));
                 int mi(mval(iang));
 
-                for(size_t lang=0;lang<lval.n_elem;lang++) {
+                for(size_t lang=0;lang<lval.size();lang++) {
                   int ll(lval(lang));
                   int ml(mval(lang));
 
@@ -1623,50 +1619,10 @@ namespace helfem {
         return Pnob;
       }
 
-      arma::mat TwoDBasis::remove_boundaries(const arma::mat & Fnob) const {
-        if(Fnob.n_rows != Ndummy() || Fnob.n_cols != Ndummy()) {
-          std::ostringstream oss;
-          oss << "Matrix does not have expected size! Got " << Fnob.n_rows << " x " << Fnob.n_cols << ", expected " << Ndummy() << " x " << Ndummy() << "!\n";
-          throw std::logic_error(oss.str());
-        }
-
-        // Get indices
-        arma::uvec idx(pure_indices());
-
-        // Matrix with the boundary conditions removed
-        arma::mat Fpure(Fnob(idx,idx));
-
-        //Fnob.print("Input: w/o built-in boundaries");
-        //Fpure.print("Output: w built-in boundaries");
-
-        return Fpure;
-      }
-
-      arma::mat TwoDBasis::expand_boundaries(const arma::mat & Ppure) const {
-        if(Ppure.n_rows != Nbf() || Ppure.n_cols != Nbf()) {
-          std::ostringstream oss;
-          oss << "Matrix does not have expected size! Got " << Ppure.n_rows << " x " << Ppure.n_cols << ", expected " << Nbf() << " x " << Nbf() << "!\n";
-          throw std::logic_error(oss.str());
-        }
-
-        // Get indices
-        arma::uvec idx(pure_indices());
-
-        // Matrix with the boundary conditions removed
-        arma::mat Pnob(Ndummy(),Ndummy());
-        Pnob.zeros();
-        Pnob(idx,idx)=Ppure;
-
-        //Ppure.print("Input: w built-in boundaries");
-        //Pnob.print("Output: w/o built-in boundaries");
-
-        return Pnob;
-      }
-
       Eigen::MatrixXcd TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, double phi) const {
         // Evaluate spherical harmonics
-        Eigen::VectorXcd sph(lval.n_elem);
-        for(size_t i=0;i<(size_t) lval.n_elem;i++)
+        Eigen::VectorXcd sph(lval.size());
+        for(size_t i=0;i<(size_t) lval.size();i++)
           sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
         // Evaluate radial functions (single quadrature point, 1 x Nc row)
@@ -1674,8 +1630,8 @@ namespace helfem {
         const Eigen::Index Nc = rad.cols();
 
         // Form supermatrix. sph(i) is complex, rad is real -> cast rad.
-        Eigen::MatrixXcd bf(rad.rows(),lval.n_elem*Nc);
-        for(size_t i=0;i<(size_t) lval.n_elem;i++)
+        Eigen::MatrixXcd bf(rad.rows(),lval.size()*Nc);
+        for(size_t i=0;i<(size_t) lval.size();i++)
           bf.middleCols(i*Nc,Nc)=sph(i)*rad.cast<std::complex<double>>();
 
         return bf;
@@ -1688,7 +1644,7 @@ namespace helfem {
       helfem::Matrix TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, int m, const helfem::Matrix & rad_all) const {
         // Figure out list of functions
         std::vector<size_t> flist;
-        for(size_t i=0;i<(size_t) mval.n_elem;i++)
+        for(size_t i=0;i<(size_t) mval.size();i++)
           if(mval(i)==m)
             flist.push_back(i);
 
@@ -1727,8 +1683,8 @@ namespace helfem {
 	x(0)=2.0*(mu-bval(iel))/(bval(iel+1)-bval(iel)) - 1.0;
 
 	// Evaluate spherical harmonics
-        Eigen::VectorXcd sph(lval.n_elem);
-        for(size_t i=0;i<(size_t) lval.n_elem;i++)
+        Eigen::VectorXcd sph(lval.size());
+        for(size_t i=0;i<(size_t) lval.size();i++)
           sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
         // Evaluate radial functions (1 x Nc row)
         const helfem::Matrix rad(radial.get_bf(iel,x));
@@ -1740,7 +1696,7 @@ namespace helfem {
         // Form supermatrix. arma used trans() on a real matrix = plain
         // transpose; sph(i) is complex so cast the transposed radial row.
 	Eigen::VectorXcd bf(Eigen::VectorXcd::Zero(Ndummy()));
-	for(size_t i=0;i<(size_t) lval.n_elem;i++) {
+	for(size_t i=0;i<(size_t) lval.size();i++) {
 	  bf.segment(i*radial.Nbf()+ifirst,ilast-ifirst+1)=sph(i)*rad.transpose().cast<std::complex<double>>();
 	}
 
@@ -1749,8 +1705,8 @@ namespace helfem {
 
       void TwoDBasis::eval_df(size_t iel, size_t irad, double cth, double phi, Eigen::MatrixXcd & dr, Eigen::MatrixXcd & dth, Eigen::MatrixXcd & dphi) const {
         // Evaluate spherical harmonics
-        Eigen::VectorXcd sph(lval.n_elem);
-        for(size_t i=0;i<(size_t) lval.n_elem;i++)
+        Eigen::VectorXcd sph(lval.size());
+        for(size_t i=0;i<(size_t) lval.size();i++)
           sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
         // Evaluate radial functions (single quadrature point, 1 x Nc rows)
@@ -1759,15 +1715,15 @@ namespace helfem {
         const Eigen::Index Nc = frad.cols();
 
         // Form supermatrices
-        dr = Eigen::MatrixXcd::Zero(frad.rows(),lval.n_elem*Nc);
-        dth = Eigen::MatrixXcd::Zero(frad.rows(),lval.n_elem*Nc);
-        dphi = Eigen::MatrixXcd::Zero(frad.rows(),lval.n_elem*Nc);
+        dr = Eigen::MatrixXcd::Zero(frad.rows(),lval.size()*Nc);
+        dth = Eigen::MatrixXcd::Zero(frad.rows(),lval.size()*Nc);
+        dphi = Eigen::MatrixXcd::Zero(frad.rows(),lval.size()*Nc);
 
         // Radial one is easy (complex scalar * real matrix -> cast)
-        for(size_t i=0;i<(size_t) lval.n_elem;i++)
+        for(size_t i=0;i<(size_t) lval.size();i++)
           dr.middleCols(i*Nc,Nc)=sph(i)*drad.cast<std::complex<double>>();
         // and so is phi
-        for(size_t i=0;i<(size_t) lval.n_elem;i++)
+        for(size_t i=0;i<(size_t) lval.size();i++)
           dphi.middleCols(i*Nc,Nc)=(std::complex<double>(0.0,mval(i))*sph(i))*frad.cast<std::complex<double>>();
         // sin^2(theta) = (1 - cth)(1 + cth) avoids the catastrophic
         // cancellation in 1 - cth*cth when cth is close to +/- 1.
@@ -1775,7 +1731,7 @@ namespace helfem {
         const double cotth = (sinth > 0.0) ? cth/sinth : 0.0;
 
         // but theta is nastier
-        for(size_t i=0;i<(size_t) lval.n_elem;i++) {
+        for(size_t i=0;i<(size_t) lval.size();i++) {
           int l(lval(i));
           int m(mval(i));
 
@@ -1792,7 +1748,7 @@ namespace helfem {
         // Functions belonging to this m block (same selection as
         // eval_bf(iel,irad,cth,m), so the columns line up).
         std::vector<size_t> flist;
-        for(size_t i=0;i<(size_t) mval.n_elem;i++)
+        for(size_t i=0;i<(size_t) mval.size();i++)
           if(mval(i)==m)
             flist.push_back(i);
 
@@ -1833,7 +1789,7 @@ namespace helfem {
         // Same function selection as eval_bf(iel,irad,cth,m) so the columns
         // line up.
         std::vector<size_t> flist;
-        for(size_t i=0;i<(size_t) mval.n_elem;i++)
+        for(size_t i=0;i<(size_t) mval.size();i++)
           if(mval(i)==m)
             flist.push_back(i);
 
@@ -1868,39 +1824,38 @@ namespace helfem {
         }
       }
 
-      arma::uvec TwoDBasis::dummy_idx_to_real_idx(const arma::uvec & idx) const {
-        if(arma::max(idx)>=Ndummy())
-          throw std::logic_error("Invalid index vector!\n");
+      std::vector<Eigen::Index> TwoDBasis::dummy_idx_to_real_idx(const std::vector<Eigen::Index> & idx) const {
+        for(size_t i=0;i<idx.size();i++)
+          if((size_t) idx[i]>=Ndummy())
+            throw std::logic_error("Invalid index vector!\n");
 
         // idx is a subset of dummy indices, which need to be
         // converted to real indices.  we just need to build the map
-        // from dummy to real indices. First, form full list of dummy
-        // indices
-        arma::uvec dummy_idx(arma::linspace<arma::uvec>(0,Ndummy()-1,Ndummy()));
-        // This is the corresponding list of real indices
-        arma::uvec real_idx(dummy_idx(pure_indices()));
+        // from dummy to real indices. pure_indices() is the list of
+        // real (dummy) indices, in real-index order.
+        const std::vector<Eigen::Index> real_idx(pure_indices());
         // Now the list has all the info needed to construct the
         // mapping between the two
-        std::map<arma::uword, arma::uword> mapping;
-        for(arma::uword i=0;i<real_idx.n_elem;i++) {
-          mapping[real_idx[i]] = i;
+        std::map<Eigen::Index, Eigen::Index> mapping;
+        for(size_t i=0;i<real_idx.size();i++) {
+          mapping[real_idx[i]] = (Eigen::Index) i;
         }
 
         // Mapped indices
-        std::vector<arma::uword> mapidx;
-        for(size_t i=0;i<idx.n_elem;i++) {
+        std::vector<Eigen::Index> mapidx;
+        for(size_t i=0;i<idx.size();i++) {
           // Try to find the function
-          std::map<arma::uword, arma::uword>::const_iterator pos(mapping.find(idx(i)));
+          std::map<Eigen::Index, Eigen::Index>::const_iterator pos(mapping.find(idx[i]));
           // Dummy functions are not on the map
           if(pos == mapping.end())
             continue;
           // If we are here, the function is real
-          mapidx.push_back(mapping.at(idx(i)));
+          mapidx.push_back(pos->second);
         }
-        return arma::conv_to<arma::uvec>::from(mapidx);
+        return mapidx;
       }
 
-      arma::uvec TwoDBasis::bf_list_dummy(size_t iel) const {
+      std::vector<Eigen::Index> TwoDBasis::bf_list_dummy(size_t iel) const {
         // Radial functions in element
         size_t ifirst, ilast;
         radial.get_idx(iel,ifirst,ilast);
@@ -1911,22 +1866,19 @@ namespace helfem {
         size_t Nrad(radial.Nbf());
 
         // List of functions in the element
-        arma::uvec idx(Nr*lval.n_elem);
-        for(size_t iam=0;iam<lval.n_elem;iam++)
+        std::vector<Eigen::Index> idx(Nr*lval.size());
+        for(size_t iam=0;iam<(size_t) lval.size();iam++)
           for(size_t j=0;j<Nr;j++)
-            idx(iam*Nr+j)=Nrad*iam+ifirst+j;
-
-        //printf("Basis function in element %i\n",(int) iel);
-        //idx.print();
+            idx[iam*Nr+j]=(Eigen::Index) (Nrad*iam+ifirst+j);
 
         return idx;
       }
 
-      arma::uvec TwoDBasis::bf_list(size_t iel) const {
+      std::vector<Eigen::Index> TwoDBasis::bf_list(size_t iel) const {
         return dummy_idx_to_real_idx(bf_list_dummy(iel));
       }
 
-      arma::uvec TwoDBasis::bf_list_dummy(size_t iel, int m) const {
+      std::vector<Eigen::Index> TwoDBasis::bf_list_dummy(size_t iel, int m) const {
         // Radial functions in element
         size_t ifirst, ilast;
         radial.get_idx(iel,ifirst,ilast);
@@ -1937,13 +1889,13 @@ namespace helfem {
         size_t Nrad(radial.Nbf());
 
         // List of functions in the element
-        std::vector<arma::uword> idx;
-        for(size_t iam=0;iam<lval.n_elem;iam++)
+        std::vector<Eigen::Index> idx;
+        for(size_t iam=0;iam<(size_t) lval.size();iam++)
           if(mval(iam)==m)
             for(size_t j=0;j<Nr;j++)
-              idx.push_back(Nrad*iam+ifirst+j);
+              idx.push_back((Eigen::Index) (Nrad*iam+ifirst+j));
 
-        return arma::conv_to<arma::uvec>::from(idx);
+        return idx;
       }
 
       size_t TwoDBasis::get_rad_Nel() const {
@@ -1962,12 +1914,12 @@ namespace helfem {
         return radial.get_d2f(iel);
       }
 
-      arma::vec TwoDBasis::get_wrad(size_t iel) const {
-        return helfem::to_arma(radial.get_wrad(iel));
+      helfem::Vector TwoDBasis::get_wrad(size_t iel) const {
+        return radial.get_wrad(iel);
       }
 
-      arma::vec TwoDBasis::get_r(size_t iel) const {
-        return helfem::to_arma(radial.get_r(iel));
+      helfem::Vector TwoDBasis::get_r(size_t iel) const {
+        return radial.get_r(iel);
       }
 
     }

@@ -500,8 +500,9 @@ void Checkpoint::write(const helfem::atomic::basis::TwoDBasis & basis) {
   write("poly_nnodes",basis.get_poly_nnodes());
   write("zeroder",basis.get_zeroder());
 
-  write("lval",basis.get_lval());
-  write("mval",basis.get_mval());
+  // get_lval/get_mval are Eigen::VectorXi; bridge to arma for HDF5.
+  write("lval",helfem::to_arma(basis.get_lval()));
+  write("mval",helfem::to_arma(basis.get_mval()));
 
   if(cl) close();
 }
@@ -575,8 +576,9 @@ void Checkpoint::write(const helfem::diatomic::basis::TwoDBasis & basis) {
   write("poly_id",basis.get_poly_id());
   write("poly_nnodes",basis.get_poly_nnodes());
 
-  write("lval",basis.get_lval());
-  write("mval",basis.get_mval());
+  // get_lval/get_mval are Eigen::VectorXi; bridge to arma for HDF5.
+  write("lval",helfem::to_arma(basis.get_lval()));
+  write("mval",helfem::to_arma(basis.get_mval()));
 
   if(cl) close();
 }

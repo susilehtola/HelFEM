@@ -173,22 +173,22 @@ int main(int argc, char **argv) {
     // shell, whose psi(mu=0,nu) function the boundary condition drops. So map
     // dummy -> real explicitly, and skip the dropped functions, which have no
     // real-basis counterpart to difference.
-    const arma::uvec pure(basis.pure_indices());
-    std::map<arma::uword, arma::uword> dummy2real;
-    for (size_t r = 0; r < pure.n_elem; r++)
-      dummy2real[pure(r)] = r;
+    const std::vector<Eigen::Index> pure(basis.pure_indices());
+    std::map<Eigen::Index, size_t> dummy2real;
+    for (size_t r = 0; r < pure.size(); r++)
+      dummy2real[pure[r]] = r;
 
     for (int m = 0; m <= std::min(mmax, 2); m++) {
       // A radial point comfortably inside the second element, and a few nu
       const size_t iel = std::min<size_t>(1, basis.get_rad_Nel() - 1);
-      const arma::vec rr(basis.get_r(iel));
+      const helfem::Vector rr(basis.get_r(iel));
       // The FEM basis is only C0 across element boundaries -- the second
       // derivative jumps -- so a finite-difference stencil must not step out
       // of the element. Gauss-Lobatto points cluster at the edges, so skip
       // any radial point within `edge` of a boundary.
-      const arma::vec bv(basis.get_bval());
+      const helfem::Vector bv(basis.get_bval());
       const double edge = 100.0 * 1e-4;
-      for (size_t irad = 0; irad < rr.n_elem; irad += 7) {
+      for (size_t irad = 0; irad < (size_t) rr.size(); irad += 7) {
         const double mu = rr(irad);
         if (mu - bv(iel) < edge || bv(iel + 1) - mu < edge) continue;
         nchecked++;
@@ -198,10 +198,10 @@ int main(int argc, char **argv) {
 
           // Map the m-block columns back to dummy indices so the same
           // function can be evaluated by eval_bf(mu, cth, phi).
-          const arma::uvec dummy(basis.bf_list_dummy(iel, m));
+          const std::vector<Eigen::Index> dummy(basis.bf_list_dummy(iel, m));
           const double d = 1e-4;
-          for (size_t k = 0; k < dummy.n_elem; k++) {
-            auto it = dummy2real.find(dummy(k));
+          for (size_t k = 0; k < dummy.size(); k++) {
+            auto it = dummy2real.find(dummy[k]);
             if (it == dummy2real.end()) continue;   // dropped by the m != 0 BC
             const double ana = lf(0, k);
             const double num = fd_laplacian(basis, it->second, m, mu, nu, Rhalf, d);

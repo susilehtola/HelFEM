@@ -127,9 +127,9 @@ namespace helfem {
         /// Radial basis set
         RadialBasis radial;
         /// Angular basis set: function l values
-        arma::ivec lval;
+        Eigen::VectorXi lval;
         /// Angular basis set: function m values
-        arma::ivec mval;
+        Eigen::VectorXi mval;
 
         /// Gaunt coefficient table
         gaunt::Gaunt gaunt;
@@ -214,14 +214,14 @@ namespace helfem {
         double get_Rhalf() const;
 
         /// Get l values
-        arma::ivec get_lval() const;
+        Eigen::VectorXi get_lval() const;
         /// Get m values
-        arma::ivec get_mval() const;
+        Eigen::VectorXi get_mval() const;
 
         /// Get number of quadrature points
         int get_nquad() const;
         /// Get boundary values
-        arma::vec get_bval() const;
+        helfem::Vector get_bval() const;
 	/// Get maximum mu value
 	double get_mumax() const;
         /// Get polynomial basis identifier
@@ -230,11 +230,7 @@ namespace helfem {
         int get_poly_nnodes() const;
 
         /// Get indices of real basis functions
-        arma::uvec pure_indices() const;
-        /// Expand boundary conditions
-        arma::mat expand_boundaries(const arma::mat & H) const;
-        /// Remove boundary conditions
-        arma::mat remove_boundaries(const arma::mat & H) const;
+        std::vector<Eigen::Index> pure_indices() const;
 
         /// Eigen-native boundary expansion / removal.
         ///
@@ -379,20 +375,20 @@ namespace helfem {
         ///                        - ( l(l+1) + m^2/sinh^2(mu) ) R ] Y_l^m.
         void eval_lf(size_t iel, size_t irad, double cth, int m, helfem::Matrix & lf) const;
         /// Translate dummy indices to real indices
-        arma::uvec dummy_idx_to_real_idx(const arma::uvec & idx) const;
+        std::vector<Eigen::Index> dummy_idx_to_real_idx(const std::vector<Eigen::Index> & idx) const;
         /// Get list of basis function dummy indices in element
-        arma::uvec bf_list_dummy(size_t iel) const;
+        std::vector<Eigen::Index> bf_list_dummy(size_t iel) const;
         /// Get list of basis function dummy indices in element with m=m
-        arma::uvec bf_list_dummy(size_t iel, int m) const;
+        std::vector<Eigen::Index> bf_list_dummy(size_t iel, int m) const;
         /// Get list of basis function indices in element
-        arma::uvec bf_list(size_t iel) const;
+        std::vector<Eigen::Index> bf_list(size_t iel) const;
 
         /// Get number of radial elements
         size_t get_rad_Nel() const;
         /// Get radial quadrature weights
-        arma::vec get_wrad(size_t iel) const;
+        helfem::Vector get_wrad(size_t iel) const;
         /// Get r values
-        arma::vec get_r(size_t iel) const;
+        helfem::Vector get_r(size_t iel) const;
         /// Get radial basis functions at the quadrature points of element iel
         /// (rows = radial points, cols = element primitives)
         helfem::Matrix get_rad_bf(size_t iel) const;

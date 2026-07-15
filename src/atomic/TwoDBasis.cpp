@@ -40,14 +40,15 @@ namespace helfem {
     namespace basis {
 
       // The routines that evaluate basis functions on a grid
-      // (eval_bf / eval_df / eval_lf) and the quadrature-point accessors
-      // (get_bval / get_wrad / get_r) hand back arma types and, in the
-      // eval_* case, go through the double-only ::spherical_harmonics.
-      // They serve the DFT grid and the analysis binaries, neither of which
-      // can run above double anyway (libxc is a double-only C library), and
-      // none of them is on the Fock path. Rather than split the class, they
-      // are compiled for every T and guarded: at T = double they are exactly
-      // the code they always were, and at any other T they throw.
+      // (eval_bf / eval_df / eval_lf) return arma::cx_mat and go through the
+      // double-only ::spherical_harmonics. They serve the DFT grid and the
+      // analysis binaries, neither of which can run above double anyway (libxc
+      // is a double-only C library), and none is on the Fock path. Rather than
+      // split the class they are compiled for every T and guarded: at
+      // T = double they are exactly the code they always were, and at any
+      // other T they throw. (The quadrature-point accessors get_bval /
+      // get_wrad / get_r are now precision-generic helfem::Vec<T> and need no
+      // guard.)
       namespace {
         [[noreturn]] void double_only(const char *what) {
           throw std::logic_error(std::string(what) +
@@ -126,21 +127,13 @@ namespace helfem {
       }
 
       template <typename T>
-      arma::ivec TwoDBasisT<T>::get_lval() const {
-        // Bridge Eigen->arma at the public boundary; consumers
-        // (checkpoint I/O, drivers) still take arma::ivec.
-        arma::ivec out(lval.size());
-        for (Eigen::Index i = 0; i < lval.size(); ++i)
-          out(i) = static_cast<arma::sword>(lval(i));
-        return out;
+      Eigen::VectorXi TwoDBasisT<T>::get_lval() const {
+        return lval;
       }
 
       template <typename T>
-      arma::ivec TwoDBasisT<T>::get_mval() const {
-        arma::ivec out(mval.size());
-        for (Eigen::Index i = 0; i < mval.size(); ++i)
-          out(i) = static_cast<arma::sword>(mval(i));
-        return out;
+      Eigen::VectorXi TwoDBasisT<T>::get_mval() const {
+        return mval;
       }
 
       template <typename T>
@@ -149,12 +142,8 @@ namespace helfem {
       }
 
       template <typename T>
-      arma::vec TwoDBasisT<T>::get_bval() const {
-        if constexpr (std::is_same_v<T, double>) {
-          return helfem::to_arma(radial.get_bval());
-        } else {
-          double_only("get_bval");
-        }
+      helfem::Vec<T> TwoDBasisT<T>::get_bval() const {
+        return radial.get_bval();
       }
 
       template <typename T>
@@ -1209,7 +1198,7 @@ namespace helfem {
       }
 
       template <typename T>
-      arma::uvec TwoDBasisT<T>::bf_list(size_t iel) const {
+      std::vector<Eigen::Index> TwoDBasisT<T>::bf_list(size_t iel) const {
         // Radial functions in element
         size_t ifirst, ilast;
         radial.get_idx(iel,ifirst,ilast);
@@ -1220,10 +1209,10 @@ namespace helfem {
         size_t Nradf(radial.Nbf());
 
         // List of functions in the element
-        arma::uvec idx(Nr*lval.size());
+        std::vector<Eigen::Index> idx(Nr*lval.size());
         for(size_t iam=0;iam<(size_t) lval.size();iam++)
           for(size_t j=0;j<Nr;j++)
-            idx(iam*Nr+j)=Nradf*iam+ifirst+j;
+            idx[iam*Nr+j]=(Eigen::Index) (Nradf*iam+ifirst+j);
 
         return idx;
       }
@@ -1242,23 +1231,13 @@ namespace helfem {
       }
 
       template <typename T>
-      arma::vec TwoDBasisT<T>::get_wrad(size_t iel) const {
-        if constexpr (std::is_same_v<T, double>) {
-          return helfem::to_arma(radial.get_wrad(iel));
-        } else {
-          (void) iel;
-          double_only("get_wrad");
-        }
+      helfem::Vec<T> TwoDBasisT<T>::get_wrad(size_t iel) const {
+        return radial.get_wrad(iel);
       }
 
       template <typename T>
-      arma::vec TwoDBasisT<T>::get_r(size_t iel) const {
-        if constexpr (std::is_same_v<T, double>) {
-          return helfem::to_arma(radial.get_r(iel));
-        } else {
-          (void) iel;
-          double_only("get_r");
-        }
+      helfem::Vec<T> TwoDBasisT<T>::get_r(size_t iel) const {
+        return radial.get_r(iel);
       }
 
       template class TwoDBasisT<double>;

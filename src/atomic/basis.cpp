@@ -172,14 +172,14 @@ namespace helfem {
         return bval;
       }
 
-      void angular_basis(int lmax, int mmax, arma::ivec & lval, arma::ivec & mval) {
+      void angular_basis(int lmax, int mmax, Eigen::VectorXi & lval, Eigen::VectorXi & mval) {
         size_t nang=0;
         for(int l=0;l<=lmax;l++)
           nang+=2*std::min(mmax,l)+1;
 
         // Allocate memory
-        lval.zeros(nang);
-        mval.zeros(nang);
+        lval=Eigen::VectorXi::Zero(nang);
+        mval=Eigen::VectorXi::Zero(nang);
 
         // Store values
         size_t iang=0;
@@ -194,7 +194,7 @@ namespace helfem {
               iang++;
             }
           }
-        if(iang!=lval.n_elem)
+        if(iang!=(size_t) lval.size())
           throw std::logic_error("Error.\n");
       }
     }

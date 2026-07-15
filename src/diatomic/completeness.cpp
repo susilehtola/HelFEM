@@ -19,6 +19,7 @@
 #include "../general/lcao.h"
 #include "basis.h"
 #include "twodquadrature.h"
+#include <ArmaEigen.h>
 #include <cfloat>
 #include <climits>
 
@@ -69,13 +70,14 @@ int main(int argc, char **argv) {
   loadchk.read("Z2",Z2);
 
   // Completeness probe
-  int lquad = (ldft>0) ? ldft : 4*arma::max(basis.get_lval())+12;
+  int lquad = (ldft>0) ? ldft : 4*basis.get_lval().maxCoeff()+12;
   helfem::diatomic::twodquad::TwoDGrid qgrid;
   qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
   qgrid.compute_atoms(Z1,Z2);
 
-  // Unique m values
-  arma::ivec muni(basis.get_mval());
+  // Unique m values (get_mval is Eigen-typed; bridge to arma for this
+  // out-of-scope analysis path).
+  arma::ivec muni(helfem::to_arma(basis.get_mval()));
   muni=arma::sort(muni(arma::find_unique(muni)),"ascend");
 
   // Exponents
@@ -93,7 +95,7 @@ int main(int argc, char **argv) {
     {
       std::vector<arma::mat> minimal_basis;
       for(int l=std::abs(m);l<=completeness;l++) {
-        arma::mat proj = qgrid.atomic_projection(l, m, helfem::diatomic::twodquad::PROBE_LEFT);
+        arma::mat proj = helfem::to_arma(qgrid.atomic_projection(l, m, helfem::diatomic::twodquad::PROBE_LEFT));
         if(proj.n_elem) {
           minimal_basis.push_back(proj);
           nminimal += proj.n_rows;
@@ -102,7 +104,7 @@ int main(int argc, char **argv) {
         }
       }
       for(int l=std::abs(m);l<=completeness;l++) {
-        arma::mat proj = qgrid.atomic_projection(l, m, helfem::diatomic::twodquad::PROBE_RIGHT);
+        arma::mat proj = helfem::to_arma(qgrid.atomic_projection(l, m, helfem::diatomic::twodquad::PROBE_RIGHT));
         if(proj.n_elem) {
           minimal_basis.push_back(proj);
           nminimal += proj.n_rows;
@@ -196,9 +198,9 @@ int main(int argc, char **argv) {
           // LCAO projection <\alpha|FEM>
           arma::mat Plcao;
           if(iprobe==0) {
-            Plcao=qgrid.gto_projection(l, m, expbatch, probes[icen]);
+            Plcao=helfem::to_arma(qgrid.gto_projection(l, m, helfem::to_eigen(expbatch), probes[icen]));
           } else if(iprobe==1) {
-            Plcao=qgrid.sto_projection(l, m, expbatch, probes[icen]);
+            Plcao=helfem::to_arma(qgrid.sto_projection(l, m, helfem::to_eigen(expbatch), probes[icen]));
           } else
             throw std::logic_error("Unknown probe\n");
 

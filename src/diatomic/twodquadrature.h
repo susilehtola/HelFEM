@@ -75,9 +75,9 @@ namespace helfem {
         /// Compute AO projection
         void ao_projection(const std::function<helfem::Vector(double r)> & compute_ao, probe_t p);
         /// Compute GTO projection
-        void gto(int l, const arma::vec & expn, probe_t p);
+        void gto(int l, const helfem::Vector & expn, probe_t p);
         /// Compute STO projection
-        void sto(int l, const arma::vec & expn, probe_t p);
+        void sto(int l, const helfem::Vector & expn, probe_t p);
         /// Multiply in the Legendre polynomial
         void multiply_Plm(int l, int m, probe_t p);
 
@@ -116,16 +116,16 @@ namespace helfem {
         helfem::Matrix model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2);
 
         /// Compute GTO projection
-        arma::mat gto_projection(int l, int m, const arma::vec & expn, probe_t p);
+        helfem::Matrix gto_projection(int l, int m, const helfem::Vector & expn, probe_t p);
         /// Compute GTO projection
-        arma::mat gto_overlap(int l, int m, const arma::vec & expn, probe_t p);
+        helfem::Matrix gto_overlap(int l, int m, const helfem::Vector & expn, probe_t p);
         /// Compute STO projection
-        arma::mat sto_projection(int l, int m, const arma::vec & expn, probe_t p);
+        helfem::Matrix sto_projection(int l, int m, const helfem::Vector & expn, probe_t p);
         /// Compute STO overlap
-        arma::mat sto_overlap(int l, int m, const arma::vec & expn, probe_t p);
+        helfem::Matrix sto_overlap(int l, int m, const helfem::Vector & expn, probe_t p);
 
         /// Compute atomic orbital projection
-        arma::mat atomic_projection(int l, int m, probe_t p);
+        helfem::Matrix atomic_projection(int l, int m, probe_t p);
 
         /// Compute atoms
         void compute_atoms(int Zl, int Zr);

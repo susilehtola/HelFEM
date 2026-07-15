@@ -254,8 +254,9 @@ int main(int argc, char **argv) {
       throw std::logic_error("Off-centre charges require --nelem0 >= 1 (radial elements between the origin and the off-centre nuclei).\n");
   }
 
-  arma::ivec lval, mval;
+  Eigen::VectorXi lval, mval;
   atomic::basis::angular_basis(lmax, mmax, lval, mval);
+  // form_grid is still arma-native; bridge once.
   arma::vec bval = atomic::basis::form_grid(
       (modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax,
       igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf,
@@ -264,8 +265,8 @@ int main(int argc, char **argv) {
   atomic::basis::TwoDBasis basis(Z, (modelpotential::nuclear_model_t) finitenuc,
                                   Rrms, poly, zeroder, Nquad,
                                   helfem::to_eigen(bval),
-                                  helfem::to_eigen(lval),
-                                  helfem::to_eigen(mval),
+                                  lval,
+                                  mval,
                                   Zl, Zr, Rhalf);
   const size_t Nbf = basis.Nbf();
   printf("Basis set: %i angular shells x %i radial = %i basis functions\n",
@@ -313,8 +314,8 @@ int main(int argc, char **argv) {
   // is present, which is what you want).
   std::vector<std::vector<std::vector<Eigen::Index>>> l_idx;
   if (maverage) {
-    const arma::ivec l_all = basis.get_lval();
-    const int lmax_bf = arma::max(l_all);
+    const Eigen::VectorXi l_all = basis.get_lval();
+    const int lmax_bf = l_all.maxCoeff();
     l_idx.assign(lmax_bf + 1, {});
     for (int l = 0; l <= lmax_bf; ++l)
       for (int m = -l; m <= l; ++m) {
