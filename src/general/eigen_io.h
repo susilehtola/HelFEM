@@ -25,13 +25,11 @@
 
 namespace helfem {
   namespace io {
-    /// Write a Vector to `path` one entry per line (matches
-    /// arma::mat::save("...", arma::raw_ascii) semantics for a
-    /// column vector).
+    /// Write a Vector / Matrix to `path` byte-for-byte as
+    /// arma::save("...", arma::raw_ascii): scientific notation, 16
+    /// significant figures, each entry right-justified in a width-24 field
+    /// with a single leading space; one row per line (a Vector is a column).
     void write_raw_ascii(const std::string & path, const helfem::Vector & v);
-
-    /// Write a Matrix to `path` in row-major raw ASCII: entries in a
-    /// row separated by single spaces, rows separated by newlines.
     void write_raw_ascii(const std::string & path, const helfem::Matrix & m);
 
     /// Print a Matrix to stdout in the same fixed-width 8.4f grid the
