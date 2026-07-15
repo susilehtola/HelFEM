@@ -20,7 +20,6 @@
 #include <xc.h>
 
 #include "dftgrid.h"
-#include <ArmaEigen.h>
 #include "../general/dftfuncs.h"
 
 // OpenMP parallellization for XC calculations
@@ -463,29 +462,26 @@ namespace helfem {
       // inherited from DFTGridWorkerBase.
 
       void DFTGridWorker::compute_bf(size_t iel) {
-        // Update function list (bridge arma::uvec -> vector<Eigen::Index>)
-        arma::uvec bf_ind_arma = basp->bf_list(iel);
-        bf_ind.assign(bf_ind_arma.n_elem, 0);
-        for(size_t k=0;k<bf_ind_arma.n_elem;k++)
-          bf_ind[k] = (Eigen::Index) bf_ind_arma(k);
+        // Update function list (basis returns vector<Eigen::Index>)
+        bf_ind = basp->bf_list(iel);
 
-        // Get radii (basis returns arma::vec -> helfem::Vector)
-        r = helfem::to_eigen(basp->get_r(iel));
+        // Get radii
+        r = basp->get_r(iel);
         // Get radial weights
-        wrad = helfem::to_eigen(basp->get_wrad(iel));
+        wrad = basp->get_wrad(iel);
 
         // Update total weights
         wtot = 4.0*M_PI * wrad.array() * r.array().square();
 
-        // Compute basis function values (basis returns arma::mat; transpose to Nbf x Npts)
-        bf = helfem::to_eigen(basp->eval_bf(iel)).transpose();
+        // Compute basis function values (transpose to Nbf x Npts)
+        bf = basp->eval_bf(iel).transpose();
 
         if(do_grad) {
-          bf_rho = helfem::to_eigen(basp->eval_df(iel)).transpose();
+          bf_rho = basp->eval_df(iel).transpose();
         }
 
         if(do_lapl) {
-          bf_rho2 = helfem::to_eigen(basp->eval_lf(iel)).transpose();
+          bf_rho2 = basp->eval_lf(iel).transpose();
         }
       }
 
@@ -498,18 +494,16 @@ namespace helfem {
       DFTGrid::~DFTGrid() {
       }
 
-      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const arma::cube & P, arma::cube & H, double & Exc, double & Nel, double thr) {
-        H.zeros(P.n_rows,P.n_rows,P.n_slices);
+      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Cube & P, helfem::Cube & H, double & Exc, double & Nel, double thr) {
+        const Eigen::Index Nrad = P[0].rows();
 
-        // Bridge the per-l density cube to a vector of Eigen matrices
-        std::vector<helfem::Matrix> Pvec(P.n_slices);
-        for(size_t is=0; is<P.n_slices; is++)
-          Pvec[is] = helfem::to_eigen(arma::mat(P.slice(is)));
+        // Per-l density cube is already a vector of Eigen matrices.
+        const std::vector<helfem::Matrix> & Pvec = P;
 
         // Shared Eigen Fock accumulator (one matrix per l-slice)
-        std::vector<helfem::Matrix> Hvec(P.n_slices);
-        for(size_t is=0; is<P.n_slices; is++)
-          Hvec[is] = helfem::Matrix::Zero(P.n_rows, P.n_rows);
+        std::vector<helfem::Matrix> Hvec(P.size());
+        for(size_t is=0; is<P.size(); is++)
+          Hvec[is] = helfem::Matrix::Zero(Nrad, Nrad);
 
         double exc=0.0;
         double nel=0.0;
@@ -557,34 +551,29 @@ namespace helfem {
           }
         }
 
-        // Bridge Fock accumulator back to the arma cube
-        for(size_t is=0; is<P.n_slices; is++)
-          H.slice(is) = helfem::to_arma(Hvec[is]);
+        // Move Fock accumulator into the output cube
+        H = std::move(Hvec);
 
         // Save outputs
         Exc=exc;
         Nel=nel;
       }
 
-      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const arma::cube & Pa, const arma::cube & Pb, arma::cube & Ha, arma::cube & Hb, double & Exc, double & Nel, bool beta, double thr) {
-        Ha.zeros(Pa.n_rows,Pa.n_rows,Pa.n_slices);
-        Hb.zeros(Pb.n_rows,Pb.n_rows,Pb.n_slices);
+      void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Cube & Pa, const helfem::Cube & Pb, helfem::Cube & Ha, helfem::Cube & Hb, double & Exc, double & Nel, bool beta, double thr) {
+        const Eigen::Index Nrad_a = Pa[0].rows();
+        const Eigen::Index Nrad_b = Pb[0].rows();
 
-        // Bridge the per-l density cubes to vectors of Eigen matrices
-        std::vector<helfem::Matrix> Pavec(Pa.n_slices);
-        for(size_t is=0; is<Pa.n_slices; is++)
-          Pavec[is] = helfem::to_eigen(arma::mat(Pa.slice(is)));
-        std::vector<helfem::Matrix> Pbvec(Pb.n_slices);
-        for(size_t is=0; is<Pb.n_slices; is++)
-          Pbvec[is] = helfem::to_eigen(arma::mat(Pb.slice(is)));
+        // Per-l density cubes are already vectors of Eigen matrices.
+        const std::vector<helfem::Matrix> & Pavec = Pa;
+        const std::vector<helfem::Matrix> & Pbvec = Pb;
 
         // Shared Eigen Fock accumulators (one matrix per l-slice)
-        std::vector<helfem::Matrix> Havec(Pa.n_slices);
-        for(size_t is=0; is<Pa.n_slices; is++)
-          Havec[is] = helfem::Matrix::Zero(Pa.n_rows, Pa.n_rows);
-        std::vector<helfem::Matrix> Hbvec(Pb.n_slices);
-        for(size_t is=0; is<Pb.n_slices; is++)
-          Hbvec[is] = helfem::Matrix::Zero(Pb.n_rows, Pb.n_rows);
+        std::vector<helfem::Matrix> Havec(Pa.size());
+        for(size_t is=0; is<Pa.size(); is++)
+          Havec[is] = helfem::Matrix::Zero(Nrad_a, Nrad_a);
+        std::vector<helfem::Matrix> Hbvec(Pb.size());
+        for(size_t is=0; is<Pb.size(); is++)
+          Hbvec[is] = helfem::Matrix::Zero(Nrad_b, Nrad_b);
 
         double exc=0.0;
         double nel=0.0;
@@ -631,12 +620,12 @@ namespace helfem {
           }
         }
 
-        // Bridge Fock accumulators back to the arma cubes
-        for(size_t is=0; is<Pa.n_slices; is++)
-          Ha.slice(is) = helfem::to_arma(Havec[is]);
+        // Move Fock accumulators into the output cubes
+        Ha = std::move(Havec);
         if(beta) {
-          for(size_t is=0; is<Pb.n_slices; is++)
-            Hb.slice(is) = helfem::to_arma(Hbvec[is]);
+          Hb = std::move(Hbvec);
+        } else {
+          Hb.assign(Pb.size(), helfem::Matrix::Zero(Nrad_b, Nrad_b));
         }
 
         // Save outputs

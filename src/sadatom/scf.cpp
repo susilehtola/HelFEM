@@ -93,14 +93,24 @@ namespace helfem {
         const Eigen::Index Nrad = Sinvh.rows();
         const double angfac = 4.0 * M_PI;
 
-        auto accumulate_density = [&](helfem::Matrix & Prad, arma::cube & Pl_cube,
+        // Divide each slice of a cube by a scalar (helfem::Cube has no
+        // whole-object arithmetic). Uses true element-wise division to
+        // match arma's `cube / scalar` bit-for-bit (arma and Eigen both
+        // compute val / k, not val * (1/k)).
+        auto divided_cube = [](const helfem::Cube & C, double f) {
+          helfem::Cube out(C.size());
+          for (size_t l = 0; l < C.size(); ++l) out[l] = C[l] / f;
+          return out;
+        };
+
+        auto accumulate_density = [&](helfem::Matrix & Prad, helfem::Cube & Pl_cube,
                                        size_t l, const helfem::Matrix & orb,
                                        const helfem::Vector & occ, double & Ekin_out) {
           if (occ.cwiseAbs().maxCoeff() == 0.0) return;
           const helfem::Matrix C = Sinvh * orb;
           const helfem::Matrix P_l = C * occ.asDiagonal() * C.transpose();
           Prad += P_l;
-          Pl_cube.slice(l) = helfem::to_arma(P_l);
+          Pl_cube[l] = P_l;
           Ekin_out += (P_l * T).trace();
           if (l > 0)
             Ekin_out += l * (l + 1) * (P_l * Tl).trace();
@@ -116,20 +126,20 @@ namespace helfem {
           double Ekin = 0.0;
           double Exc = 0.0;
           double nelnum = 0.0;
-          arma::cube XCa, XCb;
-          arma::cube Pal(Nrad, Nrad, nblock, arma::fill::zeros);
-          arma::cube Pbl;
+          helfem::Cube XCa, XCb;
+          helfem::Cube Pal(nblock, helfem::Matrix::Zero(Nrad, Nrad));
+          helfem::Cube Pbl;
 
           if (restricted) {
             for (size_t l = 0; l < nblock; ++l)
               accumulate_density(Prad, Pal, l, orbitals[l], occupations[l], Ekin);
             if (have_xc) {
               grid.eval_Fxc(opts.x_func, opts.x_pars, opts.c_func, opts.c_pars,
-                             Pal / angfac, XCa, Exc, nelnum, opts.dftthr);
-              XCa /= angfac;
+                             divided_cube(Pal, angfac), XCa, Exc, nelnum, opts.dftthr);
+              for (size_t l = 0; l < XCa.size(); ++l) XCa[l] /= angfac;
             }
           } else {
-            Pbl.zeros(Nrad, Nrad, nblock);
+            Pbl.assign(nblock, helfem::Matrix::Zero(Nrad, Nrad));
             helfem::Matrix Prad_a = helfem::Matrix::Zero(Nrad, Nrad);
             helfem::Matrix Prad_b = helfem::Matrix::Zero(Nrad, Nrad);
             for (size_t l = 0; l < nblock; ++l) {
@@ -139,10 +149,11 @@ namespace helfem {
             Prad = Prad_a + Prad_b;
             if (have_xc) {
               grid.eval_Fxc(opts.x_func, opts.x_pars, opts.c_func, opts.c_pars,
-                             Pal / angfac, Pbl / angfac, XCa, XCb,
+                             divided_cube(Pal, angfac), divided_cube(Pbl, angfac), XCa, XCb,
                              Exc, nelnum, opts.nelb > 0, opts.dftthr);
-              XCa /= angfac;
-              if (opts.nelb > 0) XCb /= angfac;
+              for (size_t l = 0; l < XCa.size(); ++l) XCa[l] /= angfac;
+              if (opts.nelb > 0)
+                for (size_t l = 0; l < XCb.size(); ++l) XCb[l] /= angfac;
             }
           }
 
@@ -151,26 +162,38 @@ namespace helfem {
           const helfem::Matrix J = basis.coulomb(Prad / angfac);
           const double Ecoul = 0.5 * (Prad * J).trace();
 
-          arma::cube Ka, Kb;
+          helfem::Cube Ka, Kb;
           double Exx = 0.0;
           if (have_exx) {
-            arma::cube ang_a = Pal;
+            helfem::Cube ang_a = Pal;
             for (size_t l = 0; l < nblock; ++l)
-              ang_a.slice(l) /= restricted ? 2.0 * (2 * l + 1) : (2 * l + 1);
-            Ka.zeros(Nrad, Nrad, nblock);
-            if (kfrac  != 0.0) Ka += kfrac  * basis.exchange(ang_a);
-            if (kshort != 0.0) Ka += kshort * basis.rs_exchange(ang_a);
+              ang_a[l] /= restricted ? 2.0 * (2 * l + 1) : (2 * l + 1);
+            Ka.assign(nblock, helfem::Matrix::Zero(Nrad, Nrad));
+            if (kfrac  != 0.0) {
+              const helfem::Cube Kx = basis.exchange(ang_a);
+              for (size_t l = 0; l < nblock; ++l) Ka[l] += kfrac * Kx[l];
+            }
+            if (kshort != 0.0) {
+              const helfem::Cube Kx = basis.rs_exchange(ang_a);
+              for (size_t l = 0; l < nblock; ++l) Ka[l] += kshort * Kx[l];
+            }
             for (size_t l = 0; l < nblock; ++l)
-              Exx += 0.5 * arma::trace(Ka.slice(l) * Pal.slice(l));
+              Exx += 0.5 * (Ka[l] * Pal[l]).trace();
             if (!restricted) {
-              arma::cube ang_b = Pbl;
+              helfem::Cube ang_b = Pbl;
               for (size_t l = 0; l < nblock; ++l)
-                ang_b.slice(l) /= (2 * l + 1);
-              Kb.zeros(Nrad, Nrad, nblock);
-              if (kfrac  != 0.0) Kb += kfrac  * basis.exchange(ang_b);
-              if (kshort != 0.0) Kb += kshort * basis.rs_exchange(ang_b);
+                ang_b[l] /= (2 * l + 1);
+              Kb.assign(nblock, helfem::Matrix::Zero(Nrad, Nrad));
+              if (kfrac  != 0.0) {
+                const helfem::Cube Kx = basis.exchange(ang_b);
+                for (size_t l = 0; l < nblock; ++l) Kb[l] += kfrac * Kx[l];
+              }
+              if (kshort != 0.0) {
+                const helfem::Cube Kx = basis.rs_exchange(ang_b);
+                for (size_t l = 0; l < nblock; ++l) Kb[l] += kshort * Kx[l];
+              }
               for (size_t l = 0; l < nblock; ++l)
-                Exx += 0.5 * arma::trace(Kb.slice(l) * Pbl.slice(l));
+                Exx += 0.5 * (Kb[l] * Pbl[l]).trace();
             }
           }
 
@@ -184,16 +207,16 @@ namespace helfem {
             fflush(stdout);
           }
 
-          auto build_fock_block = [&](size_t l, const arma::cube & XC_cube,
-                                       bool add_xc, const arma::cube & K_cube,
+          auto build_fock_block = [&](size_t l, const helfem::Cube & XC_cube,
+                                       bool add_xc, const helfem::Cube & K_cube,
                                        bool add_k) -> helfem::Matrix {
             helfem::Matrix Fl = T + Vnuc + J;
             if (have_conf) Fl += Vconf;
             if (l > 0) Fl += l * (l + 1) * Tl;
             if (add_xc)
-              Fl += helfem::to_eigen(arma::mat(XC_cube.slice(l)));
+              Fl += XC_cube[l];
             if (add_k)
-              Fl += helfem::to_eigen(arma::mat(K_cube.slice(l)));
+              Fl += K_cube[l];
             return Sinvh.transpose() * Fl * Sinvh;
           };
 
@@ -248,8 +271,8 @@ namespace helfem {
         // vector so Aufbau is bypassed. Same pattern as atomic_ooo /
         // diatomic_ooo --readocc; here the caller supplies the per-l
         // occupation directly rather than reading occs.dat.
-        const bool freeze_a = static_cast<int>(opts.fixed_per_l_a.n_elem) == lmax + 1;
-        const bool freeze_b = (!restricted) && static_cast<int>(opts.fixed_per_l_b.n_elem) == lmax + 1;
+        const bool freeze_a = static_cast<int>(opts.fixed_per_l_a.size()) == lmax + 1;
+        const bool freeze_b = (!restricted) && static_cast<int>(opts.fixed_per_l_b.size()) == lmax + 1;
         if (freeze_a || freeze_b) {
           Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> fixed =
               Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1>::Zero(nblock * nparttype);
@@ -278,9 +301,8 @@ namespace helfem {
           loadchk.read("sadatom_primbas", old_primbas);
           loadchk.read("sadatom_nnodes",  old_nnodes);
           loadchk.read("sadatom_Nquad",   old_Nquad);
-          arma::mat old_bval_mat;
-          loadchk.read("sadatom_bval", old_bval_mat);
-          const arma::vec old_bval = old_bval_mat.col(0);
+          helfem::Vector old_bval;
+          loadchk.read("sadatom_bval", old_bval);
 
           // Reconstruct the old polynomial basis so the reassembled
           // FE basis matches the checkpoint's Nbf exactly.
@@ -289,105 +311,103 @@ namespace helfem {
           sadatom::basis::TwoDBasis oldbasis(old_Z, modelpotential::POINT_NUCLEUS,
                                               0.0, old_poly, opts.zeroder,
                                               old_Nquad, old_bval, old_lmax);
-          const arma::mat S12  = helfem::to_arma(basis.overlap(oldbasis));
-          const arma::mat Sinvh_full = helfem::to_arma(basis.Sinvh());
-          const arma::mat Pproj = Sinvh_full * arma::trans(Sinvh_full) * S12;
-          const arma::mat S_new = helfem::to_arma(basis.overlap());
+          const helfem::Matrix S12  = basis.overlap(oldbasis);
+          const helfem::Matrix Sinvh_full = basis.Sinvh();
+          const helfem::Matrix Pproj = Sinvh_full * Sinvh_full.transpose() * S12;
+          const helfem::Matrix S_new = basis.overlap();
 
           // Read per-l density slices back into a cube. Each slice is
-          // stored on disk as sadatom_Pal_l (arma::mat, Nrad_old^2).
+          // stored on disk as sadatom_Pal_l (helfem::Matrix, Nrad_old^2).
           const int old_nblock_read = old_lmax + 1;
-          arma::cube Pal_old(old_bval.n_elem == 0 ? 0 : 0, 0, 0);
-          Pal_old.set_size(0, 0, 0);
+          helfem::Cube Pal_old;
           if (loadchk.exist("sadatom_Pal_0")) {
-            arma::mat slice0;
+            helfem::Matrix slice0;
             loadchk.read("sadatom_Pal_0", slice0);
-            Pal_old.set_size(slice0.n_rows, slice0.n_cols, old_nblock_read);
-            Pal_old.slice(0) = slice0;
+            Pal_old.assign(old_nblock_read, helfem::Matrix::Zero(slice0.rows(), slice0.cols()));
+            Pal_old[0] = slice0;
             for (int l = 1; l < old_nblock_read; ++l) {
               const std::string key = std::string("sadatom_Pal_") + std::to_string(l);
-              arma::mat sl;
+              helfem::Matrix sl;
               if (loadchk.exist(key)) {
                 loadchk.read(key, sl);
-                Pal_old.slice(l) = sl;
-              } else {
-                Pal_old.slice(l).zeros();
+                Pal_old[l] = sl;
               }
             }
           }
-          arma::cube Pbl_old;
+          helfem::Cube Pbl_old;
           if (!restricted && loadchk.exist("sadatom_Pbl_0")) {
-            arma::mat slice0;
+            helfem::Matrix slice0;
             loadchk.read("sadatom_Pbl_0", slice0);
-            Pbl_old.set_size(slice0.n_rows, slice0.n_cols, old_nblock_read);
-            Pbl_old.slice(0) = slice0;
+            Pbl_old.assign(old_nblock_read, helfem::Matrix::Zero(slice0.rows(), slice0.cols()));
+            Pbl_old[0] = slice0;
             for (int l = 1; l < old_nblock_read; ++l) {
               const std::string key = std::string("sadatom_Pbl_") + std::to_string(l);
-              arma::mat sl;
+              helfem::Matrix sl;
               if (loadchk.exist(key)) {
                 loadchk.read(key, sl);
-                Pbl_old.slice(l) = sl;
-              } else {
-                Pbl_old.slice(l).zeros();
+                Pbl_old[l] = sl;
               }
             }
           }
 
           OpenOrbitalOptimizer::Orbitals<OOO_Real>            loaded_orbs(nblock * nparttype);
           OpenOrbitalOptimizer::OrbitalOccupations<OOO_Real>  loaded_occs(nblock * nparttype);
-          const int old_nblock = old_lmax + 1;
 
-          auto fill_l = [&](size_t base, size_t l, const arma::cube & Pcube,
+          auto fill_l = [&](size_t base, size_t l, const helfem::Cube & Pcube,
                              double per_l_electrons, double max_occ) {
-            arma::mat Pl_new;
-            if (static_cast<int>(l) <= old_lmax && Pcube.n_slices > l) {
-              Pl_new = Pproj * arma::mat(Pcube.slice(l)) * arma::trans(Pproj);
-              const double trace_now = arma::trace(Pl_new * S_new);
+            helfem::Matrix Pl_new;
+            if (static_cast<int>(l) <= old_lmax && Pcube.size() > l) {
+              Pl_new = Pproj * Pcube[l] * Pproj.transpose();
+              const double trace_now = (Pl_new * S_new).trace();
               if (trace_now > 0 && per_l_electrons > 0)
                 Pl_new *= per_l_electrons / trace_now;
             } else {
-              Pl_new.zeros(Nrad, Nrad);
+              Pl_new = helfem::Matrix::Zero(Nrad, Nrad);
             }
-            const arma::mat Porth = Sinvh_full.t() * Pl_new * Sinvh_full;
-            arma::vec occ_eigs;
-            arma::mat vec_eigs;
-            if (!arma::eig_sym(occ_eigs, vec_eigs, Porth))
+            const helfem::Matrix Porth = Sinvh_full.transpose() * Pl_new * Sinvh_full;
+            Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(Porth);
+            if (es.info() != Eigen::Success)
               throw std::logic_error("--load: eigendecomposition of projected l block density failed");
-            const arma::uword n = vec_eigs.n_cols;
-            arma::mat V(vec_eigs.n_rows, n);
-            arma::vec w(n);
-            for (arma::uword i = 0; i < n; ++i) {
+            const helfem::Vector occ_eigs = es.eigenvalues();     // ascending
+            const helfem::Matrix vec_eigs = es.eigenvectors();
+            const Eigen::Index n = vec_eigs.cols();
+            helfem::Matrix V(vec_eigs.rows(), n);
+            helfem::Vector w(n);
+            for (Eigen::Index i = 0; i < n; ++i) {
               V.col(i) = vec_eigs.col(n - 1 - i);
               w(i)     = std::min(std::max(occ_eigs(n - 1 - i), 0.0), max_occ);
             }
-            loaded_orbs[base + l] = helfem::to_eigen(V);
-            loaded_occs[base + l] = helfem::to_eigen(w);
+            loaded_orbs[base + l] = V;
+            loaded_occs[base + l] = w;
           };
 
           // Per-l electron counts to renormalise into. Read from
           // checkpoint if present, else fall back to trace-preserving
-          // (no rescaling).
-          arma::ivec per_l_a, per_l_b;
+          // (no rescaling). Checkpoint stores integers as arma::imat --
+          // bridge to Eigen at this boundary.
+          Eigen::VectorXi per_l_a, per_l_b;
           if (loadchk.exist("sadatom_occs_a")) {
             arma::imat tmp;
             loadchk.read("sadatom_occs_a", tmp);
-            per_l_a = tmp.col(0);
+            per_l_a.resize(tmp.n_rows);
+            for (arma::uword i = 0; i < tmp.n_rows; ++i) per_l_a(i) = (int) tmp(i, 0);
           }
           if (loadchk.exist("sadatom_occs_b")) {
             arma::imat tmp;
             loadchk.read("sadatom_occs_b", tmp);
-            per_l_b = tmp.col(0);
+            per_l_b.resize(tmp.n_rows);
+            for (arma::uword i = 0; i < tmp.n_rows; ++i) per_l_b(i) = (int) tmp(i, 0);
           }
 
           for (size_t l = 0; l < nblock; ++l) {
-            double per_l = (static_cast<int>(l) < per_l_a.n_elem)
+            double per_l = (static_cast<int>(l) < per_l_a.size())
                              ? static_cast<double>(per_l_a(l)) : 0.0;
             double max_occ = restricted ? 2.0 * (2 * l + 1) : (2.0 * l + 1);
             fill_l(0, l, Pal_old, per_l, max_occ);
           }
           if (!restricted) {
             for (size_t l = 0; l < nblock; ++l) {
-              double per_l = (static_cast<int>(l) < per_l_b.n_elem)
+              double per_l = (static_cast<int>(l) < per_l_b.size())
                                ? static_cast<double>(per_l_b(l)) : 0.0;
               double max_occ = 2.0 * l + 1;
               fill_l(nblock, l, Pbl_old, per_l, max_occ);
@@ -409,12 +429,12 @@ namespace helfem {
         AtomicSCFResult result;
         result.basis = basis;
 
-        auto extract_channel = [&](size_t t, arma::cube & orbs_out, arma::ivec & occs_out) {
-          orbs_out.zeros(Nrad, Nrad, nblock);
-          occs_out.zeros(nblock);
+        auto extract_channel = [&](size_t t, helfem::Cube & orbs_out, Eigen::VectorXi & occs_out) {
+          orbs_out.assign(nblock, helfem::Matrix::Zero(Nrad, Nrad));
+          occs_out = Eigen::VectorXi::Zero(nblock);
           for (size_t l = 0; l < nblock; ++l) {
             const helfem::Matrix C_ao = Sinvh * orbitals[t * nblock + l];
-            orbs_out.slice(l) = helfem::to_arma(C_ao);
+            orbs_out[l] = C_ao;
             // Round OOO's Tbase (double) per-orbital occupations up to
             // the nearest integer total per l. Aufbau on integer
             // electron counts yields integer occupations for the
@@ -434,42 +454,42 @@ namespace helfem {
         // consistent with the converged ground state and with the
         // checkpoint written below). Used both for --save and for the
         // gensap effective-potential / SAP-table output in main.cpp.
-        auto build_cube = [&](const arma::cube & orbs_ao, const arma::ivec & occs_per_l,
-                               arma::cube & Pcube_out) {
-          Pcube_out.zeros(Nrad, Nrad, nblock);
+        auto build_cube = [&](const helfem::Cube & orbs_ao, const Eigen::VectorXi & occs_per_l,
+                               helfem::Cube & Pcube_out) {
+          Pcube_out.assign(nblock, helfem::Matrix::Zero(Nrad, Nrad));
           for (size_t l = 0; l < nblock; ++l) {
             if (occs_per_l(l) <= 0) continue;
             // For an integer per-l total N in a manifold of capacity
             // 2*(2l+1) restricted or (2l+1) unrestricted, split
             // evenly across the N/max_orb lowest orbitals.
-            const arma::mat orb_l = arma::mat(orbs_ao.slice(l));
-            const int norb = orb_l.n_cols;
+            const helfem::Matrix & orb_l = orbs_ao[l];
+            const int norb = orb_l.cols();
             const double per_orb = (restricted ? 2.0 * (2 * l + 1) : 2.0 * l + 1);
             // AO density with occupations set: pick occs from OOO
             // internal (they are what's converged). For simplicity
             // fall back to a diagonal-per-orbital occupation of
             // occs_per_l(l) / norb capped at per_orb.
-            arma::vec occ_vec(norb, arma::fill::zeros);
+            helfem::Vector occ_vec = helfem::Vector::Zero(norb);
             double remaining = static_cast<double>(occs_per_l(l));
             for (int i = 0; i < norb && remaining > 0; ++i) {
               const double take = std::min<double>(per_orb, remaining);
               occ_vec(i) = take;
               remaining -= take;
             }
-            Pcube_out.slice(l) = orb_l * arma::diagmat(occ_vec) * arma::trans(orb_l);
+            Pcube_out[l] = orb_l * occ_vec.asDiagonal() * orb_l.transpose();
           }
         };
 
         build_cube(result.orbs_a, result.occs_a, result.Pl_a);
-        arma::mat Prad_arma = arma::zeros(Nrad, Nrad);
+        helfem::Matrix Prad_tot = helfem::Matrix::Zero(Nrad, Nrad);
         for (size_t l = 0; l < nblock; ++l)
-          Prad_arma += result.Pl_a.slice(l);
+          Prad_tot += result.Pl_a[l];
         if (!restricted) {
           build_cube(result.orbs_b, result.occs_b, result.Pl_b);
           for (size_t l = 0; l < nblock; ++l)
-            Prad_arma += result.Pl_b.slice(l);
+            Prad_tot += result.Pl_b[l];
         }
-        result.Prad = helfem::to_eigen(Prad_arma);
+        result.Prad = Prad_tot;
 
         // --save path: write basis-defining params + per-l AO density
         // cube(s) + per-l electron counts. Rebuilding a matching basis
@@ -481,28 +501,24 @@ namespace helfem {
           savechk.write("sadatom_primbas", opts.poly->get_id());
           savechk.write("sadatom_nnodes",  opts.poly->get_nnodes());
           savechk.write("sadatom_Nquad",   opts.Nquad);
-          {
-            arma::mat bval_col(opts.bval.n_elem, 1);
-            bval_col.col(0) = opts.bval;
-            savechk.write("sadatom_bval", bval_col);
-          }
+          savechk.write("sadatom_bval", opts.bval);
 
-          const arma::cube & Pal_out = result.Pl_a;
           for (size_t l = 0; l < nblock; ++l)
             savechk.write(std::string("sadatom_Pal_") + std::to_string(l),
-                          arma::mat(Pal_out.slice(l)));
+                          result.Pl_a[l]);
           {
-            arma::imat oa(result.occs_a.n_elem, 1);
-            for (size_t i = 0; i < result.occs_a.n_elem; ++i) oa(i, 0) = result.occs_a(i);
+            // Checkpoint stores integers as arma::imat -- bridge at the
+            // HDF5 boundary.
+            arma::imat oa(result.occs_a.size(), 1);
+            for (Eigen::Index i = 0; i < result.occs_a.size(); ++i) oa(i, 0) = result.occs_a(i);
             savechk.write("sadatom_occs_a", oa);
           }
           if (!restricted) {
-            const arma::cube & Pbl_out = result.Pl_b;
             for (size_t l = 0; l < nblock; ++l)
               savechk.write(std::string("sadatom_Pbl_") + std::to_string(l),
-                            arma::mat(Pbl_out.slice(l)));
-            arma::imat ob(result.occs_b.n_elem, 1);
-            for (size_t i = 0; i < result.occs_b.n_elem; ++i) ob(i, 0) = result.occs_b(i);
+                            result.Pl_b[l]);
+            arma::imat ob(result.occs_b.size(), 1);
+            for (Eigen::Index i = 0; i < result.occs_b.size(); ++i) ob(i, 0) = result.occs_b(i);
             savechk.write("sadatom_occs_b", ob);
           }
           printf("Saved results to %s\n", opts.save_file.c_str());

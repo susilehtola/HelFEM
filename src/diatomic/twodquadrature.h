@@ -100,9 +100,9 @@ namespace helfem {
         /// Left-hand and right-hand atomic basis sets
         sadatom::basis::TwoDBasis lh_basis, rh_basis;
         /// Left-hand and right-hand atomic orbitals
-        arma::cube lh_orbs, rh_orbs;
+        helfem::Cube lh_orbs, rh_orbs;
         /// Occupations
-        arma::ivec lh_occs, rh_occs;
+        Eigen::VectorXi lh_occs, rh_occs;
 
       public:
         /// Dummy constructor
