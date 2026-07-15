@@ -17,7 +17,6 @@
 
 #include "basis.h"
 #include "../general/model_potential.h"
-#include <armadillo>
 #include <memory>
 
 namespace helfem {
@@ -32,7 +31,7 @@ namespace helfem {
         int    lmax       = 0;
         std::shared_ptr<const polynomial_basis::PolynomialBasis> poly;
         int    Nquad      = 0;
-        arma::vec bval;
+        helfem::Vector bval;
         int    nela       = 0;
         int    nelb       = 0;
         bool   restricted = true;
@@ -64,8 +63,8 @@ namespace helfem {
         // 2*(2l+1)) and leave fixed_per_l_b empty.
         // Unrestricted: pass both; each entry is the alpha or beta
         // count in that l (up to 2l+1).
-        arma::ivec fixed_per_l_a;
-        arma::ivec fixed_per_l_b;
+        Eigen::VectorXi fixed_per_l_a;
+        Eigen::VectorXi fixed_per_l_b;
         /// OOO verbosity; 0 for silent, higher for per-iteration prints.
         int verbosity = 5;
         /// Load orbital guess from checkpoint. Empty = start from core-H
@@ -81,29 +80,29 @@ namespace helfem {
       struct AtomicSCFResult {
         /// The FE atomic basis used for the SCF (Z, radial grid, lmax).
         sadatom::basis::TwoDBasis basis;
-        /// AO->MO coefficient cube: slice(l) is the (Nbf, Nbf) matrix
+        /// AO->MO coefficient cube: [l] is the (Nbf, Nbf) matrix
         /// of MO coefficients for orbital angular momentum l.
         /// For unrestricted, this is the alpha channel.
-        arma::cube orbs_a;
+        helfem::Cube orbs_a;
         /// Per-l occupation numbers (alpha channel for unrestricted).
         /// Length lmax+1. For restricted, this is the FULL per-l count
         /// (up to 2*(2l+1)).
-        arma::ivec occs_a;
+        Eigen::VectorXi occs_a;
         /// Beta channel (empty for restricted).
-        arma::cube orbs_b;
-        arma::ivec occs_b;
+        helfem::Cube orbs_b;
+        Eigen::VectorXi occs_b;
         /// Converged total radial density matrix (alpha+beta),
         /// Nrad x Nrad. Consumed by the gensap effective-potential /
         /// SAP-table output path (basis::coulomb_screening /
         /// xc_screening / electron_density).
         helfem::Matrix Prad;
-        /// Per-l radial density cubes. Pl_a.slice(l) is the l-channel
+        /// Per-l radial density cubes. Pl_a[l] is the l-channel
         /// density; for restricted it holds the full per-l density
         /// (alpha+beta), for unrestricted it is the alpha channel and
         /// Pl_b the beta channel (empty for restricted). Used for the
         /// kinetic-energy-density (tau) column of the SAP table.
-        arma::cube Pl_a;
-        arma::cube Pl_b;
+        helfem::Cube Pl_a;
+        helfem::Cube Pl_b;
       };
 
       /// Run an OOO-based sadatom SCF. Replaces the bespoke SCFSolver

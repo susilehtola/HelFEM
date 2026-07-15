@@ -470,35 +470,35 @@ namespace helfem {
       }
 
       arma::mat TwoDGrid::atomic_projection(int l, int m, probe_t p) {
-        arma::mat C;
+        helfem::Matrix C;
         sadatom::basis::TwoDBasis basis;
         if(p == PROBE_LEFT) {
-          if((size_t) l>=lh_occs.n_elem)
-            return C;
+          if((size_t) l>=(size_t) lh_occs.size())
+            return arma::mat();
           int nocc = std::ceil(lh_occs(l)/(2.0*(2.0*l+1.0)));
           if(nocc==0)
             // empty matrix
-            return C;
-          C = lh_orbs.slice(l).cols(0,nocc-1);
+            return arma::mat();
+          C = lh_orbs[l].leftCols(nocc);
           basis = lh_basis;
         } else if(p == PROBE_RIGHT) {
-          if((size_t) l>=rh_occs.n_elem)
-            return C;
+          if((size_t) l>=(size_t) rh_occs.size())
+            return arma::mat();
           int nocc = std::ceil(rh_occs(l)/(2.0*(2.0*l+1.0)));
           if(nocc==0)
             // empty matrix
-            return C;
-          C = rh_orbs.slice(l).cols(0, nocc-1);
+            return arma::mat();
+          C = rh_orbs[l].leftCols(nocc);
           basis = rh_basis;
         } else
           throw std::logic_error("No AOs on bond center!\n");
 
-        // eval_orbs is arma-typed; bridge each evaluation to Eigen.
+        // eval_orbs is Eigen-typed (returns helfem::Vector).
         std::function<helfem::Vector(double r)> eval_ao = [basis, C](double r) {
-          return helfem::to_eigen(basis.eval_orbs(C, r));
+          return basis.eval_orbs(C, r);
         };
 
-        helfem::Matrix S = helfem::Matrix::Zero(C.n_cols,basp->Ndummy());
+        helfem::Matrix S = helfem::Matrix::Zero(C.cols(),basp->Ndummy());
         TwoDGridWorker grid(basp,lang);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
@@ -541,26 +541,27 @@ namespace helfem {
           return -1;
         };
         auto per_l_occ = [&lmax_for_Z](int Z) {
-          arma::ivec o(lmax_for_Z(Z) + 1);
-          for (size_t l = 0; l < o.n_elem; ++l)
+          Eigen::VectorXi o(lmax_for_Z(Z) + 1);
+          for (Eigen::Index l = 0; l < o.size(); ++l)
             o(l) = pbe_ground_states[Z-1][l];
           return o;
         };
 
         auto run_side = [&](int Z, sadatom::basis::TwoDBasis & basis_out,
-                             arma::cube & orbs_out, arma::ivec & occs_out) {
+                             helfem::Cube & orbs_out, Eigen::VectorXi & occs_out) {
           const int lmax = lmax_for_Z(Z);
-          const arma::ivec occ = per_l_occ(Z);
-          const int Ntot = static_cast<int>(arma::sum(occ));
+          const Eigen::VectorXi occ = per_l_occ(Z);
+          const int Ntot = static_cast<int>(occ.sum());
 
           sadatom::scf::AtomicSCFOptions opts;
           opts.Z              = Z;
           opts.lmax           = lmax;
           opts.poly           = poly;
           opts.Nquad          = Nquad;
-          opts.bval           = atomic::basis::form_grid(
+          // atomic::basis::form_grid still returns arma::vec; bridge once.
+          opts.bval           = helfem::to_eigen(atomic::basis::form_grid(
               modelpotential::POINT_NUCLEUS, 0.0, Nelem, Rmax, igrid, zexp,
-              0, 0, 0.0, Z, 0, 0, 0.0);
+              0, 0, 0.0, Z, 0, 0, 0.0));
           opts.nela           = Ntot / 2;  // restricted closed-shell (PBE ground occs
           opts.nelb           = Ntot / 2;  // are always even totals per l).
           opts.restricted     = true;

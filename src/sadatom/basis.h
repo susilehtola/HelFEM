@@ -15,7 +15,6 @@
 #ifndef SADATOM_BASIS_H
 #define SADATOM_BASIS_H
 
-#include <armadillo>
 #include <Matrix.h>
 #include "../atomic/basis.h"
 #include <NAORadialBasis.h>
@@ -40,7 +39,7 @@ namespace helfem {
         /// Radial basis set
         atomic::basis::FEMRadialBasis radial;
         /// Angular basis set: function l values
-        arma::ivec lval;
+        Eigen::VectorXi lval;
 
         // Phase 2c: per-element 2e caches migrated to Eigen.
         /// Auxiliary integrals
@@ -65,7 +64,7 @@ namespace helfem {
       public:
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int n_quad, const arma::vec & bval, int lmax);
+        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int n_quad, const helfem::Vector & bval, int lmax);
         /// Destructor
         ~TwoDBasis();
 
@@ -104,76 +103,76 @@ namespace helfem {
         /// Form Coulomb matrix
         helfem::Matrix coulomb(const helfem::Matrix & P) const;
         /// Form exchange matrix
-        arma::cube exchange(const arma::cube & P) const;
+        helfem::Cube exchange(const helfem::Cube & P) const;
         /// Form exchange matrix
-        arma::cube rs_exchange(const arma::cube & P) const;
+        helfem::Cube rs_exchange(const helfem::Cube & P) const;
 
         /// Evaluate basis functions
-        arma::mat eval_bf(size_t iel) const;
+        helfem::Matrix eval_bf(size_t iel) const;
         /// Evaluate basis functions derivatives
-        arma::mat eval_df(size_t iel) const;
+        helfem::Matrix eval_df(size_t iel) const;
         /// Evaluate basis functions second derivatives
-        arma::mat eval_lf(size_t iel) const;
+        helfem::Matrix eval_lf(size_t iel) const;
         /// Get list of basis function indices in element
-        arma::uvec bf_list(size_t iel) const;
+        std::vector<Eigen::Index> bf_list(size_t iel) const;
 
         /// Evaluate orbitals
-        arma::vec eval_orbs(const arma::mat & C, double r) const;
+        helfem::Vector eval_orbs(const helfem::Matrix & C, double r) const;
 
         /// Get number of radial elements
         size_t get_rad_Nel() const;
         /// Get radial quadrature weights
-        arma::vec get_wrad(size_t iel) const;
+        helfem::Vector get_wrad(size_t iel) const;
         /// Get r values
-        arma::vec get_r(size_t iel) const;
+        helfem::Vector get_r(size_t iel) const;
 
         /// Electron density at nucleus
-        double nuclear_density(const arma::mat & P) const;
+        double nuclear_density(const helfem::Matrix & P) const;
         /// Electron density gradient at nucleus
-        double nuclear_density_gradient(const arma::mat & P) const;
+        double nuclear_density_gradient(const helfem::Matrix & P) const;
 
         /// Get quadrature weights
-        arma::vec quadrature_weights() const;
+        helfem::Vector quadrature_weights() const;
         /// Compute the Coulomb screening of the nucleus
-        arma::vec coulomb_screening(const arma::mat & Prad) const;
+        helfem::Vector coulomb_screening(const helfem::Matrix & Prad) const;
 
         /// Radii
-        arma::vec radii() const;
+        helfem::Vector radii() const;
         /// Compute the radial Slater-Condon integral F^k for an orbital
         /// specified by its coefficient vector c (length Nrad) in the
         /// u = r * R basis.
-        double slater_F(int k, const arma::vec & c) const;
+        double slater_F(int k, const helfem::Vector & c) const;
         /// Compute radial orbitals
-        arma::mat orbitals(const arma::mat & C) const;
+        helfem::Matrix orbitals(const helfem::Matrix & C) const;
         /// Compute radial orbitals' first derivative
-        arma::mat orbitals_derivative(const arma::mat & C) const;
+        helfem::Matrix orbitals_derivative(const helfem::Matrix & C) const;
         /// Compute radial orbitals' second derivative
-        arma::mat orbitals_second_derivative(const arma::mat & C) const;
+        helfem::Matrix orbitals_second_derivative(const helfem::Matrix & C) const;
 
         /// Compute the electron density in given element at wanted points
-        arma::vec electron_density(const arma::vec & x, size_t iel, const arma::mat & Prad, bool rsqweight = false) const;
+        helfem::Vector electron_density(const helfem::Vector & x, size_t iel, const helfem::Matrix & Prad, bool rsqweight = false) const;
         /// Compute the electron density in given element at default quadrature points
-        arma::vec electron_density(size_t iel, const arma::mat & Prad, bool rsqweight = false) const;
+        helfem::Vector electron_density(size_t iel, const helfem::Matrix & Prad, bool rsqweight = false) const;
         /// Compute the position of the electron density maximum
-        double electron_density_maximum_radius(const arma::mat & Prad, bool rsqweight = true, double conv_thr=1e-10) const;
+        double electron_density_maximum_radius(const helfem::Matrix & Prad, bool rsqweight = true, double conv_thr=1e-10) const;
         /// Compute the van der Waals radius, see doi:10.1002/chem.201602949
-        double vdw_radius(const arma::mat & Prad, double eps=0.001, double conv_thr=1e-10) const;
+        double vdw_radius(const helfem::Matrix & Prad, double eps=0.001, double conv_thr=1e-10) const;
         /// Compute the atomic radius by electron density inclusion
-        double electron_count_radius(const arma::mat & Prad, const double eps=0.001, const double conv_thr=1e-10) const;
+        double electron_count_radius(const helfem::Matrix & Prad, const double eps=0.001, const double conv_thr=1e-10) const;
 
         /// Compute the electron density
-        arma::vec electron_density(const arma::mat & Prad, bool rsqweight = false) const;
+        helfem::Vector electron_density(const helfem::Matrix & Prad, bool rsqweight = false) const;
         /// Compute the electron density gradient
-        arma::vec electron_density_gradient(const arma::mat & Prad) const;
+        helfem::Vector electron_density_gradient(const helfem::Matrix & Prad) const;
         /// Compute the electron density laplacian
-        arma::vec electron_density_laplacian(const arma::mat & Prad) const;
+        helfem::Vector electron_density_laplacian(const helfem::Matrix & Prad) const;
         /// Compute the kinetic energy density
-        arma::vec kinetic_energy_density(const arma::cube & Pl0) const;
+        helfem::Vector kinetic_energy_density(const helfem::Cube & Pl0) const;
 
         /// Compute the exchange-correlation screening
-        arma::vec xc_screening(const arma::mat & Prad, int x_func, int c_func) const;
+        helfem::Vector xc_screening(const helfem::Matrix & Prad, int x_func, int c_func) const;
         /// Compute the exchange-correlation screening
-        arma::mat xc_screening(const arma::mat & Parad, const arma::mat & Pbrad, int x_func, int c_func) const;
+        helfem::Matrix xc_screening(const helfem::Matrix & Parad, const helfem::Matrix & Pbrad, int x_func, int c_func) const;
 
         /// Read-only access to the underlying radial basis. Useful for
         /// callers that want to build an NAORadialBasis on top of a
@@ -198,7 +197,7 @@ namespace helfem {
       /// the returned basis objects can outlive `sad_basis`.
       std::vector<std::pair<int, atomic::basis::NAORadialBasis>>
       extract_naos_per_l(const TwoDBasis & sad_basis,
-                         const arma::cube & Ccube,
+                         const helfem::Cube & Ccube,
                          const std::vector<int> & keep_per_l);
     }
   }

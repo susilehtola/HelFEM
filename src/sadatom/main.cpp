@@ -29,13 +29,37 @@
 #include "../general/lcao.h"
 #include "../atomic/basis.h"
 #include "scf.h"
+// ArmaEigen.h is included only for the helfem::to_eigen bridge on the
+// return value of atomic::basis::form_grid, which is still arma-typed.
 #include <ArmaEigen.h>
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <algorithm>
 #include <vector>
 
 using namespace helfem;
+
+// Write a matrix to disk in exactly arma::mat::save(..., arma::raw_ascii)
+// format: no header, each element in scientific notation with precision
+// 16, right-justified in a field of width 24, preceded by one space.
+// Replicating the arma format keeps the emitted .dat files byte-identical
+// to the pre-migration output.
+static void save_raw_ascii(const helfem::Matrix & m, const std::string & path) {
+  std::ofstream f(path);
+  f.unsetf(std::ios::fixed);
+  f.setf(std::ios::scientific);
+  f.fill(' ');
+  f.precision(16);
+  for (Eigen::Index i = 0; i < m.rows(); ++i) {
+    for (Eigen::Index j = 0; j < m.cols(); ++j) {
+      f.put(' ');
+      f.width(24);
+      f << m(i, j);
+    }
+    f.put('\n');
+  }
+}
 
 // Assemble the radial effective-potential table for the converged
 // density in `res`, using exchange/correlation ids (xp_func, cp_func)
@@ -44,41 +68,43 @@ using namespace helfem;
 //   0 r   1 rho   2 grad(rho)   3 lapl(rho)   4 tau
 //   5 v_coul(screening)   6 v_xc(screening)   7 quad weight
 //   8 Zeff = charge - (v_coul + v_xc)   <-- the SAP effective charge
-static arma::mat effective_potential_table(
+static helfem::Matrix effective_potential_table(
     const helfem::sadatom::basis::TwoDBasis & basis,
     const helfem::sadatom::scf::AtomicSCFResult & res,
     bool restricted, int xp_func, int cp_func) {
 
-  const arma::mat P = helfem::to_arma(res.Prad);
+  const helfem::Matrix P = res.Prad;
   // Total per-l density cube (for tau). Restricted: Pl_a already holds
   // the full per-l density; unrestricted: sum alpha + beta.
-  arma::cube Pl = res.Pl_a;
+  helfem::Cube Pl = res.Pl_a;
   if (!restricted)
-    Pl += res.Pl_b;
+    for (size_t l = 0; l < res.Pl_b.size(); ++l) Pl[l] += res.Pl_b[l];
 
-  const arma::vec r    = basis.radii();
-  const arma::vec wt   = basis.quadrature_weights();
-  const arma::vec vcoul = basis.coulomb_screening(P);
+  const helfem::Vector r    = basis.radii();
+  const helfem::Vector wt   = basis.quadrature_weights();
+  const helfem::Vector vcoul = basis.coulomb_screening(P);
 
-  arma::vec vxc;
+  helfem::Vector vxc;
   if (restricted) {
     vxc = basis.xc_screening(P, xp_func, cp_func);
   } else {
     // Averaged spin-unrestricted xc screening.
-    arma::mat Pa = arma::zeros(P.n_rows, P.n_cols);
-    arma::mat Pb = arma::zeros(P.n_rows, P.n_cols);
-    for (arma::uword l = 0; l < res.Pl_a.n_slices; ++l) Pa += res.Pl_a.slice(l);
-    for (arma::uword l = 0; l < res.Pl_b.n_slices; ++l) Pb += res.Pl_b.slice(l);
-    vxc = arma::mean(basis.xc_screening(Pa, Pb, xp_func, cp_func), 1);
+    helfem::Matrix Pa = helfem::Matrix::Zero(P.rows(), P.cols());
+    helfem::Matrix Pb = helfem::Matrix::Zero(P.rows(), P.cols());
+    for (size_t l = 0; l < res.Pl_a.size(); ++l) Pa += res.Pl_a[l];
+    for (size_t l = 0; l < res.Pl_b.size(); ++l) Pb += res.Pl_b[l];
+    // xc_screening returns (Npoints, 2); rowwise mean averages the spin
+    // channels, matching arma::mean(., 1).
+    vxc = basis.xc_screening(Pa, Pb, xp_func, cp_func).rowwise().mean();
   }
 
-  const arma::vec Zeff = vcoul + vxc;
-  const arma::vec rho  = basis.electron_density(P);
-  const arma::vec grho = basis.electron_density_gradient(P);
-  const arma::vec lrho = basis.electron_density_laplacian(P);
-  const arma::vec tau  = basis.kinetic_energy_density(Pl);
+  const helfem::Vector Zeff = vcoul + vxc;
+  const helfem::Vector rho  = basis.electron_density(P);
+  const helfem::Vector grho = basis.electron_density_gradient(P);
+  const helfem::Vector lrho = basis.electron_density_laplacian(P);
+  const helfem::Vector tau  = basis.kinetic_energy_density(Pl);
 
-  arma::mat result(r.n_elem, 9);
+  helfem::Matrix result(r.size(), 9);
   result.col(0) = r;
   result.col(1) = rho;
   result.col(2) = grho;
@@ -87,11 +113,12 @@ static arma::mat effective_potential_table(
   result.col(5) = vcoul;
   result.col(6) = vxc;
   result.col(7) = wt;
-  result.col(8) = basis.charge() * arma::ones<arma::vec>(Zeff.n_elem) - Zeff;
+  result.col(8) = basis.charge() * helfem::Vector::Ones(Zeff.size()) - Zeff;
 
-  printf("Electron density by quadrature: %.10e\n", arma::sum(wt % rho % r % r));
+  printf("Electron density by quadrature: %.10e\n",
+         (wt.array() * rho.array() * r.array() * r.array()).sum());
   printf("Quadrature of tabulated Coulomb potential yields Coulomb energy %.10e\n",
-         arma::sum(0.5 * r % rho % wt % vcoul));
+         (0.5 * r.array() * rho.array() * wt.array() * vcoul.array()).sum());
   return result;
 }
 
@@ -101,26 +128,29 @@ static arma::mat effective_potential_table(
 // basis reproduces that AO (1 = fully represented). Column 0 is alpha;
 // columns 1..lmax+1 are the per-l profiles. Mirrors the bespoke
 // SCFSolver::ao_completeness_profile.
-static arma::mat ao_completeness_profile(
-    const helfem::sadatom::basis::TwoDBasis & basis, const arma::mat & Sinvh, int lmax,
-    const arma::vec & expn,
-    const std::function<arma::mat(int l, const arma::vec & r)> & eval_ao) {
-  arma::mat Y(expn.n_elem, lmax + 2, arma::fill::zeros);
+static helfem::Matrix ao_completeness_profile(
+    const helfem::sadatom::basis::TwoDBasis & basis, const helfem::Matrix & Sinvh, int lmax,
+    const helfem::Vector & expn,
+    const std::function<helfem::Matrix(int l, const helfem::Vector & r)> & eval_ao) {
+  helfem::Matrix Y = helfem::Matrix::Zero(expn.size(), lmax + 2);
   Y.col(0) = expn;
   for (int l = 0; l <= lmax; l++) {
-    arma::mat ao_projection(expn.n_elem, basis.Nbf(), arma::fill::zeros);
+    helfem::Matrix ao_projection = helfem::Matrix::Zero(expn.size(), basis.Nbf());
     for (size_t iel = 0; iel < basis.get_rad_Nel(); iel++) {
-      const arma::vec r  = basis.get_r(iel);
-      const arma::vec wr = basis.get_wrad(iel);
-      const arma::mat ao = eval_ao(l, r);          // (npts x nexp)
-      const arma::mat bf = basis.eval_bf(iel);     // (npts x nbf_el)
-      const arma::uvec bfl = basis.bf_list(iel);
-      ao_projection.cols(bfl) += ao.t() * arma::diagmat(wr % r % r) * bf;
+      const helfem::Vector r  = basis.get_r(iel);
+      const helfem::Vector wr = basis.get_wrad(iel);
+      const helfem::Matrix ao = eval_ao(l, r);          // (npts x nexp)
+      const helfem::Matrix bf = basis.eval_bf(iel);     // (npts x nbf_el)
+      const std::vector<Eigen::Index> bfl = basis.bf_list(iel);
+      const helfem::Vector wgt = wr.array() * r.array() * r.array();
+      const helfem::Matrix contrib = ao.transpose() * wgt.asDiagonal() * bf;
+      for (size_t j = 0; j < bfl.size(); ++j)
+        ao_projection.col(bfl[j]) += contrib.col(j);
     }
     // Into the orthonormal basis, then per-exponent norm.
-    ao_projection = (ao_projection * Sinvh).t();
-    for (size_t ix = 0; ix < expn.n_elem; ix++)
-      Y(ix, l + 1) = arma::norm(ao_projection.col(ix), 2);
+    const helfem::Matrix projT = (ao_projection * Sinvh).transpose();
+    for (Eigen::Index ix = 0; ix < expn.size(); ix++)
+      Y(ix, l + 1) = projT.col(ix).norm();
   }
   return Y;
 }
@@ -129,29 +159,30 @@ static arma::mat ao_completeness_profile(
 // trial AOs onto the OCCUPIED SCF orbitals instead of the full FE basis
 // -- how important each exponent is for the converged density. Mirrors
 // SCFSolver::ao_importance_profile.
-static arma::mat ao_importance_profile(
+static helfem::Matrix ao_importance_profile(
     const helfem::sadatom::basis::TwoDBasis & basis,
-    const arma::cube & C, const arma::ivec & occs, int lmax,
-    const arma::vec & expn,
-    const std::function<arma::mat(int l, const arma::vec & r)> & eval_ao) {
-  arma::mat I(expn.n_elem, lmax + 2, arma::fill::zeros);
+    const helfem::Cube & C, const Eigen::VectorXi & occs, int lmax,
+    const helfem::Vector & expn,
+    const std::function<helfem::Matrix(int l, const helfem::Vector & r)> & eval_ao) {
+  helfem::Matrix I = helfem::Matrix::Zero(expn.size(), lmax + 2);
   I.col(0) = expn;
   for (int l = 0; l <= lmax; l++) {
     if (occs(l) <= 0) continue;
     const int nocc = (int) std::ceil(occs(l) / (2.0 * (2.0 * l + 1.0)));
-    const arma::mat Cocc = C.slice(l).cols(0, nocc - 1);
-    arma::mat ao_projection(nocc, expn.n_elem, arma::fill::zeros);
+    const helfem::Matrix Cocc = C[l].leftCols(nocc);
+    helfem::Matrix ao_projection = helfem::Matrix::Zero(nocc, expn.size());
     for (size_t iel = 0; iel < basis.get_rad_Nel(); iel++) {
-      const arma::vec r  = basis.get_r(iel);
-      const arma::vec wr = basis.get_wrad(iel);
-      const arma::mat ao = eval_ao(l, r);
-      const arma::mat bf = basis.eval_bf(iel);
-      const arma::uvec bfl = basis.bf_list(iel);
-      const arma::mat orbs = bf * Cocc.rows(bfl);   // (npts x nocc)
-      ao_projection += orbs.t() * arma::diagmat(wr % r % r) * ao;
+      const helfem::Vector r  = basis.get_r(iel);
+      const helfem::Vector wr = basis.get_wrad(iel);
+      const helfem::Matrix ao = eval_ao(l, r);
+      const helfem::Matrix bf = basis.eval_bf(iel);
+      const std::vector<Eigen::Index> bfl = basis.bf_list(iel);
+      const helfem::Matrix orbs = bf * Cocc(bfl, Eigen::all);   // (npts x nocc)
+      const helfem::Vector wgt = wr.array() * r.array() * r.array();
+      ao_projection += orbs.transpose() * wgt.asDiagonal() * ao;
     }
-    for (size_t ix = 0; ix < expn.n_elem; ix++)
-      I(ix, l + 1) = arma::norm(ao_projection.col(ix), 2);
+    for (Eigen::Index ix = 0; ix < expn.size(); ix++)
+      I(ix, l + 1) = ao_projection.col(ix).norm();
   }
   return I;
 }
@@ -162,24 +193,25 @@ static arma::mat ao_importance_profile(
 static void write_profiles(
     const helfem::sadatom::scf::AtomicSCFResult & result, int Z, int lmax,
     double minexp = 1e-5, double maxexp = 1e10, size_t nexp = 501) {
-  const arma::vec expn = arma::exp10(arma::linspace<arma::vec>(
-      std::log10(minexp), std::log10(maxexp), nexp));
-  const arma::mat Sinvh = helfem::to_arma(result.basis.Sinvh());
-  const helfem::Vector expn_e = helfem::to_eigen(expn);
-  auto eval_gto = [&](int l, const arma::vec & r) {
-    return helfem::to_arma(helfem::lcao::radial_GTO(helfem::to_eigen(r), l, expn_e)); };
-  auto eval_sto = [&](int l, const arma::vec & r) {
-    return helfem::to_arma(helfem::lcao::radial_STO(helfem::to_eigen(r), l, expn_e)); };
+  const helfem::Vector logexp = helfem::Vector::LinSpaced(
+      nexp, std::log10(minexp), std::log10(maxexp));
+  const helfem::Vector expn = logexp.array().unaryExpr(
+      [](double x) { return std::pow(10.0, x); });
+  const helfem::Matrix Sinvh = result.basis.Sinvh();
+  auto eval_gto = [&](int l, const helfem::Vector & r) {
+    return helfem::lcao::radial_GTO(r, l, expn); };
+  auto eval_sto = [&](int l, const helfem::Vector & r) {
+    return helfem::lcao::radial_STO(r, l, expn); };
 
   const std::string el = element_symbols[Z];
-  ao_completeness_profile(result.basis, Sinvh, lmax, expn, eval_gto)
-      .save(el + "_gto_completeness.dat", arma::raw_ascii);
-  ao_completeness_profile(result.basis, Sinvh, lmax, expn, eval_sto)
-      .save(el + "_sto_completeness.dat", arma::raw_ascii);
-  ao_importance_profile(result.basis, result.orbs_a, result.occs_a, lmax, expn, eval_gto)
-      .save(el + "_gto_importance.dat", arma::raw_ascii);
-  ao_importance_profile(result.basis, result.orbs_a, result.occs_a, lmax, expn, eval_sto)
-      .save(el + "_sto_importance.dat", arma::raw_ascii);
+  save_raw_ascii(ao_completeness_profile(result.basis, Sinvh, lmax, expn, eval_gto),
+                 el + "_gto_completeness.dat");
+  save_raw_ascii(ao_completeness_profile(result.basis, Sinvh, lmax, expn, eval_sto),
+                 el + "_sto_completeness.dat");
+  save_raw_ascii(ao_importance_profile(result.basis, result.orbs_a, result.occs_a, lmax, expn, eval_gto),
+                 el + "_gto_importance.dat");
+  save_raw_ascii(ao_importance_profile(result.basis, result.orbs_a, result.occs_a, lmax, expn, eval_sto),
+                 el + "_sto_importance.dat");
   printf("Wrote GTO/STO completeness and importance profiles for %s.\n", el.c_str());
 }
 
@@ -300,10 +332,11 @@ int main(int argc, char **argv) {
   if (!is_supported(c_func))
     throw std::logic_error("The specified correlation functional is not currently supported in HelFEM.\n");
 
-  arma::vec bval = atomic::basis::form_grid(
+  // atomic::basis::form_grid still returns arma::vec; bridge once here.
+  const helfem::Vector bval = helfem::to_eigen(atomic::basis::form_grid(
       modelpotential::POINT_NUCLEUS, 0.0, Nelem, Rmax, igrid, zexp,
       0, 0, 0.0, Z, 0, 0, 0.0,
-      iconf ? add_conf : false, shift_conf);
+      iconf ? add_conf : false, shift_conf));
 
   sadatom::scf::AtomicSCFOptions opts;
   opts.Z            = Z;
@@ -343,7 +376,7 @@ int main(int argc, char **argv) {
       while (iss >> v) vals.push_back(v);
       const int nl = lmax + 1;
       auto to_ivec = [](const std::vector<int> & x) {
-        arma::ivec o(x.size());
+        Eigen::VectorXi o(x.size());
         for (size_t i = 0; i < x.size(); ++i) o(i) = x[i];
         return o;
       };
@@ -355,7 +388,7 @@ int main(int argc, char **argv) {
         // Hund high-spin split of each per-l total across n-shells: fill
         // shells of capacity 2*(2l+1), putting up to (2l+1) per shell in
         // alpha before beta (matches the bespoke driver's hund_rule).
-        arma::ivec a(nl, arma::fill::zeros), b(nl, arma::fill::zeros);
+        Eigen::VectorXi a = Eigen::VectorXi::Zero(nl), b = Eigen::VectorXi::Zero(nl);
         for (int l = 0; l < nl; ++l) {
           int numel = vals[l];
           while (numel > 0) {
@@ -386,7 +419,7 @@ int main(int argc, char **argv) {
 
   // Density / atomic-size diagnostics (parity with bespoke gensap).
   {
-    const arma::mat Pdiag = helfem::to_arma(result.Prad);
+    const helfem::Matrix & Pdiag = result.Prad;
     const double nucd  = result.basis.nuclear_density(Pdiag);
     const double gnucd = result.basis.nuclear_density_gradient(Pdiag);
     printf("\nElectron density          at the nucleus is % e\n", nucd);
@@ -408,16 +441,16 @@ int main(int argc, char **argv) {
   // Save radial orbitals: one file per spin channel and l, columns
   // [r, phi_0(r), phi_1(r), ...] on the quadrature grid.
   if (parser.get<bool>("saveorb")) {
-    const arma::vec r = result.basis.radii();
-    auto dump = [&](const arma::cube & orbs, const char * spin) {
-      for (arma::uword l = 0; l < orbs.n_slices; ++l) {
-        const arma::mat phi = result.basis.orbitals(orbs.slice(l));
-        arma::mat out(r.n_elem, phi.n_cols + 1);
+    const helfem::Vector r = result.basis.radii();
+    auto dump = [&](const helfem::Cube & orbs, const char * spin) {
+      for (size_t l = 0; l < orbs.size(); ++l) {
+        const helfem::Matrix phi = result.basis.orbitals(orbs[l]);
+        helfem::Matrix out(r.size(), phi.cols() + 1);
         out.col(0) = r;
-        out.cols(1, phi.n_cols) = phi;
+        out.middleCols(1, phi.cols()) = phi;
         std::ostringstream oss;
         oss << "orbs_" << element_symbols[Z] << "_" << spin << "_l" << l << ".dat";
-        out.save(oss.str(), arma::raw_ascii);
+        save_raw_ascii(out, oss.str());
       }
     };
     dump(result.orbs_a, restricted ? "r" : "a");
@@ -461,30 +494,30 @@ int main(int argc, char **argv) {
   }
 
   if (xp_func > 0 || cp_func > 0) {
-    const arma::mat pot = effective_potential_table(
+    const helfem::Matrix pot = effective_potential_table(
         result.basis, result, restricted, xp_func, cp_func);
     std::ostringstream oss;
     oss << "result_" << element_symbols[Z] << ".dat";
-    pot.save(oss.str(), arma::raw_ascii);
+    save_raw_ascii(pot, oss.str());
     printf("Saved effective potential (SAP table) to %s\n", oss.str().c_str());
 
     if (savepot) {
       // xc screening potential: [r, v_xc]
-      arma::mat xcpot(pot.n_rows, 2);
+      helfem::Matrix xcpot(pot.rows(), 2);
       xcpot.col(0) = pot.col(0);
       xcpot.col(1) = pot.col(6);
-      xcpot.save("xcpot.dat", arma::raw_ascii);
+      save_raw_ascii(xcpot, "xcpot.dat");
       printf("Saved xc screening potential to xcpot.dat\n");
     }
     if (saveing) {
       // density ingredients: [r, rho, grad, lapl, tau]
-      arma::mat ing(pot.n_rows, 5);
+      helfem::Matrix ing(pot.rows(), 5);
       ing.col(0) = pot.col(0);
       ing.col(1) = pot.col(1);
       ing.col(2) = pot.col(2);
       ing.col(3) = pot.col(3);
       ing.col(4) = pot.col(4);
-      ing.save("xcing.dat", arma::raw_ascii);
+      save_raw_ascii(ing, "xcing.dat");
       printf("Saved density ingredients to xcing.dat\n");
     }
   } else if (savepot || saveing) {
