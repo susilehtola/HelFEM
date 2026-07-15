@@ -29,6 +29,7 @@
 #include "../general/lcao.h"
 #include "../atomic/basis.h"
 #include "scf.h"
+#include "../general/eigen_io.h"
 // ArmaEigen.h is included only for the helfem::to_eigen bridge on the
 // return value of atomic::basis::form_grid, which is still arma-typed.
 #include <ArmaEigen.h>
@@ -45,22 +46,6 @@ using namespace helfem;
 // 16, right-justified in a field of width 24, preceded by one space.
 // Replicating the arma format keeps the emitted .dat files byte-identical
 // to the pre-migration output.
-static void save_raw_ascii(const helfem::Matrix & m, const std::string & path) {
-  std::ofstream f(path);
-  f.unsetf(std::ios::fixed);
-  f.setf(std::ios::scientific);
-  f.fill(' ');
-  f.precision(16);
-  for (Eigen::Index i = 0; i < m.rows(); ++i) {
-    for (Eigen::Index j = 0; j < m.cols(); ++j) {
-      f.put(' ');
-      f.width(24);
-      f << m(i, j);
-    }
-    f.put('\n');
-  }
-}
-
 // Assemble the radial effective-potential table for the converged
 // density in `res`, using exchange/correlation ids (xp_func, cp_func)
 // for the xc screening. Mirrors the bespoke SCFSolver::{Restricted,
@@ -204,14 +189,14 @@ static void write_profiles(
     return helfem::lcao::radial_STO(r, l, expn); };
 
   const std::string el = element_symbols[Z];
-  save_raw_ascii(ao_completeness_profile(result.basis, Sinvh, lmax, expn, eval_gto),
-                 el + "_gto_completeness.dat");
-  save_raw_ascii(ao_completeness_profile(result.basis, Sinvh, lmax, expn, eval_sto),
-                 el + "_sto_completeness.dat");
-  save_raw_ascii(ao_importance_profile(result.basis, result.orbs_a, result.occs_a, lmax, expn, eval_gto),
-                 el + "_gto_importance.dat");
-  save_raw_ascii(ao_importance_profile(result.basis, result.orbs_a, result.occs_a, lmax, expn, eval_sto),
-                 el + "_sto_importance.dat");
+  io::write_raw_ascii(el + "_gto_completeness.dat",
+                      ao_completeness_profile(result.basis, Sinvh, lmax, expn, eval_gto));
+  io::write_raw_ascii(el + "_sto_completeness.dat",
+                      ao_completeness_profile(result.basis, Sinvh, lmax, expn, eval_sto));
+  io::write_raw_ascii(el + "_gto_importance.dat",
+                      ao_importance_profile(result.basis, result.orbs_a, result.occs_a, lmax, expn, eval_gto));
+  io::write_raw_ascii(el + "_sto_importance.dat",
+                      ao_importance_profile(result.basis, result.orbs_a, result.occs_a, lmax, expn, eval_sto));
   printf("Wrote GTO/STO completeness and importance profiles for %s.\n", el.c_str());
 }
 
@@ -450,7 +435,7 @@ int main(int argc, char **argv) {
         out.middleCols(1, phi.cols()) = phi;
         std::ostringstream oss;
         oss << "orbs_" << element_symbols[Z] << "_" << spin << "_l" << l << ".dat";
-        save_raw_ascii(out, oss.str());
+        io::write_raw_ascii(oss.str(), out);
       }
     };
     dump(result.orbs_a, restricted ? "r" : "a");
@@ -498,7 +483,7 @@ int main(int argc, char **argv) {
         result.basis, result, restricted, xp_func, cp_func);
     std::ostringstream oss;
     oss << "result_" << element_symbols[Z] << ".dat";
-    save_raw_ascii(pot, oss.str());
+    io::write_raw_ascii(oss.str(), pot);
     printf("Saved effective potential (SAP table) to %s\n", oss.str().c_str());
 
     if (savepot) {
@@ -506,7 +491,7 @@ int main(int argc, char **argv) {
       helfem::Matrix xcpot(pot.rows(), 2);
       xcpot.col(0) = pot.col(0);
       xcpot.col(1) = pot.col(6);
-      save_raw_ascii(xcpot, "xcpot.dat");
+      io::write_raw_ascii("xcpot.dat", xcpot);
       printf("Saved xc screening potential to xcpot.dat\n");
     }
     if (saveing) {
@@ -517,7 +502,7 @@ int main(int argc, char **argv) {
       ing.col(2) = pot.col(2);
       ing.col(3) = pot.col(3);
       ing.col(4) = pot.col(4);
-      save_raw_ascii(ing, "xcing.dat");
+      io::write_raw_ascii("xcing.dat", ing);
       printf("Saved density ingredients to xcing.dat\n");
     }
   } else if (savepot || saveing) {
