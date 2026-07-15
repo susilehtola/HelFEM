@@ -471,19 +471,15 @@ namespace helfem {
 #pragma omp parallel for
 #endif
         for(Eigen::Index ia=0;ia<cth.size();ia++) {
-          // Evaluate basis functions at angular point (eval_bf returns arma; bridge).
-          arma::cx_mat abf(basp->eval_bf(iel, irad, cth(ia), phi(ia)));
-          if((size_t) abf.n_cols != bf_ind.size()) {
+          // Evaluate basis functions at angular point (Eigen-native).
+          const Eigen::MatrixXcd abf(basp->eval_bf(iel, irad, cth(ia), phi(ia)));
+          if((size_t) abf.cols() != bf_ind.size()) {
             std::ostringstream oss;
-            oss << "Mismatch! Have " << bf_ind.size() << " basis function indices but " << abf.n_cols << " basis functions!\n";
+            oss << "Mismatch! Have " << bf_ind.size() << " basis function indices but " << abf.cols() << " basis functions!\n";
             throw std::logic_error(oss.str());
           }
-          Eigen::MatrixXcd abf_e(abf.n_rows, abf.n_cols);
-          for(arma::uword c=0;c<abf.n_cols;c++)
-            for(arma::uword rr=0;rr<abf.n_rows;rr++)
-              abf_e(rr,c)=abf(rr,c);
-          // Store functions (arma::trans is the conjugate transpose -> adjoint).
-          bf.middleCols(ia*nwrad,nwrad)=abf_e.adjoint();
+          // Store functions (arma::trans was the conjugate transpose -> adjoint).
+          bf.middleCols(ia*nwrad,nwrad)=abf.adjoint();
         }
 
         if(do_grad) {
@@ -495,25 +491,18 @@ namespace helfem {
 #pragma omp parallel for
 #endif
           for(Eigen::Index ia=0;ia<cth.size();ia++) {
-            // Evaluate basis functions at angular point (eval_df returns arma; bridge).
-            arma::cx_mat dr, dth, dphi;
+            // Evaluate basis functions at angular point (Eigen-native).
+            Eigen::MatrixXcd dr, dth, dphi;
             basp->eval_df(iel, irad, cth(ia), phi(ia), dr, dth, dphi);
-            if((size_t) dr.n_cols != bf_ind.size()) {
+            if((size_t) dr.cols() != bf_ind.size()) {
               std::ostringstream oss;
-              oss << "Mismatch! Have " << bf_ind.size() << " basis function indices but " << dr.n_cols << " basis functions!\n";
+              oss << "Mismatch! Have " << bf_ind.size() << " basis function indices but " << dr.cols() << " basis functions!\n";
               throw std::logic_error(oss.str());
             }
-            Eigen::MatrixXcd dr_e(dr.n_rows, dr.n_cols), dth_e(dth.n_rows, dth.n_cols), dphi_e(dphi.n_rows, dphi.n_cols);
-            for(arma::uword c=0;c<dr.n_cols;c++)
-              for(arma::uword rr=0;rr<dr.n_rows;rr++) {
-                dr_e(rr,c)=dr(rr,c);
-                dth_e(rr,c)=dth(rr,c);
-                dphi_e(rr,c)=dphi(rr,c);
-              }
-            // Store functions (arma::trans -> adjoint).
-            bf_rho.middleCols(ia*nwrad,nwrad)=dr_e.adjoint();
-            bf_theta.middleCols(ia*nwrad,nwrad)=dth_e.adjoint();
-            bf_phi.middleCols(ia*nwrad,nwrad)=dphi_e.adjoint();
+            // Store functions (arma::trans was the conjugate transpose -> adjoint).
+            bf_rho.middleCols(ia*nwrad,nwrad)=dr.adjoint();
+            bf_theta.middleCols(ia*nwrad,nwrad)=dth.adjoint();
+            bf_phi.middleCols(ia*nwrad,nwrad)=dphi.adjoint();
           }
         }
 

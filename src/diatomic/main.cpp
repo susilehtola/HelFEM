@@ -255,8 +255,7 @@ int main(int argc, char **argv) {
         modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) finitenuc, Z2, Rrms2);
     const int lquad = 4 * arma::max(lmmax) + 12;
     helfem::diatomic::twodquad::TwoDGrid qgrid(&basis, lquad);
-    // TwoDGrid::model_potential still returns arma::mat -> bridge to Eigen.
-    Vnuc = helfem::to_eigen(qgrid.model_potential(pot1, pot2));
+    Vnuc = qgrid.model_potential(pot1, pot2);
     delete pot1;
     delete pot2;
     printf("Using finite nuclear model %d (Rrms1=%g, Rrms2=%g)\n", finitenuc, Rrms1, Rrms2);
@@ -485,8 +484,7 @@ int main(int argc, char **argv) {
     }
     const int lquad = 4 * arma::max(lmmax) + 12;
     helfem::diatomic::twodquad::TwoDGrid qgrid(&basis, lquad);
-    // TwoDGrid::model_potential still returns arma::mat -> bridge to Eigen.
-    Vguess = helfem::to_eigen(qgrid.model_potential(p1, p2));
+    Vguess = qgrid.model_potential(p1, p2);
     delete p1;
     delete p2;
   }

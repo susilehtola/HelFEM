@@ -106,7 +106,9 @@ int main(int argc, char **argv) {
   // Evaluate radial functions
   std::vector<arma::mat> radbf(basis.get_rad_Nel());
   for(size_t iel=0;iel<mu.size();iel++) {
-    radbf[iel] = basis.get_rad_bf(iel);
+    // get_rad_bf is now Eigen-typed; bridge back for the arma-native
+    // density accumulation and Checkpoint (HDF5) output below.
+    radbf[iel] = helfem::to_arma(basis.get_rad_bf(iel));
   }
 
   // Density arrays

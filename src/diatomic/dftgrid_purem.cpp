@@ -123,11 +123,11 @@ namespace helfem {
         // once per element instead of once per (radial point, angular point,
         // m block) -- see the note in the header.
         if (!cache_valid || iel != cached_iel) {
-          rad_f = helfem::to_eigen(basp->get_rad_bf(iel));
+          rad_f = basp->get_rad_bf(iel);
           if (need_df) {
-            rad_df = helfem::to_eigen(basp->get_rad_df(iel));
+            rad_df = basp->get_rad_df(iel);
             if (do_lapl)
-              rad_d2f = helfem::to_eigen(basp->get_rad_d2f(iel));
+              rad_d2f = basp->get_rad_d2f(iel);
           }
           cached_iel  = iel;
           cache_valid = true;

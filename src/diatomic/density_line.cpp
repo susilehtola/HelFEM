@@ -78,10 +78,8 @@ int main(int argc, char **argv) {
       den(iz, 0) = zi;
       continue;
     }
-    // basis.eval_bf returns arma::cx_vec; bridge to Eigen VectorXcd.
-    const arma::cx_vec bf_a = basis.eval_bf(mu, eta, phi);
-    Eigen::VectorXcd bf(bf_a.n_elem);
-    for (arma::uword i = 0; i < bf_a.n_elem; ++i) bf(i) = bf_a(i);
+    // basis.eval_bf returns the basis functions in the real (pure) basis.
+    const Eigen::VectorXcd bf = basis.eval_bf(mu, eta, phi);
     // rho_spin = Re(bf^* . P . bf) with P symmetric real.
     const double rhoa = (bf.adjoint() * Pa * bf).real().value();
     const double rhob = (bf.adjoint() * Pb * bf).real().value();
