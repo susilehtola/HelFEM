@@ -44,16 +44,16 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
   std::vector<std::vector<Eigen::Index>> dsym=basis.get_sym_idx(symm);
 
   // Form overlap matrix
-  arma::mat S(helfem::to_arma(basis.overlap()));
+  const helfem::Matrix S(basis.overlap());
   // Form kinetic energy matrix
-  arma::mat T(helfem::to_arma(basis.kinetic()));
+  const helfem::Matrix T(basis.kinetic());
   // Get half-inverse
-  arma::mat Sinvh(helfem::to_arma(basis.Sinvh(!diag,symm)));
+  const helfem::Matrix Sinvh(basis.Sinvh(!diag,symm));
   // Form nuclear attraction energy matrix
-  arma::mat Vnuc;
+  helfem::Matrix Vnuc;
 
   if(imodel==0) {
-    Vnuc=helfem::to_arma(basis.nuclear());
+    Vnuc=basis.nuclear();
   } else {
     modelpotential::ModelPotential * p1, * p2;
     if(imodel == 1) {
@@ -85,32 +85,27 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
   }
 
   // Form Hamiltonian
-  arma::mat H0(T+Vnuc);
+  helfem::Matrix H0(T+Vnuc);
   if(Ez!=0.0)
-    H0+=Ez*helfem::to_arma(basis.dipole_z());
+    H0+=Ez*basis.dipole_z();
   // Quadrupole coupling
   if(Qzz!=0.0)
-    H0+=Qzz*helfem::to_arma(basis.quadrupole_zz())/3.0;
+    H0+=Qzz*basis.quadrupole_zz()/3.0;
   // Magnetic field coupling
   if(Bz!=0.0) {
     printf("Bz=%e\n",Bz);
-    H0+=helfem::to_arma(basis.Bz_field(Bz))-Bz*S/2.0;
+    H0+=basis.Bz_field(Bz)-Bz*S/2.0;
   }
-  // Use core guess
-  arma::vec Ev;
-  arma::mat C;
-  { // Phase 5.12 bridge: eig_gsym_sub is Eigen.
-    helfem::Vector Ev_e; helfem::Matrix C_e;
-    scf::eig_gsym_sub(Ev_e, C_e, helfem::to_eigen(H0), helfem::to_eigen(Sinvh), dsym);
-    Ev = helfem::to_arma(Ev_e);
-    C = helfem::to_arma(C_e);
-  }
-  //scf::eig_gsym(Ev,C,H0,Sinvh);
+  // Use core guess (eig_gsym_sub is Eigen-native)
+  helfem::Vector Ev;
+  helfem::Matrix C;
+  scf::eig_gsym_sub(Ev, C, H0, Sinvh, dsym);
 
   // Sanity check
-  norb=std::min((int) Ev.n_elem,norb);
-  Eval=Ev.subvec(0,norb-1);
-  E=arma::sum(Eval);
+  norb=std::min((int) Ev.size(),norb);
+  // Eval is an arma out-param (main prints it via arma); bridge the head.
+  Eval=helfem::to_arma(helfem::Vector(Ev.head(norb)));
+  E=Ev.head(norb).sum();
   nang=basis.Nang();
   nrad=basis.Nrad();
 }

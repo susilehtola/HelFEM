@@ -325,22 +325,22 @@ namespace helfem {
         std::vector<std::vector<Eigen::Index>> get_sym_idx(int isym) const;
 
         /// Evaluate basis functions at quadrature points
-        arma::cx_mat eval_bf(size_t iel, size_t irad, double cth, double phi) const;
+        Eigen::MatrixXcd eval_bf(size_t iel, size_t irad, double cth, double phi) const;
         /// Evaluate basis functions at wanted x value
         /// Evaluate basis functions with m=m at quadrature point
-        arma::mat eval_bf(size_t iel, size_t irad, double cth, int m) const;
+        helfem::Matrix eval_bf(size_t iel, size_t irad, double cth, int m) const;
         /// Same, but with the element's radial functions already evaluated
         /// (rad_all = get_rad_bf(iel), rows = radial points). The FEM
         /// polynomials depend only on the element, so callers that loop over
         /// angular points should hoist that evaluation out of the loop rather
         /// than redo it -- and throw away all but one row -- per angular point.
-        arma::mat eval_bf(size_t iel, size_t irad, double cth, int m, const arma::mat & rad_all) const;
+        helfem::Matrix eval_bf(size_t iel, size_t irad, double cth, int m, const helfem::Matrix & rad_all) const;
 
 	/// Evaluate basis functions at wanted point
-	arma::cx_vec eval_bf(double mu, double cth, double phi) const;
+	Eigen::VectorXcd eval_bf(double mu, double cth, double phi) const;
 
         /// Evaluate basis functions derivatives at quadrature points
-        void eval_df(size_t iel, size_t irad, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const;
+        void eval_df(size_t iel, size_t irad, double cth, double phi, Eigen::MatrixXcd & dr, Eigen::MatrixXcd & dth, Eigen::MatrixXcd & dphi) const;
 
         /// Evaluate the REAL derivatives of the m-block basis functions at a
         /// (mu, nu) quadrature point. Companion to eval_bf(iel,irad,cth,m):
@@ -354,7 +354,7 @@ namespace helfem {
         /// contributes only the analytic term m^2 |psi|^2 / h_phi^2 (needed for
         /// tau); the density gradient has no phi component at all since
         /// |e^{i m phi}| = 1 makes rho phi-independent.
-        void eval_df(size_t iel, size_t irad, double cth, int m, arma::mat & dr, arma::mat & dth) const;
+        void eval_df(size_t iel, size_t irad, double cth, int m, helfem::Matrix & dr, helfem::Matrix & dth) const;
 
         /// Evaluate the REAL Laplacian of the m-block basis functions at a
         /// (mu, nu) quadrature point. Used by the pure-m DFT grid for
@@ -377,7 +377,7 @@ namespace helfem {
         ///
         ///   grad^2 f = (1/h^2) [ R'' + coth(mu) R'
         ///                        - ( l(l+1) + m^2/sinh^2(mu) ) R ] Y_l^m.
-        void eval_lf(size_t iel, size_t irad, double cth, int m, arma::mat & lf) const;
+        void eval_lf(size_t iel, size_t irad, double cth, int m, helfem::Matrix & lf) const;
         /// Translate dummy indices to real indices
         arma::uvec dummy_idx_to_real_idx(const arma::uvec & idx) const;
         /// Get list of basis function dummy indices in element
@@ -395,11 +395,11 @@ namespace helfem {
         arma::vec get_r(size_t iel) const;
         /// Get radial basis functions at the quadrature points of element iel
         /// (rows = radial points, cols = element primitives)
-        arma::mat get_rad_bf(size_t iel) const;
+        helfem::Matrix get_rad_bf(size_t iel) const;
         /// Get their first mu derivatives, same layout
-        arma::mat get_rad_df(size_t iel) const;
+        helfem::Matrix get_rad_df(size_t iel) const;
         /// Get their second mu derivatives, same layout
-        arma::mat get_rad_d2f(size_t iel) const;
+        helfem::Matrix get_rad_d2f(size_t iel) const;
 
         /// Electron density at nuclei
       };

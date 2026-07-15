@@ -113,7 +113,7 @@ namespace helfem {
         ~TwoDGrid();
 
         /// Compute model potential matrix
-        arma::mat model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2);
+        helfem::Matrix model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2);
 
         /// Compute GTO projection
         arma::mat gto_projection(int l, int m, const arma::vec & expn, probe_t p);

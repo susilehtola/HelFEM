@@ -193,7 +193,7 @@ int main(int argc, char **argv) {
         if (mu - bv(iel) < edge || bv(iel + 1) - mu < edge) continue;
         nchecked++;
         for (double nu : {0.7, 1.3, 2.2}) {
-          arma::mat lf;
+          helfem::Matrix lf;
           basis.eval_lf(iel, irad, std::cos(nu), m, lf);
 
           // Map the m-block columns back to dummy indices so the same

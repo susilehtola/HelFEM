@@ -213,7 +213,7 @@ namespace helfem {
         // quadrature point and then keeps a single row, so calling it inside
         // the angular loop redid that work cth.size() times over. Hoisted
         // above the parallel region, which also keeps it read-only shared.
-        const arma::mat rad_all(basp->get_rad_bf(iel));
+        const helfem::Matrix rad_all(basp->get_rad_bf(iel));
 
         // Loop over angular grid
 #ifdef _OPENMP
@@ -221,7 +221,7 @@ namespace helfem {
 #endif
         for(size_t ia=0;ia<(size_t) cth.size();ia++) {
           // Evaluate basis functions at angular point
-          helfem::Matrix abf(helfem::to_eigen(basp->eval_bf(iel, irad, cth(ia), m, rad_all)));
+          helfem::Matrix abf(basp->eval_bf(iel, irad, cth(ia), m, rad_all));
           if((size_t) abf.cols() != bf_ind.size()) {
             std::ostringstream oss;
             oss << "Mismatch! Have " << bf_ind.size() << " basis function indices but " << abf.cols() << " basis functions!\n";
@@ -381,10 +381,10 @@ namespace helfem {
       TwoDGrid::~TwoDGrid() {
       }
 
-      arma::mat TwoDGrid::model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2) {
+      helfem::Matrix TwoDGrid::model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2) {
         helfem::Matrix H = helfem::Matrix::Zero(basp->Ndummy(),basp->Ndummy());
 
-        // Get unique m values in basis set
+        // Get unique m values in basis set (get_mval is still arma-typed).
         arma::ivec muni(basp->get_mval());
         muni=muni(arma::find_unique(muni));
         {
@@ -401,8 +401,9 @@ namespace helfem {
           }
         }
 
-        // remove_boundaries is still arma-typed; bridge around it.
-        return basp->remove_boundaries(helfem::to_arma(H));
+        // Use the Eigen-native boundary removal (same cached pure index list
+        // as the Fock path); no arma round trip.
+        return basp->remove_boundaries(H);
       }
 
       arma::mat TwoDGrid::gto_projection(int l, int m, const arma::vec & expn, probe_t p) {

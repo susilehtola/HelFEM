@@ -1663,119 +1663,119 @@ namespace helfem {
         return Pnob;
       }
 
-      arma::cx_mat TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, double phi) const {
+      Eigen::MatrixXcd TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, double phi) const {
         // Evaluate spherical harmonics
-        arma::cx_vec sph(lval.n_elem);
-        for(size_t i=0;i<lval.n_elem;i++)
+        Eigen::VectorXcd sph(lval.n_elem);
+        for(size_t i=0;i<(size_t) lval.n_elem;i++)
           sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
-        // Evaluate radial functions
-        arma::mat rad(helfem::to_arma(radial.get_bf(iel)));
-        rad=rad.rows(irad,irad);
+        // Evaluate radial functions (single quadrature point, 1 x Nc row)
+        const helfem::Matrix rad(radial.get_bf(iel).row(irad));
+        const Eigen::Index Nc = rad.cols();
 
-        // Form supermatrix
-        arma::cx_mat bf(rad.n_rows,lval.n_elem*rad.n_cols);
-        for(size_t i=0;i<lval.n_elem;i++)
-          bf.cols(i*rad.n_cols,(i+1)*rad.n_cols-1)=sph(i)*rad;
+        // Form supermatrix. sph(i) is complex, rad is real -> cast rad.
+        Eigen::MatrixXcd bf(rad.rows(),lval.n_elem*Nc);
+        for(size_t i=0;i<(size_t) lval.n_elem;i++)
+          bf.middleCols(i*Nc,Nc)=sph(i)*rad.cast<std::complex<double>>();
 
         return bf;
       }
 
-      arma::mat TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, int m) const {
-        return eval_bf(iel, irad, cth, m, helfem::to_arma(radial.get_bf(iel)));
+      helfem::Matrix TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, int m) const {
+        return eval_bf(iel, irad, cth, m, radial.get_bf(iel));
       }
 
-      arma::mat TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, int m, const arma::mat & rad_all) const {
+      helfem::Matrix TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, int m, const helfem::Matrix & rad_all) const {
         // Figure out list of functions
-        std::vector<arma::uword> flist;
-        for(size_t i=0;i<mval.n_elem;i++)
+        std::vector<size_t> flist;
+        for(size_t i=0;i<(size_t) mval.n_elem;i++)
           if(mval(i)==m)
             flist.push_back(i);
 
         // Evaluate spherical harmonics
-        arma::vec sph(flist.size());
+        helfem::Vector sph(flist.size());
         for(size_t i=0;i<flist.size();i++)
           sph(i)=std::real(::spherical_harmonics(lval(flist[i]),mval(flist[i]),cth,0.0));
 
-        // Radial functions at this quadrature point
-        arma::mat rad(rad_all.rows(irad,irad));
+        // Radial functions at this quadrature point (1 x Nc row)
+        const helfem::Matrix rad(rad_all.row(irad));
+        const Eigen::Index Nc = rad.cols();
 
         // Form supermatrix
-        arma::mat bf(rad.n_rows,flist.size()*rad.n_cols);
+        helfem::Matrix bf(rad.rows(),flist.size()*Nc);
         for(size_t i=0;i<flist.size();i++)
-          bf.cols(i*rad.n_cols,(i+1)*rad.n_cols-1)=sph(i)*rad;
+          bf.middleCols(i*Nc,Nc)=sph(i)*rad;
 
         return bf;
       }
 
-      arma::cx_vec TwoDBasis::eval_bf(double mu, double cth, double phi) const {
+      Eigen::VectorXcd TwoDBasis::eval_bf(double mu, double cth, double phi) const {
 	// Find out which element mu belongs to
-	arma::vec bval(helfem::to_arma(radial.get_bval()));
-	size_t iel;
-	for(iel=0;iel<bval.n_elem-1;iel++)
+	const helfem::Vector bval(radial.get_bval());
+	Eigen::Index iel;
+	for(iel=0;iel<bval.size()-1;iel++)
 	  if(bval(iel)<=mu && mu<=bval(iel+1))
 	    break;
-	if(iel==bval.n_elem-1) {
+	if(iel==bval.size()-1) {
 	  std::ostringstream oss;
 	  oss << "mu value " << mu << " not found!\n";
 	  throw std::logic_error(oss.str());
 	}
 
 	// x value is then
-	arma::vec x(1);
+	helfem::Vector x(1);
 	x(0)=2.0*(mu-bval(iel))/(bval(iel+1)-bval(iel)) - 1.0;
 
 	// Evaluate spherical harmonics
-        arma::cx_vec sph(lval.n_elem);
-        for(size_t i=0;i<lval.n_elem;i++)
+        Eigen::VectorXcd sph(lval.n_elem);
+        for(size_t i=0;i<(size_t) lval.n_elem;i++)
           sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
-        // Evaluate radial functions
-        arma::mat rad(helfem::to_arma(radial.get_bf(iel,helfem::to_eigen(x))));
+        // Evaluate radial functions (1 x Nc row)
+        const helfem::Matrix rad(radial.get_bf(iel,x));
 
 	// Get indices of radial functions
 	size_t ifirst, ilast;
         radial.get_idx(iel,ifirst,ilast);
 
-        // Form supermatrix
-	arma::cx_vec bf;
-	bf.zeros(Ndummy());
-	for(size_t i=0;i<lval.n_elem;i++) {
-	  bf.subvec(i*radial.Nbf()+ifirst,i*radial.Nbf()+ilast)=sph(i)*arma::trans(rad);
+        // Form supermatrix. arma used trans() on a real matrix = plain
+        // transpose; sph(i) is complex so cast the transposed radial row.
+	Eigen::VectorXcd bf(Eigen::VectorXcd::Zero(Ndummy()));
+	for(size_t i=0;i<(size_t) lval.n_elem;i++) {
+	  bf.segment(i*radial.Nbf()+ifirst,ilast-ifirst+1)=sph(i)*rad.transpose().cast<std::complex<double>>();
 	}
 
-	return bf(pure_indices());
+	return bf(pure_idx);
       }
 
-      void TwoDBasis::eval_df(size_t iel, size_t irad, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const {
+      void TwoDBasis::eval_df(size_t iel, size_t irad, double cth, double phi, Eigen::MatrixXcd & dr, Eigen::MatrixXcd & dth, Eigen::MatrixXcd & dphi) const {
         // Evaluate spherical harmonics
-        arma::cx_vec sph(lval.n_elem);
-        for(size_t i=0;i<lval.n_elem;i++)
+        Eigen::VectorXcd sph(lval.n_elem);
+        for(size_t i=0;i<(size_t) lval.n_elem;i++)
           sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
-        // Evaluate radial functions
-        arma::mat frad(helfem::to_arma(radial.get_bf(iel)));
-        arma::mat drad(helfem::to_arma(radial.get_df(iel)));
-        frad=frad.rows(irad,irad);
-        drad=drad.rows(irad,irad);
+        // Evaluate radial functions (single quadrature point, 1 x Nc rows)
+        const helfem::Matrix frad(radial.get_bf(iel).row(irad));
+        const helfem::Matrix drad(radial.get_df(iel).row(irad));
+        const Eigen::Index Nc = frad.cols();
 
         // Form supermatrices
-        dr.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
-        dth.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
-        dphi.zeros(frad.n_rows,lval.n_elem*frad.n_cols);
+        dr = Eigen::MatrixXcd::Zero(frad.rows(),lval.n_elem*Nc);
+        dth = Eigen::MatrixXcd::Zero(frad.rows(),lval.n_elem*Nc);
+        dphi = Eigen::MatrixXcd::Zero(frad.rows(),lval.n_elem*Nc);
 
-        // Radial one is easy
-        for(size_t i=0;i<lval.n_elem;i++)
-          dr.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=sph(i)*drad;
+        // Radial one is easy (complex scalar * real matrix -> cast)
+        for(size_t i=0;i<(size_t) lval.n_elem;i++)
+          dr.middleCols(i*Nc,Nc)=sph(i)*drad.cast<std::complex<double>>();
         // and so is phi
-        for(size_t i=0;i<lval.n_elem;i++)
-          dphi.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=std::complex<double>(0.0,mval(i))*sph(i)*frad;
+        for(size_t i=0;i<(size_t) lval.n_elem;i++)
+          dphi.middleCols(i*Nc,Nc)=(std::complex<double>(0.0,mval(i))*sph(i))*frad.cast<std::complex<double>>();
         // sin^2(theta) = (1 - cth)(1 + cth) avoids the catastrophic
         // cancellation in 1 - cth*cth when cth is close to +/- 1.
         const double sinth = std::sqrt(std::max((1.0-cth)*(1.0+cth), 0.0));
         const double cotth = (sinth > 0.0) ? cth/sinth : 0.0;
 
         // but theta is nastier
-        for(size_t i=0;i<lval.n_elem;i++) {
+        for(size_t i=0;i<(size_t) lval.n_elem;i++) {
           int l(lval(i));
           int m(mval(i));
 
@@ -1784,15 +1784,15 @@ namespace helfem {
           if(mval(i)<lval(i))
             angfac+=sqrt((l-m)*(l+m+1))*std::exp(std::complex<double>(0,-phi))*::spherical_harmonics(lval(i),mval(i)+1,cth,phi);
 
-          dth.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=angfac*frad;
+          dth.middleCols(i*Nc,Nc)=angfac*frad.cast<std::complex<double>>();
         }
       }
 
-      void TwoDBasis::eval_df(size_t iel, size_t irad, double cth, int m, arma::mat & dr, arma::mat & dth) const {
+      void TwoDBasis::eval_df(size_t iel, size_t irad, double cth, int m, helfem::Matrix & dr, helfem::Matrix & dth) const {
         // Functions belonging to this m block (same selection as
         // eval_bf(iel,irad,cth,m), so the columns line up).
-        std::vector<arma::uword> flist;
-        for(size_t i=0;i<mval.n_elem;i++)
+        std::vector<size_t> flist;
+        for(size_t i=0;i<(size_t) mval.n_elem;i++)
           if(mval(i)==m)
             flist.push_back(i);
 
@@ -1802,7 +1802,7 @@ namespace helfem {
         const double cotth = (sinth > 0.0) ? cth/sinth : 0.0;
 
         // Angular factors, evaluated at phi = 0 where they are real.
-        arma::vec sph(flist.size()), dsph(flist.size());
+        helfem::Vector sph(flist.size()), dsph(flist.size());
         for(size_t i=0;i<flist.size();i++) {
           const int l(lval(flist[i]));
           const int mm(mval(flist[i]));
@@ -1817,24 +1817,23 @@ namespace helfem {
         }
 
         // Radial functions and their derivatives at the single radial point
-        arma::mat frad(helfem::to_arma(radial.get_bf(iel)));
-        arma::mat drad(helfem::to_arma(radial.get_df(iel)));
-        frad=frad.rows(irad,irad);
-        drad=drad.rows(irad,irad);
+        const helfem::Matrix frad(radial.get_bf(iel).row(irad));
+        const helfem::Matrix drad(radial.get_df(iel).row(irad));
+        const Eigen::Index Nc = frad.cols();
 
-        dr.zeros(frad.n_rows,flist.size()*frad.n_cols);
-        dth.zeros(frad.n_rows,flist.size()*frad.n_cols);
+        dr = helfem::Matrix::Zero(frad.rows(),flist.size()*Nc);
+        dth = helfem::Matrix::Zero(frad.rows(),flist.size()*Nc);
         for(size_t i=0;i<flist.size();i++) {
-          dr.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=sph(i)*drad;
-          dth.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=dsph(i)*frad;
+          dr.middleCols(i*Nc,Nc)=sph(i)*drad;
+          dth.middleCols(i*Nc,Nc)=dsph(i)*frad;
         }
       }
 
-      void TwoDBasis::eval_lf(size_t iel, size_t irad, double cth, int m, arma::mat & lf) const {
+      void TwoDBasis::eval_lf(size_t iel, size_t irad, double cth, int m, helfem::Matrix & lf) const {
         // Same function selection as eval_bf(iel,irad,cth,m) so the columns
         // line up.
-        std::vector<arma::uword> flist;
-        for(size_t i=0;i<mval.n_elem;i++)
+        std::vector<size_t> flist;
+        for(size_t i=0;i<(size_t) mval.n_elem;i++)
           if(mval(i)==m)
             flist.push_back(i);
 
@@ -1850,23 +1849,21 @@ namespace helfem {
         // m != 0 the basis functions vanish as sinh^|m|(mu) on the axis anyway.
         const double m2_sh2((shmu>0.0) ? (m*m)/(shmu*shmu) : 0.0);
 
-        // Radial functions and their first two mu derivatives
-        arma::mat frad(helfem::to_arma(radial.get_bf(iel)));
-        arma::mat drad(helfem::to_arma(radial.get_df(iel)));
-        arma::mat d2rad(helfem::to_arma(radial.get_d2f(iel)));
-        frad=frad.rows(irad,irad);
-        drad=drad.rows(irad,irad);
-        d2rad=d2rad.rows(irad,irad);
+        // Radial functions and their first two mu derivatives (1 x Nc rows)
+        const helfem::Matrix frad(radial.get_bf(iel).row(irad));
+        const helfem::Matrix drad(radial.get_df(iel).row(irad));
+        const helfem::Matrix d2rad(radial.get_d2f(iel).row(irad));
+        const Eigen::Index Nc = frad.cols();
 
         // R'' + coth(mu) R' is common to every l in the block
-        const arma::mat radop(d2rad + cothmu*drad);
+        const helfem::Matrix radop(d2rad + cothmu*drad);
 
-        lf.zeros(frad.n_rows,flist.size()*frad.n_cols);
+        lf = helfem::Matrix::Zero(frad.rows(),flist.size()*Nc);
         for(size_t i=0;i<flist.size();i++) {
           const int l(lval(flist[i]));
           const double sph(std::real(::spherical_harmonics(l,m,cth,0.0)));
           const double lfac(l*(l+1) + m2_sh2);
-          lf.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)
+          lf.middleCols(i*Nc,Nc)
             = (sph/h2)*(radop - lfac*frad);
         }
       }
@@ -1953,16 +1950,16 @@ namespace helfem {
         return radial.Nel();
       }
 
-      arma::mat TwoDBasis::get_rad_bf(size_t iel) const {
-        return helfem::to_arma(radial.get_bf(iel));
+      helfem::Matrix TwoDBasis::get_rad_bf(size_t iel) const {
+        return radial.get_bf(iel);
       }
 
-      arma::mat TwoDBasis::get_rad_df(size_t iel) const {
-        return helfem::to_arma(radial.get_df(iel));
+      helfem::Matrix TwoDBasis::get_rad_df(size_t iel) const {
+        return radial.get_df(iel);
       }
 
-      arma::mat TwoDBasis::get_rad_d2f(size_t iel) const {
-        return helfem::to_arma(radial.get_d2f(iel));
+      helfem::Matrix TwoDBasis::get_rad_d2f(size_t iel) const {
+        return radial.get_d2f(iel);
       }
 
       arma::vec TwoDBasis::get_wrad(size_t iel) const {
