@@ -48,9 +48,17 @@ namespace helfem {
         /// Auxiliary integrals, Yukawa
         std::vector<helfem::Matrix> disjoint_iL, disjoint_kL;
         /// Primitive two-electron integrals: <Nel^2 * (2L+1)>
-        std::vector<helfem::Matrix> prim_tei;
+        /// Pivoted-Cholesky factors of the in-element two-electron integrals,
+        /// indexed [L*Nel + iel]: L_p of shape (Ni^2 x r) with T = L L'. Same
+        /// low-rank / RI treatment atomic::TwoDBasis uses -- the only 4-index
+        /// object left, and the exchange PAIRING of it is full rank, so K goes
+        /// through RI rather than storing an exchange-ordered tensor.
+        std::vector<helfem::Matrix> prim_chol;
+        /// Tolerance for the pivoted Cholesky above
+        double chol_tol = 1e-12;
         /// Primitive two-electron exchange integrals
-        std::vector<helfem::Matrix> prim_ktei;
+        /// Same factorization for the Yukawa-screened in-element integrals.
+        std::vector<helfem::Matrix> rs_chol;
         /// Primitive two-electron exchange integrals, range separation
         std::vector<helfem::Matrix> rs_ktei;
 

@@ -114,13 +114,23 @@ namespace helfem {
       void TwoDBasis::compute_tei() {
         // Delegate to the shared cache builders in CoulombExchangeFE.h
         // -- same path atomic::TwoDBasis uses. Bare Coulomb + in-element
-        // prim_tei + exchange-permuted prim_ktei.
+        // In-element integrals kept as low-rank Cholesky factors (prim_chol);
+        // K comes from RI, so no exchange-ordered tensor is built.
         const int N_L = 2 * arma::max(lval) + 1;
         atomic::basis::compute_disjoint_radial_integrals(
             radial, N_L, disjoint_L, disjoint_m1L);
-        atomic::basis::compute_in_element_tei(radial, N_L, prim_tei);
-        atomic::basis::compute_in_element_ktei_from_tei(
-            radial, N_L, prim_tei, prim_ktei);
+        // In-element integrals in factorized form: T = L L', both J and K
+        // assembled from the one J-ordered factor (K via RI). No
+        // exchange-ordered tensor is built.
+        const size_t Nel = radial.Nel();
+        prim_chol.assign((size_t) N_L * Nel, helfem::Matrix());
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+        for (int L = 0; L < N_L; ++L)
+          for (size_t iel = 0; iel < Nel; ++iel)
+            prim_chol[(size_t) L * Nel + iel] =
+                radial.twoe_integral_cholesky(L, iel, chol_tol);
       }
 
       void TwoDBasis::compute_yukawa(double lambda_) {
@@ -132,11 +142,16 @@ namespace helfem {
         // assembly.
         atomic::basis::compute_disjoint_radial_integrals(
             radial, N_L, disjoint_iL, disjoint_kL, /*yukawa=*/true, lambda);
-        std::vector<helfem::Matrix> rs_tei_yk;
-        atomic::basis::compute_in_element_tei(
-            radial, N_L, rs_tei_yk, /*yukawa=*/true, lambda);
-        atomic::basis::compute_in_element_ktei_from_tei(
-            radial, N_L, rs_tei_yk, rs_ktei);
+        // In-element Yukawa integrals, factorized as above.
+        const size_t Nel = radial.Nel();
+        rs_chol.assign((size_t) N_L * Nel, helfem::Matrix());
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+        for (int L = 0; L < N_L; ++L)
+          for (size_t iel = 0; iel < Nel; ++iel)
+            rs_chol[(size_t) L * Nel + iel] =
+                radial.yukawa_integral_cholesky(L, lambda, iel, chol_tol);
       }
 
       void TwoDBasis::compute_erfc(double mu) {
@@ -151,7 +166,7 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDBasis::coulomb(const helfem::Matrix & P_in) const {
-        if(!prim_tei.size())
+        if(!prim_chol.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
         // Phase 3: SCF surface takes Eigen; internal J helper still
         // takes arma -- one conversion at entry, one at exit.
@@ -170,14 +185,14 @@ namespace helfem {
           return disjoint_m1L[L * Nel + iel];
         };
         auto tw = [&](size_t iel) -> const helfem::Matrix & {
-          return prim_tei[Nel * Nel * L + iel * Nel + iel];
+          return prim_chol[(size_t) L * Nel + iel];
         };
-        return Lfac * atomic::basis::assemble_J_FE_one_multipole_cached(
+        return Lfac * atomic::basis::assemble_J_FE_one_multipole_cached_chol(
             radial, rs, rb, tw, helfem::to_eigen(P));
       }
 
       arma::cube TwoDBasis::exchange(const arma::cube & P) const {
-        if(!prim_ktei.size())
+        if(!prim_chol.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
         // Gaunt coefficient table
@@ -198,9 +213,9 @@ namespace helfem {
         arma::cube K(Nrad,Nrad,gmax+1);
         K.zeros();
 
-        // The per-element K assembly is now delegated to
-        // assemble_K_FE_one_multipole_cached -- no per-thread scratch
-        // needed here, the helper allocates its own.
+        // Per-element K via the RI contraction on the J-ordered Cholesky
+        // factor -- assemble_K_FE_one_multipole_cached_chol. No
+        // exchange-ordered tensor, no per-thread scratch.
 
 #ifdef _OPENMP
 #pragma omp parallel
@@ -272,10 +287,10 @@ namespace helfem {
                 return disjoint_m1L[Lint * Nel + iel];
               };
               auto kt = [&,Lint](size_t iel) -> const helfem::Matrix & {
-                return prim_ktei[Nel * Nel * Lint + iel * Nel + iel];
+                return prim_chol[(size_t) Lint * Nel + iel];
               };
               K.slice(lout) -= helfem::to_arma(
-                  atomic::basis::assemble_K_FE_one_multipole_cached(
+                  atomic::basis::assemble_K_FE_one_multipole_cached_chol(
                       radial, rs, rb, kt, helfem::to_eigen(arma::mat(Prad.slice(L)))));
             }
           }
@@ -285,7 +300,7 @@ namespace helfem {
       }
 
       arma::cube TwoDBasis::rs_exchange(const arma::cube & P) const {
-        if(!rs_ktei.size())
+        if(!rs_ktei.size() && !rs_chol.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
 
         // Gaunt coefficient table
@@ -379,10 +394,10 @@ namespace helfem {
                   return disjoint_kL[Lc*Nel+iel];
                 };
                 auto kt = [&,Lc](size_t iel) -> const helfem::Matrix & {
-                  return rs_ktei[Nel*Nel*Lc + iel*Nel + iel];
+                  return rs_chol[(size_t) Lc * Nel + iel];
                 };
                 K.slice(lout) -= helfem::to_arma(
-                  atomic::basis::assemble_K_FE_one_multipole_cached(
+                  atomic::basis::assemble_K_FE_one_multipole_cached_chol(
                     radial, rs, rb, kt, helfem::to_eigen(P_L)));
               } else {
                 // Erfc: rs_ktei has cross-element entries (iel != jel)
