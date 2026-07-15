@@ -20,13 +20,13 @@
 
 namespace helfem {
   namespace scf {
-    /// Average out the Fock matrix (Phase 5.13: Eigen).
-    helfem::Matrix fock_symmetry_average(const helfem::Matrix & Fin, const std::vector< std::vector<arma::uvec> > & sym_idx);
+    /// Average out the Fock matrix (Eigen index lists).
+    helfem::Matrix fock_symmetry_average(const helfem::Matrix & Fin, const std::vector< std::vector<std::vector<Eigen::Index>> > & sym_idx);
 
     /// Solve generalized eigenvalue problem (Phase 5.11: Eigen-typed).
     void eig_gsym(helfem::Vector & E, helfem::Matrix & C, const helfem::Matrix & F, const helfem::Matrix & Sinvh);
-    /// Solve generalized eigenvalue problem in subspaces (Phase 5.12: Eigen matrices; m_idx kept arma::uvec).
-    void eig_gsym_sub(helfem::Vector & E, helfem::Matrix & C, const helfem::Matrix & F, const helfem::Matrix & Sinvh, const std::vector<arma::uvec> & m_idx, bool verbose=true);
+    /// Solve generalized eigenvalue problem in subspaces (Eigen index lists).
+    void eig_gsym_sub(helfem::Vector & E, helfem::Matrix & C, const helfem::Matrix & F, const helfem::Matrix & Sinvh, const std::vector<std::vector<Eigen::Index>> & m_idx, bool verbose=true);
 
     /// Form half-inverse overlap (Phase 5.10: Eigen-typed). Templated on
     /// the scalar type; T is deduced from S, so every existing

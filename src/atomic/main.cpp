@@ -311,24 +311,24 @@ int main(int argc, char **argv) {
   // mmax == lmax and degrades gracefully when mmax < lmax (partial
   // m-average over the represented m subset -- a no-op when only m=0
   // is present, which is what you want).
-  std::vector<std::vector<arma::uvec>> l_idx;
+  std::vector<std::vector<std::vector<Eigen::Index>>> l_idx;
   if (maverage) {
     const arma::ivec l_all = basis.get_lval();
     const int lmax_bf = arma::max(l_all);
     l_idx.assign(lmax_bf + 1, {});
     for (int l = 0; l <= lmax_bf; ++l)
       for (int m = -l; m <= l; ++m) {
-        arma::uvec idx = basis.lm_indices(l, m);
-        if (idx.n_elem) l_idx[l].push_back(idx);
+        std::vector<Eigen::Index> idx = basis.lm_indices(l, m);
+        if (!idx.empty()) l_idx[l].push_back(idx);
       }
   }
 
   // --- Symmetry decomposition. symm==0 collapses to one block containing
   //     all basis functions.
-  std::vector<arma::uvec> dsym;
+  std::vector<std::vector<Eigen::Index>> dsym;
   if (symm_eff == 0) {
-    arma::uvec all(Nbf);
-    for (size_t i = 0; i < Nbf; ++i) all(i) = i;
+    std::vector<Eigen::Index> all(Nbf);
+    for (size_t i = 0; i < Nbf; ++i) all[i] = static_cast<Eigen::Index>(i);
     dsym.push_back(all);
   } else {
     dsym = basis.get_sym_idx(symm_eff);
@@ -557,17 +557,16 @@ int main(int argc, char **argv) {
     for (arma::uword i = 0; i < occs.n_rows; ++i) {
       const int nocca_i = static_cast<int>(occs(i, 0));
       const int noccb_i = static_cast<int>(occs(i, 1));
-      arma::uvec row_idx;
+      std::vector<Eigen::Index> row_idx;
       if (symm_eff == 1)
         row_idx = basis.m_indices(occs(i, 2));
       else
         row_idx = basis.lm_indices(occs(i, 2), occs(i, 3));
-      if (!row_idx.n_elem)
+      if (row_idx.empty())
         throw std::logic_error("occs.dat: row references a symmetry block with no basis functions.");
       int matched_block = -1;
       for (size_t k = 0; k < nsym; ++k) {
-        if (dsym[k].n_elem == row_idx.n_elem &&
-            arma::all(dsym[k] == row_idx)) { matched_block = static_cast<int>(k); break; }
+        if (dsym[k] == row_idx) { matched_block = static_cast<int>(k); break; }
       }
       if (matched_block < 0)
         throw std::logic_error("occs.dat: row does not match any current symmetry block.");

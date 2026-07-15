@@ -15,8 +15,9 @@
 #ifndef HELFEM_ANGULAR_INDEX_HELPERS_H
 #define HELFEM_ANGULAR_INDEX_HELPERS_H
 
-#include <armadillo>
+#include <Eigen/Core>
 #include <cstddef>
+#include <vector>
 
 namespace helfem {
   // Collect global basis-function indices belonging to a subset of
@@ -28,26 +29,29 @@ namespace helfem {
   // atomic::TwoDBasis::m_indices / lm_indices and
   // diatomic::TwoDBasis::m_indices (both overloads).
   //
+  // Returns an ascending list of Eigen::Index, directly usable in the
+  // Eigen 3.4 indexed views the SCF-driver plumbing consumes.
+  //
   // Usage:
-  //   idx = collect_shell_indices(mval.n_elem,
+  //   idx = collect_shell_indices(mval.size(),
   //             [&](size_t)   { return radial.Nbf(); },   // shell size
   //             [&](size_t i) { return mval(i) == m; });  // predicate
   template <typename ShellSizeFn, typename PredicateFn>
-  inline arma::uvec collect_shell_indices(size_t nshells,
+  inline std::vector<Eigen::Index> collect_shell_indices(size_t nshells,
                                            ShellSizeFn shell_size,
                                            PredicateFn match) {
     size_t nm = 0;
     for (size_t i = 0; i < nshells; ++i)
       if (match(i)) nm += shell_size(i);
 
-    arma::uvec idx(nm);
+    std::vector<Eigen::Index> idx(nm);
     size_t ioff = 0;
     size_t ibf  = 0;
     for (size_t i = 0; i < nshells; ++i) {
       const size_t nsh = shell_size(i);
       if (match(i)) {
-        idx.subvec(ioff, ioff + nsh - 1) =
-            arma::linspace<arma::uvec>(ibf, ibf + nsh - 1, nsh);
+        for (size_t k = 0; k < nsh; ++k)
+          idx[ioff + k] = static_cast<Eigen::Index>(ibf + k);
         ioff += nsh;
       }
       ibf += nsh;

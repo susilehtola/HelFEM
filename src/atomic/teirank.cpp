@@ -64,8 +64,8 @@ int main(int argc, char **argv) {
       polynomial_basis::get_basis(primbas, Nnodes));
   const int Nquad = 5 * poly->get_nbf();
 
-  arma::vec bval(atomic::basis::normal_grid(Nelem, Rmax, 4, 1.0));
-  polynomial_basis::FiniteElementBasis fem(poly, helfem::to_eigen(bval),
+  const helfem::Vector bval = atomic::basis::normal_grid(Nelem, Rmax, 4, 1.0);
+  polynomial_basis::FiniteElementBasis fem(poly, bval,
                                             true, false, true, false);
   atomic::basis::FEMRadialBasis radial(fem, Nquad);
 

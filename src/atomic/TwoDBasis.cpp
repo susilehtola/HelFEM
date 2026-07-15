@@ -193,25 +193,27 @@ namespace helfem {
       }
 
       template <typename T>
-      arma::uvec TwoDBasisT<T>::m_indices(int m) const {
+      std::vector<Eigen::Index> TwoDBasisT<T>::m_indices(int m) const {
         return helfem::collect_shell_indices(mval.size(),
             [&](size_t)   { return radial.Nbf(); },
             [&](size_t i) { return mval(i) == m; });
       }
 
       template <typename T>
-      arma::uvec TwoDBasisT<T>::lm_indices(int l, int m) const {
+      std::vector<Eigen::Index> TwoDBasisT<T>::lm_indices(int l, int m) const {
         return helfem::collect_shell_indices(mval.size(),
             [&](size_t)   { return radial.Nbf(); },
             [&](size_t i) { return mval(i) == m && lval(i) == l; });
       }
 
       template <typename T>
-      std::vector<arma::uvec> TwoDBasisT<T>::get_sym_idx(int symm) const {
-        std::vector<arma::uvec> idx;
+      std::vector<std::vector<Eigen::Index>> TwoDBasisT<T>::get_sym_idx(int symm) const {
+        std::vector<std::vector<Eigen::Index>> idx;
         if(symm==0) {
           idx.resize(1);
-          idx[0]=arma::linspace<arma::uvec>(0,Nbf()-1,Nbf());
+          idx[0].resize(Nbf());
+          for(Eigen::Index i=0;i<(Eigen::Index) Nbf();i++)
+            idx[0][i]=i;
         } else if(symm==1) {
           // Unique m values in ascending order (matches arma::find_unique).
           std::vector<int> mv;
@@ -247,19 +249,17 @@ namespace helfem {
           // columns are packed contiguously, so Sinvh maps orthonormal ->
           // AO with block-diagonal structure (scattered rows, contiguous
           // columns per block).
-          std::vector<arma::uvec> midx(get_sym_idx(sym));
+          std::vector<std::vector<Eigen::Index>> midx(get_sym_idx(sym));
           const Eigen::Index N = static_cast<Eigen::Index>(Nbf());
           helfem::Mat<T> Sinvh = helfem::Mat<T>::Zero(N, N);
           Eigen::Index ioff = 0;
           for(size_t i=0;i<midx.size();i++) {
-            const Eigen::Index n = static_cast<Eigen::Index>(midx[i].n_elem);
+            const Eigen::Index n = static_cast<Eigen::Index>(midx[i].size());
             if(!n)
               continue;
 
             // AO indices of this block.
-            std::vector<Eigen::Index> rows(n);
-            for(Eigen::Index k=0;k<n;k++)
-              rows[k] = static_cast<Eigen::Index>(midx[i](k));
+            const std::vector<Eigen::Index> & rows = midx[i];
 
             // Gather the block overlap, orthonormalize.
             helfem::Mat<T> Ssub(n, n);

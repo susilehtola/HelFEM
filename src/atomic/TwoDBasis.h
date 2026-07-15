@@ -251,11 +251,11 @@ namespace helfem {
 
 
         /// Get indices of basis functions with wanted m quantum number
-        arma::uvec m_indices(int m) const;
+        std::vector<Eigen::Index> m_indices(int m) const;
         /// Get indices of basis functions with wanted l and m quantum numbers
-        arma::uvec lm_indices(int l, int m) const;
-        /// Get indices for wanted symmetry
-        std::vector<arma::uvec> get_sym_idx(int isym) const;
+        std::vector<Eigen::Index> lm_indices(int l, int m) const;
+        /// Get indices for wanted symmetry (one index list per block)
+        std::vector<std::vector<Eigen::Index>> get_sym_idx(int isym) const;
 
         /// Evaluate basis functions (T = double only)
         arma::cx_mat eval_bf(size_t iel, double cth, double phi) const;

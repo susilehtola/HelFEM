@@ -66,12 +66,12 @@ int main(int argc, char **argv) {
   arma::ivec lmmax(mmax + 1);
   lmmax.ones();
   lmmax *= lmax;
-  arma::ivec lval, mval;
-  diatomic::basis::lm_to_l_m(lmmax, lval, mval);
+  Eigen::VectorXi lval, mval;
+  diatomic::basis::lm_to_l_m(helfem::to_eigen(lmmax), lval, mval);
 
   const double Rhalf = 0.5 * Rbond;
   const double mumax = utils::arcosh(Rmax / Rhalf);
-  arma::vec bval(atomic::basis::normal_grid(Nelem, mumax, 4, 1.0));
+  const helfem::Vector bval = atomic::basis::normal_grid(Nelem, mumax, 4, 1.0);
 
   diatomic::basis::TwoDBasis basis(7, 7, Rhalf, poly, Nquad, bval, lval, mval);
 
