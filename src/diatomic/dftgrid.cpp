@@ -132,9 +132,9 @@ namespace helfem {
         // Polarized calculation.
         polarized=true;
 
-        // Update density vector (expand_boundaries stays arma; bridge locally).
-        arma::mat Paexp(basp->expand_boundaries(helfem::to_arma(Pa0)));
-        arma::mat Pbexp(basp->expand_boundaries(helfem::to_arma(Pb0)));
+        // Update density vector.
+        helfem::Matrix Paexp(basp->expand_boundaries(Pa0));
+        helfem::Matrix Pbexp(basp->expand_boundaries(Pb0));
         helfem::Matrix Pa(bf_ind.size(), bf_ind.size());
         helfem::Matrix Pb(bf_ind.size(), bf_ind.size());
         for(size_t i=0;i<bf_ind.size();i++)
@@ -413,15 +413,11 @@ namespace helfem {
       // inherited from DFTGridWorkerBase.
 
       void DFTGridWorker::compute_bf(size_t iel, size_t irad) {
-        // Update function list (bf_list_dummy stays arma; bridge to indices).
-        arma::uvec bf_ind_arma(basp->bf_list_dummy(iel));
-        bf_ind.assign(bf_ind_arma.n_elem, 0);
-        for(size_t k=0;k<bf_ind_arma.n_elem;k++)
-          bf_ind[k]=(Eigen::Index) bf_ind_arma(k);
+        // Update function list
+        bf_ind=basp->bf_list_dummy(iel);
 
         // Get radial weights. Only do one radial quadrature point at a
         // time, since this is an easy way to save a lot of memory.
-        // (get_wrad / get_r return arma vectors; read the single point.)
         helfem::Vector wrad(1), r(1);
         wrad(0)=basp->get_wrad(iel)(irad);
         r(0)=basp->get_r(iel)(irad);
@@ -524,8 +520,7 @@ namespace helfem {
       }
 
       void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & P_e, helfem::Matrix & H_e, double & Exc, double & Nel, double & Ekin, double thr) {
-        // Eigen flows straight through the worker; only remove_boundaries at
-        // exit still bridges to arma.
+        // Eigen flows straight through the worker and remove_boundaries.
         helfem::Matrix H = helfem::Matrix::Zero(basp->Ndummy(),basp->Ndummy());
 
         double exc=0.0;
@@ -536,7 +531,7 @@ namespace helfem {
           grid.check_grad_tau_lapl(x_func,c_func);
 
           for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-            for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
+            for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
               grid.compute_bf(iel,irad);
               grid.update_density(P_e);
               nel+=grid.compute_Nel();
@@ -563,8 +558,7 @@ namespace helfem {
       }
 
       void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & Pa_e, const helfem::Matrix & Pb_e, helfem::Matrix & Ha_e, helfem::Matrix & Hb_e, double & Exc, double & Nel, double & Ekin, bool beta, double thr) {
-        // Eigen flows straight through the worker; only remove_boundaries at
-        // exit still bridges to arma.
+        // Eigen flows straight through the worker and remove_boundaries.
         helfem::Matrix Ha = helfem::Matrix::Zero(basp->Ndummy(),basp->Ndummy());
         helfem::Matrix Hb = helfem::Matrix::Zero(basp->Ndummy(),basp->Ndummy());
 
@@ -576,7 +570,7 @@ namespace helfem {
           grid.check_grad_tau_lapl(x_func,c_func);
 
           for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-            for(size_t irad=0;irad<basp->get_r(iel).n_elem;irad++) {
+            for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
               grid.compute_bf(iel,irad);
               grid.update_density(Pa_e,Pb_e);
               nel+=grid.compute_Nel();

@@ -38,8 +38,8 @@ namespace helfem {
         wang = helfem::to_eigen(wang_a);
 
         // Distinct m values present in the basis
-        const arma::ivec mv(basp->get_mval());
-        for (size_t i = 0; i < mv.n_elem; i++) {
+        const Eigen::VectorXi mv(basp->get_mval());
+        for (size_t i = 0; i < (size_t) mv.size(); i++) {
           const int m = (int) mv(i);
           if (std::find(mlist.begin(), mlist.end(), m) == mlist.end())
             mlist.push_back(m);
@@ -48,7 +48,7 @@ namespace helfem {
 
         // Angular factors depend only on (l, m, nu) -- not on the radial point
         // -- so build them once here rather than per element / per radial point.
-        const arma::ivec lv(basp->get_lval());
+        const Eigen::VectorXi lv(basp->get_lval());
         const Eigen::Index nang = cth.size();
         lval_m.assign(mlist.size(), std::vector<int>());
         sph_m.assign(mlist.size(), std::vector<helfem::Vector>());
@@ -56,7 +56,7 @@ namespace helfem {
         for (size_t im = 0; im < mlist.size(); im++) {
           const int m = mlist[im];
           // Shells of this m block, in the order bf_list_dummy lists them
-          for (size_t i = 0; i < mv.n_elem; i++) {
+          for (size_t i = 0; i < (size_t) mv.size(); i++) {
             if ((int) mv(i) != m) continue;
             const int l = (int) lv(i);
             lval_m[im].push_back(l);
@@ -149,11 +149,8 @@ namespace helfem {
 
         for (size_t im = 0; im < nm; im++) {
           const int m = mlist[im];
-          const arma::uvec ind(basp->bf_list_dummy(iel, m));
-          bf_ind_m[im].resize(ind.n_elem);
-          for (size_t k = 0; k < ind.n_elem; k++)
-            bf_ind_m[im][k] = (Eigen::Index) ind(k);
-          const Eigen::Index nbf = (Eigen::Index) ind.n_elem;
+          bf_ind_m[im] = basp->bf_list_dummy(iel, m);
+          const Eigen::Index nbf = (Eigen::Index) bf_ind_m[im].size();
           if (!nbf) continue;
 
           bf_m[im] = helfem::Matrix::Zero(nbf, nang);
@@ -602,7 +599,7 @@ namespace helfem {
           grid.check_grad_tau_lapl(x_func, c_func);
 
           for (size_t iel = 0; iel < basp->get_rad_Nel(); iel++) {
-            for (size_t irad = 0; irad < basp->get_r(iel).n_elem; irad++) {
+            for (size_t irad = 0; irad < (size_t) basp->get_r(iel).size(); irad++) {
               grid.compute_bf(iel, irad);
               grid.update_density(P);
               nel  += grid.compute_Nel();
@@ -633,7 +630,7 @@ namespace helfem {
           grid.check_grad_tau_lapl(x_func, c_func);
 
           for (size_t iel = 0; iel < basp->get_rad_Nel(); iel++) {
-            for (size_t irad = 0; irad < basp->get_r(iel).n_elem; irad++) {
+            for (size_t irad = 0; irad < (size_t) basp->get_r(iel).size(); irad++) {
               grid.compute_bf(iel, irad);
               grid.update_density(Pa, Pb);
               nel  += grid.compute_Nel();

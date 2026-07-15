@@ -61,9 +61,9 @@ int main(int argc, char **argv) {
   if(nquad<=0)
     nquad=5*basis.get_poly_nnodes();
   if(lang<=0)
-    lang=4*arma::max(basis.get_lval())+12;
+    lang=4*basis.get_lval().maxCoeff()+12;
   if(mang<=0)
-    mang=4*arma::max(arma::abs(basis.get_mval()))+5;
+    mang=4*basis.get_mval().cwiseAbs().maxCoeff()+5;
 
   arma::vec cth, phi, wang;
   helfem::angular::angular_chebyshev(lang,mang,cth,phi,wang);
@@ -84,9 +84,10 @@ int main(int argc, char **argv) {
 
   // mu array
   std::vector<arma::vec> mu(basis.get_rad_Nel()), wmu(basis.get_rad_Nel());
+  // get_r / get_wrad are Eigen-typed; bridge for this arma-native analysis path.
   for(size_t iel=0;iel<mu.size();iel++) {
-    mu[iel]=basis.get_r(iel);
-    wmu[iel]=basis.get_wrad(iel);
+    mu[iel]=helfem::to_arma(basis.get_r(iel));
+    wmu[iel]=helfem::to_arma(basis.get_wrad(iel));
   }
 
   size_t Nradpts=mu.size()*mu[0].n_elem;
@@ -96,8 +97,8 @@ int main(int argc, char **argv) {
   size_t Ngrid = Nradpts*wang.n_elem;
 
   // Pretabulate basis function data
-  arma::ivec lval(basis.get_lval());
-  arma::ivec mval(basis.get_mval());
+  arma::ivec lval(helfem::to_arma(basis.get_lval()));
+  arma::ivec mval(helfem::to_arma(basis.get_mval()));
   arma::cx_mat sph(wang.n_elem,lval.n_elem);
   for(size_t il=0;il<lval.n_elem;il++)
     for(size_t iang=0;iang<wang.n_elem;iang++)
@@ -140,8 +141,11 @@ int main(int argc, char **argv) {
   // Loop over radial elements
   for(size_t iel=0;iel<mu.size();iel++) {
     // Get the list of basis functions in the element in the dummy
-    // indexing
-    arma::uvec bidx=basis.bf_list(iel);
+    // indexing (bf_list is Eigen-typed; bridge to arma::uvec here).
+    std::vector<Eigen::Index> bidx_v=basis.bf_list(iel);
+    arma::uvec bidx(bidx_v.size());
+    for(size_t i=0;i<bidx_v.size();i++)
+      bidx(i)=(arma::uword) bidx_v[i];
 
     // Orbital submatrices
     arma::mat Casub(Ca.cols(0,nela-1));
@@ -270,7 +274,7 @@ int main(int argc, char **argv) {
   savechk.write("Rh",basis.get_Rhalf());
   savechk.write("Z1",basis.get_Z1());
   savechk.write("Z2",basis.get_Z2());
-  int mmax = arma::max(basis.get_mval());
+  int mmax = basis.get_mval().maxCoeff();
   savechk.write("mmax",mmax);
 
   printf("Saved density to file %s\n",output.c_str());

@@ -42,13 +42,13 @@ namespace helfem {
       ///     TwoDBasis (= TwoDBasisT<double>) as before.
       ///   * the basis-function EVALUATION routines used by that grid and by
       ///     the analysis binaries -- eval_bf / eval_df / eval_lf (which return
-      ///     arma::cx_mat and go through the double-only ::spherical_harmonics)
-      ///     and the quadrature-point accessors get_bval / get_wrad / get_r
-      ///     (arma::vec). These are compiled for every T but THROW unless
-      ///     T = double; they are not on the Fock path.
+      ///     arma::cx_mat and go through the double-only ::spherical_harmonics).
+      ///     These are compiled for every T but THROW unless T = double; they
+      ///     are not on the Fock path. (The quadrature-point accessors get_bval
+      ///     / get_wrad / get_r are precision-generic helfem::Vec<T>.)
       /// The angular-index bookkeeping (get_lval / m_indices / get_sym_idx,
-      /// arma::ivec / arma::uvec) is integer-valued, hence precision-free, and
-      /// is shared by all instantiations unchanged.
+      /// Eigen::VectorXi / std::vector<Eigen::Index>) is integer-valued, hence
+      /// precision-free, and is shared by all instantiations unchanged.
       template <typename T>
       class TwoDBasisT {
         /// Nuclear charge
@@ -163,14 +163,14 @@ namespace helfem {
         T get_nuclear_size() const;
 
         /// Get l values
-        arma::ivec get_lval() const;
+        Eigen::VectorXi get_lval() const;
         /// Get m values
-        arma::ivec get_mval() const;
+        Eigen::VectorXi get_mval() const;
 
         /// Get number of quadrature points
         int get_nquad() const;
-        /// Get boundary values (T = double only)
-        arma::vec get_bval() const;
+        /// Get boundary values
+        helfem::Vec<T> get_bval() const;
         /// Get polynomial basis identifier
         int get_poly_id() const;
         /// Get number of nodes in polynomial
@@ -264,7 +264,7 @@ namespace helfem {
         /// Evaluate Laplacian of basis functions (T = double only)
         arma::cx_mat eval_lf(size_t iel, double cth, double phi) const;
         /// Get list of basis function indices in element
-        arma::uvec bf_list(size_t iel) const;
+        std::vector<Eigen::Index> bf_list(size_t iel) const;
 
         /// Get number of radial elements
         size_t get_rad_Nel() const;
@@ -274,10 +274,10 @@ namespace helfem {
         /// callers must account for this when partitioning per-element
         /// quantities.
         std::pair<size_t, size_t> radial_element_range(size_t iel) const;
-        /// Get radial quadrature weights (T = double only)
-        arma::vec get_wrad(size_t iel) const;
-        /// Get r values (T = double only)
-        arma::vec get_r(size_t iel) const;
+        /// Get radial quadrature weights
+        helfem::Vec<T> get_wrad(size_t iel) const;
+        /// Get r values
+        helfem::Vec<T> get_r(size_t iel) const;
       };
 
       /// The double instantiation, which every existing caller uses.

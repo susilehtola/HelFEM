@@ -285,7 +285,7 @@ int main(int argc, char **argv) {
   // src/diatomic/main.cpp lines 318..328.
   std::vector<std::vector<std::vector<Eigen::Index>>> mavg_idx;
   if (maverage) {
-    const int mmax_bf = arma::max(arma::abs(basis.get_mval()));
+    const int mmax_bf = basis.get_mval().cwiseAbs().maxCoeff();
     for (int m = 0; m <= mmax_bf; ++m) {
       std::vector<std::vector<Eigen::Index>> entry;
       entry.push_back(basis.m_indices(m));

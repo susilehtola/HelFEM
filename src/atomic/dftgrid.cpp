@@ -473,17 +473,13 @@ namespace helfem {
       // inherited from helfem::dftgrid_common::DFTGridWorkerBase.
 
       void DFTGridWorker::compute_bf(size_t iel) {
-        // Update function list (bf_list returns arma::uvec -- bridge to
-        // a plain index vector).
-        arma::uvec bf_ind_arma(basp->bf_list(iel));
-        bf_ind.assign(bf_ind_arma.n_elem, 0);
-        for(size_t k=0;k<bf_ind_arma.n_elem;k++)
-          bf_ind[k]=(Eigen::Index) bf_ind_arma(k);
+        // Update function list
+        bf_ind=basp->bf_list(iel);
         const Eigen::Index nbf=(Eigen::Index) bf_ind.size();
 
-        // Get radii and radial weights (basp returns arma::vec -- bridge).
-        helfem::Vector r(helfem::to_eigen(basp->get_r(iel)));
-        helfem::Vector wrad(helfem::to_eigen(basp->get_wrad(iel)));
+        // Get radii and radial weights
+        helfem::Vector r(basp->get_r(iel));
+        helfem::Vector wrad(basp->get_wrad(iel));
         const Eigen::Index nrad=wrad.size();
         const Eigen::Index nang=wang.size();
 
