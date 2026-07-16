@@ -214,18 +214,14 @@ namespace helfem {
 
       // Green's function matrix Fn(i, k) = Phi(L, mu*ri(i), mu*rk(k)).
       //
-      // erfc_expn::Phi is the one piece of the radial layer that is still
-      // double-only: it is a long series of double-precision special-function
-      // evaluations (erfc, Boys-like damping functions) with hard-coded
-      // double tolerances. This is the single double boundary in the
-      // templated radial code -- the range-separated (erfc) two-electron
-      // integrals are therefore computed at double accuracy even at
-      // T = long double. Everything else in the chain is at T.
+      // erfc_expn::Phi is now templated on the scalar type, so the whole
+      // range-separated (erfc) special-function chain runs at T: the erfc
+      // two-electron integrals carry T's precision instead of being capped
+      // at double.
       Mat<T> Fn(ri.size(), rk.size());
       for (Eigen::Index i = 0; i < ri.size(); ++i)
         for (Eigen::Index k = 0; k < rk.size(); ++k)
-          Fn(i, k) = static_cast<T>(atomic::erfc_expn::Phi(
-              L, static_cast<double>(mu * ri(i)), static_cast<double>(mu * rk(k))));
+          Fn(i, k) = atomic::erfc_expn::Phi<T>(L, mu * ri(i), mu * rk(k));
 
       Mat<T> bfprodij = make_bfprod<T>(bfi);
       Mat<T> bfprodkl = make_bfprod<T>(bfk);

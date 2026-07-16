@@ -18,20 +18,19 @@
 namespace helfem {
   namespace atomic {
     namespace erfc_expn {
-      /// Damping functions
-      double Dnk(int n, int k, double Xi);
-      /// Short-range helper
-      double Phi_short(unsigned int n, unsigned int k, double Xi, double xi);
-      /// General expansion, unstable in short range
-      double Phi_general(unsigned int n, double Xi, double xi);
-
       /**
        * Computes the complementary error function expansion as
        * described in J. G. Ángyán, I. Gerber and M. Marsman, "Spherical
        * harmonic expansion of short-range screened Coulomb
        * interactions", J. Phys. A: Math. Gen. 39, 8613 (2006).
+       *
+       * Templated on the scalar type T and explicitly instantiated for
+       * double, long double and (under HELFEM_HAVE_FLOAT128) _Float128.
+       * The whole erfc/Legendre special-function chain runs at T, so the
+       * range-separated (erfc) two-electron integrals carry T's precision
+       * rather than being capped at double.
        */
-      double Phi(unsigned int n, double Xi, double xi);
+      template <typename T> T Phi(unsigned int n, T Xi, T xi);
     }
   }
 }
