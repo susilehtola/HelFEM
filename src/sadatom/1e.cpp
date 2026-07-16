@@ -91,16 +91,17 @@ int main(int argc, char **argv) {
   // Order of quadrature rule
   printf("Using %i point quadrature rule.\n",Nquad);
 
-  // Radial basis. atomic::basis::form_grid still returns arma::vec;
-  // bridge once at the FiniteElementBasis constructor.
-  const arma::vec bval = atomic::basis::form_grid(
+  // Radial basis. atomic::basis::form_grid still returns arma::vec
+  // (atomic basis layer, migrated in a later wave); bridge its result to
+  // Eigen once at the FiniteElementBasis constructor.
+  const helfem::Vector bval = helfem::to_eigen(atomic::basis::form_grid(
       (modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax,
-      igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0);
+      igrid, zexp, Nelem0, igrid0, zexp0, Z, 0, 0, 0.0));
 
   const bool zero_func_left  = true;
   const bool zero_deriv_left = false;
   const bool zero_func_right = true;
-  polynomial_basis::FiniteElementBasis fem(poly, helfem::to_eigen(bval),
+  polynomial_basis::FiniteElementBasis fem(poly, bval,
       zero_func_left, zero_deriv_left, zero_func_right, zeroder);
   atomic::basis::FEMRadialBasis radial(fem, Nquad);
 
