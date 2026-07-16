@@ -20,13 +20,12 @@
 namespace helfem {
   namespace diatomic {
     namespace quadrature {
-      // Legendre P/Q tables are still arma-typed (legendre subsystem);
-      // evaluate against a bridged arma copy and return Eigen.
+      // Legendre P/Q tables are Eigen-typed.
       static helfem::Vector Plm(const legendretable::LegendreTable & tab, int L, int M, const helfem::Vector & chmu) {
-        return helfem::to_eigen(tab.get_Plm(L, M, helfem::to_arma(chmu)));
+        return tab.get_Plm(L, M, chmu);
       }
       static helfem::Vector Qlm(const legendretable::LegendreTable & tab, int L, int M, const helfem::Vector & chmu) {
-        return helfem::to_eigen(tab.get_Qlm(L, M, helfem::to_arma(chmu)));
+        return tab.get_Qlm(L, M, chmu);
       }
 
       static helfem::Vector twoe_inner_integral_wrk(double mumin, double mumax, double mumin0, double mumax0, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {

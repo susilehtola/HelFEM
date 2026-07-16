@@ -36,7 +36,7 @@ namespace helfem {
     size_t LegendreTable::get_index(double xi, bool check) const {
       // Search on xi alone. Constructing a legendre_table_t just to carry the
       // search key would construct -- and immediately destroy -- its two
-      // arma::mat members on EVERY lookup, and get_index is called once per
+      // helfem::Matrix members on EVERY lookup, and get_index is called once per
       // quadrature point, inside the (L, M, subinterval) loops of the
       // two-electron integral build. That churn showed up as several percent
       // of the run time in malloc/memmove.
@@ -70,14 +70,14 @@ namespace helfem {
         legendre_table_t entry;
 
         entry.xi=xi;
-        entry.Plm.zeros(Lmax+1,Mmax+1);
-        entry.Qlm.zeros(Lmax+1,Mmax+1);
+        entry.Plm=helfem::Matrix::Zero(Lmax+1,Mmax+1);
+        entry.Qlm=helfem::Matrix::Zero(Lmax+1,Mmax+1);
 
         // Q is singular at xi == 1; the table treats that case as zero
-        // everywhere via the entry.zeros() above.
+        // everywhere via the ::Zero above.
         if(xi!=1.0) {
-          ::helfem::legendre::plm(entry.Plm.memptr(),Lmax,Mmax,xi);
-          ::helfem::legendre::qlm(entry.Qlm.memptr(),Lmax,Mmax,xi);
+          ::helfem::legendre::plm(entry.Plm.data(),Lmax,Mmax,xi);
+          ::helfem::legendre::qlm(entry.Qlm.data(),Lmax,Mmax,xi);
         }
 
         // Drop any non-normal entries (zero is fine, denormals/NaN/Inf get
@@ -99,37 +99,33 @@ namespace helfem {
     }
 
     double LegendreTable::get_Plm(int l, int m, double xi) const {
-#ifndef ARMA_NO_DEBUG
       if(get_index(xi)>stor.size()) {
         std::ostringstream oss;
         oss << "Error in get_Plm(" << l << "," << m << "," << xi << "): index " << get_index(xi) << " greater than array size " << stor.size() << "!\n";
         throw std::logic_error(oss.str());
       }
-#endif
       return stor[get_index(xi)].Plm(l,m);
     }
 
     double LegendreTable::get_Qlm(int l, int m, double xi) const {
-#ifndef ARMA_NO_DEBUG
       if(get_index(xi)>stor.size()) {
         std::ostringstream oss;
         oss << "Error in get_Qlm(" << l << "," << m << "," << xi << "): index " << get_index(xi) << " greater than array size " << stor.size() << "!\n";
         throw std::logic_error(oss.str());
       }
-#endif
       return stor[get_index(xi)].Qlm(l,m);
     }
 
-    arma::vec LegendreTable::get_Plm(int l, int m, const arma::vec & xi) const {
-      arma::vec plm(xi.n_elem);
-      for(size_t i=0;i<xi.n_elem;i++)
+    helfem::Vector LegendreTable::get_Plm(int l, int m, const helfem::Vector & xi) const {
+      helfem::Vector plm(xi.size());
+      for(size_t i=0;i<(size_t) xi.size();i++)
         plm(i)=get_Plm(l,m,xi(i));
       return plm;
     }
 
-    arma::vec LegendreTable::get_Qlm(int l, int m, const arma::vec & xi) const {
-      arma::vec qlm(xi.n_elem);
-      for(size_t i=0;i<xi.n_elem;i++)
+    helfem::Vector LegendreTable::get_Qlm(int l, int m, const helfem::Vector & xi) const {
+      helfem::Vector qlm(xi.size());
+      for(size_t i=0;i<(size_t) xi.size();i++)
         qlm(i)=get_Qlm(l,m,xi(i));
       return qlm;
     }

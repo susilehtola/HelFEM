@@ -32,7 +32,7 @@
 
 #include "../general/cmdline.h"
 #include "basis.h"
-#include "../general/tei_utils.h"
+#include "utils.h"
 #include "FiniteElementBasis.h"
 #include "RadialBasis.h"
 #include "PolynomialBasis.h"
@@ -91,8 +91,7 @@ int main(int argc, char **argv) {
       const double emax = es.eigenvalues().cwiseAbs().maxCoeff();
 
       // Exchange pairing: is it compressible at all?
-      const helfem::Matrix Kt(helfem::to_eigen(
-          utils::exchange_tei(helfem::to_arma(T), Ni, Ni, Ni, Ni)));
+      const helfem::Matrix Kt(utils::exchange_tei(T, Ni, Ni, Ni, Ni));
       Eigen::JacobiSVD<helfem::Matrix> svd(Kt);
       const helfem::Vector sv = svd.singularValues();
       int krank = 0;

@@ -16,29 +16,21 @@
 #define LOBATTO_H
 
 // v2 refactor (Phase 1): the Gauss-Lobatto quadrature implementation now
-// lives in lib1dfem and is templated on the scalar type. libhelfem is
-// still compiled against T = double, so this header is a thin double-only
-// compatibility shim that forwards to the templated lib1dfem version. The
-// shim keeps existing callers (libhelfem-internal and downstream) source-
-// compatible during the migration.
+// lives in lib1dfem and is templated on the scalar type. This header is a
+// thin double-only compatibility shim that forwards to the templated
+// lib1dfem version at T = double, spelling the output vectors as the
+// Eigen-typed helfem::Vector. lib1dfem::Vec<double> IS helfem::Vector
+// (both are Eigen::Matrix<double, Dynamic, 1>), so the forward is a direct
+// call with no copy.
 
 #include <lib1dfem/lobatto.h>
-#include <armadillo>
-#include <cstring>
+#include <Matrix.h>
 
 /// Compute a Gauss-Lobatto quadrature rule for
 ///     integral_{-1}^{1} f(x) dx
 ///         ~ 2/(n*(n-1)) * (f(-1) + f(1)) + sum_{i=2}^{n-1} w_i f(x_i)
-///
-/// Phase 5.1: lib1dfem is Eigen-typed; this shim bridges to arma at
-/// the boundary so legacy callers compile unchanged. One-time call per
-/// setup, so the copy cost is negligible.
-inline void lobatto_compute(int n, arma::vec & x, arma::vec & w) {
-  Eigen::Matrix<double, Eigen::Dynamic, 1> xe, we;
-  helfem::lib1dfem::lobatto::lobatto_compute<double>(n, xe, we);
-  x.set_size(xe.size()); w.set_size(we.size());
-  std::memcpy(x.memptr(), xe.data(), sizeof(double) * (size_t) xe.size());
-  std::memcpy(w.memptr(), we.data(), sizeof(double) * (size_t) we.size());
+inline void lobatto_compute(int n, helfem::Vector & x, helfem::Vector & w) {
+  helfem::lib1dfem::lobatto::lobatto_compute<double>(n, x, w);
 }
 
 #endif

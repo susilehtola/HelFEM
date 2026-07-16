@@ -1,7 +1,6 @@
 #ifndef NUCLEAR_MODEL_H
 #define NUCLEAR_MODEL_H
 
-#include <armadillo>
 #include <ModelPotential.h>
 #include <PointNucleus.h>
 #include <HollowNucleus.h>

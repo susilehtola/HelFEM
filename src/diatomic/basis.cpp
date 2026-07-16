@@ -23,7 +23,7 @@
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
 #include "../general/gsz.h"
-#include "tei_utils.h"
+#include "utils.h"
 #include "../general/timer.h"
 #include "../general/scf_helpers.h"
 #include <algorithm>
@@ -525,10 +525,10 @@ namespace helfem {
         const helfem::Matrix T20(quadrature::twoe_integral(el, 2, 0, L, M, legtab));
         const helfem::Matrix T22(quadrature::twoe_integral(el, 2, 2, L, M, legtab));
 
-        const helfem::Matrix K00(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T00),Ni,Ni,Ni,Ni)));
-        const helfem::Matrix K02(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T02),Ni,Ni,Ni,Ni)));
-        const helfem::Matrix K20(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T20),Ni,Ni,Ni,Ni)));
-        const helfem::Matrix K22(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T22),Ni,Ni,Ni,Ni)));
+        const helfem::Matrix K00(utils::exchange_tei(T00,Ni,Ni,Ni,Ni));
+        const helfem::Matrix K02(utils::exchange_tei(T02,Ni,Ni,Ni,Ni));
+        const helfem::Matrix K20(utils::exchange_tei(T20,Ni,Ni,Ni,Ni));
+        const helfem::Matrix K22(utils::exchange_tei(T22,Ni,Ni,Ni,Ni));
 
         const Eigen::Index n = K00.rows();
         helfem::Matrix Kcat(n, 4*n);
@@ -580,10 +580,10 @@ namespace helfem {
           }
 
         // Exact: Ksub = sum_ab ktei_ab * vec(R_ab)
-        const helfem::Matrix K00(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T00),Ni,Ni,Ni,Ni)));
-        const helfem::Matrix K02(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T02),Ni,Ni,Ni,Ni)));
-        const helfem::Matrix K20(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T20),Ni,Ni,Ni,Ni)));
-        const helfem::Matrix K22(helfem::to_eigen(utils::exchange_tei(helfem::to_arma(T22),Ni,Ni,Ni,Ni)));
+        const helfem::Matrix K00(utils::exchange_tei(T00,Ni,Ni,Ni,Ni));
+        const helfem::Matrix K02(utils::exchange_tei(T02,Ni,Ni,Ni,Ni));
+        const helfem::Matrix K20(utils::exchange_tei(T20,Ni,Ni,Ni,Ni));
+        const helfem::Matrix K22(utils::exchange_tei(T22,Ni,Ni,Ni,Ni));
         helfem::Vector kex(helfem::Vector::Zero(Ni*Ni));
         kex += K00*Eigen::Map<const helfem::Vector>(R00.data(),R00.size());
         kex += K02*Eigen::Map<const helfem::Vector>(R02.data(),R02.size());

@@ -35,14 +35,14 @@ namespace helfem {
       return 1.0 + (Z-1)*1.0/(1.0 + (exp(r/d_Z) - 1.0)*H_Z);
     }
 
-    arma::vec Z_GSZ(const arma::vec & r, double Z, double d_Z, double H_Z) {
-      arma::vec Zv(r.n_elem);
-      for(size_t i=0;i<r.n_elem;i++)
-        Zv[i]=Z_GSZ(r(i),Z,d_Z,H_Z);
+    helfem::Vector Z_GSZ(const helfem::Vector & r, double Z, double d_Z, double H_Z) {
+      helfem::Vector Zv(r.size());
+      for(size_t i=0;i<(size_t) r.size();i++)
+        Zv(i)=Z_GSZ(r(i),Z,d_Z,H_Z);
       return Zv;
     }
 
-    arma::vec Z_GSZ(const arma::vec & r, int Z) {
+    helfem::Vector Z_GSZ(const helfem::Vector & r, int Z) {
       double d, H;
       GSZ_parameters(Z,d,H);
       return Z_GSZ(r,Z,d,H);
@@ -57,9 +57,9 @@ namespace helfem {
       return Z*std::pow(1 + alpha*sqrt(x) + beta*x*exp(-gamma*sqrt(x)),2)*exp(-2*alpha*sqrt(x));
     }
 
-    arma::vec Z_thomasfermi(const arma::vec & r, int Z) {
-      arma::vec Zeff(r.n_elem);
-      for(size_t i=0;i<r.n_elem;i++) {
+    helfem::Vector Z_thomasfermi(const helfem::Vector & r, int Z) {
+      helfem::Vector Zeff(r.size());
+      for(size_t i=0;i<(size_t) r.size();i++) {
         Zeff(i)=Z_thomasfermi(r(i),Z);
       }
       return Zeff;

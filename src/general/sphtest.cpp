@@ -14,15 +14,18 @@
  */
 #include "angular.h"
 #include "spherical_harmonics.h"
+#include <ArmaEigen.h>
 
 int main(void) {
   int lsph=5;
   for(int lang=2;lang<=3*lsph;lang++) {
 
-    // Get quadrature rule
-    arma::vec cth, phi, w;
-    //helfem::angular::angular_chebyshev(lang,cth,phi,w);
-    helfem::angular::angular_lobatto(lang,cth,phi,w);
+    // Get quadrature rule (angular_* is Eigen-typed; this analysis test
+    // still runs its overlap check with arma, so bridge once here).
+    helfem::Vector cth_e, phi_e, w_e;
+    //helfem::angular::angular_chebyshev(lang,cth_e,phi_e,w_e);
+    helfem::angular::angular_lobatto(lang,cth_e,phi_e,w_e);
+    arma::vec cth(helfem::to_arma(cth_e)), phi(helfem::to_arma(phi_e)), w(helfem::to_arma(w_e));
     
     // Evaluate spherical harmonics
     int nsph=(lsph+1)*(lsph+1);

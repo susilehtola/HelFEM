@@ -22,7 +22,6 @@
 // geometry-specific bits (compute_bf, update_density, eval_Fxc,
 // compute_Nel, etc.) stay in the derived classes.
 
-#include <armadillo>
 #include <Matrix.h>
 #include <sstream>
 #include <stdexcept>
@@ -125,9 +124,9 @@ namespace helfem {
       }
 
       // Weighted helper: fhlp(:,j) = f(:,j) * vxc(j). Then
-      // H += Re( fhlp * f^H ). arma::trans on a complex matrix is the
-      // conjugate transpose, so this is .adjoint() (== .transpose() for
-      // the real, sadatom, instantiation).
+      // H += Re( fhlp * f^H ). The conjugate transpose of a complex
+      // matrix is .adjoint() (== .transpose() for the real, sadatom,
+      // instantiation).
       Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> fhlp = f;
       for(Eigen::Index j=0;j<fhlp.cols();j++)
         fhlp.col(j) *= vxc(j);
