@@ -91,6 +91,30 @@ endif()
 option(HELFEM_FLOAT128 "Instantiate the templated core at _Float128 (needs C++23)" ${HELFEM_FLOAT128_DEFAULT})
 option(HELFEM_BLAS_PROVIDED_EXTERNALLY
        "Skip BLAS/LAPACK discovery; parent project provides them" OFF)
+# Route Eigen's dense products (GEMM/GEMV/SYRK/...) through the same
+# external BLAS Armadillo uses, via EIGEN_USE_BLAS. Eigen- and
+# Armadillo-computed dense products then agree bit-for-bit (both hit the
+# same BLAS), and large products speed up. This requires a 32-bit-integer
+# (LP64) BLAS: stock Eigen's BLAS backend is int32-only, and we do NOT
+# patch Eigen to change that. So it is incompatible with HELFEM_ILP64 --
+# hence the default follows the integer width (on for LP64, off for ILP64),
+# and enabling it under ILP64 is a hard error. Off => Eigen uses its own
+# kernels (the historical behaviour).
+if(HELFEM_ILP64 OR HELFEM_BLAS_PROVIDED_EXTERNALLY)
+  set(HELFEM_EIGEN_BLAS_DEFAULT OFF)
+else()
+  set(HELFEM_EIGEN_BLAS_DEFAULT ON)
+endif()
+option(HELFEM_EIGEN_BLAS
+       "Route Eigen dense products through the external BLAS (needs an LP64 BLAS)"
+       ${HELFEM_EIGEN_BLAS_DEFAULT})
+if(HELFEM_EIGEN_BLAS AND HELFEM_ILP64)
+    message(FATAL_ERROR
+        "HELFEM_EIGEN_BLAS needs a 32-bit-integer (LP64) BLAS, but HELFEM_ILP64 "
+        "is ON. Eigen's BLAS backend is int32-only and HelFEM does not patch "
+        "Eigen. Reconfigure with -DHELFEM_ILP64=OFF to use it, or leave "
+        "HELFEM_EIGEN_BLAS OFF to keep Eigen's own kernels under ILP64.")
+endif()
 
 # ---------------------------------------------------------------------------
 # Dependencies
@@ -141,7 +165,9 @@ install(TARGETS helfem_arma EXPORT helfemTargets)
 # Eigen3 (>= 3.4) -- header-only. Prefer a system install, else fetch
 # v3.4.0. The range form `3.4...99` accepts any >= 3.4 (a bare `3.4`
 # is read as the exclusive [3.4, 3.5) by Eigen's ConfigVersion and would
-# reject e.g. Fedora's Eigen 5).
+# reject e.g. Fedora's Eigen 5). The system Eigen is used verbatim -- no
+# patching -- which is why HELFEM_EIGEN_BLAS is restricted to LP64, where
+# stock Eigen's 32-bit BLAS backend already matches the linked BLAS.
 find_package(Eigen3 3.4...99 QUIET NO_MODULE)
 if(NOT Eigen3_FOUND)
     message(STATUS "Eigen3 >= 3.4 not found; fetching v3.4.0")
@@ -155,6 +181,18 @@ if(NOT Eigen3_FOUND)
     FetchContent_MakeAvailable(Eigen3)
 else()
     message(STATUS "Using system Eigen3 ${Eigen3_VERSION}")
+endif()
+
+# Turn on Eigen's BLAS backend for EVERY translation unit at once. This
+# MUST be global: if some TUs saw EIGEN_USE_BLAS and others did not, their
+# Eigen product templates would differ and silently violate the ODR. The
+# BLAS/LAPACK libraries are already on the link line via helfem::arma, so
+# no extra linkage is needed -- only the define. Placed before
+# add_subdirectory() so all in-tree targets inherit it. Guarded above to be
+# LP64-only, so stock Eigen's int32 BLAS backend matches the linked BLAS.
+if(HELFEM_EIGEN_BLAS)
+    add_compile_definitions(EIGEN_USE_BLAS)
+    message(STATUS "Eigen dense products routed through the external BLAS (EIGEN_USE_BLAS, LP64)")
 endif()
 
 # Wigner-nj symbols (>= 0.5.0). System install preferred, else fetch.
