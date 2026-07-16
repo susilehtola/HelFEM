@@ -16,7 +16,7 @@ include(CMakeFindDependencyMacro)
 # Header-only / config-package dependencies. The range form `3.4...99`
 # accepts any Eigen >= 3.4 (a bare `3.4` is read as [3.4, 3.5)).
 find_dependency(Eigen3 3.4...99 CONFIG)
-find_dependency(wignernj 0.8.0)
+find_dependency(wignernj 0.7.0)
 # OpenOrbitalOptimizer's header-only imported target is carried in
 # helfem-common's INTERFACE_LINK_LIBRARIES.
 find_dependency(OpenOrbitalOptimizer)
