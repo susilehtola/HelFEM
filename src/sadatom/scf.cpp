@@ -390,13 +390,13 @@ namespace helfem {
             arma::imat tmp;
             loadchk.read("sadatom_occs_a", tmp);
             per_l_a.resize(tmp.n_rows);
-            for (arma::uword i = 0; i < tmp.n_rows; ++i) per_l_a(i) = (int) tmp(i, 0);
+            for (Eigen::Index i = 0; i < per_l_a.size(); ++i) per_l_a(i) = (int) tmp(i, 0);
           }
           if (loadchk.exist("sadatom_occs_b")) {
             arma::imat tmp;
             loadchk.read("sadatom_occs_b", tmp);
             per_l_b.resize(tmp.n_rows);
-            for (arma::uword i = 0; i < tmp.n_rows; ++i) per_l_b(i) = (int) tmp(i, 0);
+            for (Eigen::Index i = 0; i < per_l_b.size(); ++i) per_l_b(i) = (int) tmp(i, 0);
           }
 
           for (size_t l = 0; l < nblock; ++l) {

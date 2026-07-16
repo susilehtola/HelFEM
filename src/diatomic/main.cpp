@@ -37,6 +37,7 @@
 #include "../general/scf_driver_common.h"
 #include "../general/timer.h"
 #include "../general/checkpoint.h"
+#include "../general/eigen_io.h"
 
 #include "openorbitaloptimizer/scfsolver.hpp"
 
@@ -186,22 +187,22 @@ int main(int argc, char **argv) {
   else if (Nquad < 2 * poly->get_nbf())
     throw std::logic_error("Insufficient radial quadrature.\n");
 
-  arma::ivec lmmax;
+  Eigen::VectorXi lmmax;
   if (mmax >= 0) {
-    lmmax.ones(mmax + 1);
-    lmmax *= std::atoi(lmax_str.c_str());
+    lmmax = Eigen::VectorXi::Constant(mmax + 1, std::atoi(lmax_str.c_str()));
   } else {
-    std::vector<arma::uword> lmmaxv;
+    std::vector<int> lmmaxv;
     std::stringstream ss(lmax_str);
     std::string tok;
     while (std::getline(ss, tok, ','))
       lmmaxv.push_back(std::atoi(tok.c_str()));
-    lmmax = arma::conv_to<arma::ivec>::from(lmmaxv);
+    lmmax = Eigen::Map<const Eigen::VectorXi>(lmmaxv.data(),
+                                              static_cast<Eigen::Index>(lmmaxv.size()));
     mmax = static_cast<int>(lmmaxv.size()) - 1;
   }
 
   Eigen::VectorXi lval, mval;
-  diatomic::basis::lm_to_l_m(helfem::to_eigen(lmmax), lval, mval);
+  diatomic::basis::lm_to_l_m(lmmax, lval, mval);
 
   const double Rhalf = 0.5 * Rbond;
   const double mumax = utils::arcosh(Rmax / Rhalf);
@@ -253,7 +254,7 @@ int main(int argc, char **argv) {
         modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) finitenuc, Z1, Rrms1);
     modelpotential::ModelPotential *pot2 =
         modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) finitenuc, Z2, Rrms2);
-    const int lquad = 4 * arma::max(lmmax) + 12;
+    const int lquad = 4 * lmmax.maxCoeff() + 12;
     helfem::diatomic::twodquad::TwoDGrid qgrid(&basis, lquad);
     Vnuc = qgrid.model_potential(pot1, pot2);
     delete pot1;
@@ -482,7 +483,7 @@ int main(int argc, char **argv) {
     default:
       throw std::logic_error("Unsupported iguess value (expected 0..3).\n");
     }
-    const int lquad = 4 * arma::max(lmmax) + 12;
+    const int lquad = 4 * lmmax.maxCoeff() + 12;
     helfem::diatomic::twodquad::TwoDGrid qgrid(&basis, lquad);
     Vguess = qgrid.model_potential(p1, p2);
     delete p1;
@@ -508,23 +509,22 @@ int main(int argc, char **argv) {
   if (readocc) {
     if (symm == 0)
       throw std::logic_error("--readocc requires --symmetry>=1 (need per-block index).");
-    arma::imat occs;
-    occs.load("occs.dat", arma::raw_ascii);
-    if (Z1 != Z2 && occs.n_cols != 3)
+    const Eigen::MatrixXi occs = helfem::io::read_raw_ascii_imat("occs.dat");
+    if (Z1 != Z2 && occs.cols() != 3)
       throw std::logic_error("occs.dat: heteronuclear molecule requires 3 columns (nocca, noccb, m).");
-    if (Z1 == Z2 && occs.n_cols != 3 && occs.n_cols != 4)
+    if (Z1 == Z2 && occs.cols() != 3 && occs.cols() != 4)
       throw std::logic_error("occs.dat: homonuclear molecule requires 3 or 4 columns.");
-    if (occs.n_cols == 4 && symm != 2)
+    if (occs.cols() == 4 && symm != 2)
       throw std::logic_error("occs.dat: 4-column form (with parity) requires --symmetry=2.");
 
     Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> fixed_particles =
         Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1>::Zero(nsym * nparttype);
     int total_a = 0, total_b = 0;
-    for (arma::uword i = 0; i < occs.n_rows; ++i) {
+    for (Eigen::Index i = 0; i < occs.rows(); ++i) {
       const int nocca_i = static_cast<int>(occs(i, 0));
       const int noccb_i = static_cast<int>(occs(i, 1));
       std::vector<Eigen::Index> row_idx;
-      if (occs.n_cols == 3) {
+      if (occs.cols() == 3) {
         row_idx = basis.m_indices(occs(i, 2));
       } else {
         if (occs(i, 3) != 1 && occs(i, 3) != -1)
@@ -563,10 +563,10 @@ int main(int argc, char **argv) {
     Checkpoint loadchk(loadfile, /*writemode=*/false);
     diatomic::basis::TwoDBasis oldbasis;
     loadchk.read(oldbasis);
-    // Checkpoint I/O is arma-native -> read into arma, bridge to Eigen.
-    arma::mat Pa_old_arma, Pb_old_arma;
-    loadchk.read("Pa", Pa_old_arma);
-    loadchk.read("Pb", Pb_old_arma);
+    // Densities read straight into Eigen via the checkpoint's helfem::Matrix overloads.
+    helfem::Matrix Pa_old, Pb_old;
+    loadchk.read("Pa", Pa_old);
+    loadchk.read("Pb", Pb_old);
     int nela_old = 0, nelb_old = 0;
     loadchk.read("nela", nela_old);
     loadchk.read("nelb", nelb_old);
@@ -577,8 +577,8 @@ int main(int argc, char **argv) {
     const helfem::Matrix Sinvh_full  = basis.Sinvh(/*chol*/false, /*sym*/0);
     const helfem::Matrix Pproj       = Sinvh_full * Sinvh_full.transpose() * S12;
 
-    helfem::Matrix Pa_new = Pproj * helfem::to_eigen(Pa_old_arma) * Pproj.transpose();
-    helfem::Matrix Pb_new = Pproj * helfem::to_eigen(Pb_old_arma) * Pproj.transpose();
+    helfem::Matrix Pa_new = Pproj * Pa_old * Pproj.transpose();
+    helfem::Matrix Pb_new = Pproj * Pb_old * Pproj.transpose();
     const double na = (Pa_new * S).trace();
     const double nb = (Pb_new * S).trace();
     if (na > 0 && nela > 0) Pa_new *= static_cast<double>(nela) / na;
@@ -616,9 +616,9 @@ int main(int argc, char **argv) {
     helfem::Matrix Pa_final, Pb_final;
     std::tie(Pa_final, Pb_final) = helfem::scf_driver::assemble_final_density<OOO_Real>(
         Nbf, restricted, dsym, Sinvh, final_orbs, final_occs);
-    // Checkpoint I/O is arma-native -> bridge the Eigen densities back.
-    savechk.write("Pa", helfem::to_arma(Pa_final));
-    savechk.write("Pb", helfem::to_arma(Pb_final));
+    // Densities written straight through the checkpoint's helfem::Matrix overloads.
+    savechk.write("Pa", Pa_final);
+    savechk.write("Pb", Pb_final);
     savechk.write("nela", nela);
     savechk.write("nelb", nelb);
     // Extra parameters needed by density_line / density_grid / completeness.
