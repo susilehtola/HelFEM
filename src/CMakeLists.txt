@@ -129,6 +129,12 @@ target_link_libraries(over_r_test helfem-common legendre)
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem-common legendre)
 
+# Round-trips the templated HDF5 checkpoint float I/O at double / long double
+# / _Float128 and asserts bit-identical reloads (proves the per-T memory type,
+# not a double-capped path).
+add_executable(checkpoint_precision_test general/checkpoint_precision_test.cpp)
+target_link_libraries(checkpoint_precision_test helfem-common legendre)
+
 add_executable(sphtest general/sphtest.cpp)
 target_link_libraries(sphtest helfem-common legendre)
 

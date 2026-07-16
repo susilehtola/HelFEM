@@ -35,6 +35,39 @@ namespace {
     }
     return id;
   }
+
+  // HDF5 datatype selector for the templated floating-point I/O. Returns
+  // the HDF5 *native* (in-memory) datatype matching the C++ scalar T; the
+  // write path H5Tcopy()s this for the on-disk (file) datatype, so the
+  // on-disk representation matches the memory type exactly per T. In
+  // particular h5_native_float<double>() == H5T_NATIVE_DOUBLE, so double
+  // datasets stay byte-identical (H5T_IEEE_F64LE) to older .chk files.
+  //
+  // The returned hid_t is NOT owned by the caller: for double / long double
+  // it is a predefined HDF5 constant (must not be closed), and for _Float128
+  // it is a process-lifetime cached type (built once, never closed). Callers
+  // that need an owned copy must H5Tcopy() it (the write path does).
+  template <typename T> hid_t h5_native_float();
+  template <> hid_t h5_native_float<double>()      { return H5T_NATIVE_DOUBLE; }
+  template <> hid_t h5_native_float<long double>() { return H5T_NATIVE_LDOUBLE; }
+#ifdef HELFEM_HAVE_FLOAT128
+  // _Float128 has no predefined HDF5 native type, so describe IEEE
+  // binary128 explicitly: 1 sign + 15 exponent + 112 stored mantissa bits
+  // (113-bit significand with the implicit leading bit), size 16 bytes,
+  // exponent bias 16383. Built once and cached for the process lifetime.
+  template <> hid_t h5_native_float<_Float128>() {
+    static const hid_t t = []() {
+      hid_t t = H5Tcopy(H5T_IEEE_F64LE);
+      H5Tset_size(t, 16);          // 128 bits
+      H5Tset_precision(t, 128);    // full-width IEEE type (msize+esize+1)
+      H5Tset_fields(t, /*spos=*/127, /*epos=*/112, /*esize=*/15,
+                       /*mpos=*/0,   /*msize=*/112);
+      H5Tset_ebias(t, 16383);
+      return t;
+    }();
+    return t;
+  }
+#endif
 }
 
 Checkpoint::Checkpoint(const std::string & fname, bool writem, bool trunc) {
@@ -128,7 +161,8 @@ void Checkpoint::remove(const std::string & name) {
   if(cl) close();
 }
 
-void Checkpoint::write(const std::string & name, const helfem::Matrix & m) {
+template <typename T>
+void Checkpoint::write(const std::string & name, const helfem::Mat<T> & m) {
   CHECK_WRITE();
 
   bool cl=false;
@@ -140,7 +174,7 @@ void Checkpoint::write(const std::string & name, const helfem::Matrix & m) {
   // Remove possible existing entry
   remove(name);
 
-  // Dimensions of the matrix. helfem::Matrix is Eigen column-major
+  // Dimensions of the matrix. helfem::Mat<T> is Eigen column-major
   // (like arma::mat was); the column-major buffer is stored with
   // dims {n_cols, n_rows} so the on-disk bytes stay identical.
   hsize_t dims[2];
@@ -150,8 +184,9 @@ void Checkpoint::write(const std::string & name, const helfem::Matrix & m) {
   // Create a dataspace.
   hid_t dataspace=H5Screate_simple(2,dims,NULL);
 
-  // Create a datatype.
-  hid_t datatype=H5Tcopy(H5T_NATIVE_DOUBLE);
+  // Create a datatype. The file datatype matches the T memory type, so
+  // T=double stays H5T_IEEE_F64LE (byte-identical to older .chk files).
+  hid_t datatype=H5Tcopy(h5_native_float<T>());
 
   // Create the dataset using the defined dataspace and datatype, and
   // default dataset creation properties.
@@ -167,7 +202,8 @@ void Checkpoint::write(const std::string & name, const helfem::Matrix & m) {
   if(cl) close();
 }
 
-void Checkpoint::read(const std::string & name, helfem::Matrix & m) {
+template <typename T>
+void Checkpoint::read(const std::string & name, helfem::Mat<T> & m) {
   bool cl=false;
   if(!opend) {
     open();
@@ -206,9 +242,11 @@ void Checkpoint::read(const std::string & name, helfem::Matrix & m) {
 
   // Allocate memory. dims are {n_cols, n_rows} (see write), so the
   // matrix is (dims[1], dims[0]) and the column-major buffer is read
-  // straight into .data().
-  m=helfem::Matrix::Zero(dims[1],dims[0]);
-  H5Dread(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, m.data());
+  // straight into .data(). The H5T_FLOAT guard above admits any
+  // float-on-disk; HDF5 converts the disk type to the T memory type on
+  // read, so a double .chk loads into a long double / _Float128 run.
+  m=helfem::Mat<T>::Zero(dims[1],dims[0]);
+  H5Dread(dataset, h5_native_float<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, m.data());
 
   // Close dataspace
   H5Sclose(dataspace);
@@ -220,17 +258,19 @@ void Checkpoint::read(const std::string & name, helfem::Matrix & m) {
   if(cl) close();
 }
 
-void Checkpoint::write(const std::string & name, const helfem::Vector & v) {
+template <typename T>
+void Checkpoint::write(const std::string & name, const helfem::Vec<T> & v) {
   // Store as an N x 1 matrix.
-  write(name, helfem::Matrix(v));
+  write(name, helfem::Mat<T>(v));
 }
 
-void Checkpoint::read(const std::string & name, helfem::Vector & v) {
-  helfem::Matrix m;
+template <typename T>
+void Checkpoint::read(const std::string & name, helfem::Vec<T> & v) {
+  helfem::Mat<T> m;
   read(name, m);
   if (m.cols() != 1) {
     std::ostringstream oss;
-    oss << "Cannot read \"" << name << "\" as a helfem::Vector: "
+    oss << "Cannot read \"" << name << "\" as a helfem::Vec: "
         << "expected 1 column, got " << m.cols() << "\n";
     throw std::runtime_error(oss.str());
   }
@@ -320,7 +360,8 @@ void Checkpoint::read(const std::string & name, Eigen::MatrixXi & m) {
 }
 
 
-void Checkpoint::write(const std::string & name, const std::vector<double> & v) {
+template <typename T>
+void Checkpoint::write(const std::string & name, const std::vector<T> & v) {
   CHECK_WRITE();
   bool cl=false;
   if(!opend) {
@@ -338,8 +379,9 @@ void Checkpoint::write(const std::string & name, const std::vector<double> & v) 
   // Create a dataspace.
   hid_t dataspace=H5Screate_simple(1,dims,NULL);
 
-  // Create a datatype.
-  hid_t datatype=H5Tcopy(H5T_NATIVE_DOUBLE);
+  // Create a datatype. File type matches the T memory type, so T=double
+  // stays byte-identical (H5T_IEEE_F64LE) to older .chk files.
+  hid_t datatype=H5Tcopy(h5_native_float<T>());
 
   // Create the dataset using the defined dataspace and datatype, and
   // default dataset creation properties.
@@ -355,7 +397,8 @@ void Checkpoint::write(const std::string & name, const std::vector<double> & v) 
   if(cl) close();
 }
 
-void Checkpoint::read(const std::string & name, std::vector<double> & v) {
+template <typename T>
+void Checkpoint::read(const std::string & name, std::vector<T> & v) {
   bool cl=false;
   if(!opend) {
     open();
@@ -392,9 +435,10 @@ void Checkpoint::read(const std::string & name, std::vector<double> & v) {
   hsize_t dims[ndim];
   H5Sget_simple_extent_dims(dataspace,dims,NULL);
 
-  // Allocate memory
+  // Allocate memory. HDF5 converts the disk float type to the T memory
+  // type on read, so a double-on-disk array loads into any T.
   v.resize(dims[0]);
-  H5Dread(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &(v[0]));
+  H5Dread(dataset, h5_native_float<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, &(v[0]));
 
   // Close dataspace
   H5Sclose(dataspace);
@@ -641,7 +685,8 @@ void Checkpoint::read(helfem::diatomic::basis::TwoDBasis & basis) {
   if(cl) close();
 }
 
-void Checkpoint::write(const std::string & name, double val) {
+template <typename T>
+void Checkpoint::write(const std::string & name, T val) {
   CHECK_WRITE();
   bool cl=false;
   if(!opend) {
@@ -655,8 +700,9 @@ void Checkpoint::write(const std::string & name, double val) {
   // Create a dataspace.
   hid_t dataspace=H5Screate(H5S_SCALAR);
 
-  // Create a datatype.
-  hid_t datatype=H5Tcopy(H5T_NATIVE_DOUBLE);
+  // Create a datatype. File type matches the T memory type, so T=double
+  // stays byte-identical (H5T_IEEE_F64LE) to older .chk files.
+  hid_t datatype=H5Tcopy(h5_native_float<T>());
 
   // Create the dataset using the defined dataspace and datatype, and
   // default dataset creation properties.
@@ -672,7 +718,8 @@ void Checkpoint::write(const std::string & name, double val) {
   if(cl) close();
 }
 
-void Checkpoint::read(const std::string & name, double & v) {
+template <typename T>
+void Checkpoint::read(const std::string & name, T & v) {
   bool cl=false;
   if(!opend) {
     open();
@@ -702,8 +749,9 @@ void Checkpoint::read(const std::string & name, double & v) {
   if(type!=H5S_SCALAR)
     throw std::runtime_error("Error - dataspace is not of scalar type!\n");
 
-  // Read
-  H5Dread(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &v);
+  // Read. HDF5 converts the disk float type to the T memory type, so a
+  // double-on-disk scalar loads into any T.
+  H5Dread(dataset, h5_native_float<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, &v);
 
   // Close dataspace
   H5Sclose(dataspace);
@@ -1019,6 +1067,28 @@ void Checkpoint::read(const std::string & name, std::string & val) {
   H5Dclose(dataset);
   if(cl) close();
 }
+
+// Explicit instantiations of the templated floating-point I/O. The
+// definitions live here (not in the header) because they depend on the
+// HDF5 C API; instantiating for each supported scalar type keeps every
+// existing helfem::Matrix / helfem::Vector / std::vector<double> / double
+// caller linking via the T=double instantiation, unchanged.
+#define HELFEM_INSTANTIATE_CHECKPOINT_FLOAT(T)                                \
+  template void Checkpoint::write(const std::string &, const helfem::Mat<T> &); \
+  template void Checkpoint::read (const std::string &, helfem::Mat<T> &);      \
+  template void Checkpoint::write(const std::string &, const helfem::Vec<T> &); \
+  template void Checkpoint::read (const std::string &, helfem::Vec<T> &);      \
+  template void Checkpoint::write(const std::string &, const std::vector<T> &); \
+  template void Checkpoint::read (const std::string &, std::vector<T> &);      \
+  template void Checkpoint::write(const std::string &, T);                     \
+  template void Checkpoint::read (const std::string &, T &);
+
+HELFEM_INSTANTIATE_CHECKPOINT_FLOAT(double)
+HELFEM_INSTANTIATE_CHECKPOINT_FLOAT(long double)
+#ifdef HELFEM_HAVE_FLOAT128
+HELFEM_INSTANTIATE_CHECKPOINT_FLOAT(_Float128)
+#endif
+#undef HELFEM_INSTANTIATE_CHECKPOINT_FLOAT
 
 bool file_exists(const std::string & name) {
   std::ifstream file(name.c_str());
