@@ -26,7 +26,7 @@
 
 using namespace helfem;
 
-void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int Nquad, int Nelem, double Rmax, const arma::ivec & lmmax, int igrid, double zexp, double Ez, double Qzz, double Bz, int norb, double & E, arma::uword & nang, arma::uword & nrad, arma::vec & Eval, int imodel) {
+void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int Nquad, int Nelem, double Rmax, const Eigen::VectorXi & lmmax, int igrid, double zexp, double Ez, double Qzz, double Bz, int norb, double & E, Eigen::Index & nang, Eigen::Index & nrad, helfem::Vector & Eval, int imodel) {
 
   int symm=1;
 
@@ -35,7 +35,7 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
   const helfem::Vector bval = atomic::basis::normal_grid(Nelem, mumax, igrid, zexp);
 
   Eigen::VectorXi lval, mval;
-  diatomic::basis::lm_to_l_m(helfem::to_eigen(lmmax),lval,mval);
+  diatomic::basis::lm_to_l_m(lmmax,lval,mval);
 
   diatomic::basis::TwoDBasis basis(Z1, Z2, Rhalf, poly, Nquad, bval, lval, mval, false);
 
@@ -76,7 +76,7 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
     }
 
     // Form model integral
-    int lquad = 4*arma::max(lmmax)+12;
+    int lquad = 4*lmmax.maxCoeff()+12;
     helfem::diatomic::twodquad::TwoDGrid qgrid;
     qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
     Vnuc=qgrid.model_potential(p1, p2);
@@ -103,8 +103,7 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
 
   // Sanity check
   norb=std::min((int) Ev.size(),norb);
-  // Eval is an arma out-param (main prints it via arma); bridge the head.
-  Eval=helfem::to_arma(helfem::Vector(Ev.head(norb)));
+  Eval=Ev.head(norb);
   E=Ev.head(norb).sum();
   nang=basis.Nang();
   nrad=basis.Nrad();
@@ -189,7 +188,7 @@ int main(int argc, char **argv) {
   int Nelem=1;
 
   // Final angular grid
-  arma::ivec lmgrid(norbs.size());
+  Eigen::VectorXi lmgrid(norbs.size());
 
   // Loop over threshold
   int ithr=0;
@@ -208,9 +207,7 @@ int main(int argc, char **argv) {
     // Loop over orbital types
     for(size_t m=norbs.size()-1;m<norbs.size();m--) {
       // Angular grid in test calculation
-      arma::ivec lmmax;
-      lmmax.ones(m+1);
-      lmmax*=-1;
+      Eigen::VectorXi lmmax(Eigen::VectorXi::Constant(m+1,-1));
       // Start off value
       if(init[m]) {
         if(m<norbs.size()-1) {
@@ -228,11 +225,12 @@ int main(int argc, char **argv) {
 
       // Initial estimate
       double E;
-      arma::vec Eval;
-      arma::uword Nrad, Nang;
+      helfem::Vector Eval;
+      Eigen::Index Nrad, Nang;
       eval(Z1, Z2, Rrms1, Rrms2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], E, Nrad, Nang, Eval, imodel);
 
-      Eval.t().print("Initial eigenvalues");
+      // Eigenvalues are printed through arma to preserve its print format.
+      helfem::to_arma(Eval).t().print("Initial eigenvalues");
 
       printf("Initial energy is %e\n",E);
 
@@ -242,11 +240,11 @@ int main(int argc, char **argv) {
         iiter++;
 
         double Ea, Er;
-        arma::vec Eva, Evr;
-        arma::uword Nra, Naa;
-        arma::uword Nrr, Nar;
+        helfem::Vector Eva, Evr;
+        Eigen::Index Nra, Naa;
+        Eigen::Index Nrr, Nar;
 
-        arma::ivec lmtr(lmmax);
+        Eigen::VectorXi lmtr(lmmax);
         lmtr(m)+=nadd;
 
         printf("m=%i iteration %i\n",(int) m,iiter);
@@ -281,7 +279,7 @@ int main(int argc, char **argv) {
           Nang=Nar;
           printf("Basis set has now %i radial elements\n",Nelem);
         }
-        Eval.t().print("Current eigenvalues");
+        helfem::to_arma(Eval).t().print("Current eigenvalues");
         printf("\n");
       }
       printf("m=%i is converged with %i elements and %i partial waves\n\n",(int) m,(int) Nelem,(int) lmmax(m));
@@ -293,7 +291,7 @@ int main(int argc, char **argv) {
       printf("An estimated accuracy of %e is achieved with\n",thr);
       printf("--Z1=%s --Z2=%s --Rbond=%e --angstrom=%i --grid=%i --zexp=%e --primbas=%i --nnodes=%i --nelem=%i --Rmax=%e --lmax=", parser.get<std::string>("Z1").c_str(), parser.get<std::string>("Z2").c_str(), parser.get<double>("Rbond"), parser.get<bool>("angstrom"), igrid, zexp, primbas, Nnodes, (int) Nelem, Rmax);
 
-      for(size_t m=0;m<lmgrid.n_elem;m++) {
+      for(Eigen::Index m=0;m<lmgrid.size();m++) {
         if(m)
           printf(",");
         printf("%i",(int) lmgrid(m));
