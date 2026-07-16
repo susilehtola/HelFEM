@@ -41,13 +41,8 @@ namespace helfem {
         do_tau=false;
         do_lapl=false;
 
-        // Get angular grid (angular_chebyshev returns arma -- bridge at
-        // the fill site).
-        arma::vec cth_a, phi_a, wang_a;
-        helfem::angular::angular_chebyshev(lang,mang,cth_a,phi_a,wang_a);
-        cth=helfem::to_eigen(cth_a);
-        phi=helfem::to_eigen(phi_a);
-        wang=helfem::to_eigen(wang_a);
+        // Get angular grid (angular_chebyshev is Eigen-typed).
+        helfem::angular::angular_chebyshev(lang,mang,cth,phi,wang);
       }
 
       DFTGridWorker::~DFTGridWorker() {
@@ -592,9 +587,9 @@ namespace helfem {
       }
 
       DFTGrid::DFTGrid(const helfem::atomic::basis::TwoDBasis * basp_, int lang_, int mang_) : basp(basp_), lang(lang_), mang(mang_) {
-        arma::vec cth, phi, wang;
+        helfem::Vector cth, phi, wang;
         helfem::angular::angular_chebyshev(lang,mang,cth,phi,wang);
-        printf("DFT angular grid of order l=%i m=%i has %i points\n",lang,mang,(int) wang.n_elem);
+        printf("DFT angular grid of order l=%i m=%i has %i points\n",lang,mang,(int) wang.size());
       }
 
       DFTGrid::~DFTGrid() {

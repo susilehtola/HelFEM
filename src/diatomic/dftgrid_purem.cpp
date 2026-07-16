@@ -32,10 +32,7 @@ namespace helfem {
 
       PureMDFTGridWorker::PureMDFTGridWorker(const helfem::diatomic::basis::TwoDBasis * basp_, int lang) : basp(basp_) {
         // nu (angular) grid only -- there is no phi grid.
-        arma::vec cth_a, wang_a;
-        chebyshev::chebyshev(lang, cth_a, wang_a);
-        cth  = helfem::to_eigen(cth_a);
-        wang = helfem::to_eigen(wang_a);
+        chebyshev::chebyshev(lang, cth, wang);
 
         // Distinct m values present in the basis
         const Eigen::VectorXi mv(basp->get_mval());
@@ -580,10 +577,10 @@ namespace helfem {
       }
 
       PureMDFTGrid::PureMDFTGrid(const helfem::diatomic::basis::TwoDBasis * basp_, int lang_) : basp(basp_), lang(lang_) {
-        arma::vec cth, wang;
+        helfem::Vector cth, wang;
         chebyshev::chebyshev(lang, cth, wang);
         printf("Pure-m DFT grid: nu rule of order l=%i has %i points; the phi integral is analytic (2 pi).\n",
-                lang, (int) wang.n_elem);
+                lang, (int) wang.size());
       }
 
       PureMDFTGrid::~PureMDFTGrid() {

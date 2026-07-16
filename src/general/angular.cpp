@@ -18,11 +18,11 @@
 
 namespace helfem {
   namespace angular {
-    void compound_rule(const arma::vec & xcth0, const arma::vec & wcth0, int nphi, arma::vec & cth, arma::vec & phi, arma::vec & w) {
+    void compound_rule(const helfem::Vector & xcth0, const helfem::Vector & wcth0, int nphi, helfem::Vector & cth, helfem::Vector & phi, helfem::Vector & w) {
       // Form compound rule
-      cth.zeros(xcth0.n_elem*nphi);
-      phi.zeros(xcth0.n_elem*nphi);
-      w.zeros(xcth0.n_elem*nphi);
+      cth=helfem::Vector::Zero(xcth0.size()*nphi);
+      phi=helfem::Vector::Zero(xcth0.size()*nphi);
+      w=helfem::Vector::Zero(xcth0.size()*nphi);
 
       /*
 	An evenly spaced phi grid of n points integrates cos (m phi)
@@ -32,8 +32,8 @@ namespace helfem {
 	Phi spacing is
       */
       double dphi=2.0*M_PI/nphi;
-      
-      for(size_t i=0;i<xcth0.n_elem;i++)
+
+      for(size_t i=0;i<(size_t) xcth0.size();i++)
         for(int j=0;j<nphi;j++) {
           // Global index
           size_t idx=i*nphi+j;
@@ -43,26 +43,26 @@ namespace helfem {
         }
     }
 
-    void angular_lobatto(int l, arma::vec & cth, arma::vec & phi, arma::vec & wang) {
+    void angular_lobatto(int l, helfem::Vector & cth, helfem::Vector & phi, helfem::Vector & wang) {
       angular_lobatto(l,l,cth,phi,wang);
     }
 
-    void angular_lobatto(int l, int m, arma::vec & cth, arma::vec & phi, arma::vec & wang) {
+    void angular_lobatto(int l, int m, helfem::Vector & cth, helfem::Vector & phi, helfem::Vector & wang) {
       // Get input quadrature: l part
-      arma::vec xl, wl;
+      helfem::Vector xl, wl;
       ::lobatto_compute(l,xl,wl);
 
       // Form compound rule
       compound_rule(xl,wl,m,cth,phi,wang);
     }
 
-    void angular_chebyshev(int l, arma::vec & cth, arma::vec & phi, arma::vec & wang) {
+    void angular_chebyshev(int l, helfem::Vector & cth, helfem::Vector & phi, helfem::Vector & wang) {
       angular_chebyshev(l,l,cth,phi,wang);
     }
 
-    void angular_chebyshev(int l, int m, arma::vec & cth, arma::vec & phi, arma::vec & wang) {
+    void angular_chebyshev(int l, int m, helfem::Vector & cth, helfem::Vector & phi, helfem::Vector & wang) {
       // Get input quadrature: l part
-      arma::vec xl, wl;
+      helfem::Vector xl, wl;
       chebyshev::chebyshev(l,xl,wl);
 
       // Form compound rule

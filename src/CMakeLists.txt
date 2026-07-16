@@ -12,7 +12,6 @@ sadatom/dftgrid.cpp sadatom/scf.cpp
 general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
 diatomic/dftgrid.cpp diatomic/dftgrid_purem.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp
-general/tei_utils.cpp
 )
 target_link_libraries(helfem-common PUBLIC helfem wignernj::wignernj)
 # HDF5 (checkpoint.cpp) and libxc (dftfuncs / dftgrid) are consumed here.
@@ -37,12 +36,12 @@ target_include_directories(helfem-common
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../libhelfem/src/>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-        # `chebyshev.h` and `lobatto.h` are thin arma::vec shims over
+        # `chebyshev.h` and `lobatto.h` are thin double-only shims over
         # lib1dfem's Eigen-typed Gauss-Chebyshev / Gauss-Lobatto
-        # quadrature. They live next to their arma-consuming callers
-        # in src/general/ so libhelfem itself ships no arma-typed
-        # code. Callers include them as `#include "chebyshev.h"` /
-        # `#include "lobatto.h"`, which resolve through this path.
+        # quadrature, spelling their outputs as helfem::Vector. They
+        # live in src/general/ next to their callers; callers include
+        # them as `#include "chebyshev.h"` / `#include "lobatto.h"`,
+        # which resolve through this path.
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/general>
         # Installed headers live at include/helfem/{atomic,general}/;
         # consumers include as <helfem/atomic/TwoDBasis.h>.
@@ -93,6 +92,10 @@ target_link_libraries(atomic_teirank helfem-common legendre)
 add_library(legendre
   legendre/Legendre.cpp general/legendretable.cpp)
 target_compile_features(legendre PUBLIC cxx_std_17)
+# legendretable.{h,cpp} store the Plm/Qlm tables as helfem::Matrix, so
+# legendre needs the libhelfem (Matrix.h) and Eigen include paths that
+# the `helfem` target carries.
+target_link_libraries(legendre PUBLIC helfem)
 
 # helfem-common uses LegendreTable symbols internally, so a consumer
 # linking only helfem-common needs legendre transitively. Declared

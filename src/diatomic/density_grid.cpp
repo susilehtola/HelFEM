@@ -65,8 +65,11 @@ int main(int argc, char **argv) {
   if(mang<=0)
     mang=4*basis.get_mval().cwiseAbs().maxCoeff()+5;
 
-  arma::vec cth, phi, wang;
-  helfem::angular::angular_chebyshev(lang,mang,cth,phi,wang);
+  // angular_chebyshev is Eigen-typed; this analysis binary is out of the
+  // migration scope for now, so bridge to arma once at the call site.
+  helfem::Vector cth_e, phi_e, wang_e;
+  helfem::angular::angular_chebyshev(lang,mang,cth_e,phi_e,wang_e);
+  arma::vec cth(helfem::to_arma(cth_e)), phi(helfem::to_arma(phi_e)), wang(helfem::to_arma(wang_e));
   printf("Using angular quadrature grid with L=%i M=%i with %i points\n",lang,mang,(int) cth.n_elem);
 
   // Density matrix

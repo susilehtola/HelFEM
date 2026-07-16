@@ -36,7 +36,7 @@ namespace helfem {
       }
     }
 
-    // Phase 5.13: Eigen-typed matrices; m_idx kept arma::uvec.
+    // Phase 5.13: Eigen-typed matrices; m_idx is Eigen index lists.
 
     // Phase 5.11: Eigen-typed.
     void eig_gsym(helfem::Vector & E, helfem::Matrix & C, const helfem::Matrix & F, const helfem::Matrix & Sinvh) {

@@ -23,10 +23,10 @@
 // The linear algebra is Eigen-native (helfem::Matrix / helfem::Vector);
 // the per-symmetry-block gather/scatter uses the Eigen index lists
 // (std::vector<Eigen::Index>) the basis get_sym_idx returns directly.
-// Keeping the working matrices Eigen (rather than arma/LAPACK) is what
-// lets the SCF driver be instantiated at extended precision -- Eigen's
-// SelfAdjointEigenSolver is scalar-generic where arma::eig_sym is
-// LAPACK/double-only.
+// Keeping the working matrices Eigen (rather than a LAPACK back end) is
+// what lets the SCF driver be instantiated at extended precision --
+// Eigen's SelfAdjointEigenSolver is scalar-generic where a LAPACK
+// symmetric eigensolver is double-only.
 
 #include <Eigen/Eigenvalues>
 #include <algorithm>
@@ -111,7 +111,7 @@ namespace helfem {
       const helfem::Matrix Porth = Sinvh_block.transpose() * Pblk * Sinvh_block;
       // SelfAdjointEigenSolver returns eigenvalues in ascending order;
       // reverse for descending (largest occupation first), matching the
-      // old arma::eig_sym + manual reversal.
+      // old symmetric-eigensolver + manual reversal.
       Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(Porth);
       if (es.info() != Eigen::Success)
         throw std::logic_error("--load: eigendecomposition of projected block density failed");

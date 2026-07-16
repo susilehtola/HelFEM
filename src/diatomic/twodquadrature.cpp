@@ -152,11 +152,8 @@ namespace helfem {
       }
 
       TwoDGridWorker::TwoDGridWorker(const helfem::diatomic::basis::TwoDBasis * basp_, int lang) : basp(basp_) {
-        // Get angular grid (chebyshev shim is arma-typed; bridge to Eigen)
-        arma::vec cth_a, wang_a;
-        chebyshev::chebyshev(lang,cth_a,wang_a);
-        cth=helfem::to_eigen(cth_a);
-        wang=helfem::to_eigen(wang_a);
+        // Get angular grid (chebyshev shim is Eigen-typed)
+        chebyshev::chebyshev(lang,cth,wang);
       }
 
       TwoDGridWorker::~TwoDGridWorker() {

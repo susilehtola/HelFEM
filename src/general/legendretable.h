@@ -16,7 +16,7 @@
 #define LEGENDRE_TABLE_H
 
 #include <vector>
-#include <armadillo>
+#include <Matrix.h>
 
 namespace helfem {
   namespace legendretable {
@@ -24,9 +24,9 @@ namespace helfem {
       /// Value of argument
       double xi;
       /// Plm values
-      arma::mat Plm;
+      helfem::Matrix Plm;
       /// Qlm values
-      arma::mat Qlm;
+      helfem::Matrix Qlm;
     } legendre_table_t;
 
     bool operator<(const legendre_table_t & lh, const legendre_table_t & rh);
@@ -59,9 +59,9 @@ namespace helfem {
       double get_Qlm(int l, int m, double xi) const;
 
       /// Get value from table
-      arma::vec get_Plm(int l, int m, const arma::vec & xi) const;
+      helfem::Vector get_Plm(int l, int m, const helfem::Vector & xi) const;
       /// Get value from table
-      arma::vec get_Qlm(int l, int m, const arma::vec & xi) const;
+      helfem::Vector get_Qlm(int l, int m, const helfem::Vector & xi) const;
     };
   }
 }

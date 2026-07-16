@@ -14,7 +14,6 @@
  */
 #ifndef SCF_HELPERS_H
 #define SCF_HELPERS_H
-#include <armadillo>
 #include <helfem.h>
 #include <Matrix.h>
 
