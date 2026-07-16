@@ -16,7 +16,6 @@
 #include "dftgrid.h"     // increment_gga
 #include "chebyshev.h"
 #include "../general/spherical_harmonics.h"
-#include <ArmaEigen.h>
 #include <algorithm>
 #include <cmath>
 

@@ -33,7 +33,6 @@
 #include "basis.h"
 #include "utils.h"
 #include "../atomic/basis.h"
-#include <ArmaEigen.h>
 #include <Eigen/Eigenvalues>
 #include <Eigen/SVD>
 #include <cstdio>

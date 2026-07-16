@@ -15,7 +15,6 @@
 #ifndef DIATOMIC_BASIS_H
 #define DIATOMIC_BASIS_H
 
-#include <armadillo>
 #include "FiniteElementBasis.h"
 #include "../general/gaunt.h"
 #include "../general/legendretable.h"
@@ -279,12 +278,9 @@ namespace helfem {
         /// Coupling to magnetic field in z direction
         helfem::Matrix Bz_field(double B) const;
 
-        /// Form Coulomb matrix (Eigen-typed public boundary; internal
-        /// implementation is arma-native, one to_arma bridge at entry
-        /// and one to_eigen bridge at exit).
+        /// Form Coulomb matrix
         helfem::Matrix coulomb(const helfem::Matrix & P) const;
-        /// Form exchange matrix (Eigen-typed public boundary; same
-        /// bridging convention as coulomb() above).
+        /// Form exchange matrix
         helfem::Matrix exchange(const helfem::Matrix & P) const;
 
 

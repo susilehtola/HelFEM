@@ -15,7 +15,6 @@
 #ifndef ATOMIC_BASIS_TWODBASIS_H
 #define ATOMIC_BASIS_TWODBASIS_H
 
-#include <armadillo>
 #include <limits>
 #include "../general/model_potential.h"
 #include "../general/sap.h"

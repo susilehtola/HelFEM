@@ -14,7 +14,6 @@
  */
 #include "scf_helpers.h"
 #include "timer.h"
-#include <ArmaEigen.h>
 #include <Eigen/Eigenvalues>
 #include <cfloat>
 #include <fstream>

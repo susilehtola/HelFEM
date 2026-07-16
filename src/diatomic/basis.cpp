@@ -16,7 +16,6 @@
 #include "quadrature.h"
 #include "PolynomialBasis.h"
 #include "chebyshev.h"
-#include <ArmaEigen.h>
 #include <Eigen/Eigenvalues>
 #include "../general/angular_index_helpers.h"
 #include <cstring>
@@ -29,6 +28,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cfloat>
+#include <complex>
+#include <map>
 
 #ifdef _OPENMP
 #include <omp.h>

@@ -38,7 +38,6 @@
 #include "dftgrid.h"
 #include "dftgrid_purem.h"
 #include "../atomic/basis.h"
-#include <ArmaEigen.h>
 #include <Eigen/Eigenvalues>
 #include <set>
 #include <map>

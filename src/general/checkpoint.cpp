@@ -15,7 +15,6 @@
 
 #include "checkpoint.h"
 #include "PolynomialBasis.h"
-#include <ArmaEigen.h>
 #include <istream>
 
 // Helper macros
@@ -129,7 +128,7 @@ void Checkpoint::remove(const std::string & name) {
   if(cl) close();
 }
 
-void Checkpoint::write(const std::string & name, const arma::mat & m) {
+void Checkpoint::write(const std::string & name, const helfem::Matrix & m) {
   CHECK_WRITE();
 
   bool cl=false;
@@ -141,10 +140,12 @@ void Checkpoint::write(const std::string & name, const arma::mat & m) {
   // Remove possible existing entry
   remove(name);
 
-  // Dimensions of the matrix
+  // Dimensions of the matrix. helfem::Matrix is Eigen column-major
+  // (like arma::mat was); the column-major buffer is stored with
+  // dims {n_cols, n_rows} so the on-disk bytes stay identical.
   hsize_t dims[2];
-  dims[1]=m.n_rows;
-  dims[0]=m.n_cols;
+  dims[1]=m.rows();
+  dims[0]=m.cols();
 
   // Create a dataspace.
   hid_t dataspace=H5Screate_simple(2,dims,NULL);
@@ -157,7 +158,7 @@ void Checkpoint::write(const std::string & name, const arma::mat & m) {
   hid_t dataset=hdf5_check(H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT), "H5Dcreate", name);
 
   // Write the data to the file.
-  H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m.memptr());
+  H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m.data());
 
   // Close everything.
   H5Dclose(dataset);
@@ -166,7 +167,7 @@ void Checkpoint::write(const std::string & name, const arma::mat & m) {
   if(cl) close();
 }
 
-void Checkpoint::read(const std::string & name, arma::mat & m) {
+void Checkpoint::read(const std::string & name, helfem::Matrix & m) {
   bool cl=false;
   if(!opend) {
     open();
@@ -203,9 +204,11 @@ void Checkpoint::read(const std::string & name, arma::mat & m) {
   hsize_t dims[ndim];
   H5Sget_simple_extent_dims(dataspace,dims,NULL);
 
-  // Allocate memory
-  m.zeros(dims[1],dims[0]);
-  H5Dread(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, m.memptr());
+  // Allocate memory. dims are {n_cols, n_rows} (see write), so the
+  // matrix is (dims[1], dims[0]) and the column-major buffer is read
+  // straight into .data().
+  m=helfem::Matrix::Zero(dims[1],dims[0]);
+  H5Dread(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, m.data());
 
   // Close dataspace
   H5Sclose(dataspace);
@@ -217,7 +220,24 @@ void Checkpoint::read(const std::string & name, arma::mat & m) {
   if(cl) close();
 }
 
-void Checkpoint::write(const std::string & name, const arma::imat & m0) {
+void Checkpoint::write(const std::string & name, const helfem::Vector & v) {
+  // Store as an N x 1 matrix.
+  write(name, helfem::Matrix(v));
+}
+
+void Checkpoint::read(const std::string & name, helfem::Vector & v) {
+  helfem::Matrix m;
+  read(name, m);
+  if (m.cols() != 1) {
+    std::ostringstream oss;
+    oss << "Cannot read \"" << name << "\" as a helfem::Vector: "
+        << "expected 1 column, got " << m.cols() << "\n";
+    throw std::runtime_error(oss.str());
+  }
+  v = m.col(0);
+}
+
+void Checkpoint::write(const std::string & name, const Eigen::MatrixXi & m) {
   CHECK_WRITE();
 
   bool cl=false;
@@ -226,16 +246,15 @@ void Checkpoint::write(const std::string & name, const arma::imat & m0) {
     cl=true;
   }
 
-  // Convert to native int
-  arma::Mat<int> m(arma::conv_to< arma::Mat<int> >::from(m0));
-  
   // Remove possible existing entry
   remove(name);
 
-  // Dimensions of the matrix
+  // Dimensions of the matrix. Eigen::MatrixXi is column-major with
+  // 32-bit int elements, matching the old on-disk H5T_NATIVE_INT
+  // layout: dims {n_rows, n_cols} over the column-major buffer.
   hsize_t dims[2];
-  dims[0]=m.n_rows;
-  dims[1]=m.n_cols;
+  dims[0]=m.rows();
+  dims[1]=m.cols();
 
   // Create a dataspace.
   hid_t dataspace=H5Screate_simple(2,dims,NULL);
@@ -248,7 +267,7 @@ void Checkpoint::write(const std::string & name, const arma::imat & m0) {
   hid_t dataset=hdf5_check(H5Dcreate(file,name.c_str(),datatype,dataspace,H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT), "H5Dcreate", name);
 
   // Write the data to the file.
-  H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m.memptr());
+  H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m.data());
 
   // Close everything.
   H5Dclose(dataset);
@@ -257,7 +276,7 @@ void Checkpoint::write(const std::string & name, const arma::imat & m0) {
   if(cl) close();
 }
 
-void Checkpoint::read(const std::string & name, arma::imat & m0) {
+void Checkpoint::read(const std::string & name, Eigen::MatrixXi & m) {
   bool cl=false;
   if(!opend) {
     open();
@@ -285,10 +304,10 @@ void Checkpoint::read(const std::string & name, arma::imat & m0) {
   hsize_t dims[ndim];
   H5Sget_simple_extent_dims(dataspace,dims,NULL);
 
-  // Allocate memory
-  arma::Mat<int> m;
-  m.zeros(dims[0],dims[1]);
-  H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, m.memptr());
+  // Allocate memory. dims are {n_rows, n_cols} (see write); the
+  // column-major buffer is read straight into .data().
+  m=Eigen::MatrixXi::Zero(dims[0],dims[1]);
+  H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, m.data());
 
   // Close dataspace
   H5Sclose(dataspace);
@@ -298,9 +317,6 @@ void Checkpoint::read(const std::string & name, arma::imat & m0) {
   H5Dclose(dataset);
 
   if(cl) close();
-
-  // Convert to imat
-  m0=arma::conv_to<arma::imat>::from(m);
 }
 
 
@@ -500,9 +516,9 @@ void Checkpoint::write(const helfem::atomic::basis::TwoDBasis & basis) {
   write("poly_nnodes",basis.get_poly_nnodes());
   write("zeroder",basis.get_zeroder());
 
-  // get_lval/get_mval are Eigen::VectorXi; bridge to arma for HDF5.
-  write("lval",helfem::to_arma(basis.get_lval()));
-  write("mval",helfem::to_arma(basis.get_mval()));
+  // get_lval/get_mval are Eigen::VectorXi; stored as N x 1 int matrices.
+  write("lval",Eigen::MatrixXi(basis.get_lval()));
+  write("mval",Eigen::MatrixXi(basis.get_mval()));
 
   if(cl) close();
 }
@@ -535,7 +551,7 @@ void Checkpoint::read(helfem::atomic::basis::TwoDBasis & basis) {
   double Rhalf;
   read("Rhalf",Rhalf);
 
-  arma::vec bval;
+  helfem::Vector bval;
   read("bval",bval);
 
   int n_quad, poly_id, poly_nnodes;
@@ -545,12 +561,13 @@ void Checkpoint::read(helfem::atomic::basis::TwoDBasis & basis) {
   int zeroder;
   read("zeroder", zeroder);
 
-  arma::ivec lval, mval;
+  // lval/mval are stored as N x 1 int matrices; take the first column.
+  Eigen::MatrixXi lval, mval;
   read("lval", lval);
   read("mval", mval);
 
   auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(poly_id,poly_nnodes)));
-  basis=helfem::atomic::basis::TwoDBasis(Z, (helfem::modelpotential::nuclear_model_t) finitenuc, Rrms, poly, zeroder, n_quad, helfem::to_eigen(bval), helfem::to_eigen(lval), helfem::to_eigen(mval), Zl, Zr, Rhalf);
+  basis=helfem::atomic::basis::TwoDBasis(Z, (helfem::modelpotential::nuclear_model_t) finitenuc, Rrms, poly, zeroder, n_quad, bval, lval.col(0), mval.col(0), Zl, Zr, Rhalf);
   
   if(cl) close();
 }
@@ -576,9 +593,9 @@ void Checkpoint::write(const helfem::diatomic::basis::TwoDBasis & basis) {
   write("poly_id",basis.get_poly_id());
   write("poly_nnodes",basis.get_poly_nnodes());
 
-  // get_lval/get_mval are Eigen::VectorXi; bridge to arma for HDF5.
-  write("lval",helfem::to_arma(basis.get_lval()));
-  write("mval",helfem::to_arma(basis.get_mval()));
+  // get_lval/get_mval are Eigen::VectorXi; stored as N x 1 int matrices.
+  write("lval",Eigen::MatrixXi(basis.get_lval()));
+  write("mval",Eigen::MatrixXi(basis.get_mval()));
 
   if(cl) close();
 }
@@ -605,7 +622,7 @@ void Checkpoint::read(helfem::diatomic::basis::TwoDBasis & basis) {
   double Rhalf;
   read("Rhalf",Rhalf);
 
-  arma::vec bval;
+  helfem::Vector bval;
   read("bval",bval);
 
   int n_quad, poly_id, poly_nnodes;
@@ -613,12 +630,13 @@ void Checkpoint::read(helfem::diatomic::basis::TwoDBasis & basis) {
   read("poly_id",poly_id);
   read("poly_nnodes",poly_nnodes);
 
-  arma::ivec lval, mval;
+  // lval/mval are stored as N x 1 int matrices; take the first column.
+  Eigen::MatrixXi lval, mval;
   read("lval", lval);
   read("mval", mval);
 
   auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(poly_id,poly_nnodes)));
-  basis=helfem::diatomic::basis::TwoDBasis(Z1, Z2, Rhalf, poly, n_quad, helfem::to_eigen(bval), helfem::to_eigen(lval), helfem::to_eigen(mval));
+  basis=helfem::diatomic::basis::TwoDBasis(Z1, Z2, Rhalf, poly, n_quad, bval, lval.col(0), mval.col(0));
   
   if(cl) close();
 }
@@ -1005,39 +1023,6 @@ void Checkpoint::read(const std::string & name, std::string & val) {
 bool file_exists(const std::string & name) {
   std::ifstream file(name.c_str());
   return file.good();
-}
-
-// Eigen overloads: bridge through arma::mat at the HDF5 boundary so
-// on-disk layout is unchanged and checkpoints written by an Eigen-typed
-// caller can be read back by an arma-typed caller (and vice versa).
-void Checkpoint::write(const std::string & name, const helfem::Matrix & mat) {
-  write(name, helfem::to_arma(mat));
-}
-
-void Checkpoint::read(const std::string & name, helfem::Matrix & mat) {
-  arma::mat tmp;
-  read(name, tmp);
-  mat = helfem::to_eigen(tmp);
-}
-
-void Checkpoint::write(const std::string & name, const helfem::Vector & v) {
-  write(name, helfem::to_arma(v));
-}
-
-void Checkpoint::read(const std::string & name, helfem::Vector & v) {
-  arma::vec tmp;
-  {
-    arma::mat m;
-    read(name, m);
-    if (m.n_cols != 1) {
-      std::ostringstream oss;
-      oss << "Cannot read \"" << name << "\" as a helfem::Vector: "
-          << "expected 1 column, got " << m.n_cols << "\n";
-      throw std::runtime_error(oss.str());
-    }
-    tmp = m.col(0);
-  }
-  v = helfem::to_eigen(tmp);
 }
 
 std::string tempname() {

@@ -13,7 +13,6 @@
  * for the full license text.
  */
 #include "TwoDBasis.h"
-#include <ArmaEigen.h>
 #include <CoulombExchangeFE.h>
 #include "../general/radial_block_helper.h"
 #include "../general/angular_index_helpers.h"

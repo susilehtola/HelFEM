@@ -14,7 +14,6 @@
  */
 #include "angular.h"
 #include "spherical_harmonics.h"
-#include <ArmaEigen.h>
 
 int main(void) {
   int lsph=5;

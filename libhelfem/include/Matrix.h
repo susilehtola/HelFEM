@@ -56,8 +56,7 @@ namespace helfem {
   /// Templated matrix type. Default precision is double; specialise
   /// the parameter for arbitrary precision (long double,
   /// boost::multiprecision::mpfr_float, ...). Storage order is
-  /// column-major to match arma::mat, so ArmaEigen.h's Map-based
-  /// converters stay zero-copy at the double-precision boundary.
+  /// column-major.
   template <typename T = double>
   using MatrixT = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 

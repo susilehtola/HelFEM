@@ -43,7 +43,6 @@
 
 #include "basis.h"
 #include "dftgrid.h"
-#include <ArmaEigen.h>
 #include <cfloat>
 
 using namespace helfem;

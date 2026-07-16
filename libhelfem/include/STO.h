@@ -16,7 +16,6 @@
 #define ATOMIC_BASIS_STO_H
 
 #include "RadialBasis.h"
-#include "ArmaEigen.h"
 #include "NAORadialBasis.h"
 #include "FiniteElementBasis.h"
 #include "PolynomialBasis.h"

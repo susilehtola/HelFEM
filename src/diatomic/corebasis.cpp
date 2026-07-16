@@ -22,6 +22,7 @@
 #include "../atomic/basis.h"
 #include "basis.h"
 #include "twodquadrature.h"
+#include "../general/eigen_io.h"
 #include <cfloat>
 
 using namespace helfem;
@@ -229,8 +230,7 @@ int main(int argc, char **argv) {
       Eigen::Index Nrad, Nang;
       eval(Z1, Z2, Rrms1, Rrms2, Rbond, poly, Nquad, Nelem, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], E, Nrad, Nang, Eval, imodel);
 
-      // Eigenvalues are printed through arma to preserve its print format.
-      helfem::to_arma(Eval).t().print("Initial eigenvalues");
+      helfem::io::print_matrix("Initial eigenvalues", helfem::Matrix(Eval.transpose()));
 
       printf("Initial energy is %e\n",E);
 
@@ -279,7 +279,7 @@ int main(int argc, char **argv) {
           Nang=Nar;
           printf("Basis set has now %i radial elements\n",Nelem);
         }
-        helfem::to_arma(Eval).t().print("Current eigenvalues");
+        helfem::io::print_matrix("Current eigenvalues", helfem::Matrix(Eval.transpose()));
         printf("\n");
       }
       printf("m=%i is converged with %i elements and %i partial waves\n\n",(int) m,(int) Nelem,(int) lmmax(m));

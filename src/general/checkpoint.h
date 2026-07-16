@@ -16,7 +16,6 @@
 #ifndef CHECKPOINT_H
 #define CHECKPOINT_H
 
-#include <armadillo>
 #include "../atomic/basis.h"
 #include "../diatomic/basis.h"
 #include "Matrix.h"
@@ -80,27 +79,23 @@ class Checkpoint {
    * An open file will be left open, a closed file will be left closed.
    */
 
-  /// Save matrix
-  void write(const std::string & name, const arma::mat & mat);
-  /// Read matrix
-  void read(const std::string & name, arma::mat & mat);
-
-  /// Eigen overload: writes/reads a helfem::Matrix by bridging through
-  /// arma::mat at the HDF5 boundary. Layout on disk is unchanged so
-  /// checkpoints stay round-trippable between arma-typed and
-  /// Eigen-typed callers.
+  /// Save matrix. helfem::Matrix is Eigen column-major; the HDF5
+  /// dataset stores the raw column-major buffer with dims
+  /// {n_rows, n_cols}, byte-identical to the old arma::mat layout.
   void write(const std::string & name, const helfem::Matrix & mat);
+  /// Read matrix
   void read(const std::string & name, helfem::Matrix & mat);
 
-  /// Eigen overload for helfem::Vector: writes as a single-column
-  /// arma::mat and reads back the first column.
+  /// helfem::Vector convenience: writes as a single-column matrix and
+  /// reads back the first column.
   void write(const std::string & name, const helfem::Vector & v);
   void read(const std::string & name, helfem::Vector & v);
 
-  /// Save matrix
-  void write(const std::string & name, const arma::imat & mat);
-  /// Read matrix
-  void read(const std::string & name, arma::imat & mat);
+  /// Save integer matrix. 32-bit int elements matching the on-disk
+  /// H5T_NATIVE_INT type (the old arma::Mat<int> storage).
+  void write(const std::string & name, const Eigen::MatrixXi & mat);
+  /// Read integer matrix
+  void read(const std::string & name, Eigen::MatrixXi & mat);
 
   /// Save array
   void write(const std::string & name, const std::vector<double> & v);

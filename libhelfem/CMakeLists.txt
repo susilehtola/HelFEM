@@ -24,7 +24,6 @@ list(APPEND LIBHELFEM_PUBLIC_HEADERS
     "SphericalNucleus.h"
     "RegularizedNucleus.h"
     "Matrix.h"
-    "ArmaEigen.h"
     # NAO surface -- installed for libatomscf-style consumers that
     # build atom-centred numerical-orbital bases in their own SCF
     # driver, using libhelfem's FE-projection factories:
