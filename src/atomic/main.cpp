@@ -37,6 +37,7 @@
 #include "../general/scf_helpers.h"
 #include "../general/scf_driver_common.h"
 #include "../general/checkpoint.h"
+#include "../general/eigen_io.h"
 
 #include "openorbitaloptimizer/scfsolver.hpp"
 
@@ -541,11 +542,10 @@ int main(int argc, char **argv) {
   if (readocc) {
     if (symm_eff == 0)
       throw std::logic_error("--readocc requires --symmetry=1 or 2 (need per-block index).");
-    arma::imat occs;
-    occs.load("occs.dat", arma::raw_ascii);
-    if (symm_eff == 1 && occs.n_cols != 3)
+    const Eigen::MatrixXi occs = helfem::io::read_raw_ascii_imat("occs.dat");
+    if (symm_eff == 1 && occs.cols() != 3)
       throw std::logic_error("occs.dat: expected 3 columns (nocca, noccb, m) for symmetry=1.");
-    if (symm_eff == 2 && occs.n_cols != 4)
+    if (symm_eff == 2 && occs.cols() != 4)
       throw std::logic_error("occs.dat: expected 4 columns (nocca, noccb, l, m) for symmetry=2.");
 
     // Match each occs row to a dsym block by comparing BF-index sets.
@@ -554,7 +554,7 @@ int main(int argc, char **argv) {
     Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> fixed_particles =
         Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1>::Zero(nsym * nparttype);
     int total_a = 0, total_b = 0;
-    for (arma::uword i = 0; i < occs.n_rows; ++i) {
+    for (Eigen::Index i = 0; i < occs.rows(); ++i) {
       const int nocca_i = static_cast<int>(occs(i, 0));
       const int noccb_i = static_cast<int>(occs(i, 1));
       std::vector<Eigen::Index> row_idx;
@@ -596,7 +596,7 @@ int main(int argc, char **argv) {
     Checkpoint loadchk(loadfile, /*writemode=*/false);
     atomic::basis::TwoDBasis oldbasis;
     loadchk.read(oldbasis);
-    arma::mat Pa_old, Pb_old;
+    helfem::Matrix Pa_old, Pb_old;
     loadchk.read("Pa", Pa_old);
     loadchk.read("Pb", Pb_old);
     int nela_old = 0, nelb_old = 0;
@@ -615,10 +615,10 @@ int main(int argc, char **argv) {
     // Project the old AO densities to the current basis, then rescale
     // so the total trace P*S recovers the exact electron count (the
     // projection itself is not particle-conserving when the two bases
-    // do not span the same subspace). Pa_old/Pb_old came in via arma
-    // checkpoint I/O; bridge them into Eigen for the projection.
-    helfem::Matrix Pa_new = Pproj * helfem::to_eigen(Pa_old) * Pproj.transpose();
-    helfem::Matrix Pb_new = Pproj * helfem::to_eigen(Pb_old) * Pproj.transpose();
+    // do not span the same subspace). Pa_old/Pb_old are read straight
+    // into Eigen via the checkpoint's helfem::Matrix overloads.
+    helfem::Matrix Pa_new = Pproj * Pa_old * Pproj.transpose();
+    helfem::Matrix Pb_new = Pproj * Pb_old * Pproj.transpose();
     const double na = (Pa_new * S).trace();
     const double nb = (Pb_new * S).trace();
     if (na > 0 && nela > 0) Pa_new *= static_cast<double>(nela) / na;
@@ -668,9 +668,9 @@ int main(int argc, char **argv) {
     helfem::Matrix Pa_final, Pb_final;
     std::tie(Pa_final, Pb_final) = helfem::scf_driver::assemble_final_density<OOO_Real>(
         Nbf, restricted, dsym, Sinvh, final_orbs, final_occs);
-    // Checkpoint I/O stays arma; bridge the Eigen densities out.
-    savechk.write("Pa", helfem::to_arma(Pa_final));
-    savechk.write("Pb", helfem::to_arma(Pb_final));
+    // Densities written straight through the checkpoint's helfem::Matrix overloads.
+    savechk.write("Pa", Pa_final);
+    savechk.write("Pb", Pb_final);
     savechk.write("nela", nela);
     savechk.write("nelb", nelb);
     printf("Saved results to %s\n", savefile.c_str());

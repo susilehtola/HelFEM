@@ -1,6 +1,6 @@
 #include "Legendre.h"
 #include "../general/spherical_harmonics.h"
-#include <armadillo>
+#include <Matrix.h>
 
 void get_coord(double Rh, double mu, double eta, double phi, double & x, double & y, double & z) {
   x=Rh*sinh(mu)*sin(eta)*cos(phi);
@@ -10,15 +10,15 @@ void get_coord(double Rh, double mu, double eta, double phi, double & x, double 
   printf("% .16e, % .16e, % .16e\n",x,y,z);
 }
 
-arma::mat get_Plm(int lmax, int mmax, double xi) {
-  arma::mat Plm(lmax+1,mmax+1);
-  helfem::legendre::plm(Plm.memptr(),lmax,mmax,xi);
+helfem::Matrix get_Plm(int lmax, int mmax, double xi) {
+  helfem::Matrix Plm(lmax+1,mmax+1);
+  helfem::legendre::plm(Plm.data(),lmax,mmax,xi);
   return Plm;
 }
 
-arma::mat get_Qlm(int lmax, int mmax, double xi) {
-  arma::mat Qlm(lmax+1,mmax+1);
-  helfem::legendre::qlm(Qlm.memptr(),lmax,mmax,xi);
+helfem::Matrix get_Qlm(int lmax, int mmax, double xi) {
+  helfem::Matrix Qlm(lmax+1,mmax+1);
+  helfem::legendre::qlm(Qlm.data(),lmax,mmax,xi);
   return Qlm;
 }
 
@@ -76,8 +76,8 @@ int main(void) {
   std::complex<double> Eneu(0.0,0.0);
 
   int lpad=0;
-  arma::mat Plm(get_Plm(Lmax+lpad,Lmax+lpad,cosh(mumin)));
-  arma::mat Qlm(get_Qlm(Lmax+lpad,Lmax+lpad,cosh(mumax)));
+  helfem::Matrix Plm(get_Plm(Lmax+lpad,Lmax+lpad,cosh(mumin)));
+  helfem::Matrix Qlm(get_Qlm(Lmax+lpad,Lmax+lpad,cosh(mumax)));
 
   printf("%21s % .16f\n","Exact energy",Eex);
   for(int L=0;L<=Lmax;L++) {

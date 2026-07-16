@@ -19,7 +19,10 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <sstream>
+#include <stdexcept>
 #include <string>
+#include <vector>
 
 // Diagnostic dump helpers for helfem::Vec<T> / helfem::Mat<T>. Used by the
 // FE test drivers (harmonic, inttest, ...) and by gensap for the same
@@ -69,6 +72,36 @@ namespace helfem {
     template <typename T>
     void write_raw_ascii(const std::string & path, const helfem::Vec<T> & v) {
       write_raw_ascii<T>(path, helfem::Mat<T>(v));   // N x 1: one entry per line
+    }
+
+    /// Read a whitespace-delimited integer table from `path` into an
+    /// Eigen::MatrixXi, matching arma::imat::load(path, arma::raw_ascii):
+    /// one row per non-blank line, columns split on whitespace, row count
+    /// and column count auto-detected. Throws if the file cannot be opened
+    /// or the rows have inconsistent column counts.
+    inline Eigen::MatrixXi read_raw_ascii_imat(const std::string & path) {
+      std::ifstream in(path);
+      if (!in)
+        throw std::runtime_error("Could not open " + path + " for reading.");
+      std::vector<std::vector<int>> rows;
+      std::string line;
+      while (std::getline(in, line)) {
+        std::istringstream iss(line);
+        std::vector<int> row;
+        int v;
+        while (iss >> v) row.push_back(v);
+        if (!row.empty()) rows.push_back(row);
+      }
+      if (rows.empty()) return Eigen::MatrixXi();
+      const Eigen::Index nr = static_cast<Eigen::Index>(rows.size());
+      const Eigen::Index nc = static_cast<Eigen::Index>(rows[0].size());
+      Eigen::MatrixXi M(nr, nc);
+      for (Eigen::Index i = 0; i < nr; ++i) {
+        if (static_cast<Eigen::Index>(rows[i].size()) != nc)
+          throw std::runtime_error(path + ": inconsistent column count.");
+        for (Eigen::Index j = 0; j < nc; ++j) M(i, j) = rows[i][j];
+      }
+      return M;
     }
 
     /// Print a Mat<T> to stdout under a name header, one row per line, in
