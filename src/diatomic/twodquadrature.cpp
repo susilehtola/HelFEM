@@ -550,10 +550,9 @@ namespace helfem {
           opts.lmax           = lmax;
           opts.poly           = poly;
           opts.Nquad          = Nquad;
-          // atomic::basis::form_grid still returns arma::vec; bridge once.
-          opts.bval           = helfem::to_eigen(atomic::basis::form_grid(
+          opts.bval           = atomic::basis::form_grid(
               modelpotential::POINT_NUCLEUS, 0.0, Nelem, Rmax, igrid, zexp,
-              0, 0, 0.0, Z, 0, 0, 0.0));
+              0, 0, 0.0, Z, 0, 0, 0.0);
           opts.nela           = Ntot / 2;  // restricted closed-shell (PBE ground occs
           opts.nelb           = Ntot / 2;  // are always even totals per l).
           opts.restricted     = true;

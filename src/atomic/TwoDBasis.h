@@ -42,7 +42,7 @@ namespace helfem {
       ///     TwoDBasis (= TwoDBasisT<double>) as before.
       ///   * the basis-function EVALUATION routines used by that grid and by
       ///     the analysis binaries -- eval_bf / eval_df / eval_lf (which return
-      ///     arma::cx_mat and go through the double-only ::spherical_harmonics).
+      ///     Eigen::MatrixXcd and go through the double-only ::spherical_harmonics).
       ///     These are compiled for every T but THROW unless T = double; they
       ///     are not on the Fock path. (The quadrature-point accessors get_bval
       ///     / get_wrad / get_r are precision-generic helfem::Vec<T>.)
@@ -258,11 +258,11 @@ namespace helfem {
         std::vector<std::vector<Eigen::Index>> get_sym_idx(int isym) const;
 
         /// Evaluate basis functions (T = double only)
-        arma::cx_mat eval_bf(size_t iel, double cth, double phi) const;
+        Eigen::MatrixXcd eval_bf(size_t iel, double cth, double phi) const;
         /// Evaluate basis functions derivatives (T = double only)
-        void eval_df(size_t iel, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const;
+        void eval_df(size_t iel, double cth, double phi, Eigen::MatrixXcd & dr, Eigen::MatrixXcd & dth, Eigen::MatrixXcd & dphi) const;
         /// Evaluate Laplacian of basis functions (T = double only)
-        arma::cx_mat eval_lf(size_t iel, double cth, double phi) const;
+        Eigen::MatrixXcd eval_lf(size_t iel, double cth, double phi) const;
         /// Get list of basis function indices in element
         std::vector<Eigen::Index> bf_list(size_t iel) const;
 

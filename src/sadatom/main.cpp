@@ -30,9 +30,6 @@
 #include "../atomic/basis.h"
 #include "scf.h"
 #include "../general/eigen_io.h"
-// ArmaEigen.h is included only for the helfem::to_eigen bridge on the
-// return value of atomic::basis::form_grid, which is still arma-typed.
-#include <ArmaEigen.h>
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -317,11 +314,10 @@ int main(int argc, char **argv) {
   if (!is_supported(c_func))
     throw std::logic_error("The specified correlation functional is not currently supported in HelFEM.\n");
 
-  // atomic::basis::form_grid still returns arma::vec; bridge once here.
-  const helfem::Vector bval = helfem::to_eigen(atomic::basis::form_grid(
+  const helfem::Vector bval = atomic::basis::form_grid(
       modelpotential::POINT_NUCLEUS, 0.0, Nelem, Rmax, igrid, zexp,
       0, 0, 0.0, Z, 0, 0, 0.0,
-      iconf ? add_conf : false, shift_conf));
+      iconf ? add_conf : false, shift_conf);
 
   sadatom::scf::AtomicSCFOptions opts;
   opts.Z            = Z;

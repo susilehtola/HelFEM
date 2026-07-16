@@ -256,15 +256,14 @@ int main(int argc, char **argv) {
 
   Eigen::VectorXi lval, mval;
   atomic::basis::angular_basis(lmax, mmax, lval, mval);
-  // form_grid is still arma-native; bridge once.
-  arma::vec bval = atomic::basis::form_grid(
+  const helfem::Vector bval = atomic::basis::form_grid(
       (modelpotential::nuclear_model_t) finitenuc, Rrms, Nelem, Rmax,
       igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf,
       iconf ? add_conf : false, shift_conf);
 
   atomic::basis::TwoDBasis basis(Z, (modelpotential::nuclear_model_t) finitenuc,
                                   Rrms, poly, zeroder, Nquad,
-                                  helfem::to_eigen(bval),
+                                  bval,
                                   lval,
                                   mval,
                                   Zl, Zr, Rhalf);
