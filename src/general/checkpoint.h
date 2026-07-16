@@ -79,17 +79,28 @@ class Checkpoint {
    * An open file will be left open, a closed file will be left closed.
    */
 
-  /// Save matrix. helfem::Matrix is Eigen column-major; the HDF5
+  /// Save matrix. helfem::MatT<T> is Eigen column-major; the HDF5
   /// dataset stores the raw column-major buffer with dims
   /// {n_rows, n_cols}, byte-identical to the old arma::mat layout.
-  void write(const std::string & name, const helfem::Matrix & mat);
+  ///
+  /// Templated on the scalar type T so a long double / _Float128 SCF
+  /// can round-trip its matrices at full precision. The on-disk (file)
+  /// datatype matches the memory type per T, so T=double stays exactly
+  /// H5T_IEEE_F64LE and existing .chk files remain byte-identical.
+  /// Definitions live in checkpoint.cpp with explicit instantiations
+  /// for double, long double and (guarded) _Float128.
+  template <typename T>
+  void write(const std::string & name, const helfem::Mat<T> & mat);
   /// Read matrix
-  void read(const std::string & name, helfem::Matrix & mat);
+  template <typename T>
+  void read(const std::string & name, helfem::Mat<T> & mat);
 
-  /// helfem::Vector convenience: writes as a single-column matrix and
+  /// helfem::Vec<T> convenience: writes as a single-column matrix and
   /// reads back the first column.
-  void write(const std::string & name, const helfem::Vector & v);
-  void read(const std::string & name, helfem::Vector & v);
+  template <typename T>
+  void write(const std::string & name, const helfem::Vec<T> & v);
+  template <typename T>
+  void read(const std::string & name, helfem::Vec<T> & v);
 
   /// Save integer matrix. 32-bit int elements matching the on-disk
   /// H5T_NATIVE_INT type (the old arma::Mat<int> storage).
@@ -97,10 +108,13 @@ class Checkpoint {
   /// Read integer matrix
   void read(const std::string & name, Eigen::MatrixXi & mat);
 
-  /// Save array
-  void write(const std::string & name, const std::vector<double> & v);
+  /// Save array. Templated on the scalar type T (double, long double,
+  /// _Float128); T=double stays byte-identical on disk.
+  template <typename T>
+  void write(const std::string & name, const std::vector<T> & v);
   /// Load array
-  void read(const std::string & name, std::vector<double> & v);
+  template <typename T>
+  void read(const std::string & name, std::vector<T> & v);
 
   /// Save array
   void write(const std::string & name, const std::vector<hsize_t> & v);
@@ -116,10 +130,15 @@ class Checkpoint {
   /// Save basis set
   void read(helfem::diatomic::basis::TwoDBasis & basis);
 
-  /// Save value
-  void write(const std::string & name, double val);
+  /// Save value. Templated on the scalar type T (double, long double,
+  /// _Float128); T=double stays byte-identical on disk. The non-template
+  /// int / hsize_t / bool overloads below are exact matches for their
+  /// argument types and so are still preferred over this template.
+  template <typename T>
+  void write(const std::string & name, T val);
   /// Read value
-  void read(const std::string & name, double & val);
+  template <typename T>
+  void read(const std::string & name, T & val);
 
   /// Save value
   void write(const std::string & name, int val);
