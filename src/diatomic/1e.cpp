@@ -95,24 +95,23 @@ int main(int argc, char **argv) {
 
   printf("Using %i point quadrature rule.\n",Nquad);
 
-  arma::ivec lmmax;
+  Eigen::VectorXi lmmax;
   if(mmax>=0) {
-    lmmax.ones(mmax+1);
-    lmmax*=atoi(lmax.c_str());
+    lmmax = Eigen::VectorXi::Constant(mmax+1, atoi(lmax.c_str()));
   } else {
     // Parse list of l values
-    std::vector<arma::uword> lmmaxv;
+    std::vector<int> lmmaxv;
     std::stringstream ss(lmax);
     while( ss.good() ) {
       std::string substr;
       getline( ss, substr, ',' );
       lmmaxv.push_back(atoi(substr.c_str()));
     }
-    lmmax=arma::conv_to<arma::ivec>::from(lmmaxv);
+    lmmax = Eigen::Map<Eigen::VectorXi>(lmmaxv.data(), lmmaxv.size());
   }
   // l and m values
   Eigen::VectorXi lval, mval;
-  diatomic::basis::lm_to_l_m(helfem::to_eigen(lmmax),lval,mval);
+  diatomic::basis::lm_to_l_m(lmmax,lval,mval);
 
   double Rhalf(0.5*Rbond);
   double mumax(utils::arcosh(Rmax/Rhalf));
@@ -128,47 +127,42 @@ int main(int argc, char **argv) {
   Timer timer;
 
   // Form overlap matrix
-  arma::mat S(helfem::to_arma(basis.overlap()));
+  helfem::Matrix S(basis.overlap());
   chkpt.write("S",S);
   // Form kinetic energy matrix
-  arma::mat T(helfem::to_arma(basis.kinetic()));
+  helfem::Matrix T(basis.kinetic());
   chkpt.write("T",T);
 
   // Get half-inverse
   timer.set();
   bool diag=true;
   bool symm=false;
-  arma::mat Sinvh(helfem::to_arma(basis.Sinvh(!diag,symm)));
+  helfem::Matrix Sinvh(basis.Sinvh(!diag,symm));
   chkpt.write("Sinvh",Sinvh);
   printf("Half-inverse formed in %.6f\n",timer.get());
   {
-    arma::mat Smo(Sinvh.t()*S*Sinvh);
-    Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
-    printf("Orbital orthonormality deviation is %e\n",arma::norm(Smo,"fro"));
+    helfem::Matrix Smo(Sinvh.transpose()*S*Sinvh);
+    Smo-=helfem::Matrix::Identity(Smo.rows(),Smo.cols());
+    printf("Orbital orthonormality deviation is %e\n",Smo.norm());
   }
 
   // Form nuclear attraction energy matrix
   Timer tnuc;
-  arma::mat Vnuc=helfem::to_arma(basis.nuclear());
+  helfem::Matrix Vnuc(basis.nuclear());
   chkpt.write("Vnuc",Vnuc);
 
   // Form Hamiltonian
-  const arma::mat H0(T+Vnuc);
+  const helfem::Matrix H0(T+Vnuc);
   chkpt.write("H0",H0);
 
   printf("One-electron matrices formed in %.6f\n",timer.get());
 
-  arma::vec E;
-  arma::mat C;
-  { // Phase 5.11 bridge: eig_gsym is Eigen.
-    helfem::Vector E_e; helfem::Matrix C_e;
-    scf::eig_gsym(E_e, C_e, helfem::to_eigen(H0), helfem::to_eigen(Sinvh));
-    E = helfem::to_arma(E_e);
-    C = helfem::to_arma(C_e);
-  }
+  helfem::Vector E;
+  helfem::Matrix C;
+  scf::eig_gsym(E, C, H0, Sinvh);
 
-  double Ekin=arma::as_scalar(C.col(0).t()*T*C.col(0));
-  double Enuc=arma::as_scalar(C.col(0).t()*Vnuc*C.col(0));
+  double Ekin=C.col(0).dot(T*C.col(0));
+  double Enuc=C.col(0).dot(Vnuc*C.col(0));
   double Etot=Ekin+Enuc+Enucr;
 
   chkpt.write("Ekin",Ekin);

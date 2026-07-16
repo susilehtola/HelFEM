@@ -15,7 +15,7 @@
 
 #include "../general/cmdline.h"
 #include "../general/checkpoint.h"
-#include <ArmaEigen.h>
+#include "Matrix.h"
 #include "../general/constants.h"
 #include "../general/spherical_harmonics.h"
 #include "../general/timer.h"
@@ -23,6 +23,7 @@
 #include "basis.h"
 #include <cfloat>
 #include <climits>
+#include <complex>
 
 // Angular quadrature
 #include "../general/angular.h"
@@ -65,15 +66,12 @@ int main(int argc, char **argv) {
   if(mang<=0)
     mang=4*basis.get_mval().cwiseAbs().maxCoeff()+5;
 
-  // angular_chebyshev is Eigen-typed; this analysis binary is out of the
-  // migration scope for now, so bridge to arma once at the call site.
-  helfem::Vector cth_e, phi_e, wang_e;
-  helfem::angular::angular_chebyshev(lang,mang,cth_e,phi_e,wang_e);
-  arma::vec cth(helfem::to_arma(cth_e)), phi(helfem::to_arma(phi_e)), wang(helfem::to_arma(wang_e));
-  printf("Using angular quadrature grid with L=%i M=%i with %i points\n",lang,mang,(int) cth.n_elem);
+  helfem::Vector cth, phi, wang;
+  helfem::angular::angular_chebyshev(lang,mang,cth,phi,wang);
+  printf("Using angular quadrature grid with L=%i M=%i with %i points\n",lang,mang,(int) cth.size());
 
   // Density matrix
-  arma::mat Ca, Cb;
+  helfem::Matrix Ca, Cb;
   loadchk.read("Ca",Ca);
   loadchk.read("Cb",Cb);
   int nela, nelb;
@@ -81,135 +79,123 @@ int main(int argc, char **argv) {
   loadchk.read("nelb",nelb);
 
   // Inverse overlap
-  arma::mat Sinvh;
+  helfem::Matrix Sinvh;
   loadchk.read("Sinvh", Sinvh);
-  arma::mat Sinv(Sinvh*Sinvh.t());
+  helfem::Matrix Sinv(Sinvh*Sinvh.transpose());
 
   // mu array
-  std::vector<arma::vec> mu(basis.get_rad_Nel()), wmu(basis.get_rad_Nel());
-  // get_r / get_wrad are Eigen-typed; bridge for this arma-native analysis path.
+  std::vector<helfem::Vector> mu(basis.get_rad_Nel()), wmu(basis.get_rad_Nel());
   for(size_t iel=0;iel<mu.size();iel++) {
-    mu[iel]=helfem::to_arma(basis.get_r(iel));
-    wmu[iel]=helfem::to_arma(basis.get_wrad(iel));
+    mu[iel]=basis.get_r(iel);
+    wmu[iel]=basis.get_wrad(iel);
   }
 
-  size_t Nradpts=mu.size()*mu[0].n_elem;
+  size_t Nradpts=mu.size()*mu[0].size();
   printf("Using radial quadrature grid with %i points\n",(int) Nradpts);
 
   // Size of total matrix
-  size_t Ngrid = Nradpts*wang.n_elem;
+  size_t Ngrid = Nradpts*wang.size();
 
   // Pretabulate basis function data
-  arma::ivec lval(helfem::to_arma(basis.get_lval()));
-  arma::ivec mval(helfem::to_arma(basis.get_mval()));
-  arma::cx_mat sph(wang.n_elem,lval.n_elem);
-  for(size_t il=0;il<lval.n_elem;il++)
-    for(size_t iang=0;iang<wang.n_elem;iang++)
+  Eigen::VectorXi lval(basis.get_lval());
+  Eigen::VectorXi mval(basis.get_mval());
+  Eigen::MatrixXcd sph(wang.size(),lval.size());
+  for(Eigen::Index il=0;il<lval.size();il++)
+    for(Eigen::Index iang=0;iang<wang.size();iang++)
       sph(iang,il)=::spherical_harmonics(lval(il),mval(il),cth(iang),phi(iang));
 
   // Evaluate radial functions
-  std::vector<arma::mat> radbf(basis.get_rad_Nel());
+  std::vector<helfem::Matrix> radbf(basis.get_rad_Nel());
   for(size_t iel=0;iel<mu.size();iel++) {
-    // get_rad_bf is now Eigen-typed; bridge back for the arma-native
-    // density accumulation and Checkpoint (HDF5) output below.
-    radbf[iel] = helfem::to_arma(basis.get_rad_bf(iel));
+    radbf[iel] = basis.get_rad_bf(iel);
   }
 
   // Density arrays
-  arma::vec dena(Ngrid,arma::fill::zeros), denb(Ngrid,arma::fill::zeros), dV(Ngrid,arma::fill::zeros);
-  arma::mat orba(Ngrid,nela,arma::fill::zeros), orbb(Ngrid,nelb,arma::fill::zeros);
+  helfem::Vector dena(helfem::Vector::Zero(Ngrid)), denb(helfem::Vector::Zero(Ngrid)), dV(helfem::Vector::Zero(Ngrid));
 
-  arma::vec mugrid(Ngrid,arma::fill::zeros);
-  arma::vec cthgrid(Ngrid,arma::fill::zeros);
-  arma::vec phigrid(Ngrid,arma::fill::zeros);
-  arma::vec wquad(Ngrid,arma::fill::zeros);
-  arma::cx_mat orbagrid(Ngrid,nela,arma::fill::zeros);
-  arma::cx_mat orbbgrid;
+  helfem::Vector mugrid(helfem::Vector::Zero(Ngrid));
+  helfem::Vector cthgrid(helfem::Vector::Zero(Ngrid));
+  helfem::Vector phigrid(helfem::Vector::Zero(Ngrid));
+  helfem::Vector wquad(helfem::Vector::Zero(Ngrid));
+  Eigen::MatrixXcd orbagrid(Eigen::MatrixXcd::Zero(Ngrid,nela));
+  Eigen::MatrixXcd orbbgrid;
   if(nelb)
-    orbbgrid.zeros(Ngrid,nelb);
-  arma::cx_mat Torbagrid(Ngrid,nela,arma::fill::zeros);
-  arma::cx_mat Torbbgrid;
+    orbbgrid=Eigen::MatrixXcd::Zero(Ngrid,nelb);
+  Eigen::MatrixXcd Torbagrid(Eigen::MatrixXcd::Zero(Ngrid,nela));
+  Eigen::MatrixXcd Torbbgrid;
   if(nelb)
-    Torbbgrid.zeros(Ngrid,nelb);
+    Torbbgrid=Eigen::MatrixXcd::Zero(Ngrid,nelb);
 
-  arma::cx_mat Sa(nela,nela,arma::fill::zeros), Sb;
+  Eigen::MatrixXcd Sa(Eigen::MatrixXcd::Zero(nela,nela)), Sb;
   if(nelb>0)
-    Sb.zeros(nelb,nelb);
+    Sb=Eigen::MatrixXcd::Zero(nelb,nelb);
 
-  arma::mat T(helfem::to_arma(basis.kinetic()));
-  arma::mat STCa = Sinv*T*Ca;
-  arma::mat STCb = Sinv*T*Cb;
+  helfem::Matrix T(basis.kinetic());
+  helfem::Matrix STCa = Sinv*T*Ca;
+  helfem::Matrix STCb = Sinv*T*Cb;
 
   size_t igrid=0;
   // Loop over radial elements
   for(size_t iel=0;iel<mu.size();iel++) {
-    // Get the list of basis functions in the element in the dummy
-    // indexing (bf_list is Eigen-typed; bridge to arma::uvec here).
-    std::vector<Eigen::Index> bidx_v=basis.bf_list(iel);
-    arma::uvec bidx(bidx_v.size());
-    for(size_t i=0;i<bidx_v.size();i++)
-      bidx(i)=(arma::uword) bidx_v[i];
+    // Get the list of basis functions in the element in the dummy indexing.
+    std::vector<Eigen::Index> bidx=basis.bf_list(iel);
 
-    // Orbital submatrices
-    arma::mat Casub(Ca.cols(0,nela-1));
-    Casub = Casub.rows(bidx);
-    arma::mat Cbsub;
-    if(nelb) {
-      Cbsub=Cb.cols(0,nelb-1);
-      Cbsub=Cbsub.rows(bidx);
-    }
+    // Orbital submatrices (cast to complex once per element for the
+    // complex-valued basis function products below)
+    Eigen::MatrixXcd Casub = Ca.leftCols(nela)(bidx, Eigen::all).cast<std::complex<double>>();
+    Eigen::MatrixXcd Cbsub;
+    if(nelb)
+      Cbsub = Cb.leftCols(nelb)(bidx, Eigen::all).cast<std::complex<double>>();
 
     // Kinetic energy submatrix
-    arma::mat STCasub(STCa.cols(0,nela-1));
-    STCasub = STCasub.rows(bidx);
-    arma::mat STCbsub;
+    Eigen::MatrixXcd STCasub = STCa.leftCols(nela)(bidx, Eigen::all).cast<std::complex<double>>();
+    Eigen::MatrixXcd STCbsub;
     if(nelb) {
-	STCbsub = STCb.cols(0,nelb-1);
-	STCbsub = STCb.rows(bidx);
+	STCbsub = STCb(bidx, Eigen::all).cast<std::complex<double>>();
     }
 
     // Radial values
-    arma::vec r(mu[iel]);
-    arma::vec wr(wmu[iel]);
+    helfem::Vector r(mu[iel]);
+    helfem::Vector wr(wmu[iel]);
 
     // Loop over angular output grid
-    for(size_t iang=0;iang<wang.n_elem;iang++) {
+    for(Eigen::Index iang=0;iang<wang.size();iang++) {
       // Loop over radial points
-      for(size_t irad=0;irad<radbf[iel].n_rows;irad++) {
+      for(Eigen::Index irad=0;irad<radbf[iel].rows();irad++) {
         // Form matrix of basis function values
-        arma::cx_rowvec bf(bidx.n_elem);
+        Eigen::RowVectorXcd bf(bidx.size());
         {
-          size_t ioff=0;
+          Eigen::Index ioff=0;
           // Loop over angular basis
-          for(size_t il=0;il<lval.n_elem;il++) {
+          for(Eigen::Index il=0;il<lval.size();il++) {
             // Loop over in-element radial functions
-            size_t firstfun = ((iel==0) && (mval(il)!=0)) ? 1 : 0;
-            for(size_t ifun=firstfun;ifun<radbf[iel].n_cols;ifun++) {
+            Eigen::Index firstfun = ((iel==0) && (mval(il)!=0)) ? 1 : 0;
+            for(Eigen::Index ifun=firstfun;ifun<radbf[iel].cols();ifun++) {
               bf(ioff++) = sph(iang,il)*radbf[iel](irad,ifun);
             }
           }
-          if(ioff != bidx.n_elem) {
-            printf("iel=%i iang=%i ioff=%i bidx.n_elem=%i\n",(int) iel,(int) iang,(int) ioff,(int) bidx.n_elem);
+          if(ioff != (Eigen::Index) bidx.size()) {
+            printf("iel=%i iang=%i ioff=%i bidx.n_elem=%i\n",(int) iel,(int) iang,(int) ioff,(int) bidx.size());
             fflush(stdout);
             throw std::logic_error("Indexing problem!\n");
           }
         }
 
         // Compute orbital values
-        arma::cx_rowvec orbaval = bf*Casub;
-        arma::cx_rowvec orbbval;
+        Eigen::RowVectorXcd orbaval = bf*Casub;
+        Eigen::RowVectorXcd orbbval;
         if(nelb)
           orbbval = bf*Cbsub;
 
 	// Compute action of kinetic energy operator on orbitals
-	arma::cx_rowvec Torbaval = bf*STCasub;
-        arma::cx_rowvec Torbbval;
+	Eigen::RowVectorXcd Torbaval = bf*STCasub;
+        Eigen::RowVectorXcd Torbbval;
         if(nelb)
 	    Torbbval = bf*STCbsub;
 
         // Store result
-        dena(igrid)=std::real(arma::cdot(orbaval,orbaval));
-        denb(igrid)=nelb ? std::real(arma::cdot(orbbval,orbbval)) : 0.0;
+        dena(igrid)=orbaval.squaredNorm();
+        denb(igrid)=nelb ? orbbval.squaredNorm() : 0.0;
 
         // Store grid values
         mugrid(igrid) = r(irad);
@@ -231,27 +217,27 @@ int main(int argc, char **argv) {
 	if(nelb)
 	    Torbbgrid.row(igrid) = Torbbval;
 
-        Sa += arma::trans(orbaval)*dV(igrid)*orbaval;
+        Sa += orbaval.adjoint()*orbaval*std::complex<double>(dV(igrid));
         if(nelb)
-          Sb += arma::trans(orbbval)*dV(igrid)*orbbval;
+          Sb += orbbval.adjoint()*orbbval*std::complex<double>(dV(igrid));
 
         igrid++;
       }
     }
   }
-  if(igrid != dena.n_elem)
+  if(igrid != (size_t) dena.size())
     throw std::logic_error("Indexing error!\n");
 
   // Total density
-  arma::vec den(dena+denb);
+  helfem::Vector den(dena+denb);
 
-  printf("Norm of Pa on grid is %e\n",arma::sum(dena%dV));
-  printf("Norm of Pb on grid is %e\n",arma::sum(denb%dV));
-  printf("Norm of P on grid is %e\n",arma::sum(den%dV));
+  printf("Norm of Pa on grid is %e\n",(dena.array()*dV.array()).sum());
+  printf("Norm of Pb on grid is %e\n",(denb.array()*dV.array()).sum());
+  printf("Norm of P on grid is %e\n",(den.array()*dV.array()).sum());
 
-  printf("Alpha-alpha orbital non-orthonormality %e\n",arma::norm(Sa-arma::eye<arma::cx_mat>(Sa.n_rows,Sa.n_cols),"fro"));
+  printf("Alpha-alpha orbital non-orthonormality %e\n",(Sa-Eigen::MatrixXcd::Identity(Sa.rows(),Sa.cols())).norm());
   if(nelb)
-    printf("Beta-beta   orbital non-orthonormality %e\n",arma::norm(Sb-arma::eye<arma::cx_mat>(Sb.n_rows,Sb.n_cols),"fro"));
+    printf("Beta-beta   orbital non-orthonormality %e\n",(Sb-Eigen::MatrixXcd::Identity(Sb.rows(),Sb.cols())).norm());
 
   Checkpoint savechk(output,true);
   savechk.write("mu",mugrid);
@@ -262,17 +248,17 @@ int main(int argc, char **argv) {
   savechk.write("P",den);
   savechk.write("Pa",dena);
   savechk.write("Pb",denb);
-  savechk.write("orba.re",arma::real(orbagrid));
-  savechk.write("orba.im",arma::imag(orbagrid));
+  savechk.write("orba.re",helfem::Matrix(orbagrid.real()));
+  savechk.write("orba.im",helfem::Matrix(orbagrid.imag()));
   if(nelb) {
-    savechk.write("orbb.re",arma::real(orbbgrid));
-    savechk.write("orbb.im",arma::imag(orbbgrid));
+    savechk.write("orbb.re",helfem::Matrix(orbbgrid.real()));
+    savechk.write("orbb.im",helfem::Matrix(orbbgrid.imag()));
   }
-  savechk.write("Torba.re",arma::real(Torbagrid));
-  savechk.write("Torba.im",arma::imag(Torbagrid));
+  savechk.write("Torba.re",helfem::Matrix(Torbagrid.real()));
+  savechk.write("Torba.im",helfem::Matrix(Torbagrid.imag()));
   if(nelb) {
-    savechk.write("Torbb.re",arma::real(Torbbgrid));
-    savechk.write("Torbb.im",arma::imag(Torbbgrid));
+    savechk.write("Torbb.re",helfem::Matrix(Torbbgrid.real()));
+    savechk.write("Torbb.im",helfem::Matrix(Torbbgrid.imag()));
   }
   savechk.write("Rh",basis.get_Rhalf());
   savechk.write("Z1",basis.get_Z1());

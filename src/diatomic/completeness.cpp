@@ -19,7 +19,10 @@
 #include "../general/lcao.h"
 #include "basis.h"
 #include "twodquadrature.h"
-#include <ArmaEigen.h>
+#include "Matrix.h"
+#include "../general/eigen_io.h"
+#include <Eigen/Eigenvalues>
+#include <algorithm>
 #include <cfloat>
 #include <climits>
 
@@ -53,11 +56,11 @@ int main(int argc, char **argv) {
   diatomic::basis::TwoDBasis basis;
   loadchk.read(basis);
   // Sinvh
-  arma::mat Sinvh;
+  helfem::Matrix Sinvh;
   loadchk.read("Sinvh",Sinvh);
-  arma::mat Sinv(Sinvh*arma::trans(Sinvh));
+  helfem::Matrix Sinv(Sinvh*Sinvh.transpose());
   // Orbitals
-  arma::mat Ca, Cb;
+  helfem::Matrix Ca, Cb;
   loadchk.read("Ca",Ca);
   loadchk.read("Cb",Cb);
   // Number of occupied orbitals
@@ -75,75 +78,80 @@ int main(int argc, char **argv) {
   qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
   qgrid.compute_atoms(Z1,Z2);
 
-  // Unique m values (get_mval is Eigen-typed; bridge to arma for this
-  // out-of-scope analysis path).
-  arma::ivec muni(helfem::to_arma(basis.get_mval()));
-  muni=arma::sort(muni(arma::find_unique(muni)),"ascend");
+  // Unique m values, sorted ascending
+  Eigen::VectorXi mval_all(basis.get_mval());
+  std::vector<int> mtmp(mval_all.data(), mval_all.data()+mval_all.size());
+  std::sort(mtmp.begin(), mtmp.end());
+  mtmp.erase(std::unique(mtmp.begin(), mtmp.end()), mtmp.end());
+  Eigen::VectorXi muni = Eigen::Map<Eigen::VectorXi>(mtmp.data(), mtmp.size());
 
   // Exponents
-  arma::vec expn(arma::exp10(arma::linspace<arma::vec>(log10(minexp),log10(maxexp),nexp)));
+  helfem::Vector expn = helfem::Vector::LinSpaced(nexp, log10(minexp), log10(maxexp));
+  expn = (expn.array()*std::log(10.0)).exp().matrix();
 
-  // Compute radial functions
-  arma::vec r(arma::linspace<arma::vec>(0.0,100.0,1000));
-
-  for(size_t im=0;im<muni.size();im++) {
+  for(Eigen::Index im=0;im<muni.size();im++) {
     int m=muni(im);
 
     // Compute the projection of the atomic orbitals on the grid
-    arma::mat minimal_basis_orbitals;
+    helfem::Matrix minimal_basis_orbitals;
     size_t nminimal = 0;
     {
-      std::vector<arma::mat> minimal_basis;
+      std::vector<helfem::Matrix> minimal_basis;
       for(int l=std::abs(m);l<=completeness;l++) {
-        arma::mat proj = helfem::to_arma(qgrid.atomic_projection(l, m, helfem::diatomic::twodquad::PROBE_LEFT));
-        if(proj.n_elem) {
+        helfem::Matrix proj = qgrid.atomic_projection(l, m, helfem::diatomic::twodquad::PROBE_LEFT);
+        if(proj.size()) {
           minimal_basis.push_back(proj);
-          nminimal += proj.n_rows;
-          printf("Left-hand atom has %i orbitals for m = %i from l = %i\n",proj.n_rows,m,l);
+          nminimal += proj.rows();
+          printf("Left-hand atom has %i orbitals for m = %i from l = %i\n",(int) proj.rows(),m,l);
           fflush(stdout);
         }
       }
       for(int l=std::abs(m);l<=completeness;l++) {
-        arma::mat proj = helfem::to_arma(qgrid.atomic_projection(l, m, helfem::diatomic::twodquad::PROBE_RIGHT));
-        if(proj.n_elem) {
+        helfem::Matrix proj = qgrid.atomic_projection(l, m, helfem::diatomic::twodquad::PROBE_RIGHT);
+        if(proj.size()) {
           minimal_basis.push_back(proj);
-          nminimal += proj.n_rows;
-          printf("Right-hand atom has %i orbitals for m = %i from l = %i\n",proj.n_rows,m,l);
+          nminimal += proj.rows();
+          printf("Right-hand atom has %i orbitals for m = %i from l = %i\n",(int) proj.rows(),m,l);
           fflush(stdout);
         }
       }
 
-      printf("We have %i minimal basis functions for m = %i\n",nminimal, m);
+      printf("We have %i minimal basis functions for m = %i\n",(int) nminimal, m);
       fflush(stdout);
       if(nminimal>0) {
-        minimal_basis_orbitals.zeros(nminimal, minimal_basis[0].n_cols);
-        size_t ioff=0;
+        minimal_basis_orbitals = helfem::Matrix::Zero(nminimal, minimal_basis[0].cols());
+        Eigen::Index ioff=0;
         for(size_t i = 0; i < minimal_basis.size();i++) {
-          minimal_basis_orbitals.rows(ioff, ioff+minimal_basis[i].n_rows-1) = minimal_basis[i];
-          ioff += minimal_basis[i].n_rows;
+          minimal_basis_orbitals.middleRows(ioff, minimal_basis[i].rows()) = minimal_basis[i];
+          ioff += minimal_basis[i].rows();
         }
       }
     }
 
-    // Inverse overlap matrix
-    std::function<arma::mat(const arma::mat & S)> form_Sinv = [](const arma::mat & S) {
-      arma::vec Sval;
-      arma::mat Svec;
-      arma::eig_sym(Sval, Svec, S);
+    // Inverse overlap matrix. Diagonalise the (real symmetric) overlap and
+    // rebuild from the well-conditioned eigenpairs: Sinv = sum_i (1/l_i) v_i v_i^T.
+    // This form is invariant under eigenvector sign, so no sign convention matters.
+    std::function<helfem::Matrix(const helfem::Matrix & S)> form_Sinv = [](const helfem::Matrix & S) {
+      Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(S);
+      const helfem::Vector & Sval = es.eigenvalues();
+      const helfem::Matrix & Svec = es.eigenvectors();
       // Find well-conditioned part
-      arma::uvec idx(arma::find(Sval>=1e-6));
-      arma::mat result =  Svec.cols(idx) * arma::diagmat(arma::pow(Sval(idx), -1.0)) * Svec.cols(idx).t();
+      helfem::Matrix result = helfem::Matrix::Zero(S.rows(), S.cols());
+      for(Eigen::Index i=0;i<Sval.size();i++) {
+        if(Sval(i)>=1e-6)
+          result += (1.0/Sval(i)) * Svec.col(i) * Svec.col(i).transpose();
+      }
       return result;
     };
 
     // Minimal-basis overlap and inverse overlap matrices
-    arma::mat Smin, Smin_inv;
+    helfem::Matrix Smin, Smin_inv;
     if(nminimal>0) {
-      Smin = minimal_basis_orbitals*Sinv*minimal_basis_orbitals.t();
+      Smin = minimal_basis_orbitals*Sinv*minimal_basis_orbitals.transpose();
 
-      arma::mat dSmin = Smin - arma::eye<arma::mat>(Smin.n_rows, Smin.n_cols);
+      helfem::Matrix dSmin = Smin - helfem::Matrix::Identity(Smin.rows(), Smin.cols());
       printf("Minimal basis overlap matrix for m = %i, difference from orthonormality\n",m);
-      dSmin.print();
+      helfem::io::print_matrix("", dSmin);
       fflush(stdout);
 
       Smin_inv = form_Sinv(Smin);
@@ -152,17 +160,17 @@ int main(int argc, char **argv) {
     // Compute the projection of the wave function on the minimal basis
     double alpha_proj = 0.0, beta_proj = 0.0;
 
-    arma::mat alpha_minbas;
+    helfem::Matrix alpha_minbas;
     if(nminimal>0) {
-      alpha_minbas = ((minimal_basis_orbitals * Ca.cols(0,nela-1)).t());
-      alpha_proj = arma::trace(alpha_minbas * Smin_inv * alpha_minbas.t());
+      alpha_minbas = (minimal_basis_orbitals * Ca.leftCols(nela)).transpose();
+      alpha_proj = (alpha_minbas * Smin_inv * alpha_minbas.transpose()).trace();
       printf("Projection of m = %i alpha orbitals on minimal basis is % .6f\n", m, alpha_proj);
       fflush(stdout);
     }
-    arma::mat beta_minbas;
+    helfem::Matrix beta_minbas;
     if(nelb>0 && nminimal>0) {
-      beta_minbas = ((minimal_basis_orbitals * Cb.cols(0,nelb-1)).t());
-      beta_proj = arma::trace(beta_minbas * Smin_inv * beta_minbas.t());
+      beta_minbas = (minimal_basis_orbitals * Cb.leftCols(nelb)).transpose();
+      beta_proj = (beta_minbas * Smin_inv * beta_minbas.transpose()).trace();
       printf("Projection of m = %i beta  orbitals on minimal basis is % .6f\n", m, beta_proj);
       fflush(stdout);
     }
@@ -172,11 +180,11 @@ int main(int argc, char **argv) {
       static const helfem::diatomic::twodquad::probe_t probes[]={helfem::diatomic::twodquad::PROBE_LEFT, helfem::diatomic::twodquad::PROBE_MIDDLE, helfem::diatomic::twodquad::PROBE_RIGHT};
       for(int icen=0;icen<3;icen++) {
         // Importance profile (no minimal basis): expn, alpha, beta
-        arma::mat I0(3, expn.n_elem);
+        helfem::Matrix I0 = helfem::Matrix::Zero(3, expn.size());
         // Importance profile: expn, alpha, beta
-        arma::mat I(3, expn.n_elem);
+        helfem::Matrix I = helfem::Matrix::Zero(3, expn.size());
         // Finite element basis set completeness: expn, Y
-        arma::mat Y(2, expn.n_elem, arma::fill::zeros);
+        helfem::Matrix Y = helfem::Matrix::Zero(2, expn.size());
 
         std::string lcao;
         if(iprobe==0) {
@@ -187,89 +195,87 @@ int main(int argc, char **argv) {
           throw std::logic_error("Unknown probe\n");
 
         // Loop over batches of exponents
-        arma::uword exponent_batch_size = 200;
-        for(arma::uword exponent_batch = 0; exponent_batch <= expn.n_elem/exponent_batch_size; exponent_batch++) {
-          arma::uword istart = exponent_batch_size*exponent_batch;
-          arma::uword iend = std::min(exponent_batch_size*(exponent_batch+1), expn.n_elem) - 1;
+        Eigen::Index exponent_batch_size = 200;
+        for(Eigen::Index exponent_batch = 0; exponent_batch <= expn.size()/exponent_batch_size; exponent_batch++) {
+          Eigen::Index istart = exponent_batch_size*exponent_batch;
+          Eigen::Index iend = std::min(exponent_batch_size*(exponent_batch+1), expn.size()) - 1;
           if(istart>iend)
             break;
-          arma::vec expbatch(expn.subvec(istart, iend));
+          helfem::Vector expbatch(expn.segment(istart, iend-istart+1));
 
           // LCAO projection <\alpha|FEM>
-          arma::mat Plcao;
+          helfem::Matrix Plcao;
           if(iprobe==0) {
-            Plcao=helfem::to_arma(qgrid.gto_projection(l, m, helfem::to_eigen(expbatch), probes[icen]));
+            Plcao=qgrid.gto_projection(l, m, expbatch, probes[icen]);
           } else if(iprobe==1) {
-            Plcao=helfem::to_arma(qgrid.sto_projection(l, m, helfem::to_eigen(expbatch), probes[icen]));
+            Plcao=qgrid.sto_projection(l, m, expbatch, probes[icen]);
           } else
             throw std::logic_error("Unknown probe\n");
 
           // Completeness profile
-          arma::vec Ysub = arma::diagvec(Plcao*Sinv*arma::trans(Plcao));
+          helfem::Vector Ysub = (Plcao*Sinv*Plcao.transpose()).diagonal();
 
-          arma::mat Plcao_t(Plcao.t());
+          helfem::Matrix Plcao_t(Plcao.transpose());
 
           // Projections onto occupied orbitals
-          arma::mat Pa(Ca.cols(0,nela-1).t()*Plcao_t);
-          arma::mat Pa_t = Pa.t();
-          arma::mat Pb;
+          helfem::Matrix Pa(Ca.leftCols(nela).transpose()*Plcao_t);
+          helfem::Matrix Pb;
           if(nelb)
-            Pb = Cb.cols(0,nelb-1).t()*Plcao_t;
-          arma::mat Pb_t = Pb.t();
+            Pb = Cb.leftCols(nelb).transpose()*Plcao_t;
 
           // Compute <\alpha|minimal basis>
-          arma::mat lcao_overlap_minbas;
+          helfem::Matrix lcao_overlap_minbas;
           if(nminimal>0)
-            lcao_overlap_minbas = minimal_basis_orbitals*Sinv*arma::trans(Plcao);
+            lcao_overlap_minbas = minimal_basis_orbitals*Sinv*Plcao.transpose();
 
           // Compute the importance profile
 #pragma omp parallel for
-          for(size_t ix=0;ix<expbatch.n_elem; ix++) {
+          for(Eigen::Index ix=0;ix<expbatch.size(); ix++) {
             // Output index
-            size_t iout = istart+ix;
+            Eigen::Index iout = istart+ix;
 
             // Importance profile without minimal basis
             I0(0, iout) = expbatch(ix);
-            I0(1, iout) = arma::dot(Pa.col(ix), Pa.col(ix));
+            I0(1, iout) = Pa.col(ix).squaredNorm();
             if(nelb)
-              I0(2, iout) = arma::dot(Pb.col(ix), Pb.col(ix));
+              I0(2, iout) = Pb.col(ix).squaredNorm();
 
             // Inverse of padded overlap matrix
-            arma::mat Spad_inv;
+            helfem::Matrix Spad_inv;
             if(nminimal>0) {
               // Construct padded overlap matrix:
-              arma::mat Spad(Smin.n_rows+1, Smin.n_cols+1, arma::fill::zeros);
+              helfem::Matrix Spad = helfem::Matrix::Zero(Smin.rows()+1, Smin.cols()+1);
               // minimal basis
-              Spad.submat(0,0,Smin.n_rows-1,Smin.n_cols-1) = Smin;
+              Spad.topLeftCorner(Smin.rows(), Smin.cols()) = Smin;
               // minimal basis - added function
-              Spad.submat(0,Smin.n_cols,Smin.n_rows-1,Smin.n_cols) = lcao_overlap_minbas.col(ix);
-              Spad.submat(Smin.n_cols,0,Smin.n_cols,Smin.n_rows-1) = lcao_overlap_minbas.col(ix).t();
+              Spad.block(0, Smin.cols(), Smin.rows(), 1) = lcao_overlap_minbas.col(ix);
+              Spad.block(Smin.cols(), 0, 1, Smin.rows()) = lcao_overlap_minbas.col(ix).transpose();
               // added function - added function
-              Spad(Smin.n_rows, Smin.n_cols) = arma::as_scalar(Plcao_t.col(ix).t() * Sinv * Plcao_t.col(ix));
+              Spad(Smin.rows(), Smin.cols()) = Plcao_t.col(ix).dot(Sinv * Plcao_t.col(ix));
               // Inverse
               Spad_inv = form_Sinv(Spad);
 
               // Overlap of the orbitals with the scanning function
-              arma::mat alpha_pad(alpha_minbas.n_rows, alpha_minbas.n_cols+1);
-              alpha_pad.submat(0,0,alpha_minbas.n_rows-1,alpha_minbas.n_cols-1) = alpha_minbas;
-              alpha_pad.col(alpha_minbas.n_cols) = Pa.col(ix);
+              helfem::Matrix alpha_pad(alpha_minbas.rows(), alpha_minbas.cols()+1);
+              alpha_pad.leftCols(alpha_minbas.cols()) = alpha_minbas;
+              alpha_pad.col(alpha_minbas.cols()) = Pa.col(ix);
 
-              double alpha_padproj = arma::trace(alpha_pad * Spad_inv * alpha_pad.t());
+              double alpha_padproj = (alpha_pad * Spad_inv * alpha_pad.transpose()).trace();
               I(0, iout) = expbatch(ix);
               I(1, iout) = alpha_padproj - alpha_proj;
             } else {
-              for(size_t ir=0;ir<I.n_rows;ir++)
+              for(Eigen::Index ir=0;ir<I.rows();ir++)
                 I(ir, iout) = I0(ir, iout);
             }
 
             //printf("Projection of alpha orbitals on padded basis %e is % .6f\n", expbatch(ix), alpha_padproj);
             //printf("Projection increment is  % .e\n", alpha_padproj - alpha_proj);
             if(nelb>0 && nminimal>0) {
-              arma::mat beta_pad(beta_minbas.n_rows, beta_minbas.n_cols+1);
-              beta_pad.submat(0,0,beta_minbas.n_rows-1,beta_minbas.n_cols-1) = beta_minbas;
-              beta_pad.col(beta_minbas.n_cols) = Pb.col(ix);
+              helfem::Matrix beta_pad(beta_minbas.rows(), beta_minbas.cols()+1);
+              beta_pad.leftCols(beta_minbas.cols()) = beta_minbas;
+              beta_pad.col(beta_minbas.cols()) = Pb.col(ix);
 
-              double beta_padproj = arma::trace(beta_pad * Spad_inv * beta_pad.t());
+              double beta_padproj = (beta_pad * Spad_inv * beta_pad.transpose()).trace();
               I(2, iout) = beta_padproj - beta_proj;
               //printf("Projection of beta orbitals on padded basis %e is % .6f\n", expbatch(ix), beta_padproj);
               //printf("Projection increment is  %e\n", beta_padproj-beta_proj);
@@ -285,22 +291,19 @@ int main(int argc, char **argv) {
         {
           std::ostringstream oss;
           oss << "importance0_" << lcao << "_" << indices[icen] << "_" << l << "_" << m << ".dat";
-          I0 = I0.t();
-          I0.save(oss.str(),arma::raw_ascii);
+          helfem::io::write_raw_ascii(oss.str(), helfem::Matrix(I0.transpose()));
         }
         {
           std::ostringstream oss;
           oss << "importance_" << lcao << "_" << indices[icen] << "_" << l << "_" << m << ".dat";
-          I = I.t();
-          I.save(oss.str(),arma::raw_ascii);
+          helfem::io::write_raw_ascii(oss.str(), helfem::Matrix(I.transpose()));
         }
 
         // Save completeness profile
         {
           std::ostringstream oss;
           oss << "completeness_" << lcao << "_" << indices[icen] << "_" << l << "_" << m << ".dat";
-          Y = Y.t();
-          Y.save(oss.str(),arma::raw_ascii);
+          helfem::io::write_raw_ascii(oss.str(), helfem::Matrix(Y.transpose()));
         }
 
         /*
