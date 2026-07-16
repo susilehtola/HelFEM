@@ -49,25 +49,15 @@ endif()
 #
 # - HELFEM_PYTHON: build the pybind11 `_helfem` module.
 #
-# - HELFEM_ILP64: use 64-bit BLAS/LAPACK integers (ILP64) and tell
-#   Armadillo to match (ARMA_BLAS_LONG). ON reproduces the large-matrix
-#   configuration HelFEM has historically shipped and requires an ILP64
-#   BLAS (e.g. flexiblas64, or MKL/OpenBLAS built ILP64). Turn OFF on
-#   platforms whose only BLAS is LP64 -- notably macOS Accelerate -- to
-#   link an ordinary 32-bit-integer BLAS. ARMA_64BIT_WORD (64-bit element
-#   indexing) is set either way, so large matrices work in both modes;
-#   only the BLAS call ABI differs. A mismatch between this and the BLAS
-#   actually linked silently corrupts the heap inside LAPACK (surfaces as
-#   "free(): invalid next size"), so keep it consistent with your BLAS.
-#
-# - HELFEM_BLAS_PROVIDED_EXTERNALLY: do not find or link BLAS/LAPACK here;
-#   a parent project provides them (libatomscf embedding its own MKL, say).
-#   Sets -DARMA_DONT_USE_WRAPPER so Armadillo resolves BLAS symbols at the
-#   parent's final link step. The parent must match HELFEM_ILP64.
+# - HELFEM_EIGEN_BLAS: route Eigen's dense products through an external
+#   BLAS (see the option definition below). Off by default -- the linear
+#   algebra is Eigen's own header-only kernels and no BLAS is needed at
+#   all. (There is no ILP64 knob any more: Eigen indexes with a 64-bit
+#   type unconditionally, and the optional BLAS backend requires a 32-bit
+#   LP64 BLAS.)
 option(USE_OPENMP "Build the OpenMP-parallel version" ON)
 option(HELFEM_BINARIES "Build the HelFEM executables under src/" ON)
 option(HELFEM_PYTHON "Build the HelFEM Python (pybind11) bindings" OFF)
-option(HELFEM_ILP64 "Use 64-bit-integer (ILP64) BLAS/LAPACK" ON)
 
 # Quad precision (_Float128, 113-bit mantissa, ~34 decimal digits).
 #
@@ -89,78 +79,37 @@ else()
   set(HELFEM_FLOAT128_DEFAULT OFF)
 endif()
 option(HELFEM_FLOAT128 "Instantiate the templated core at _Float128 (needs C++23)" ${HELFEM_FLOAT128_DEFAULT})
-option(HELFEM_BLAS_PROVIDED_EXTERNALLY
-       "Skip BLAS/LAPACK discovery; parent project provides them" OFF)
-# Route Eigen's dense products (GEMM/GEMV/SYRK/...) through the same
-# external BLAS Armadillo uses, via EIGEN_USE_BLAS. Eigen- and
-# Armadillo-computed dense products then agree bit-for-bit (both hit the
-# same BLAS), and large products speed up. This requires a 32-bit-integer
-# (LP64) BLAS: stock Eigen's BLAS backend is int32-only, and we do NOT
-# patch Eigen to change that. So it is incompatible with HELFEM_ILP64 --
-# hence the default follows the integer width (on for LP64, off for ILP64),
-# and enabling it under ILP64 is a hard error. Off => Eigen uses its own
-# kernels (the historical behaviour).
-if(HELFEM_ILP64 OR HELFEM_BLAS_PROVIDED_EXTERNALLY)
-  set(HELFEM_EIGEN_BLAS_DEFAULT OFF)
-else()
-  set(HELFEM_EIGEN_BLAS_DEFAULT ON)
-endif()
+# Route Eigen's dense products (GEMM/GEMV/SYRK/...) through an external
+# BLAS via EIGEN_USE_BLAS, instead of Eigen's own kernels. A speed-up for
+# large dense products, and it makes Eigen's results reproduce an external
+# BLAS bit-for-bit. It requires a 32-bit-integer (LP64) BLAS -- stock
+# Eigen's BLAS backend is int32-only and we do NOT patch Eigen -- so the
+# BLAS found below is an ordinary LP64 one (e.g. libflexiblas, reference
+# BLAS, LP64 OpenBLAS/MKL). Off by default: the default build needs no BLAS
+# at all, since Eigen is header-only.
 option(HELFEM_EIGEN_BLAS
-       "Route Eigen dense products through the external BLAS (needs an LP64 BLAS)"
-       ${HELFEM_EIGEN_BLAS_DEFAULT})
-if(HELFEM_EIGEN_BLAS AND HELFEM_ILP64)
-    message(FATAL_ERROR
-        "HELFEM_EIGEN_BLAS needs a 32-bit-integer (LP64) BLAS, but HELFEM_ILP64 "
-        "is ON. Eigen's BLAS backend is int32-only and HelFEM does not patch "
-        "Eigen. Reconfigure with -DHELFEM_ILP64=OFF to use it, or leave "
-        "HELFEM_EIGEN_BLAS OFF to keep Eigen's own kernels under ILP64.")
-endif()
+       "Route Eigen dense products through an external LP64 BLAS (EIGEN_USE_BLAS)"
+       OFF)
 
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
 
-# Armadillo -- headers (and, on most installs, an `armadillo` imported
-# target). Version >= 9 is required.
-find_package(Armadillo 9 REQUIRED)
-message(STATUS "Found Armadillo ${ARMADILLO_VERSION_STRING}")
-
-# One INTERFACE target carries everything an Armadillo-consuming HelFEM
-# target needs: the headers, the BLAS/LAPACK linkage (or the
-# no-wrapper macro when the parent provides BLAS), and the integer-width
-# definitions. libhelfem and helfem-common link it PUBLIC so both the
-# in-tree build and downstream consumers inherit a consistent ABI.
-add_library(helfem_arma INTERFACE)
-add_library(helfem::arma ALIAS helfem_arma)
-target_include_directories(helfem_arma INTERFACE "${ARMADILLO_INCLUDE_DIRS}")
-target_compile_definitions(helfem_arma INTERFACE ARMA_64BIT_WORD)
-if(HELFEM_ILP64)
-    target_compile_definitions(helfem_arma INTERFACE ARMA_BLAS_LONG)
-endif()
-
-if(HELFEM_BLAS_PROVIDED_EXTERNALLY)
-    # Parent resolves BLAS symbols at its final link; do not wrap through
-    # libarmadillo and do not look for a BLAS here. Armadillo is used
-    # header-only (the wrapper2_* shims are skipped).
-    target_compile_definitions(helfem_arma INTERFACE ARMA_DONT_USE_WRAPPER)
-    message(STATUS "HELFEM_BLAS_PROVIDED_EXTERNALLY=ON: Armadillo headers only, no BLAS/LAPACK linked")
-else()
-    # Request the integer width the rest of the build assumes before
-    # locating BLAS, so e.g. flexiblas64 is preferred under ILP64.
-    if(HELFEM_ILP64)
-        set(BLA_SIZEOF_INTEGER 8)
-    endif()
+# Optional external BLAS for Eigen's dense products. The linear algebra is
+# Eigen (header-only), so the default build links no BLAS/LAPACK at all.
+# When HELFEM_EIGEN_BLAS is on, this INTERFACE target puts an LP64
+# BLAS/LAPACK on the link line to back EIGEN_USE_BLAS; otherwise it is
+# empty. libhelfem links it PUBLIC so consumers inherit the same linkage.
+add_library(helfem_blas INTERFACE)
+add_library(helfem::blas ALIAS helfem_blas)
+if(HELFEM_EIGEN_BLAS)
     find_package(BLAS REQUIRED)
     find_package(LAPACK REQUIRED)
-    # libarmadillo provides the wrapper2_* BLAS/LAPACK shims that
-    # Armadillo's default (wrapper) build calls; the actual BLAS/LAPACK
-    # back them. Both must be on the link line.
-    target_link_libraries(helfem_arma INTERFACE
-        ${ARMADILLO_LIBRARIES} BLAS::BLAS LAPACK::LAPACK)
-    message(STATUS "BLAS: ${BLAS_LIBRARIES}")
+    target_link_libraries(helfem_blas INTERFACE BLAS::BLAS LAPACK::LAPACK)
+    message(STATUS "BLAS (for EIGEN_USE_BLAS): ${BLAS_LIBRARIES}")
 endif()
 
-install(TARGETS helfem_arma EXPORT helfemTargets)
+install(TARGETS helfem_blas EXPORT helfemTargets)
 
 # Eigen3 (>= 3.4) -- header-only. Prefer a system install, else fetch
 # v3.4.0. The range form `3.4...99` accepts any >= 3.4 (a bare `3.4`
@@ -186,10 +135,9 @@ endif()
 # Turn on Eigen's BLAS backend for EVERY translation unit at once. This
 # MUST be global: if some TUs saw EIGEN_USE_BLAS and others did not, their
 # Eigen product templates would differ and silently violate the ODR. The
-# BLAS/LAPACK libraries are already on the link line via helfem::arma, so
-# no extra linkage is needed -- only the define. Placed before
-# add_subdirectory() so all in-tree targets inherit it. Guarded above to be
-# LP64-only, so stock Eigen's int32 BLAS backend matches the linked BLAS.
+# BLAS/LAPACK come in via the helfem::blas target above; here we only add
+# the define. Placed before add_subdirectory() so all in-tree targets
+# inherit it. LP64-only, so stock Eigen's int32 BLAS backend matches.
 if(HELFEM_EIGEN_BLAS)
     add_compile_definitions(EIGEN_USE_BLAS)
     message(STATUS "Eigen dense products routed through the external BLAS (EIGEN_USE_BLAS, LP64)")

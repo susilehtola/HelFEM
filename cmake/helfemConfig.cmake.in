@@ -6,11 +6,10 @@
 #   target_link_libraries(mytarget PRIVATE helfem::helfem)
 #
 # This exposes the IMPORTED target `helfem::helfem` and chains
-# helfem::helfem-common, helfem::legendre, helfem::lib1dfem, helfem::arma
-# (Armadillo + BLAS/LAPACK + integer-width defs) and their transitive
-# dependencies. Consumer code needs no manual -I<armadillo> or -DARMA_*
-# flags -- they are propagated through the exported targets' INTERFACE_*
-# properties.
+# helfem::helfem-common, helfem::legendre, helfem::lib1dfem, helfem::blas
+# (an external LP64 BLAS/LAPACK, only when the build used EIGEN_USE_BLAS)
+# and their transitive dependencies. The linear algebra is Eigen
+# (header-only), so a default build pulls in no BLAS at all.
 
 include(CMakeFindDependencyMacro)
 
@@ -28,14 +27,10 @@ if(@USE_OPENMP@)
     find_dependency(OpenMP COMPONENTS CXX)
 endif()
 
-# Armadillo headers are a PUBLIC dependency (some public headers include
-# <armadillo>); BLAS/LAPACK back the eigensolves. Match the integer
-# width HelFEM was built with before locating BLAS.
-find_dependency(Armadillo 9)
-if(NOT @HELFEM_BLAS_PROVIDED_EXTERNALLY@)
-    if(@HELFEM_ILP64@)
-        set(BLA_SIZEOF_INTEGER 8)
-    endif()
+# An external LP64 BLAS/LAPACK is a dependency only when HelFEM was built
+# with HELFEM_EIGEN_BLAS (to back EIGEN_USE_BLAS). Otherwise the linear
+# algebra is Eigen's own kernels and no BLAS is needed.
+if(@HELFEM_EIGEN_BLAS@)
     find_dependency(BLAS)
     find_dependency(LAPACK)
 endif()
@@ -49,7 +44,7 @@ if(@HELFEM_HAS_HDF5@)
 endif()
 
 # Bring in the imported targets: helfem::helfem, helfem::helfem-common,
-# helfem::legendre, helfem::lib1dfem, helfem::arma (+ helfem::hdf5).
+# helfem::legendre, helfem::lib1dfem, helfem::blas (+ helfem::hdf5).
 include("${CMAKE_CURRENT_LIST_DIR}/helfemTargets.cmake")
 
 # In-tree, the atomic FE code (TwoDBasis, DFTGrid, gaunt, ... everything
