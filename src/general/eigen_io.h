@@ -16,6 +16,7 @@
 #define HELFEM_EIGEN_IO_H
 
 #include "Matrix.h"
+#include <charconv>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -31,6 +32,36 @@
 
 namespace helfem {
   namespace io {
+
+    /// Format a single scalar of type T in scientific notation, with the
+    /// precision that follows the scalar type -- exactly the max_digits10(T)-1
+    /// policy of write_raw_ascii / print_matrix below. std::to_chars with
+    /// chars_format::scientific and precision p prints p+1 significant figures,
+    /// and max_digits10 is the count needed to round-trip T, so
+    /// precision = max_digits10(T)-1 shows exactly enough digits to reconstruct
+    /// the value and no more: 16 for double, ~20 for long double, ~35 for
+    /// _Float128.
+    ///
+    /// The value is converted AT ITS OWN precision -- there is NO cast to
+    /// double, so a long double / _Float128 diagnostic actually displays its
+    /// extra digits instead of being truncated by printf("%e",(double)x).
+    ///
+    /// std::to_chars is used rather than an ostringstream because libstdc++'s
+    /// operator<< is ambiguous for _Float128 (it converts equally well to
+    /// float/double/long double); the matrix dumpers below stream T directly
+    /// only because they are never instantiated at _Float128. to_chars is pure
+    /// standard library (C++17 for double/long double, C++23 for float128),
+    /// so no extra dependency, and it round-trips all three types exactly.
+    template <typename T>
+    std::string fmt_sci(const T & x) {
+      constexpr int prec = std::numeric_limits<T>::max_digits10 - 1;
+      // Longest output is "-d.<prec digits>e-NNNN": sign + digit + '.' + prec +
+      // 'e' + sign + up-to-4-digit exponent. max_digits10 + 16 is ample.
+      char buf[std::numeric_limits<T>::max_digits10 + 16];
+      const auto res = std::to_chars(buf, buf + sizeof(buf), x,
+                                     std::chars_format::scientific, prec);
+      return std::string(buf, res.ptr);
+    }
 
     namespace detail {
       /// One matrix row, as arma::raw_ascii writes it: each entry
