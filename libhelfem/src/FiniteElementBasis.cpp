@@ -16,6 +16,9 @@
 #include "FiniteElementBasis.h"
 #include <cfloat>
 #include <iostream>
+// Scalar formatter that prints a T value at its own precision (no truncation
+// to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.
+#include "../../src/general/eigen_io.h"
 
 namespace helfem {
   namespace polynomial_basis {
@@ -114,15 +117,13 @@ namespace helfem {
           std::cout << "lh values:\n" << lh.template cast<double>()   << "\n";
           std::cout << "rh values:\n" << rh.template cast<double>()   << "\n";
           std::cout << "difference:\n" << diff.template cast<double>() << "\n";
-          // printf is a double-only boundary: %e consumes a double, so a
-          // T = long double argument is undefined behaviour (it printed
-          // garbage denormals). Cast here and nowhere else.
-          printf("Difference norm %e\n", (double) dnorm(iel));
+          // Format the T norm at its own precision (no truncation to double).
+          printf("Difference norm %s\n", helfem::io::fmt_sci(dnorm(iel)).c_str());
         }
       }
       Eigen::Index imax;
       dnorm.maxCoeff(&imax);
-      printf("Finite element basis set max discontinuity %e between elements %i and %i\n",(double) dnorm(imax),(int) imax,(int) imax+1);
+      printf("Finite element basis set max discontinuity %s between elements %i and %i\n",helfem::io::fmt_sci(dnorm(imax)).c_str(),(int) imax,(int) imax+1);
       fflush(stdout);
       if(dnorm(imax) > sqrt(DBL_EPSILON)) {
         throw std::logic_error("Finite element basis set is not continuous\n");

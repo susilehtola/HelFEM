@@ -14,6 +14,9 @@
  */
 #include "utils.h"
 #include <lib1dfem/math.h>
+// Scalar formatter that prints a T value at its own precision (no truncation
+// to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.
+#include "../../src/general/eigen_io.h"
 #include <Eigen/Cholesky>
 #include <Eigen/Eigenvalues>
 #include <Eigen/LU>
@@ -139,10 +142,13 @@ namespace helfem {
           throw std::logic_error("Diagonalization of overlap matrix failed\n");
         const helfem::Vec<T> Sval = es.eigenvalues();
         const helfem::Mat<T> Svec = es.eigenvectors();
-        // printf has no conversion for T; go through double at the I/O
-        // boundary only (the arithmetic above stays in T).
-        printf("Smallest eigenvalue of overlap matrix is % e, condition number %e\n",
-               (double) Sval(0), (double) (Sval(Sval.size() - 1) / Sval(0)));
+        // Format the T eigenvalues at their own precision (no truncation to
+        // double). Sval(0) is the smallest eigenvalue of the (SPD) overlap
+        // matrix and hence positive, so the leading " " reproduces the old
+        // "% e" space flag exactly.
+        printf("Smallest eigenvalue of overlap matrix is %s, condition number %s\n",
+               (" " + helfem::io::fmt_sci(Sval(0))).c_str(),
+               helfem::io::fmt_sci(Sval(Sval.size() - 1) / Sval(0)).c_str());
         Sinvh = Svec * inv_sqrt<T>(Sval).asDiagonal() * Svec.transpose();
       }
 

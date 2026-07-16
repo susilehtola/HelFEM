@@ -15,6 +15,9 @@
 #include "RegularizedNucleus.h"
 #include "Matrix.h"
 #include "utils.h"
+// Scalar formatter that prints a T value at its own precision (no truncation
+// to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.
+#include "../../src/general/eigen_io.h"
 #include <lib1dfem/chebyshev.h>
 #include <cmath>
 #include <functional>
@@ -229,8 +232,8 @@ namespace helfem {
       // Number of quadrature points
       int N = 100;
       b = find_b<T>(a,N);
-      // printf is a double-only boundary; cast there and nowhere else.
-      printf("a = %.15e yields b = %.15e\n",(double) a,(double) b);
+      // Format the T values at their own precision (no truncation to double).
+      printf("a = %s yields b = %s\n",helfem::io::fmt_sci(a).c_str(),helfem::io::fmt_sci(b).c_str());
     }
 
     template class RegularizedNucleusT<double>;

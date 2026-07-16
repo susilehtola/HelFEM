@@ -1,12 +1,14 @@
 #include "model_potential.h"
 #include "sap.h"
 #include "gsz.h"
+#include "eigen_io.h"
 #include <cfloat>
 
 namespace helfem {
   namespace modelpotential {
-    // printf has no conversion for a general T, so the diagnostics go through
-    // double at the I/O boundary only; the potential itself is built in T.
+    // printf has no conversion for a general T, so the T-typed radius is
+    // formatted with helfem::io::fmt_sci (scientific, at T's own precision)
+    // and spliced in as %s -- no truncation to double at the I/O boundary.
     template <typename T>
     ModelPotentialT<T> * get_nuclear_model(nuclear_model_t model, int Z, T Rrms) {
       switch(model) {
@@ -14,16 +16,16 @@ namespace helfem {
         printf("Getting point nucleus with Z=%i\n",Z);
         return new PointNucleusT<T>(Z);
       case(GAUSSIAN_NUCLEUS):
-        printf("Getting Gaussian nucleus with Z=%i Rrms=%e\n",Z,(double) Rrms);
+        printf("Getting Gaussian nucleus with Z=%i Rrms=%s\n",Z,helfem::io::fmt_sci(Rrms).c_str());
         return new GaussianNucleusT<T>(Z,Rrms);
       case(HOLLOW_NUCLEUS):
-        printf("Getting hollow spherical nucleus with Z=%i Rrms=%e\n",Z,(double) Rrms);
+        printf("Getting hollow spherical nucleus with Z=%i Rrms=%s\n",Z,helfem::io::fmt_sci(Rrms).c_str());
         return new HollowNucleusT<T>(Z,Rrms);
       case(SPHERICAL_NUCLEUS):
-        printf("Getting uniformly charged spherical nucleus with Z=%i Rrms=%e\n",Z,(double) Rrms);
+        printf("Getting uniformly charged spherical nucleus with Z=%i Rrms=%s\n",Z,helfem::io::fmt_sci(Rrms).c_str());
         return new SphericalNucleusT<T>(Z,Rrms);
       case(REGULARIZED_NUCLEUS):
-        printf("Getting regularized nucleus with Z=%i a=%e\n",Z,(double) Rrms);
+        printf("Getting regularized nucleus with Z=%i a=%s\n",Z,helfem::io::fmt_sci(Rrms).c_str());
         return new RegularizedNucleusT<T>(Z,Rrms);
       case(NOSUCH_NUCLEUS):
         throw std::logic_error("No such nucleus!\n");

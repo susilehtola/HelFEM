@@ -18,6 +18,9 @@
 #include "utils.h"
 #include <lib1dfem/chebyshev.h>
 #include <limits>
+// Scalar formatter that prints a T value at its own precision (no truncation
+// to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.
+#include "../../src/general/eigen_io.h"
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -34,11 +37,11 @@ namespace helfem {
       FEMRadialBasisT<T>::FEMRadialBasisT(const polynomial_basis::FiniteElementBasisT<T> & fem_, int n_quad) : fem(fem_) {
         helfem::lib1dfem::chebyshev::chebyshev<T>(n_quad, xq, wq);
         for (Eigen::Index i = 0; i < xq.size(); ++i) {
-          // printf is a double-only boundary; cast there and nowhere else.
+          // Format the T value at its own precision (no truncation to double).
           if (!std::isfinite(xq(i)))
-            printf("xq[%lld]=%e\n", (long long) i, (double) xq(i));
+            printf("xq[%lld]=%s\n", (long long) i, helfem::io::fmt_sci(xq(i)).c_str());
           if (!std::isfinite(wq(i)))
-            printf("wq[%lld]=%e\n", (long long) i, (double) wq(i));
+            printf("wq[%lld]=%s\n", (long long) i, helfem::io::fmt_sci(wq(i)).c_str());
         }
       }
 
@@ -386,7 +389,7 @@ namespace helfem {
 	r_0 = std::abs(r_0);
 
 	if(iconf==1) {
-          printf("Polynomial confinement, r_0 = %e N = %i shift = %e \n",(double) r_0,N,(double) shift_pot);
+          printf("Polynomial confinement, r_0 = %s N = %i shift = %s \n",helfem::io::fmt_sci(r_0).c_str(),N,helfem::io::fmt_sci(shift_pot).c_str());
 	  if(N<0) {
 	    if(shift_pot != T(0))
 	      throw std::logic_error("Cannot have a divergent potential with a shift!\n");
@@ -396,7 +399,7 @@ namespace helfem {
 	  }
 
 	} else if(iconf==2) {
-          printf("Exponential confinement, r_0 = %e N = %i shift = %e \n",(double) r_0,N,(double) shift_pot);
+          printf("Exponential confinement, r_0 = %s N = %i shift = %s \n",helfem::io::fmt_sci(r_0).c_str(),N,helfem::io::fmt_sci(shift_pot).c_str());
 
 	  if(N<0)
 	    throw std::logic_error("Exponential confinement potential does not make sense with negative N!\n");
@@ -409,11 +412,11 @@ namespace helfem {
 	  if(V<0)
 	    throw std::logic_error("Cannot have attractive barrier!\n");
 
-          printf("Barrier confinement, V = %e shift = %e \n",(double) V,(double) shift_pot);
+          printf("Barrier confinement, V = %s shift = %s \n",helfem::io::fmt_sci(V).c_str(),helfem::io::fmt_sci(shift_pot).c_str());
 	  return barrier_confinement(iel, V, shift_pot);
 
 	} else if(iconf==4) {
-          printf("Junquera-type confinement, r_0 = %e N = %i V = %e shift = %e \n",(double) r_0,N,(double) V,(double) shift_pot);
+          printf("Junquera-type confinement, r_0 = %s N = %i V = %s shift = %s \n",helfem::io::fmt_sci(r_0).c_str(),N,helfem::io::fmt_sci(V).c_str(),helfem::io::fmt_sci(shift_pot).c_str());
 	  if(N<=0)
 	    throw std::logic_error("Junquera confinement potential requires N >= 1!");
 	  if(V<=0)
