@@ -132,9 +132,6 @@ target_link_libraries(gaunt_test helfem-common legendre)
 add_executable(sphtest general/sphtest.cpp)
 target_link_libraries(sphtest helfem-common legendre)
 
-add_executable(eigen_foundation_test general/eigen_foundation_test.cpp)
-target_link_libraries(eigen_foundation_test helfem)
-
 add_executable(harmonic harmonic/main.cpp)
 target_link_libraries(harmonic helfem-common legendre)
 

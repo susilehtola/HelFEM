@@ -47,7 +47,6 @@
 #include "dftgrid_purem.h"
 #include "twodquadrature.h"
 #include "../atomic/basis.h"
-#include <ArmaEigen.h>
 #include <Eigen/Eigenvalues>
 #include <cfloat>
 #include <climits>

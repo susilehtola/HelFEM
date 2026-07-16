@@ -20,7 +20,6 @@
 #include <xc.h>
 
 #include "dftgrid.h"
-#include <ArmaEigen.h>
 #include "../general/dftfuncs.h"
 // Angular quadrature
 #include "../general/angular.h"

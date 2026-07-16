@@ -15,7 +15,6 @@
 #ifndef ATOMIC_BASIS_H
 #define ATOMIC_BASIS_H
 
-#include <armadillo>
 #include "../general/model_potential.h"
 #include "../general/sap.h"
 #include <RadialBasis.h>

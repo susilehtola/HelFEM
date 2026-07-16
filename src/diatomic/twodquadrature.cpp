@@ -19,7 +19,6 @@
 #include "../general/model_potential.h"
 #include "../sadatom/scf.h"
 #include "utils.h"
-#include <ArmaEigen.h>
 #include <algorithm>
 #include <cmath>
 

@@ -14,7 +14,6 @@
  */
 #include "quadrature.h"
 #include "chebyshev.h"
-#include <ArmaEigen.h>
 #include <sstream>
 
 namespace helfem {

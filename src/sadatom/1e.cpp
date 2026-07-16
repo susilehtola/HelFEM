@@ -22,7 +22,6 @@
 #include "dftgrid.h"
 #include "../atomic/basis.h"
 #include "Matrix.h"
-#include "ArmaEigen.h"
 #include <Eigen/Eigenvalues>
 #include <cfloat>
 

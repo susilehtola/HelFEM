@@ -24,7 +24,6 @@
 #include <cassert>
 #include <cfloat>
 #include <helfem.h>
-#include <ArmaEigen.h>
 
 #ifdef _OPENMP
 #include <omp.h>

@@ -36,7 +36,6 @@
 #include "FiniteElementBasis.h"
 #include "RadialBasis.h"
 #include "PolynomialBasis.h"
-#include <ArmaEigen.h>
 #include <Eigen/Eigenvalues>
 #include <Eigen/SVD>
 #include <cstdio>

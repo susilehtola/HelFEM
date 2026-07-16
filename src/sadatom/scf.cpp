@@ -21,7 +21,6 @@
 
 #include "openorbitaloptimizer/scfsolver.hpp"
 
-#include <ArmaEigen.h>
 #include <Eigen/Eigenvalues>
 
 namespace helfem {
@@ -383,20 +382,17 @@ namespace helfem {
 
           // Per-l electron counts to renormalise into. Read from
           // checkpoint if present, else fall back to trace-preserving
-          // (no rescaling). Checkpoint stores integers as arma::imat --
-          // bridge to Eigen at this boundary.
+          // (no rescaling). Checkpoint stores integers as N x 1 matrices.
           Eigen::VectorXi per_l_a, per_l_b;
           if (loadchk.exist("sadatom_occs_a")) {
-            arma::imat tmp;
+            Eigen::MatrixXi tmp;
             loadchk.read("sadatom_occs_a", tmp);
-            per_l_a.resize(tmp.n_rows);
-            for (Eigen::Index i = 0; i < per_l_a.size(); ++i) per_l_a(i) = (int) tmp(i, 0);
+            per_l_a = tmp.col(0);
           }
           if (loadchk.exist("sadatom_occs_b")) {
-            arma::imat tmp;
+            Eigen::MatrixXi tmp;
             loadchk.read("sadatom_occs_b", tmp);
-            per_l_b.resize(tmp.n_rows);
-            for (Eigen::Index i = 0; i < per_l_b.size(); ++i) per_l_b(i) = (int) tmp(i, 0);
+            per_l_b = tmp.col(0);
           }
 
           for (size_t l = 0; l < nblock; ++l) {
@@ -507,9 +503,8 @@ namespace helfem {
             savechk.write(std::string("sadatom_Pal_") + std::to_string(l),
                           result.Pl_a[l]);
           {
-            // Checkpoint stores integers as arma::imat -- bridge at the
-            // HDF5 boundary.
-            arma::imat oa(result.occs_a.size(), 1);
+            // Checkpoint stores integers as N x 1 matrices.
+            Eigen::MatrixXi oa(result.occs_a.size(), 1);
             for (Eigen::Index i = 0; i < result.occs_a.size(); ++i) oa(i, 0) = result.occs_a(i);
             savechk.write("sadatom_occs_a", oa);
           }
@@ -517,7 +512,7 @@ namespace helfem {
             for (size_t l = 0; l < nblock; ++l)
               savechk.write(std::string("sadatom_Pbl_") + std::to_string(l),
                             result.Pl_b[l]);
-            arma::imat ob(result.occs_b.size(), 1);
+            Eigen::MatrixXi ob(result.occs_b.size(), 1);
             for (Eigen::Index i = 0; i < result.occs_b.size(); ++i) ob(i, 0) = result.occs_b(i);
             savechk.write("sadatom_occs_b", ob);
           }

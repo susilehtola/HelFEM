@@ -16,7 +16,6 @@
 #define ATOMIC_BASIS_NAORADIALBASIS_H
 
 #include "RadialBasis.h"
-#include "ArmaEigen.h"
 #include "CoulombExchangeFE.h"
 #include <memory>
 #include <sstream>

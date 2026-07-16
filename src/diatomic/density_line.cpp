@@ -19,7 +19,6 @@
 #include "utils.h"
 #include "basis.h"
 #include "Matrix.h"
-#include "ArmaEigen.h"
 #include <cfloat>
 #include <climits>
 #include <complex>
