@@ -32,11 +32,10 @@ cmake -B objdir -DCMAKE_PREFIX_PATH="/opt/libxc;$(brew --prefix)"
 
 **Key CMake options:**
 - `HELFEM_BINARIES=OFF` — build only `libhelfem` (skips the HDF5 and libxc requirements)
-- `HELFEM_ILP64` (default `ON`) — use 64-bit-integer (ILP64) BLAS/LAPACK and set `ARMA_BLAS_LONG` to match. Requires an ILP64 BLAS (flexiblas64, ILP64 MKL/OpenBLAS). Set **OFF** on platforms whose only BLAS is LP64 — notably **macOS Accelerate**. `ARMA_64BIT_WORD` (64-bit element indexing) is on either way; only the BLAS call ABI differs. A mismatch with the linked BLAS silently corrupts the heap (`free(): invalid next size`).
-- `HELFEM_BLAS_PROVIDED_EXTERNALLY=ON` — don't find/link BLAS/LAPACK; a parent project provides them (Armadillo used header-only via `-DARMA_DONT_USE_WRAPPER`). The parent must match `HELFEM_ILP64`.
+- `HELFEM_EIGEN_BLAS` (default `OFF`) — route Eigen's dense products (GEMM/GEMV/SYRK) through an external BLAS via `EIGEN_USE_BLAS`, instead of Eigen's own kernels. A speed-up for large dense products, and it makes Eigen reproduce that BLAS bit-for-bit. Requires a **32-bit-integer (LP64) BLAS** (stock Eigen's BLAS backend is int32-only and HelFEM does **not** patch Eigen). **Off by default, the build links no BLAS at all** — the linear algebra is header-only Eigen. There is no ILP64 knob: Eigen indexes with a 64-bit type unconditionally.
 - `USE_OPENMP` (default `ON`) — consumed as the `OpenMP::OpenMP_CXX` imported target. On **macOS**, AppleClang ships no OpenMP runtime; `brew install libomp` first (or configure with `-DUSE_OPENMP=OFF`).
 
-**Dependencies:** Armadillo ≥ 9, Eigen ≥ 3.4 (auto-fetched if absent), BLAS/LAPACK,
+**Dependencies:** Eigen ≥ 3.4 (auto-fetched if absent), BLAS/LAPACK (only when `HELFEM_EIGEN_BLAS=ON`),
 wignernj (auto-fetched), OpenOrbitalOptimizer (auto-fetched); binaries additionally
 need HDF5 (C++ interface) and libxc. The Legendre special functions are C++ (no
 Fortran compiler required).

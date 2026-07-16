@@ -75,12 +75,11 @@ if(HELFEM_FLOAT128)
 else()
   message(STATUS "Quad precision (_Float128) disabled (needs C++23); double and long double only")
 endif()
-# helfem::arma carries the Armadillo headers, the BLAS/LAPACK linkage
-# and the ARMA_64BIT_WORD / (ILP64) ARMA_BLAS_LONG definitions. It is
-# PUBLIC because some public headers still transitively include
-# <armadillo> (e.g. helfem.source.h -> utils::invh) and the integer
-# macros affect arma's ABI, so downstream consumers must inherit them.
-target_link_libraries(helfem PUBLIC helfem::arma)
+# helfem::blas carries an external LP64 BLAS/LAPACK on the link line when
+# HELFEM_EIGEN_BLAS is on (to back EIGEN_USE_BLAS), and is empty otherwise
+# -- the linear algebra is Eigen's own header-only kernels. PUBLIC so
+# downstream consumers inherit the same (possibly empty) linkage.
+target_link_libraries(helfem PUBLIC helfem::blas)
 
 # In-tree alias so downstream targets in HelFEM's own tree can link
 # helfem::helfem consistently with the exported name.
