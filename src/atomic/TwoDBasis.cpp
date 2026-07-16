@@ -40,7 +40,7 @@ namespace helfem {
     namespace basis {
 
       // The routines that evaluate basis functions on a grid
-      // (eval_bf / eval_df / eval_lf) return arma::cx_mat and go through the
+      // (eval_bf / eval_df / eval_lf) return Eigen::MatrixXcd and go through the
       // double-only ::spherical_harmonics. They serve the DFT grid and the
       // analysis binaries, neither of which can run above double anyway (libxc
       // is a double-only C library), and none is on the Fock path. Rather than
@@ -53,8 +53,8 @@ namespace helfem {
         [[noreturn]] void double_only(const char *what) {
           throw std::logic_error(std::string(what) +
                                  " is only available at T = double "
-                                 "(it returns arma types / uses the "
-                                 "double-only spherical harmonics).\n");
+                                 "(it uses the double-only spherical "
+                                 "harmonics).\n");
         }
       }
 
@@ -1094,20 +1094,20 @@ namespace helfem {
       }
 
       template <typename T>
-      arma::cx_mat TwoDBasisT<T>::eval_bf(size_t iel, double cth, double phi) const {
+      Eigen::MatrixXcd TwoDBasisT<T>::eval_bf(size_t iel, double cth, double phi) const {
         if constexpr (std::is_same_v<T, double>) {
           // Evaluate spherical harmonics
-          arma::cx_vec sph(lval.size());
+          Eigen::VectorXcd sph(lval.size());
           for(size_t i=0;i<(size_t) lval.size();i++)
             sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
           // Evaluate radial functions
-          arma::mat rad(helfem::to_arma(radial.get_bf(iel)));
+          helfem::Matrix rad(radial.get_bf(iel));
 
           // Form supermatrix
-          arma::cx_mat bf(rad.n_rows,lval.size()*rad.n_cols);
+          Eigen::MatrixXcd bf(rad.rows(),lval.size()*rad.cols());
           for(size_t i=0;i<(size_t) lval.size();i++)
-            bf.cols(i*rad.n_cols,(i+1)*rad.n_cols-1)=sph(i)*rad;
+            bf.middleCols(i*rad.cols(),rad.cols())=sph(i)*rad.cast<std::complex<double>>();
 
           return bf;
         } else {
@@ -1117,28 +1117,28 @@ namespace helfem {
       }
 
       template <typename T>
-      void TwoDBasisT<T>::eval_df(size_t iel, double cth, double phi, arma::cx_mat & dr, arma::cx_mat & dth, arma::cx_mat & dphi) const {
+      void TwoDBasisT<T>::eval_df(size_t iel, double cth, double phi, Eigen::MatrixXcd & dr, Eigen::MatrixXcd & dth, Eigen::MatrixXcd & dphi) const {
         if constexpr (std::is_same_v<T, double>) {
           // Evaluate spherical harmonics
-          arma::cx_vec sph(lval.size());
+          Eigen::VectorXcd sph(lval.size());
           for(size_t i=0;i<(size_t) lval.size();i++)
             sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
           // Evaluate radial functions
-          arma::mat frad(helfem::to_arma(radial.get_bf(iel)));
-          arma::mat drad(helfem::to_arma(radial.get_df(iel)));
+          helfem::Matrix frad(radial.get_bf(iel));
+          helfem::Matrix drad(radial.get_df(iel));
 
           // Form supermatrices
-          dr.zeros(frad.n_rows,lval.size()*frad.n_cols);
-          dth.zeros(frad.n_rows,lval.size()*frad.n_cols);
-          dphi.zeros(frad.n_rows,lval.size()*frad.n_cols);
+          dr=Eigen::MatrixXcd::Zero(frad.rows(),lval.size()*frad.cols());
+          dth=Eigen::MatrixXcd::Zero(frad.rows(),lval.size()*frad.cols());
+          dphi=Eigen::MatrixXcd::Zero(frad.rows(),lval.size()*frad.cols());
 
           // Radial one is easy
           for(size_t i=0;i<(size_t) lval.size();i++)
-            dr.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=sph(i)*drad;
+            dr.middleCols(i*frad.cols(),frad.cols())=sph(i)*drad.cast<std::complex<double>>();
           // and so is phi
           for(size_t i=0;i<(size_t) lval.size();i++)
-            dphi.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=std::complex<double>(0.0,mval(i))*sph(i)*frad;
+            dphi.middleCols(i*frad.cols(),frad.cols())=(std::complex<double>(0.0,mval(i))*sph(i))*frad.cast<std::complex<double>>();
           // sin^2(theta) = (1 - cth)(1 + cth) is algebraically identical to
           // 1 - cth*cth but avoids the catastrophic cancellation when cth is
           // close to +/- 1. The std::max(..., 0.0) is a paranoia floor for
@@ -1159,7 +1159,7 @@ namespace helfem {
             if(mval(i)<lval(i))
               angfac+=sqrt((l-m)*(l+m+1))*std::exp(std::complex<double>(0,-phi))*::spherical_harmonics(lval(i),mval(i)+1,cth,phi);
 
-            dth.cols(i*frad.n_cols,(i+1)*frad.n_cols-1)=angfac*frad;
+            dth.middleCols(i*frad.cols(),frad.cols())=angfac*frad.cast<std::complex<double>>();
           }
         } else {
           (void) iel; (void) cth; (void) phi; (void) dr; (void) dth; (void) dphi;
@@ -1168,27 +1168,27 @@ namespace helfem {
       }
 
       template <typename T>
-      arma::cx_mat TwoDBasisT<T>::eval_lf(size_t iel, double cth, double phi) const {
+      Eigen::MatrixXcd TwoDBasisT<T>::eval_lf(size_t iel, double cth, double phi) const {
         if constexpr (std::is_same_v<T, double>) {
           // Evaluate spherical harmonics
-          arma::cx_vec sph(lval.size());
+          Eigen::VectorXcd sph(lval.size());
           for(size_t i=0;i<(size_t) lval.size();i++)
             sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
           // Evaluate radial functions
-          arma::vec r(helfem::to_arma(radial.get_r(iel)));
-          arma::mat frad(helfem::to_arma(radial.get_bf(iel)));
-          arma::mat drad(helfem::to_arma(radial.get_df(iel)));
-          arma::mat lrad(helfem::to_arma(radial.get_lf(iel)));
+          helfem::Vector r(radial.get_r(iel));
+          helfem::Matrix frad(radial.get_bf(iel));
+          helfem::Matrix drad(radial.get_df(iel));
+          helfem::Matrix lrad(radial.get_lf(iel));
 
           // Form supermatrix
-          arma::cx_mat lf(frad.n_rows,lval.size()*frad.n_cols,arma::fill::zeros);
+          Eigen::MatrixXcd lf(Eigen::MatrixXcd::Zero(frad.rows(),lval.size()*frad.cols()));
           // Loop over basis function indices
           for(size_t iang=0;iang<(size_t) lval.size();iang++)
-            for(size_t irad=0;irad<frad.n_cols;irad++)
+            for(Eigen::Index irad=0;irad<frad.cols();irad++)
               // Loop over grid-point indices
-              for(size_t igrid=0;igrid<frad.n_rows;igrid++)
-                lf(igrid,iang*frad.n_cols+irad) = (lrad(igrid,irad) + 2*drad(igrid,irad)/r(igrid) - lval(iang)*(lval(iang)+1)*frad(igrid,irad)/(r(igrid)*r(igrid)))*sph(iang);
+              for(Eigen::Index igrid=0;igrid<frad.rows();igrid++)
+                lf(igrid,iang*frad.cols()+irad) = (lrad(igrid,irad) + 2*drad(igrid,irad)/r(igrid) - lval(iang)*(lval(iang)+1)*frad(igrid,irad)/(r(igrid)*r(igrid)))*sph(iang);
 
           return lf;
         } else {

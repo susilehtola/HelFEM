@@ -19,6 +19,8 @@
 #include "../general/gaunt.h"
 #include "utils.h"
 #include "../general/scf_helpers.h"
+#include "../general/eigen_io.h"
+#include <algorithm>
 #include <cassert>
 #include <cfloat>
 #include <helfem.h>
@@ -31,10 +33,10 @@
 namespace helfem {
   namespace atomic {
     namespace basis {
-      static arma::vec concatenate_grid(const arma::vec & left, const arma::vec & right) {
-        if(!left.n_elem)
+      static helfem::Vector concatenate_grid(const helfem::Vector & left, const helfem::Vector & right) {
+        if(!left.size())
           return right;
-        if(!right.n_elem)
+        if(!right.size())
           return left;
 
         if(left(0) != 0.0)
@@ -43,9 +45,9 @@ namespace helfem {
           throw std::logic_error("right vector doesn't start from zero");
 
         // Concatenated vector
-        arma::vec ret(left.n_elem + right.n_elem - 1);
-        ret.subvec(0,left.n_elem-1)=left;
-        ret.subvec(left.n_elem,ret.n_elem-1)=right.subvec(1,right.n_elem-1) + left(left.n_elem-1)*arma::ones<arma::vec>(right.n_elem-1);
+        helfem::Vector ret(left.size() + right.size() - 1);
+        ret.segment(0,left.size())=left;
+        ret.segment(left.size(),right.size()-1)=(right.segment(1,right.size()-1).array() + left(left.size()-1)).matrix();
         return ret;
       }
 
@@ -53,21 +55,21 @@ namespace helfem {
         return utils::get_grid(rmax,num_el,igrid,zexp);
       }
 
-      arma::vec finite_nuclear_grid(int num_el, double rmax, int igrid, double zexp, int num_el_nuc, double rnuc, int igrid_nuc, double zexp_nuc) {
+      helfem::Vector finite_nuclear_grid(int num_el, double rmax, int igrid, double zexp, int num_el_nuc, double rnuc, int igrid_nuc, double zexp_nuc) {
         if(num_el_nuc) {
           // Grid for the finite nucleus
-          arma::vec bnuc(helfem::to_arma(utils::get_grid(rnuc,num_el_nuc,igrid_nuc,zexp_nuc)));
+          helfem::Vector bnuc(utils::get_grid(rnuc,num_el_nuc,igrid_nuc,zexp_nuc));
           // and the one for the electrons
-          arma::vec belec(helfem::to_arma(utils::get_grid(rmax-rnuc,num_el,igrid,zexp)));
+          helfem::Vector belec(utils::get_grid(rmax-rnuc,num_el,igrid,zexp));
 
-          arma::vec bnucel(concatenate_grid(bnuc,bnuc));
+          helfem::Vector bnucel(concatenate_grid(bnuc,bnuc));
           return concatenate_grid(bnucel,belec);
         } else {
-          return helfem::to_arma(utils::get_grid(rmax,num_el,igrid,zexp));
+          return utils::get_grid(rmax,num_el,igrid,zexp);
         }
       }
 
-      arma::vec offcenter_nuclear_grid(int num_el0, int Zm, int Zlr, double Rhalf, int num_el, double rmax, int igrid, double zexp) {
+      helfem::Vector offcenter_nuclear_grid(int num_el0, int Zm, int Zlr, double Rhalf, int num_el, double rmax, int igrid, double zexp) {
         // First boundary at
         int b0used = (Zm != 0);
         double b0=Zm*Rhalf/(Zm+Zlr);
@@ -82,24 +84,25 @@ namespace helfem {
         printf("b2 = %e\n",b2);
 
         // Get grids
-        arma::vec bval0, bval1;
+        helfem::Vector bval0, bval1;
         if(b0used) {
           // 0 to b0
-          bval0=helfem::to_arma(utils::get_grid(b0,num_el0,igrid,zexp));
+          bval0=utils::get_grid(b0,num_el0,igrid,zexp);
         }
         if(b1used) {
           // b0 to b1
 
           // Reverse grid to get tighter spacing around nucleus
-          bval1=-arma::reverse(helfem::to_arma(utils::get_grid(b1-b0,num_el0,igrid,zexp)));
-          bval1+=arma::ones<arma::vec>(bval1.n_elem)*(b1-b0);
+          helfem::Vector b1grid(utils::get_grid(b1-b0,num_el0,igrid,zexp));
+          bval1=-b1grid.reverse();
+          bval1.array()+=(b1-b0);
           // Assert numerical exactness
           bval1(0)=0.0;
-          bval1(bval1.n_elem-1)=b1-b0;
+          bval1(bval1.size()-1)=b1-b0;
         }
-        arma::vec bval2=helfem::to_arma(utils::get_grid(b2-b1,num_el,igrid,zexp));
+        helfem::Vector bval2=utils::get_grid(b2-b1,num_el,igrid,zexp);
 
-        arma::vec bval;
+        helfem::Vector bval;
         if(b0used && b1used) {
           bval=concatenate_grid(bval0,bval1);
         } else if(b0used) {
@@ -116,13 +119,13 @@ namespace helfem {
         return bval;
       }
 
-      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf) {
+      helfem::Vector form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf) {
 	return form_grid(model, Rrms, Nelem, Rmax, igrid, zexp, Nelem0, igrid0, zexp0, Z, Zl, Zr, Rhalf, false, 0.0);
       }
 
-      arma::vec form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf, bool add_el, double shift_conf) {
+      helfem::Vector form_grid(modelpotential::nuclear_model_t model, double Rrms, int Nelem, double Rmax, int igrid, double zexp, int Nelem0, int igrid0, double zexp0, int Z, int Zl, int Zr, double Rhalf, bool add_el, double shift_conf) {
         // Construct the radial basis
-        arma::vec bval;
+        helfem::Vector bval;
         if(model != modelpotential::POINT_NUCLEUS && model != modelpotential::REGULARIZED_NUCLEUS) {
           printf("Finite-nucleus grid\n");
 
@@ -146,28 +149,28 @@ namespace helfem {
           bval=atomic::basis::offcenter_nuclear_grid(Nelem0,Z,std::max(Zl,Zr),Rhalf,Nelem,Rmax,igrid,zexp);
         } else {
           printf("Normal grid\n");
-          // normal_grid returns Eigen; form_grid is still arma-native.
-          bval=helfem::to_arma(atomic::basis::normal_grid(Nelem,Rmax,igrid,zexp));
+          bval=atomic::basis::normal_grid(Nelem,Rmax,igrid,zexp);
         }
 
 	if(add_el) {
 	  // Check that r is not in bval
 	  bool in_bval = false;
-	  for (size_t i = 0; i < bval.n_elem; i++)
+	  for (Eigen::Index i = 0; i < bval.size(); i++)
 	    if (bval(i) == shift_conf)
 	      in_bval = true;
 
 	  // Add
 	  if (!in_bval) {
-	    arma::vec newbval(bval.n_elem + 1);
-	    newbval.subvec(0, bval.n_elem - 1) = bval;
-	    newbval(bval.n_elem) = shift_conf;
-	    bval = arma::sort(newbval, "ascend");
+	    helfem::Vector newbval(bval.size() + 1);
+	    newbval.segment(0, bval.size()) = bval;
+	    newbval(bval.size()) = shift_conf;
+	    std::sort(newbval.data(), newbval.data() + newbval.size());
+	    bval = newbval;
 	  }
 
 	}
 
-        bval.print("Grid");
+        helfem::io::print_matrix("Grid", helfem::Matrix(bval));
 
         return bval;
       }

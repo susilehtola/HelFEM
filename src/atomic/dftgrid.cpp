@@ -515,50 +515,35 @@ namespace helfem {
         bf=Eigen::MatrixXcd::Zero(nbf,wtot.size());
         // Loop over angular grid
         for(Eigen::Index ia=0;ia<cth.size();ia++) {
-          // Evaluate basis functions at angular point (arma::cx_mat --
-          // bridge to Eigen).
-          arma::cx_mat abf(basp->eval_bf(iel, cth(ia), phi(ia)));
-          if((Eigen::Index) abf.n_cols != nbf) {
+          // Evaluate basis functions at angular point.
+          Eigen::MatrixXcd abf(basp->eval_bf(iel, cth(ia), phi(ia)));
+          if(abf.cols() != nbf) {
             std::ostringstream oss;
-            oss << "Mismatch! Have " << nbf << " basis function indices but " << abf.n_cols << " basis functions!\n";
+            oss << "Mismatch! Have " << nbf << " basis function indices but " << abf.cols() << " basis functions!\n";
             throw std::logic_error(oss.str());
           }
-          Eigen::MatrixXcd abf_e(abf.n_rows, abf.n_cols);
-          for(arma::uword c=0;c<abf.n_cols;c++)
-            for(arma::uword rr=0;rr<abf.n_rows;rr++)
-              abf_e(rr,c)=abf(rr,c);
-          // Store functions (arma::trans on complex is the conjugate
-          // transpose -> .adjoint()).
-          bf.block(0,ia*nrad,nbf,nrad)=abf_e.adjoint();
+          // Store functions (conjugate transpose on complex -> .adjoint()).
+          bf.block(0,ia*nrad,nbf,nrad)=abf.adjoint();
         }
 
         if(do_grad) {
           bf_rho=Eigen::MatrixXcd::Zero(nbf,wtot.size());
           bf_theta=Eigen::MatrixXcd::Zero(nbf,wtot.size());
           bf_phi=Eigen::MatrixXcd::Zero(nbf,wtot.size());
-          arma::cx_mat dr, dth, dphi;
+          Eigen::MatrixXcd dr, dth, dphi;
 
           for(Eigen::Index ia=0;ia<cth.size();ia++) {
             // Evaluate basis functions at angular point
             basp->eval_df(iel, cth(ia), phi(ia), dr, dth, dphi);
-            if((Eigen::Index) dr.n_cols != nbf) {
+            if(dr.cols() != nbf) {
               std::ostringstream oss;
-              oss << "Mismatch! Have " << nbf << " basis function indices but " << dr.n_cols << " basis functions!\n";
+              oss << "Mismatch! Have " << nbf << " basis function indices but " << dr.cols() << " basis functions!\n";
               throw std::logic_error(oss.str());
             }
-            Eigen::MatrixXcd dr_e(dr.n_rows, dr.n_cols);
-            Eigen::MatrixXcd dth_e(dth.n_rows, dth.n_cols);
-            Eigen::MatrixXcd dphi_e(dphi.n_rows, dphi.n_cols);
-            for(arma::uword c=0;c<dr.n_cols;c++)
-              for(arma::uword rr=0;rr<dr.n_rows;rr++) {
-                dr_e(rr,c)=dr(rr,c);
-                dth_e(rr,c)=dth(rr,c);
-                dphi_e(rr,c)=dphi(rr,c);
-              }
-            // Store functions
-            bf_rho.block(0,ia*nrad,nbf,nrad)=dr_e.adjoint();
-            bf_theta.block(0,ia*nrad,nbf,nrad)=dth_e.adjoint();
-            bf_phi.block(0,ia*nrad,nbf,nrad)=dphi_e.adjoint();
+            // Store functions (conjugate transpose on complex -> .adjoint()).
+            bf_rho.block(0,ia*nrad,nbf,nrad)=dr.adjoint();
+            bf_theta.block(0,ia*nrad,nbf,nrad)=dth.adjoint();
+            bf_phi.block(0,ia*nrad,nbf,nrad)=dphi.adjoint();
           }
         }
 
@@ -567,18 +552,14 @@ namespace helfem {
           // Loop over angular grid
           for(Eigen::Index ia=0;ia<cth.size();ia++) {
             // Evaluate basis functions at angular point
-            arma::cx_mat alf(basp->eval_lf(iel, cth(ia), phi(ia)));
-            if((Eigen::Index) alf.n_cols != nbf) {
+            Eigen::MatrixXcd alf(basp->eval_lf(iel, cth(ia), phi(ia)));
+            if(alf.cols() != nbf) {
               std::ostringstream oss;
-              oss << "Mismatch! Have " << nbf << " basis function indices but " << alf.n_cols << " basis functions!\n";
+              oss << "Mismatch! Have " << nbf << " basis function indices but " << alf.cols() << " basis functions!\n";
               throw std::logic_error(oss.str());
             }
-            Eigen::MatrixXcd alf_e(alf.n_rows, alf.n_cols);
-            for(arma::uword c=0;c<alf.n_cols;c++)
-              for(arma::uword rr=0;rr<alf.n_rows;rr++)
-                alf_e(rr,c)=alf(rr,c);
-            // Store functions
-            bf_lapl.block(0,ia*nrad,nbf,nrad)=alf_e.adjoint();
+            // Store functions (conjugate transpose on complex -> .adjoint()).
+            bf_lapl.block(0,ia*nrad,nbf,nrad)=alf.adjoint();
           }
         }
       }
