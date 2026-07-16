@@ -143,14 +143,18 @@ if(HELFEM_EIGEN_BLAS)
     message(STATUS "Eigen dense products routed through the external BLAS (EIGEN_USE_BLAS, LP64)")
 endif()
 
-# Wigner-nj symbols (>= 0.5.0). System install preferred, else fetch.
-find_package(wignernj 0.5.0 QUIET)
+# Wigner-nj symbols (>= 0.7.0). System install preferred, else fetch.
+# 0.7.0 is the minimum for the templated / quadmath gaunt<T> API the
+# arbitrary-precision (quad) Gaunt path uses (gaunt.cpp:
+# wignernj::gaunt<long double>, wignernj_quadmath.h). The fetch fallback
+# pulls the current newest release (v0.8.0).
+find_package(wignernj 0.7.0 QUIET)
 if(NOT wignernj_FOUND)
-    message(STATUS "wignernj >= 0.5.0 not found; fetching v0.5.0")
+    message(STATUS "wignernj >= 0.7.0 not found; fetching v0.8.0")
     include(FetchContent)
     FetchContent_Declare(wignernj
         GIT_REPOSITORY https://github.com/susilehtola/wignernj.git
-        GIT_TAG        v0.5.0)
+        GIT_TAG        v0.8.0)
     FetchContent_MakeAvailable(wignernj)
     if(NOT TARGET wignernj::wignernj)
         add_library(wignernj::wignernj ALIAS wignernj)

@@ -9,7 +9,7 @@ general/checkpoint.cpp atomic/basis.cpp
 atomic/TwoDBasis.cpp
 atomic/dftgrid.cpp sadatom/basis.cpp
 sadatom/dftgrid.cpp sadatom/scf.cpp
-general/dftfuncs.cpp diatomic/basis.cpp diatomic/quadrature.cpp
+diatomic/basis.cpp diatomic/quadrature.cpp
 diatomic/dftgrid.cpp diatomic/dftgrid_purem.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp
 )
@@ -69,8 +69,6 @@ target_link_libraries(1e_atom helfem-common legendre)
 add_executable(diatomic_purem_test diatomic/purem_test.cpp)
 target_link_libraries(diatomic_purem_test helfem-common legendre)
 
-# Measures how compressible the in-element two-electron integrals are, i.e.
-# what a thresholded Cholesky / low-rank factorization would buy.
 # Arbitrary-precision demonstration: the same FEM code at several scalar types.
 add_executable(precision harmonic/precision.cpp)
 target_link_libraries(precision helfem-common legendre)
@@ -109,15 +107,17 @@ add_executable(legendre_unit_test legendre/legendre_unit_test.cpp)
 target_link_libraries(legendre_unit_test legendre)
 # If GCC's __float128 + libquadmath is available, run the unit test at quad
 # precision too. The compiler check looks for both the type and the math
-# library.
+# library. This probes the legacy GCC __float128 + libquadmath path, which
+# is distinct from the C++23 _Float128 templating gated by HELFEM_FLOAT128;
+# use a separate result variable so the two never get confused.
 include(CheckCXXSourceCompiles)
 set(CMAKE_REQUIRED_LIBRARIES quadmath)
 check_cxx_source_compiles("
 #include <quadmath.h>
 int main(){__float128 q = 1.0Q; return (int)logq(q + 1);}"
-  HELFEM_HAVE_FLOAT128)
+  HELFEM_LEGENDRE_HAVE_QUADMATH)
 unset(CMAKE_REQUIRED_LIBRARIES)
-if(HELFEM_HAVE_FLOAT128)
+if(HELFEM_LEGENDRE_HAVE_QUADMATH)
   target_compile_definitions(legendre_unit_test PRIVATE HELFEM_LEGENDRE_TEST_FLOAT128)
   target_link_libraries(legendre_unit_test quadmath)
 endif()

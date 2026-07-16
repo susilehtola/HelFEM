@@ -1,23 +1,31 @@
 # Python bindings for HelFEM. Built when HELFEM_PYTHON=ON is set on the
 # top-level CMake configure.
 
-# pybind11 is discovered via Python (uses pybind11's CMake helpers
-# shipped as part of the Python package).
+# pybind11 provides a CMake config package. Prefer finding it directly
+# (system / vcpkg / conda installs put it on CMAKE_PREFIX_PATH). A
+# pip-installed pybind11 ships its CMake package inside the wheel rather
+# than on a standard prefix, so if the direct lookup fails, ask the
+# Python interpreter where pybind11 put its CMake dir and retry with that
+# as a hint.
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-execute_process(
-  COMMAND ${Python3_EXECUTABLE} -c
-          "import pybind11; print(pybind11.get_cmake_dir())"
-  OUTPUT_VARIABLE pybind11_DIR
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-  RESULT_VARIABLE _pybind11_rc
-)
-if(NOT _pybind11_rc EQUAL 0)
-  message(FATAL_ERROR
-    "HELFEM_PYTHON=ON but pybind11 not importable from the Python at\n"
-    "  ${Python3_EXECUTABLE}\n"
-    "Install pybind11 (e.g. pip install pybind11) and reconfigure.")
+find_package(pybind11 CONFIG QUIET)
+if(NOT pybind11_FOUND)
+  execute_process(
+    COMMAND ${Python3_EXECUTABLE} -c
+            "import pybind11; print(pybind11.get_cmake_dir())"
+    OUTPUT_VARIABLE _pybind11_cmake_dir
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE _pybind11_rc
+  )
+  if(NOT _pybind11_rc EQUAL 0)
+    message(FATAL_ERROR
+      "HELFEM_PYTHON=ON but pybind11 was not found on CMAKE_PREFIX_PATH "
+      "and is not importable from the Python at\n"
+      "  ${Python3_EXECUTABLE}\n"
+      "Install pybind11 (e.g. pip install pybind11) and reconfigure.")
+  endif()
+  find_package(pybind11 CONFIG REQUIRED HINTS "${_pybind11_cmake_dir}")
 endif()
-find_package(pybind11 CONFIG REQUIRED)
 
 pybind11_add_module(_helfem MODULE bindings.cpp)
 target_compile_features(_helfem PRIVATE cxx_std_17)
