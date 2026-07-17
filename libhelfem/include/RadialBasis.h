@@ -84,6 +84,12 @@ namespace helfem {
         /// Finite element basis
         polynomial_basis::FiniteElementBasisT<T> fem;
 
+        /// Starting Gauss-Chebyshev order for the auto-converging
+        /// two-electron primitives. Seeded from the requested n_quad so the
+        /// common case converges in 1-2 refinement steps; the refinement
+        /// loop -- not this seed -- is what sets the accuracy.
+        int twoe_nstart() const;
+
       public:
         /// Dummy constructor
         FEMRadialBasisT();
