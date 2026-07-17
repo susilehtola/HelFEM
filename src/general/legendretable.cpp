@@ -22,6 +22,61 @@ namespace helfem {
       return lh.xi < rh.xi;
     }
 
+    // Compute the P_{l,m} / Q_{l,m} block at a single argument xi. This is the
+    // shared kernel behind both compute() (which caches the result) and the
+    // on-miss path of the getters (which computes it directly for arguments
+    // that were never tabulated -- e.g. the auto-converging two-electron
+    // quadrature evaluates the Legendre functions at points chosen at a
+    // quadrature order OTHER than the one the table was built for). Keeping it
+    // in one place guarantees the direct and cached values are bit-identical.
+    static legendre_table_t compute_entry(int Lmax, int Mmax, double xi) {
+      legendre_table_t entry;
+      entry.xi=xi;
+      entry.Plm=helfem::Matrix::Zero(Lmax+1,Mmax+1);
+      entry.Qlm=helfem::Matrix::Zero(Lmax+1,Mmax+1);
+
+      // Q is singular at xi == 1; the table treats that case as zero
+      // everywhere via the ::Zero above.
+      if(xi!=1.0) {
+        ::helfem::legendre::plm(entry.Plm.data(),Lmax,Mmax,xi);
+        ::helfem::legendre::qlm(entry.Qlm.data(),Lmax,Mmax,xi);
+      }
+
+      // Drop any non-normal entries (zero is fine, denormals/NaN/Inf get
+      // forced to zero so that downstream code doesn't propagate them).
+      for(int L=0;L<=Lmax;L++)
+        for(int M=0;M<=Mmax;M++) {
+          if(entry.Plm(L,M) != 0.0 && !std::isnormal(entry.Plm(L,M)))
+            entry.Plm(L,M)=0.0;
+          if(entry.Qlm(L,M) != 0.0 && !std::isnormal(entry.Qlm(L,M)))
+            entry.Qlm(L,M)=0.0;
+        }
+
+      return entry;
+    }
+
+    // Single-value version of the above, for the getters' on-miss path: compute
+    // just the requested function (P if wantP, else Q) at xi, bit-identically
+    // to what compute_entry / compute() would cache -- same plm/qlm arguments,
+    // same (Lmax+1)-row column-major layout, same xi==1 and isnormal handling.
+    // Avoids allocating the two Eigen blocks and computing the unused sibling
+    // function on every miss.
+    static double compute_one(bool wantP, int l, int m, int Lmax, int Mmax, double xi) {
+      // Q is singular at xi == 1; the table treats that case as zero.
+      if(xi==1.0)
+        return 0.0;
+      std::vector<double> buf((size_t) (Lmax+1)*(Mmax+1), 0.0);
+      if(wantP)
+        ::helfem::legendre::plm(buf.data(),Lmax,Mmax,xi);
+      else
+        ::helfem::legendre::qlm(buf.data(),Lmax,Mmax,xi);
+      // Column-major (Lmax+1) x (Mmax+1): element (l,m) is at l + m*(Lmax+1).
+      double v = buf[(size_t) l + (size_t) m*(Lmax+1)];
+      if(v!=0.0 && !std::isnormal(v))
+        v=0.0;
+      return v;
+    }
+
     LegendreTable::LegendreTable() {
       Lmax=-1;
       Mmax=-1;
@@ -67,28 +122,7 @@ namespace helfem {
 #pragma omp critical
 #endif
       {
-        legendre_table_t entry;
-
-        entry.xi=xi;
-        entry.Plm=helfem::Matrix::Zero(Lmax+1,Mmax+1);
-        entry.Qlm=helfem::Matrix::Zero(Lmax+1,Mmax+1);
-
-        // Q is singular at xi == 1; the table treats that case as zero
-        // everywhere via the ::Zero above.
-        if(xi!=1.0) {
-          ::helfem::legendre::plm(entry.Plm.data(),Lmax,Mmax,xi);
-          ::helfem::legendre::qlm(entry.Qlm.data(),Lmax,Mmax,xi);
-        }
-
-        // Drop any non-normal entries (zero is fine, denormals/NaN/Inf get
-        // forced to zero so that downstream code doesn't propagate them).
-        for(int L=0;L<=Lmax;L++)
-          for(int M=0;M<=Mmax;M++) {
-            if(entry.Plm(L,M) != 0.0 && !std::isnormal(entry.Plm(L,M)))
-              entry.Plm(L,M)=0.0;
-            if(entry.Qlm(L,M) != 0.0 && !std::isnormal(entry.Qlm(L,M)))
-              entry.Qlm(L,M)=0.0;
-          }
+        legendre_table_t entry(compute_entry(Lmax, Mmax, xi));
 
         if(!stor.size())
           stor.push_back(entry);
@@ -99,21 +133,24 @@ namespace helfem {
     }
 
     double LegendreTable::get_Plm(int l, int m, double xi) const {
-      if(get_index(xi)>stor.size()) {
-        std::ostringstream oss;
-        oss << "Error in get_Plm(" << l << "," << m << "," << xi << "): index " << get_index(xi) << " greater than array size " << stor.size() << "!\n";
-        throw std::logic_error(oss.str());
-      }
-      return stor[get_index(xi)].Plm(l,m);
+      // Fast path: the argument was tabulated (the stored-order quadrature
+      // points the table was built for). get_index(check=false) returns the
+      // lower-bound slot without throwing; a hit is an exact xi match.
+      const size_t idx(get_index(xi, false));
+      if(idx < stor.size() && stor[idx].xi == xi)
+        return stor[idx].Plm(l,m);
+      // Miss: an argument at some other quadrature order (the auto-converging
+      // two-electron refinement). Compute it directly -- bit-identical to what
+      // the table would hold -- instead of forcing the caller onto a fixed
+      // --nquad grid.
+      return compute_one(true, l, m, Lmax, Mmax, xi);
     }
 
     double LegendreTable::get_Qlm(int l, int m, double xi) const {
-      if(get_index(xi)>stor.size()) {
-        std::ostringstream oss;
-        oss << "Error in get_Qlm(" << l << "," << m << "," << xi << "): index " << get_index(xi) << " greater than array size " << stor.size() << "!\n";
-        throw std::logic_error(oss.str());
-      }
-      return stor[get_index(xi)].Qlm(l,m);
+      const size_t idx(get_index(xi, false));
+      if(idx < stor.size() && stor[idx].xi == xi)
+        return stor[idx].Qlm(l,m);
+      return compute_one(false, l, m, Lmax, Mmax, xi);
     }
 
     helfem::Vector LegendreTable::get_Plm(int l, int m, const helfem::Vector & xi) const {
