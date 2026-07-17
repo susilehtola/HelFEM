@@ -18,6 +18,7 @@
 #include "ModelPotential.h"
 #include "FiniteElementBasis.h"
 #include "Matrix.h"
+#include <vector>
 
 namespace helfem {
   namespace atomic {
@@ -149,15 +150,23 @@ namespace helfem {
         /// FiniteElementBasisT::matrix_element and is the engine that the
         /// named matrix-element methods below (overlap, kinetic, nuclear, ...)
         /// can be composed from. Default weight is identity (1).
-        /// Eigen-typed (Phase 2a migration).
+        /// Eigen-typed (Phase 2a migration). Phase 2: routes through the
+        /// finite-element basis's auto-converging quadrature. `breakpoints`
+        /// are real-space points where the weight is non-smooth (the element
+        /// is split there); `poly_degree_f` is the polynomial degree of the
+        /// weight if known (>=0, else -1), used only to seed the order.
         helfem::Mat<T> matrix_element(
             size_t iel, BasisKind bra, BasisKind ket,
-            const std::function<T(T)> & weight = std::function<T(T)>()) const;
+            const std::function<T(T)> & weight = std::function<T(T)>(),
+            const std::vector<T> & breakpoints = std::vector<T>(),
+            int poly_degree_f = -1) const;
 
         /// Same as above, summed over every element of the basis.
         helfem::Mat<T> matrix_element(
             BasisKind bra, BasisKind ket,
-            const std::function<T(T)> & weight = std::function<T(T)>()) const;
+            const std::function<T(T)> & weight = std::function<T(T)>(),
+            const std::vector<T> & breakpoints = std::vector<T>(),
+            int poly_degree_f = -1) const;
 
         /// Per-element matrix element restricted to a sub-range of the
         /// reference element [x_left, x_right] (defaults to the full range

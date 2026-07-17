@@ -17,6 +17,7 @@
 
 #include <functional>
 #include <memory>
+#include <vector>
 #include "PolynomialBasis.h"
 #include "Matrix.h"
 #include <lib1dfem/types.h>
@@ -204,6 +205,57 @@ namespace helfem {
       helfem::Vec<T> vector_element(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_bf, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const;
       /// The driver function
       helfem::Vec<T> vector_element(size_t iel, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_bf, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const;
+
+      /**
+       * Auto-converging matrix element (Phase 2).
+       *
+       * Computes <d^lhder B | f(r) | d^rhder B> over element `iel` (or over
+       * the whole basis) while refining its OWN Gauss-Lobatto quadrature until
+       * the element block is stable to 8*eps(T). Replaces the caller-supplied
+       * fixed (xq,wq) rule: the required order grows on its own with the
+       * precision of T, so every block reaches its type's machine precision
+       * with no tuning.
+       *
+       * lhder/rhder:  derivative orders of the FE basis functions
+       * f:            weight function (null => unit weight)
+       * breakpoints:  real-space points where f is non-smooth (kinks,
+       *               integrable singularities). The element is split there
+       *               and each smooth sub-panel is converged separately, since
+       *               plain order-refinement STALLS across a kink.
+       * poly_degree_f: total polynomial degree of f if it is a polynomial
+       *               (>=0), else -1. Used only to pick a good starting order;
+       *               the refine loop always confirms convergence.
+       */
+      helfem::Mat<T> matrix_element(size_t iel, int lhder, int rhder,
+                                    const std::function<T(T)> & f,
+                                    const std::vector<T> & breakpoints = std::vector<T>(),
+                                    int poly_degree_f = -1) const;
+      /// Same as above, summed over every element of the basis.
+      helfem::Mat<T> matrix_element(int lhder, int rhder,
+                                    const std::function<T(T)> & f,
+                                    const std::vector<T> & breakpoints = std::vector<T>(),
+                                    int poly_degree_f = -1) const;
+
+      /**
+       * Auto-converging matrix element with caller-supplied bra/ket
+       * evaluators (the generic engine used by RadialBasis's R = B/r kinds).
+       * Same refinement + breakpoint-split strategy as the (lhder,rhder)
+       * overloads above. x_left/x_right optionally restrict the reference
+       * element to a sub-range [x_left,x_right] (both in [-1,1]).
+       */
+      helfem::Mat<T> matrix_element_auto(size_t iel,
+                                         const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh,
+                                         const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh,
+                                         const std::function<T(T)> & f,
+                                         const std::vector<T> & breakpoints = std::vector<T>(),
+                                         int poly_degree_f = -1,
+                                         T x_left = T(-1), T x_right = T(1)) const;
+      /// Same as above, summed over every element of the basis.
+      helfem::Mat<T> matrix_element_auto(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh,
+                                         const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh,
+                                         const std::function<T(T)> & f,
+                                         const std::vector<T> & breakpoints = std::vector<T>(),
+                                         int poly_degree_f = -1) const;
 
       /// Print out the basis functions
       void print(const std::string & str="") const;

@@ -14,11 +14,15 @@
  */
 
 #include "FiniteElementBasis.h"
+#include <lib1dfem/lobatto.h>
+#include <algorithm>
 #include <cfloat>
 #include <iostream>
 // Scalar formatter that prints a T value at its own precision (no truncation
 // to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.
 #include "../../src/general/eigen_io.h"
+#include <limits>
+#include <vector>
 
 namespace helfem {
   namespace polynomial_basis {
@@ -425,8 +429,18 @@ namespace helfem {
       // Total weight per point
       helfem::Vec<T> wp = wq * scaling_factor(iel) * a;
       if (f) {
-        for (Eigen::Index i = 0; i < wp.size(); ++i)
-          wp(i) *= f(r(i));
+        for (Eigen::Index i = 0; i < wp.size(); ++i) {
+          const T fv = f(r(i));
+          // Auto-converging quadrature uses Gauss-Lobatto, which -- unlike the
+          // old open Gauss-Chebyshev rule -- samples the element ENDPOINTS. A
+          // weight with an integrable singularity at an endpoint (e.g. a bare
+          // -Z/r nuclear/model potential in the B representation at r=0)
+          // returns +/-inf there, while the Dirichlet basis is exactly zero at
+          // that node, so the exact contribution is 0 but the naive product is
+          // 0*inf = NaN. Treat a non-finite weight as a zero contribution: the
+          // node carries no basis amplitude, so this is exact for the FE basis.
+          wp(i) = std::isfinite(fv) ? (wp(i) * fv) : T(0);
+        }
       }
 
       // Evaluate basis functions
@@ -442,6 +456,156 @@ namespace helfem {
         lhbf.col(j).array() *= wp.array();
 
       return lhbf.transpose() * rhbf;
+    }
+
+    // ----------------------------------------------------------------------
+    // Phase 2: auto-converging matrix element.
+    //
+    // The block over one element (or a sub-panel of it) is recomputed at a
+    // rising Gauss-Lobatto order until it stops changing to 8*eps(T). Because
+    // the tolerance is tied to eps(T), the order required to satisfy it grows
+    // on its own with the precision of T -- a double block stabilises around
+    // n~8, the same integrand at _Float128 keeps refining to n~13+ and thus
+    // carries digits beyond double. Non-smooth weights (kinks) are handled by
+    // splitting the element at the supplied breakpoints, since plain order-
+    // refinement stalls across a cusp (see docs/autoconv_prototype.cpp).
+    // ----------------------------------------------------------------------
+    namespace {
+      // Warn at most once per process if a panel hits the order cap.
+      bool auto_matel_cap_warned = false;
+
+      // Refine one smooth sub-panel [x_left,x_right] (reference coordinates in
+      // [-1,1]) until the block is stable to 8*eps(T), doubling the Gauss-
+      // Lobatto order from nstart up to nmax.
+      template<typename T>
+      helfem::Mat<T> converge_panel(const helfem::polynomial_basis::FiniteElementBasisT<T> & fe,
+                                    size_t iel,
+                                    const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh,
+                                    const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh,
+                                    const std::function<T(T)> & f,
+                                    T x_left, T x_right, int nstart, int nmax) {
+        const T tol = T(8) * std::numeric_limits<T>::epsilon();
+
+        helfem::Vec<T> x, w;
+        helfem::Mat<T> prev, cur;
+        bool have = false;
+        int n = std::max(nstart, 2);
+        for (;;) {
+          helfem::lib1dfem::lobatto::lobatto_compute<T>(n, x, w);
+          cur = fe.matrix_element(iel, eval_lh, eval_rh, x, w, f, x_left, x_right);
+          if (have) {
+            const T diff  = (cur - prev).cwiseAbs().maxCoeff();
+            const T scale = cur.cwiseAbs().maxCoeff();
+            if (diff <= tol * (scale + tol))
+              return cur;
+          }
+          prev = cur;
+          have = true;
+          if (n >= nmax) {
+            if (!auto_matel_cap_warned) {
+              auto_matel_cap_warned = true;
+              printf("Warning: FiniteElementBasis::matrix_element hit the Gauss-Lobatto"
+                     " order cap (n=%d) without converging to eps(T); using best estimate.\n", nmax);
+              fflush(stdout);
+            }
+            return cur;
+          }
+          n = std::min(2 * n, nmax);
+        }
+      }
+    }
+
+    template<typename T>
+    helfem::Mat<T> FiniteElementBasisT<T>::matrix_element_auto(
+        size_t iel,
+        const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh,
+        const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh,
+        const std::function<T(T)> & f,
+        const std::vector<T> & breakpoints,
+        int poly_degree_f,
+        T x_left, T x_right) const {
+      // Sub-panel boundaries in the reference [-1,1] coordinate: split at any
+      // breakpoint that falls strictly inside (x_left, x_right).
+      const T mid = element_midpoint(iel);
+      const T sf  = scaling_factor(iel);
+      std::vector<T> xb;
+      xb.push_back(x_left);
+      for (T bp : breakpoints) {
+        const T xp = (bp - mid) / sf; // real-space breakpoint -> reference coord
+        if (xp > x_left && xp < x_right)
+          xb.push_back(xp);
+      }
+      xb.push_back(x_right);
+      std::sort(xb.begin(), xb.end());
+
+      // Starting order. n-point Gauss-Lobatto is exact to degree 2n-3, so pick
+      // n that already integrates B*B*(polynomial f) exactly; the refine loop
+      // then confirms (polynomial case) or extends (non-polynomial f). Using an
+      // upper bound on the basis degree only affects speed, never correctness.
+      const int basisdeg = std::max(0, poly->get_noverlap() * poly->get_nnodes() - 1);
+      const int fdeg     = std::max(0, poly_degree_f);
+      const int deg      = 2 * basisdeg + fdeg;
+      const int nmax     = 512;
+      int nstart = (deg + 4) / 2 + 2;
+      if (nstart < 5)     nstart = 5;
+      if (nstart > nmax)  nstart = nmax;
+
+      helfem::Mat<T> total;
+      bool have_total = false;
+      for (size_t p = 0; p + 1 < xb.size(); ++p) {
+        if (!(xb[p + 1] > xb[p])) continue; // skip degenerate panels
+        const helfem::Mat<T> block =
+            converge_panel<T>(*this, iel, eval_lh, eval_rh, f, xb[p], xb[p + 1], nstart, nmax);
+        if (!have_total) { total = block; have_total = true; }
+        else total += block;
+      }
+      if (!have_total)
+        // Degenerate range (x_left==x_right): return a correctly sized zero block.
+        total = converge_panel<T>(*this, iel, eval_lh, eval_rh, f, x_left, x_right, nstart, nmax);
+      return total;
+    }
+
+    template<typename T>
+    helfem::Mat<T> FiniteElementBasisT<T>::matrix_element_auto(
+        const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh,
+        const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh,
+        const std::function<T(T)> & f,
+        const std::vector<T> & breakpoints,
+        int poly_degree_f) const {
+      std::vector<helfem::Mat<T>> matel(get_nelem());
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+      for (size_t iel = 0; iel < get_nelem(); ++iel)
+        matel[iel] = matrix_element_auto(iel, eval_lh, eval_rh, f, breakpoints, poly_degree_f);
+
+      const Eigen::Index N = static_cast<Eigen::Index>(get_nbf());
+      helfem::Mat<T> M = helfem::Mat<T>::Zero(N, N);
+      for (size_t iel = 0; iel < get_nelem(); ++iel) {
+        size_t ifirst, ilast;
+        get_idx(iel, ifirst, ilast);
+        M.block((Eigen::Index) ifirst, (Eigen::Index) ifirst,
+                ilast - ifirst + 1, ilast - ifirst + 1) += matel[iel];
+      }
+      return M;
+    }
+
+    template<typename T>
+    helfem::Mat<T> FiniteElementBasisT<T>::matrix_element(
+        size_t iel, int lhder, int rhder, const std::function<T(T)> & f,
+        const std::vector<T> & breakpoints, int poly_degree_f) const {
+      auto eval_lh = [this, lhder](helfem::Vec<T> x, size_t iel_) { return this->eval_dnf(x, lhder, iel_); };
+      auto eval_rh = [this, rhder](helfem::Vec<T> x, size_t iel_) { return this->eval_dnf(x, rhder, iel_); };
+      return matrix_element_auto(iel, eval_lh, eval_rh, f, breakpoints, poly_degree_f);
+    }
+
+    template<typename T>
+    helfem::Mat<T> FiniteElementBasisT<T>::matrix_element(
+        int lhder, int rhder, const std::function<T(T)> & f,
+        const std::vector<T> & breakpoints, int poly_degree_f) const {
+      auto eval_lh = [this, lhder](helfem::Vec<T> x, size_t iel_) { return this->eval_dnf(x, lhder, iel_); };
+      auto eval_rh = [this, rhder](helfem::Vec<T> x, size_t iel_) { return this->eval_dnf(x, rhder, iel_); };
+      return matrix_element_auto(eval_lh, eval_rh, f, breakpoints, poly_degree_f);
     }
 
     template<typename T>
