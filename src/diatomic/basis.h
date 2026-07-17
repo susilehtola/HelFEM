@@ -87,6 +87,12 @@ namespace helfem {
         /// table, subinterval geometry). Independent of (alpha, beta, L, M), so
         /// compute_tei builds it once per element and reuses it across them.
         quadrature::TwoElectronElement twoe_element(size_t iel) const;
+        /// Build the element-only two-electron data at a SPECIFIED
+        /// Gauss-Chebyshev order n, using a fresh n-point rule instead of the
+        /// stored (xq, wq). Used by compute_tei's auto-convergence refinement,
+        /// which rebuilds the element at rising n until the in-element kernel
+        /// stops changing to eps(double).
+        quadrature::TwoElectronElement twoe_element(size_t iel, int n) const;
         /// Primitive two-electron integral from precomputed element data
         helfem::Matrix twoe_integral(int alpha, int beta, const quadrature::TwoElectronElement & el, int L, int M, const legendretable::LegendreTable & legtab) const;
 
@@ -196,6 +202,16 @@ namespace helfem {
         /// iterates LM_map with signed M) and exchange (which derives M
         /// from mj - mi at use-time).
         std::vector<double> build_LMfac_abs() const;
+
+        /// Auto-convergence: return the Gauss-Chebyshev order at which the
+        /// in-element two-electron kernel of element iel is converged to
+        /// eps(double). The order is found by refining (order-doubling) the
+        /// HARDEST multipole present in lm_map -- the largest L (and its |M|),
+        /// which has the sharpest P_L(cosh mu_<) Q_L(cosh mu_>) Green's
+        /// function and therefore needs the most points; converging it
+        /// converges every lower multipole. compute_tei then builds the
+        /// element ONCE at this order and runs the full (L, |M|) loop on it.
+        int converged_twoe_order(size_t iel) const;
 
       public:
         // Dummy constructor

@@ -28,7 +28,9 @@
 #include <algorithm>
 #include <cassert>
 #include <cfloat>
+#include <cmath>
 #include <complex>
+#include <limits>
 #include <map>
 
 #ifdef _OPENMP
@@ -38,6 +40,139 @@
 namespace helfem {
   namespace diatomic {
     namespace basis {
+
+      // --------------------------------------------------------------------
+      // Auto-converging quadrature for the in-element two-electron kernel.
+      //
+      // Mirrors the atomic Stage-1 helper (libhelfem/src/RadialBasis.cpp,
+      // converge_rule): recompute a probe block at a rising Gauss-Chebyshev
+      // order until it stops changing, so the accuracy of the two-electron
+      // radial integrals is set by the floating-point type (here double's eps)
+      // instead of a user-supplied --nquad. The diatomic path is double-only,
+      // so this is a plain double specialization rather than a template.
+      //
+      // TWO stopping conditions, both meaning "all of double's precision has
+      // been extracted":
+      //   (1) True eps convergence: the block stops changing to 8*eps, the
+      //       same criterion FiniteElementBasis's 1e matrix_element uses.
+      //   (2) Roundoff-floor stall: the 2e Coulomb P_L(cosh mu_<)Q_L(cosh mu_>)
+      //       Green's function is NOT polynomial-exact, so (unlike the 1e
+      //       Gauss-Lobatto block) the block difference converges only down to
+      //       the assembly roundoff floor and then wobbles rather than
+      //       collapsing to zero. Once it is deep in the asymptotic regime
+      //       (diff <= sqrt(eps)*(scale+tol)) and a doubling no longer at least
+      //       halves it (diff > 0.5*prevdiff), it has converged: return
+      //       quietly. Without this every production element would grind to the
+      //       cap and print a spurious warning.
+      //
+      // nmax cap = 512 with a one-shot warning is a genuine backstop, not the
+      // common path; the start order is seeded from --nquad so the common case
+      // converges in 1-2 steps.
+      // --------------------------------------------------------------------
+      namespace {
+        /// Order cap for the refinement loop.
+        const int twoe_nmax = 512;
+        /// Warn at most once per process if the refinement hits the order cap.
+        bool twoe_cap_warned = false;
+
+        /// Refine `probe(n)` -- which must rebuild its block using its own
+        /// n-point Gauss-Chebyshev rule -- by doubling n from nstart until the
+        /// block is stable, and return the converged block. If `nconv` is
+        /// non-null it receives the (finer) converged order, so a caller can
+        /// rebuild a heavier object (e.g. a TwoElectronElement) once at that
+        /// order. The block's shape is independent of n, so the
+        /// block-difference comparison is well defined.
+        ///
+        /// `seed_fallback` selects what happens if the order cap is reached
+        /// without convergence. The disjoint Q_L integral over the element that
+        /// touches mu=0 is genuinely NON-convergent for |M| >= 2 -- there
+        /// Q_{L,|M|}(cosh mu) ~ mu^{-|M|}, so the bare integral (without the
+        /// companion P_{L,|M|} ~ mu^{|M|} that regularizes it inside the
+        /// in-element kernel) diverges. That block is never actually used (the
+        /// innermost element is never the OUTER element of a disjoint pair), so
+        /// forcing it is pointless. With seed_fallback the routine then returns
+        /// the block at the seed order -- exactly the fixed --nquad value the
+        /// pre-auto-convergence code produced -- quietly. Without it (the
+        /// in-element kernel, which IS convergent) a cap is a real anomaly and
+        /// gets the one-shot warning + best estimate.
+        template <typename Fn>
+        helfem::Matrix converge_block(const Fn & probe, int nstart,
+                                      const char * what, int * nconv = nullptr,
+                                      bool seed_fallback = false) {
+          const double eps     = std::numeric_limits<double>::epsilon();
+          const double tol     = 8.0 * eps;
+          const double sqrteps = std::sqrt(eps);
+          // Machine-precision floor. These blocks are not polynomial-exact and
+          // the LIP assembly carries a roundoff floor of a small multiple of
+          // eps (empirically ~1e-15 relative), so the block difference
+          // plateaus there rather than collapsing to 8*eps. 256*eps ~ 5.7e-14
+          // is comfortably above that floor yet far below both the cd_thresh
+          // (1e-12) the kernel is later factorized to and the 1e-10 total-
+          // energy tolerance: once the difference reaches it, all of double's
+          // precision has been extracted.
+          const double floor_rel = 256.0 * eps;
+
+          helfem::Matrix prev, cur, seed;
+          bool have = false;
+          double prevdiff = -1.0;
+          int n = std::max(nstart, 2);
+          for(;;) {
+            cur = probe(n);
+            if(!have)
+              seed = cur;   // the fixed --nquad value, for seed_fallback
+            if(have) {
+              const double diff  = (cur - prev).cwiseAbs().maxCoeff();
+              const double scale = cur.cwiseAbs().maxCoeff();
+              // (1) true eps convergence (well-conditioned, polynomial-exact
+              // blocks reach this).
+              if(diff <= tol * (scale + tol)) {
+                if(nconv) *nconv = n;
+                return cur;
+              }
+              // (2) roundoff-floor stall: the Coulomb P_L(cosh mu_<)Q_L(cosh
+              // mu_>) Green's function is not polynomial-exact, and over the
+              // element that touches mu=0 the Q_L weight is only C^0 (a
+              // mu*ln(mu) endpoint kink, Q_L(1)=+inf). So the block difference
+              // converges only down to the assembly roundoff floor and then
+              // wobbles. Once it is deep in the asymptotic regime
+              // (diff <= sqrt(eps)*scale) AND it has either reached the
+              // machine-precision floor (diff <= floor_rel*scale) or a doubling
+              // no longer at least halves it, all of double's precision has
+              // been extracted: stop quietly. The floor test makes this robust
+              // when only a couple of doublings separate the seed from the cap.
+              if(diff <= sqrteps * (scale + tol) &&
+                 (diff <= floor_rel * (scale + tol) ||
+                  (prevdiff >= 0.0 && diff > 0.5 * prevdiff))) {
+                if(nconv) *nconv = n;
+                return cur;
+              }
+              prevdiff = diff;
+            }
+            prev = cur;
+            have = true;
+            if(n >= twoe_nmax) {
+              if(seed_fallback) {
+                // Non-convergent integrand (the divergent innermost-element Q_L
+                // for |M| >= 2). Fall back to the requested --nquad order
+                // quietly -- the same value the fixed-order code produced.
+                if(nconv) *nconv = std::max(nstart, 2);
+                return seed;
+              }
+              if(!twoe_cap_warned) {
+                twoe_cap_warned = true;
+                printf("Warning: diatomic %s hit the Gauss-Chebyshev order cap"
+                       " (n=%d) without converging to eps(double); using best"
+                       " estimate.\n", what, twoe_nmax);
+                fflush(stdout);
+              }
+              if(nconv) *nconv = n;
+              return cur;
+            }
+            n = std::min(2 * n, twoe_nmax);
+          }
+        }
+      }
+
       RadialBasis::RadialBasis() {
       }
 
@@ -169,7 +304,22 @@ namespace helfem {
         } else {
           Plm = [legtab, L, M](double mu) { return std::sinh(mu)*legtab.get_Plm(L,M,cosh(mu)); };
         }
-        return fem.matrix_element(iel, false, false, xq, wq, Plm);
+        // Auto-converging disjoint (cross-element) 2e integral. The Gauss-
+        // Chebyshev order is refined until the block is stable, so the accuracy
+        // follows the FP type instead of the caller's --nquad. We keep the
+        // Gauss-Chebyshev rule (not the FE's Gauss-Lobatto auto-overload)
+        // deliberately: over the element that touches mu=0 the companion Q_L
+        // weight is singular there (Q_L(1)=+inf), and Chebyshev's endpoint
+        // clustering handles that far better than Lobatto's endpoint nodes.
+        // converge_block carries the roundoff-floor stall that lets that
+        // element converge quietly rather than grind to the order cap.
+        return converge_block(
+            [&](int n) {
+              helfem::Vector x, w;
+              chebyshev::chebyshev<double>(n, x, w);
+              return fem.matrix_element(iel, false, false, x, w, Plm);
+            },
+            std::max((int) xq.size(), 5), "Plm_integral", nullptr, true);
       }
 
       helfem::Matrix RadialBasis::Qlm_integral(int k, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
@@ -179,7 +329,16 @@ namespace helfem {
         } else {
           Qlm = [legtab, L, M](double mu) { return std::sinh(mu)*legtab.get_Qlm(L,M,cosh(mu)); };
         }
-        return fem.matrix_element(iel, false, false, xq, wq, Qlm);
+        // Auto-converging disjoint 2e integral (see Plm_integral above). This
+        // is the branch whose weight Q_L(cosh mu) is singular on the mu=0
+        // element -- the Chebyshev rule + roundoff-floor stall handle it.
+        return converge_block(
+            [&](int n) {
+              helfem::Vector x, w;
+              chebyshev::chebyshev<double>(n, x, w);
+              return fem.matrix_element(iel, false, false, x, w, Qlm);
+            },
+            std::max((int) xq.size(), 5), "Qlm_integral", nullptr, true);
       }
 
       helfem::Matrix RadialBasis::kinetic() const {
@@ -199,8 +358,19 @@ namespace helfem {
       }
 
       quadrature::TwoElectronElement RadialBasis::twoe_element(size_t iel) const {
+        // Build at the stored quadrature order.
+        return twoe_element(iel, (int) xq.size());
+      }
+
+      quadrature::TwoElectronElement RadialBasis::twoe_element(size_t iel, int n) const {
+        // Build at a specified Gauss-Chebyshev order: a fresh n-point rule
+        // instead of the stored (xq, wq). This is what lets compute_tei refine
+        // the in-element two-electron kernel until it is converged to
+        // eps(double).
+        helfem::Vector x, w;
+        chebyshev::chebyshev<double>(n, x, w);
         std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis> p(fem.get_basis(iel));
-        return quadrature::twoe_element(fem.element_begin(iel), fem.element_end(iel), xq, wq, p);
+        return quadrature::twoe_element(fem.element_begin(iel), fem.element_end(iel), x, w, p);
       }
 
       helfem::Matrix RadialBasis::twoe_integral(int alpha, int beta, const quadrature::TwoElectronElement & el, int L, int M, const legendretable::LegendreTable & legtab) const {
@@ -502,7 +672,9 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDBasis::in_element_kernel(size_t iel, int L, int M) const {
-        const quadrature::TwoElectronElement el(radial.twoe_element(iel));
+        // Use the same auto-converged order as compute_tei so this diagnostic
+        // reflects the kernel that was actually factorized.
+        const quadrature::TwoElectronElement el(radial.twoe_element(iel, converged_twoe_order(iel)));
         const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, legtab));
         const helfem::Matrix T02(quadrature::twoe_integral(el, 0, 2, L, M, legtab));
         const helfem::Matrix T22(quadrature::twoe_integral(el, 2, 2, L, M, legtab));
@@ -518,7 +690,7 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDBasis::in_element_kernel_exchange(size_t iel, int L, int M) const {
-        const quadrature::TwoElectronElement el(radial.twoe_element(iel));
+        const quadrature::TwoElectronElement el(radial.twoe_element(iel, converged_twoe_order(iel)));
         const size_t Ni(radial.Nprim(iel));
 
         const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, legtab));
@@ -545,8 +717,11 @@ namespace helfem {
         const size_t ilm(lmind(L,M));
         const size_t Nel(radial.Nel());
 
-        // Exact kernel and the exact exchange-ordered tensors
-        const quadrature::TwoElectronElement el(radial.twoe_element(iel));
+        // Exact kernel and the exact exchange-ordered tensors. Build at the
+        // same auto-converged order compute_tei used, so the reference W here
+        // matches the one that produced cd_B / cd_sigma (otherwise kerr would
+        // pick up the order mismatch rather than the factorization error).
+        const quadrature::TwoElectronElement el(radial.twoe_element(iel, converged_twoe_order(iel)));
         const helfem::Matrix T00(quadrature::twoe_integral(el,0,0,L,M,legtab));
         const helfem::Matrix T02(quadrature::twoe_integral(el,0,2,L,M,legtab));
         const helfem::Matrix T20(quadrature::twoe_integral(el,2,0,L,M,legtab));
@@ -993,6 +1168,46 @@ namespace helfem {
         return (lh.first == rh.first) && (lh.second == rh.second);
       }
 
+      int TwoDBasis::converged_twoe_order(size_t iel) const {
+        // Seed the refinement from the requested --nquad so the common case
+        // converges in 1-2 steps; the loop, not the seed, sets the accuracy.
+        int nstart = radial.get_nquad();
+        if(nstart < 5) nstart = 5;
+        if(nstart > twoe_nmax) nstart = twoe_nmax;
+
+        // Nothing to probe: no multipoles requested. Fall back to the seed.
+        if(lm_map.empty())
+          return nstart;
+
+        // Probe the HARDEST multipole. lm_map is sorted ascending by (L, |M|)
+        // (see operator< on lmidx_t), so its back() is the largest L and, for
+        // that L, the largest |M| -- the sharpest Green's function and hence
+        // the one that needs the most quadrature points. Converging it
+        // converges every lower multipole.
+        const int L = lm_map.back().first;
+        const int M = lm_map.back().second;
+
+        int nconv = nstart;
+        converge_block(
+            [&](int n) {
+              const quadrature::TwoElectronElement el(radial.twoe_element(iel, n));
+              const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, legtab));
+              const helfem::Matrix T02(quadrature::twoe_integral(el, 0, 2, L, M, legtab));
+              const helfem::Matrix T22(quadrature::twoe_integral(el, 2, 2, L, M, legtab));
+              // Assemble the 2-channel kernel W exactly as compute_tei does, so
+              // the probe measures the quantity that is actually factorized.
+              const Eigen::Index nn = T00.rows();
+              helfem::Matrix W(2*nn, 2*nn);
+              W.topLeftCorner(nn,nn)     =  T00;
+              W.topRightCorner(nn,nn)    = -T02;
+              W.bottomLeftCorner(nn,nn)  = -T02.transpose();
+              W.bottomRightCorner(nn,nn) =  T22;
+              return helfem::Matrix(0.5*(W + W.transpose()));
+            },
+            nstart, "in-element two-electron kernel", &nconv);
+        return nconv;
+      }
+
       void TwoDBasis::compute_tei(bool exchange) {
         // Number of distinct L values is
         size_t Nel(radial.Nel());
@@ -1040,7 +1255,12 @@ namespace helfem {
 #pragma omp parallel for
 #endif
         for(size_t iel=0;iel<Nel;iel++) {
-          const quadrature::TwoElectronElement eldata(radial.twoe_element(iel));
+          // Auto-convergence: refine the Gauss-Chebyshev order on the hardest
+          // multipole, then build the element ONCE at the converged order and
+          // reuse it across all (L, |M|). The order is set by double's eps, not
+          // by --nquad.
+          const int nconv = converged_twoe_order(iel);
+          const quadrature::TwoElectronElement eldata(radial.twoe_element(iel, nconv));
 
           for(size_t ilm=0;ilm<lm_map.size();ilm++) {
             int L(lm_map[ilm].first);
