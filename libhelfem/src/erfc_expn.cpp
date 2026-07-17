@@ -44,8 +44,7 @@
 // double results are unchanged.
 
 namespace helfem {
-  namespace atomic {
-    namespace erfc_expn {
+  namespace erfc_expn {
       template <typename T> static T double_factorial(unsigned int n) {
         T v = T(1);
         for(unsigned int k=n; k>=2; k-=2)
@@ -237,6 +236,5 @@ namespace helfem {
 #ifdef HELFEM_HAVE_FLOAT128
       template _Float128   Phi<_Float128>  (unsigned int, _Float128, _Float128);
 #endif
-    }
   }
 }

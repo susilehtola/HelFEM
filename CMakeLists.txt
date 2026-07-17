@@ -220,6 +220,7 @@ endif()
 # ---------------------------------------------------------------------------
 add_subdirectory(lib1dfem)
 add_subdirectory(libhelfem)
+add_subdirectory(libhelfemqc)
 if(HELFEM_PYTHON)
     add_subdirectory(python)
 endif()

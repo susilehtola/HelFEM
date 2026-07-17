@@ -13,7 +13,7 @@ diatomic/basis.cpp diatomic/quadrature.cpp
 diatomic/dftgrid.cpp diatomic/dftgrid_purem.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp
 )
-target_link_libraries(helfem-common PUBLIC helfem wignernj::wignernj)
+target_link_libraries(helfem-common PUBLIC helfem helfemqc wignernj::wignernj)
 # HDF5 (checkpoint.cpp) and libxc (dftfuncs / dftgrid) are consumed here.
 # helfem::hdf5 and PkgConfig::LIBXC are defined by the root CMakeLists
 # under HELFEM_BINARIES, which is the only configuration that builds src/.
