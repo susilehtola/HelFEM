@@ -12,33 +12,32 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#ifndef LIB1DFEM_LIPBASIS_H
-#define LIB1DFEM_LIPBASIS_H
+#ifndef HELFEM_FEM_LIPBASIS_H
+#define HELFEM_FEM_LIPBASIS_H
 
-#include <lib1dfem/PolynomialBasis.h>
-#include <lib1dfem/LIPBasis_eval.h>
+#include <PolynomialBasisT.h>
+#include <LIPBasis_eval.h>
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
 
 namespace helfem {
-namespace lib1dfem {
 namespace polynomial_basis {
 
 /// Lagrange interpolating polynomial basis on the reference element [-1, 1]
 /// with caller-supplied control nodes x0 (must include the endpoints).
 /// Templated on the scalar type T. Phase 5.2: Eigen-typed.
 template <typename T>
-class LIPBasis : public PolynomialBasis<T> {
+class LIPBasisT : public PolynomialBasisT<T> {
  protected:
   /// Control nodes (sorted ascending; must span the reference element).
   Vec<T> x0;
 
  public:
-  LIPBasis() = default;
+  LIPBasisT() = default;
 
-  LIPBasis(const Vec<T> & x, int id_ = 4) {
+  LIPBasisT(const Vec<T> & x, int id_ = 4) {
     x0 = x;
     std::sort(x0.data(), x0.data() + x0.size());
 
@@ -55,10 +54,10 @@ class LIPBasis : public PolynomialBasis<T> {
     this->nnodes   = static_cast<int>(this->enabled.size());
   }
 
-  ~LIPBasis() override = default;
+  ~LIPBasisT() override = default;
 
-  LIPBasis<T> * copy() const override {
-    return new LIPBasis<T>(*this);
+  LIPBasisT<T> * copy() const override {
+    return new LIPBasisT<T>(*this);
   }
 
   void drop_first(bool func, bool deriv) override {
@@ -80,7 +79,7 @@ class LIPBasis : public PolynomialBasis<T> {
 
   // Pull the base's 3-arg matrix-returning eval_over_r overload back into
   // scope (overriding the 4-arg virtual below would otherwise hide it).
-  using PolynomialBasis<T>::eval_over_r;
+  using PolynomialBasisT<T>::eval_over_r;
 
   /// Analytic B_u(r)/r for the surviving (post-drop_first) LIP shape
   /// functions on the first element. See LIPBasis.h header comment in
@@ -91,7 +90,7 @@ class LIPBasis : public PolynomialBasis<T> {
       throw std::logic_error("eval_over_r: no surviving basis functions.\n");
     if (this->enabled(0) == 0)
       throw std::logic_error(
-          "eval_over_r requires drop_first(func=true) on LIPBasis: the shape "
+          "eval_over_r requires drop_first(func=true) on LIPBasisT: the shape "
           "function at x=-1 has B(-1) != 0 and B/r is singular at the origin.\n");
 
     const Vec<T> x0_reduced = x0.segment(1, x0.size() - 1);
@@ -115,7 +114,6 @@ class LIPBasis : public PolynomialBasis<T> {
 };
 
 } // namespace polynomial_basis
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif

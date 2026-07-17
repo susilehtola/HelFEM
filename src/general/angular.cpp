@@ -50,7 +50,7 @@ namespace helfem {
     void angular_lobatto(int l, int m, helfem::Vector & cth, helfem::Vector & phi, helfem::Vector & wang) {
       // Get input quadrature: l part
       helfem::Vector xl, wl;
-      ::lobatto_compute(l,xl,wl);
+      helfem::lobatto::lobatto_compute<double>(l,xl,wl);
 
       // Form compound rule
       compound_rule(xl,wl,m,cth,phi,wang);

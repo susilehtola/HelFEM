@@ -19,6 +19,29 @@ list(APPEND LIBHELFEM_PUBLIC_HEADERS
     "FiniteElementBasis.h"
     "RadialBasis.h"
     "Matrix.h"
+    # Templated FEM primitives folded in from the former lib1dfem
+    # header-only library (Phase 4): quadrature, grid, math helpers, and
+    # the primitive polynomial bases (templated base + LIP/HIP/HIP2/HIP3/
+    # Legendre subclasses and their generated evaluation tables).
+    "types.h"
+    "chebyshev.h"
+    "lobatto.h"
+    "grid.h"
+    "math.h"
+    "legendre_poly.h"
+    "PolynomialBasisT.h"
+    "LIPBasis.h"
+    "LIPBasis_eval.h"
+    "HIPBasis.h"
+    "HIPBasis_eval.h"
+    "HIPBasis_over_r.h"
+    "HIP2Basis.h"
+    "HIP2Basis_eval.h"
+    "HIP2Basis_over_r.h"
+    "HIP3Basis.h"
+    "HIP3Basis_eval.h"
+    "HIP3Basis_over_r.h"
+    "LegendreBasis.h"
 )
 foreach(header IN LISTS LIBHELFEM_PUBLIC_HEADERS)
     configure_file("include/${header}" "include/${header}" COPYONLY)
@@ -42,7 +65,7 @@ target_include_directories(helfem
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(helfem PUBLIC helfem::lib1dfem Eigen3::Eigen)
+target_link_libraries(helfem PUBLIC Eigen3::Eigen)
 target_compile_features(helfem PUBLIC cxx_std_17)
 
 # Quad precision: raise the standard (only) where it is needed, and switch on

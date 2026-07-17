@@ -18,7 +18,7 @@
 // Scalar formatter that prints a T value at its own precision (no truncation
 // to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.
 #include "../../src/general/eigen_io.h"
-#include <lib1dfem/chebyshev.h>
+#include <chebyshev.h>
 #include <cmath>
 #include <functional>
 #include <limits>
@@ -36,7 +36,7 @@ namespace helfem {
     static T normalization_slice(int N, std::function<T(T)> & phif) {
       // Get quadrature rule
       helfem::Vec<T> x, w;
-      helfem::lib1dfem::chebyshev::chebyshev<T>(N, x, w);
+      helfem::chebyshev::chebyshev<T>(N, x, w);
 
       // Evaluate normalization by adaptive quadrature
       T h = T(1e-1); // Slice size
@@ -69,7 +69,7 @@ namespace helfem {
     static T normalization_chebyshev(int N, std::function<T(T)> & phif) {
       // Get quadrature rule
       helfem::Vec<T> r, wr;
-      helfem::lib1dfem::chebyshev::radial_chebyshev<T>(N, r, wr);
+      helfem::chebyshev::radial_chebyshev<T>(N, r, wr);
 
       // Integrand
       helfem::Vec<T> f(N);

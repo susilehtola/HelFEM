@@ -20,14 +20,14 @@
 #include <vector>
 #include "PolynomialBasis.h"
 #include "Matrix.h"
-#include <lib1dfem/types.h>
+#include <types.h>
 
 namespace helfem {
   namespace polynomial_basis {
     /// Finite element basis set.
     ///
-    /// Templated on the scalar type. Everything below this class -- lib1dfem's
-    /// PolynomialBasis<T>, LIPBasis<T>, HIPBasis<T>, LegendreBasis<T>,
+    /// Templated on the scalar type. Everything below this class -- the templated
+    /// PolynomialBasisT<T>, LIPBasisT<T>, HIPBasisT<T>, LegendreBasisT<T>,
     /// lobatto_compute<T> -- was already generic; libhelfem was the only layer
     /// pinning T = double, which is what blocked running HelFEM in higher
     /// precision. Instantiated below for double, long double and __float128.
@@ -35,7 +35,7 @@ namespace helfem {
     class FiniteElementBasisT {
     protected:
       /// Polynomial basis
-      std::shared_ptr<const helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> poly;
+      std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> poly;
 
       /// Element boundary values
       // Phase 5.5: members migrated to Eigen.
@@ -50,9 +50,9 @@ namespace helfem {
       bool zero_deriv_right;
 
       /// First basis function in element
-      helfem::lib1dfem::IVec first_func_in_element;
+      helfem::IVec first_func_in_element;
       /// Last basis function in element
-      helfem::lib1dfem::IVec last_func_in_element;
+      helfem::IVec last_func_in_element;
       /// Update the above list of basis functions
       void update_bf_list();
 
@@ -60,7 +60,7 @@ namespace helfem {
       void check_bf_continuity() const;
 
       /// Used basis function indices in element
-      helfem::lib1dfem::IVec basis_indices(size_t iel) const;
+      helfem::IVec basis_indices(size_t iel) const;
 
     public:
       /// Dummy constructor
@@ -68,7 +68,7 @@ namespace helfem {
       /// Constructor. Phase 5.26: bval is Eigen at the public boundary
       /// (matches the internal helfem::Vec<T> storage introduced in
       /// Phase 5.5).
-      FiniteElementBasisT(const std::shared_ptr<const helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> &poly,
+      FiniteElementBasisT(const std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> &poly,
                          const helfem::Vec<T> &bval, bool zero_func_left, bool zero_deriv_left, bool zero_func_right, bool zero_deriv_right);
       /// Destructor
       ~FiniteElementBasisT();
@@ -77,9 +77,9 @@ namespace helfem {
       void add_boundary(T r);
 
       /// Get the polynomial basis
-      std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>>  get_poly() const;
+      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>>  get_poly() const;
       /// Get basis functions in element
-      std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>>
+      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>>
       get_basis(size_t iel) const;
 
       /// Get the numerical id of the polynomial basis

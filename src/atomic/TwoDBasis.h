@@ -138,7 +138,7 @@ namespace helfem {
         // boundary so a consumer does not need to include <armadillo>
         // to instantiate the basis.
         TwoDBasisT(int Z, modelpotential::nuclear_model_t model, T Rrms,
-                   const std::shared_ptr<const helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> &poly,
+                   const std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> &poly,
                    bool zeroder, int n_quad,
                    const helfem::Vec<T> & bval,
                    const Eigen::VectorXi & lval,

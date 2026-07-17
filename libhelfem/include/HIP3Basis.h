@@ -12,18 +12,17 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#ifndef LIB1DFEM_HIP3BASIS_H
-#define LIB1DFEM_HIP3BASIS_H
+#ifndef HELFEM_FEM_HIP3BASIS_H
+#define HELFEM_FEM_HIP3BASIS_H
 
-#include <lib1dfem/LIPBasis.h>
-#include <lib1dfem/HIP3Basis_eval.h>
-#include <lib1dfem/HIP3Basis_over_r.h>
+#include <LIPBasis.h>
+#include <HIP3Basis_eval.h>
+#include <HIP3Basis_over_r.h>
 #include <cmath>
 #include <sstream>
 #include <stdexcept>
 
 namespace helfem {
-namespace lib1dfem {
 namespace polynomial_basis {
 
 /// Analytic third-order Hermite interpolating polynomial basis: at each
@@ -34,14 +33,14 @@ namespace polynomial_basis {
 ///
 /// Templated on the scalar type T.
 template <typename T>
-class HIP3Basis : public LIPBasis<T> {
+class HIP3BasisT : public LIPBasisT<T> {
  protected:
   /// L_i^(1)(x_i), L_i^(2)(x_i), L_i^(3)(x_i) at every node (precomputed).
   Vec<T> lipxi, lipxi2, lipxi3;
 
  public:
   /// id_ is the primbas value echoed via get_id() (typically 9 for HIP3).
-  HIP3Basis(const Vec<T> & x, int id_ = 9) : LIPBasis<T>(x, id_) {
+  HIP3BasisT(const Vec<T> & x, int id_ = 9) : LIPBasisT<T>(x, id_) {
     // Four overlapping functions per node (value + 1st + 2nd + 3rd deriv).
     this->noverlap = 4;
     this->nprim    = 4 * static_cast<int>(this->x0.size());
@@ -57,10 +56,10 @@ class HIP3Basis : public LIPBasis<T> {
     lipxi3 = dddlip.diagonal();
   }
 
-  ~HIP3Basis() override = default;
+  ~HIP3BasisT() override = default;
 
-  HIP3Basis<T> * copy() const override {
-    return new HIP3Basis<T>(*this);
+  HIP3BasisT<T> * copy() const override {
+    return new HIP3BasisT<T>(*this);
   }
 
   void eval_prim_dnf(const Vec<T> & x, Mat<T> & dnf, int n,
@@ -104,7 +103,7 @@ class HIP3Basis : public LIPBasis<T> {
   }
 
   // Pull the base's 3-arg eval_over_r overload back into scope.
-  using PolynomialBasis<T>::eval_over_r;
+  using PolynomialBasisT<T>::eval_over_r;
 
   /// Analytic R(r) = B(r)/r and its first two r-derivatives for the
   /// surviving HIP3 shape functions on the first element. Precondition:
@@ -139,7 +138,6 @@ class HIP3Basis : public LIPBasis<T> {
 };
 
 } // namespace polynomial_basis
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif

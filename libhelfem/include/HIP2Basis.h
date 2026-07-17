@@ -12,18 +12,17 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#ifndef LIB1DFEM_HIP2BASIS_H
-#define LIB1DFEM_HIP2BASIS_H
+#ifndef HELFEM_FEM_HIP2BASIS_H
+#define HELFEM_FEM_HIP2BASIS_H
 
-#include <lib1dfem/LIPBasis.h>
-#include <lib1dfem/HIP2Basis_eval.h>
-#include <lib1dfem/HIP2Basis_over_r.h>
+#include <LIPBasis.h>
+#include <HIP2Basis_eval.h>
+#include <HIP2Basis_over_r.h>
 #include <cmath>
 #include <sstream>
 #include <stdexcept>
 
 namespace helfem {
-namespace lib1dfem {
 namespace polynomial_basis {
 
 /// Analytic second-order Hermite interpolating polynomial basis: at each
@@ -35,7 +34,7 @@ namespace polynomial_basis {
 ///
 /// Templated on the scalar type T.
 template <typename T>
-class HIP2Basis : public LIPBasis<T> {
+class HIP2BasisT : public LIPBasisT<T> {
  protected:
   /// L_i'(x_i) at every node (precomputed at construction).
   Vec<T> lipxi;
@@ -45,7 +44,7 @@ class HIP2Basis : public LIPBasis<T> {
  public:
   /// id_ is just an identifier echoed via get_id(); the libhelfem
   /// factory passes the primbas value (8 for HIP2).
-  HIP2Basis(const Vec<T> & x, int id_ = 8) : LIPBasis<T>(x, id_) {
+  HIP2BasisT(const Vec<T> & x, int id_ = 8) : LIPBasisT<T>(x, id_) {
     // Three overlapping functions per node (value + 1st deriv + 2nd deriv).
     this->noverlap = 3;
     this->nprim    = 3 * static_cast<int>(this->x0.size());
@@ -60,10 +59,10 @@ class HIP2Basis : public LIPBasis<T> {
     lipxi2 = ddlip.diagonal();
   }
 
-  ~HIP2Basis() override = default;
+  ~HIP2BasisT() override = default;
 
-  HIP2Basis<T> * copy() const override {
-    return new HIP2Basis<T>(*this);
+  HIP2BasisT<T> * copy() const override {
+    return new HIP2BasisT<T>(*this);
   }
 
   void eval_prim_dnf(const Vec<T> & x, Mat<T> & dnf, int n,
@@ -108,7 +107,7 @@ class HIP2Basis : public LIPBasis<T> {
   }
 
   // Pull the base's 3-arg eval_over_r overload back into scope.
-  using PolynomialBasis<T>::eval_over_r;
+  using PolynomialBasisT<T>::eval_over_r;
 
   /// Analytic R(r) = B(r)/r and its first two r-derivatives for the
   /// surviving HIP2 shape functions on the first element. Precondition:
@@ -139,7 +138,6 @@ class HIP2Basis : public LIPBasis<T> {
 };
 
 } // namespace polynomial_basis
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif

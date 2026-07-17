@@ -12,27 +12,26 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#ifndef LIB1DFEM_POLYNOMIALBASIS_H
-#define LIB1DFEM_POLYNOMIALBASIS_H
+#ifndef HELFEM_FEM_POLYNOMIALBASIS_H
+#define HELFEM_FEM_POLYNOMIALBASIS_H
 
-#include <lib1dfem/types.h>
+#include <types.h>
 #include <cmath>
 #include <stdexcept>
 #include <string>
 #include <fstream>
 
 namespace helfem {
-namespace lib1dfem {
 namespace polynomial_basis {
 
 /// Abstract template for a primitive polynomial basis defined on the
-/// reference element [-1, 1]. Concrete subclasses (LIPBasis, HIPBasis,
-/// GeneralHIPBasis, LegendreBasis) implement eval_prim_dnf, copy,
+/// reference element [-1, 1]. Concrete subclasses (LIPBasisT, HIPBasisT,
+/// GeneralHIPBasis, LegendreBasisT) implement eval_prim_dnf, copy,
 /// drop_first, drop_last and may override get_nodes.
 ///
 /// Templated on the scalar type T.
 template <typename T>
-class PolynomialBasis {
+class PolynomialBasisT {
  protected:
   /// Number of primitive functions
   int nprim = 0;
@@ -55,11 +54,11 @@ class PolynomialBasis {
   }
 
  public:
-  PolynomialBasis() = default;
-  virtual ~PolynomialBasis() = default;
+  PolynomialBasisT() = default;
+  virtual ~PolynomialBasisT() = default;
 
   /// Polymorphic clone.
-  virtual PolynomialBasis * copy() const = 0;
+  virtual PolynomialBasisT * copy() const = 0;
 
   int get_nprim()    const { return nprim; }
   int get_nbf()      const { return static_cast<int>(enabled.size()); }
@@ -119,7 +118,7 @@ class PolynomialBasis {
                            int n, T element_length) const {
     (void)x; (void)dnf_over_r; (void)n; (void)element_length;
     throw std::logic_error(
-        "eval_over_r is not implemented for this PolynomialBasis subclass.\n");
+        "eval_over_r is not implemented for this PolynomialBasisT subclass.\n");
   }
 
   Mat<T> eval_over_r(const Vec<T> & x, int n, T element_length) const {
@@ -149,7 +148,6 @@ class PolynomialBasis {
 };
 
 } // namespace polynomial_basis
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif

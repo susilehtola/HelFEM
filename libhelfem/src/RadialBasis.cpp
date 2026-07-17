@@ -16,7 +16,7 @@
 #include "RadialPotential.h"
 #include "quadrature.h"
 #include "utils.h"
-#include <lib1dfem/chebyshev.h>
+#include <chebyshev.h>
 #include <limits>
 // Scalar formatter that prints a T value at its own precision (no truncation
 // to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.
@@ -35,7 +35,7 @@ namespace helfem {
 
       template <typename T>
       FEMRadialBasisT<T>::FEMRadialBasisT(const polynomial_basis::FiniteElementBasisT<T> & fem_, int n_quad) : fem(fem_) {
-        helfem::lib1dfem::chebyshev::chebyshev<T>(n_quad, xq, wq);
+        helfem::chebyshev::chebyshev<T>(n_quad, xq, wq);
         for (Eigen::Index i = 0; i < xq.size(); ++i) {
           // Format the T value at its own precision (no truncation to double).
           if (!std::isfinite(xq(i)))
@@ -217,7 +217,7 @@ namespace helfem {
         // Pick a quadrature rule sized for the finer of the two bases.
         const Eigen::Index n_quad = std::max(xq.size(), rh.xq.size());
         helfem::Vec<T> xproj, wproj;
-        helfem::lib1dfem::chebyshev::chebyshev<T>((int) n_quad, xproj, wproj);
+        helfem::chebyshev::chebyshev<T>((int) n_quad, xproj, wproj);
 
         // List overlapping (iel, jel) element pairs.
         std::vector<std::vector<size_t>> overlap(fem.get_nelem());
@@ -487,7 +487,7 @@ namespace helfem {
         T Rmax(fem.element_end(iel));
 
         // Integral by quadrature
-        std::shared_ptr<const helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> p(fem.get_basis(iel));
+        std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> p(fem.get_basis(iel));
         // Phase 5.7: quadrature::twoe_integral is now Eigen.
         helfem::Mat<T> tei = quadrature::twoe_integral<T>(Rmin, Rmax, xq, wq, p, L);
         if (tei.array().isNaN().any())
@@ -562,7 +562,7 @@ namespace helfem {
         T Rmax(fem.element_end(iel));
 
         // Integral by quadrature
-        std::shared_ptr<const helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> p(fem.get_basis(iel));
+        std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> p(fem.get_basis(iel));
         return quadrature::yukawa_integral<T>(Rmin, Rmax, xq, wq, p, L, lambda);
       }
 
@@ -587,7 +587,7 @@ namespace helfem {
 
         // Phase 5.8: local scratch is now native Eigen.
         helfem::Vec<T> xi, wi;
-        helfem::lib1dfem::chebyshev::chebyshev<T>((int) Nq, xi, wi);
+        helfem::chebyshev::chebyshev<T>((int) Nq, xi, wi);
         helfem::Mat<T> ibf = fem.eval_dnf(xi, 0, iel);
         const T Rmini = fem.element_begin(iel);
         const T Rmaxi = fem.element_end(iel);
@@ -623,7 +623,7 @@ namespace helfem {
         T Rmax(fem.element_end(iel));
 
         // Integral by quadrature
-        std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> p(fem.get_basis(iel));
+        std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(fem.get_basis(iel));
         return quadrature::spherical_potential<T>(Rmin, Rmax, xq, wq, p);
       }
 

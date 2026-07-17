@@ -19,7 +19,7 @@
 #include "NAORadialBasis.h"
 #include "FiniteElementBasis.h"
 #include "PolynomialBasis.h"
-#include <lib1dfem/chebyshev.h>
+#include <chebyshev.h>
 #include <Eigen/Cholesky>
 #include <cmath>
 #include <memory>
@@ -160,7 +160,7 @@ namespace helfem {
         const helfem::Matrix S = radial.overlap();
         // Quadrature points + weights for the projection integrals.
         helfem::Vector xq, wq;
-        helfem::lib1dfem::chebyshev::chebyshev<double>(
+        helfem::chebyshev::chebyshev<double>(
             5 * poly->get_nbf(), xq, wq);
         // Project each STO onto the FE basis: c = S^{-1} <u_i, u_STO>.
         helfem::Matrix C = helfem::Matrix::Zero(S.rows(), basis.size());

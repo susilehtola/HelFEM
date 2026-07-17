@@ -12,19 +12,18 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#ifndef LIB1DFEM_CHEBYSHEV_H
-#define LIB1DFEM_CHEBYSHEV_H
+#ifndef HELFEM_FEM_CHEBYSHEV_H
+#define HELFEM_FEM_CHEBYSHEV_H
 
-#include <lib1dfem/types.h>
+#include <types.h>
 #include <cmath>
 
 namespace helfem {
-namespace lib1dfem {
 namespace chebyshev {
 
-// Templated Gauss-Chebyshev quadrature primitives. libhelfem keeps a
-// thin double-only shim at libhelfem/src/chebyshev.h for callers that
-// still spell the output vectors as arma::vec.
+// Templated Gauss-Chebyshev quadrature primitives, plus double-precision
+// convenience overloads (below) that spell their outputs as the
+// Eigen-typed helfem::Vector for callers that do not carry a scalar type.
 
 /// Modified Gauss-Chebyshev quadrature of the second kind for
 ///     integral_{-1}^{1} f(x) dx
@@ -80,8 +79,17 @@ void radial_chebyshev(int nrad, Vec<T> & rad, Vec<T> & wrad) {
   }
 }
 
+/// Double-precision convenience overload (helfem::Vector == Vec<double>).
+inline void chebyshev(int n, helfem::Vector & x, helfem::Vector & w) {
+  chebyshev<double>(n, x, w);
+}
+
+/// Double-precision convenience overload (helfem::Vector == Vec<double>).
+inline void radial_chebyshev(int n, helfem::Vector & r, helfem::Vector & wr) {
+  radial_chebyshev<double>(n, r, wr);
+}
+
 } // namespace chebyshev
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif

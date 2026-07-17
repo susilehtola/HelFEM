@@ -51,9 +51,9 @@ namespace {
   // r = e*(x+1) with e the element scaling factor (half-width).
   template<typename T>
   int check(const Basis &b, int Nnodes, double half_width, const char *prec) {
-    namespace pb = helfem::lib1dfem::polynomial_basis;
+    namespace pb = helfem::polynomial_basis;
 
-    std::shared_ptr<pb::PolynomialBasis<T>> poly;
+    std::shared_ptr<pb::PolynomialBasisT<T>> poly;
     try {
       poly.reset(polynomial_basis::get_basis_T<T>(b.primbas, Nnodes));
     } catch (const std::exception &e) {
@@ -128,8 +128,8 @@ namespace {
     double sweep_over_r = 0.0, sweep_naive = 0.0, dnf_at_origin = 0.0;
 #ifdef HELFEM_HAVE_FLOAT128
     {
-      namespace pbq = helfem::lib1dfem::polynomial_basis;
-      std::shared_ptr<pbq::PolynomialBasis<_Float128>> polyq(
+      namespace pbq = helfem::polynomial_basis;
+      std::shared_ptr<pbq::PolynomialBasisT<_Float128>> polyq(
           polynomial_basis::get_basis_T<_Float128>(b.primbas, Nnodes));
       polyq->drop_first(true, false);
 

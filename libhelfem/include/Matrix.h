@@ -68,7 +68,7 @@ namespace helfem {
   template <typename T = double>
   using RowVectorT = Eigen::Matrix<T, 1, Eigen::Dynamic>;
 
-  // Short aliases matching the lib1dfem::Vec<T> / Mat<T> / RowVec<T>
+  // Short aliases matching the Vec<T> / Mat<T> / RowVec<T>
   // shorthand. Use these in new templated code -- the verbose
   // Eigen::Matrix<T, Eigen::Dynamic, ...> spelling hurts readability.
   template <typename T = double>

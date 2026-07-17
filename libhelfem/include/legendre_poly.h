@@ -12,13 +12,12 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#ifndef LIB1DFEM_LEGENDRE_POLY_H
-#define LIB1DFEM_LEGENDRE_POLY_H
+#ifndef HELFEM_FEM_LEGENDRE_POLY_H
+#define HELFEM_FEM_LEGENDRE_POLY_H
 
-#include <lib1dfem/types.h>
+#include <types.h>
 
 namespace helfem {
-namespace lib1dfem {
 namespace legendre {
 
 /// Evaluate Legendre polynomials P_l(x) for l = 0, 1, ..., lmax at every
@@ -75,7 +74,6 @@ Mat<T> d2legendre_batch(int lmax, const Vec<T> & x) {
 }
 
 } // namespace legendre
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif

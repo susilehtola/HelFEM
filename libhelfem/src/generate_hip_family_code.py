@@ -21,9 +21,9 @@
 # the order hard-coded, and adds the eval_over_r (1/r) derivation that
 # only HIP2 ever had.
 #
-#   python3 generate_hip_family_code.py --order 1  > ../../lib1dfem/include/lib1dfem/HIPBasis_eval.h
-#   python3 generate_hip_family_code.py --order 2  > ../../lib1dfem/include/lib1dfem/HIP2Basis_eval.h
-#   python3 generate_hip_family_code.py --order 3  > ../../lib1dfem/include/lib1dfem/HIP3Basis_eval.h
+#   python3 generate_hip_family_code.py --order 1  > ../include/HIPBasis_eval.h
+#   python3 generate_hip_family_code.py --order 2  > ../include/HIP2Basis_eval.h
+#   python3 generate_hip_family_code.py --order 3  > ../include/HIP3Basis_eval.h
 #
 # LIP is NOT part of this: it is the PRIMITIVE these are built on. The
 # shapes below are expressed in terms of L_i and its derivatives, which
@@ -318,14 +318,13 @@ if args.over_r:
 #ifndef LIB1DFEM_{CLS.upper()}_OVER_R_H
 #define LIB1DFEM_{CLS.upper()}_OVER_R_H
 
-#include <lib1dfem/types.h>
-#include <lib1dfem/LIPBasis_eval.h>
+#include <types.h>
+#include <LIPBasis_eval.h>
 #include <cmath>
 #include <sstream>
 #include <stdexcept>
 
 namespace helfem {{
-namespace lib1dfem {{
 namespace polynomial_basis {{
 namespace detail {{
 
@@ -440,7 +439,6 @@ void eval_{TAG}_prim_over_r(const Vec<T> & x, const Vec<T> & x0,
 
 } // namespace detail
 } // namespace polynomial_basis
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif''')
@@ -462,13 +460,12 @@ print(f'''/*
 #ifndef {GUARD}
 #define {GUARD}
 
-#include <lib1dfem/types.h>
-#include <lib1dfem/LIPBasis_eval.h>
+#include <types.h>
+#include <LIPBasis_eval.h>
 #include <sstream>
 #include <stdexcept>
 
 namespace helfem {{
-namespace lib1dfem {{
 namespace polynomial_basis {{
 namespace detail {{
 
@@ -540,7 +537,6 @@ print(f'''default: {{
 
 }} // namespace detail
 }} // namespace polynomial_basis
-}} // namespace lib1dfem
 }} // namespace helfem
 
 #endif''')

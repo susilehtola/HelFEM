@@ -14,17 +14,17 @@
  */
 
 // v2 refactor (Phase 1): the grid-builder implementation now lives in
-// lib1dfem as a templated header. This translation unit is the double-only
+// libhelfem as a templated header. This translation unit is the double-only
 // compatibility shim that keeps the libhelfem public API (declared in
 // helfem.source.h) source-compatible during the migration.
 
 #include <helfem.h>
-#include <lib1dfem/grid.h>
+#include <grid.h>
 #include <cstring>
 
 helfem::Vector helfem::utils::get_grid(double rmax, int num_el, int igrid,
                                         double zexp) {
-  // lib1dfem grid is Eigen; return directly.
-  return helfem::lib1dfem::grid::get_grid<double>(rmax, num_el, igrid, zexp,
+  // The FEM grid is Eigen; return directly.
+  return helfem::grid::get_grid<double>(rmax, num_el, igrid, zexp,
                                                    helfem::verbose);
 }

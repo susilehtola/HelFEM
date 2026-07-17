@@ -96,7 +96,7 @@ namespace helfem {
         void add_boundary(T r);
 
         /// Get polynomial basis
-        std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> get_poly() const;
+        std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> get_poly() const;
         /// Get the underlying FE basis (read-only).
         const polynomial_basis::FiniteElementBasisT<T> & get_fem() const { return fem; }
 

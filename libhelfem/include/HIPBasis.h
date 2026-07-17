@@ -12,29 +12,28 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#ifndef LIB1DFEM_HIPBASIS_H
-#define LIB1DFEM_HIPBASIS_H
+#ifndef HELFEM_FEM_HIPBASIS_H
+#define HELFEM_FEM_HIPBASIS_H
 
-#include <lib1dfem/LIPBasis.h>
-#include <lib1dfem/HIPBasis_eval.h>
-#include <lib1dfem/HIPBasis_over_r.h>
+#include <LIPBasis.h>
+#include <HIPBasis_eval.h>
+#include <HIPBasis_over_r.h>
 
 namespace helfem {
-namespace lib1dfem {
 namespace polynomial_basis {
 
 /// Hermite interpolating polynomial basis (order 1: interpolates value
-/// and first derivative at each node). Derives from LIPBasis<T> because
+/// and first derivative at each node). Derives from LIPBasisT<T> because
 /// the HIP shape functions are constructed from L_i(x)^2 and need the
 /// LIP derivative table. Phase 5.2: Eigen-typed.
 template <typename T>
-class HIPBasis : public LIPBasis<T> {
+class HIPBasisT : public LIPBasisT<T> {
  protected:
   /// L_i'(x_i) at each node (precomputed at construction)
   Vec<T> lipxi;
 
  public:
-  HIPBasis(const Vec<T> & x, int id_ = 5) : LIPBasis<T>(x, id_) {
+  HIPBasisT(const Vec<T> & x, int id_ = 5) : LIPBasisT<T>(x, id_) {
     // Two overlapping functions: function + derivative
     this->noverlap = 2;
     this->nprim    = 2 * static_cast<int>(this->x0.size());
@@ -47,10 +46,10 @@ class HIPBasis : public LIPBasis<T> {
     lipxi = dlip.diagonal();
   }
 
-  ~HIPBasis() override = default;
+  ~HIPBasisT() override = default;
 
-  HIPBasis<T> * copy() const override {
-    return new HIPBasis<T>(*this);
+  HIPBasisT<T> * copy() const override {
+    return new HIPBasisT<T>(*this);
   }
 
   void drop_first(bool func, bool deriv) override {
@@ -88,7 +87,7 @@ class HIPBasis : public LIPBasis<T> {
 
   // Pull the base's 3-arg matrix-returning eval_over_r overload back into
   // scope (overriding the 4-arg virtual below would otherwise hide it).
-  using PolynomialBasis<T>::eval_over_r;
+  using PolynomialBasisT<T>::eval_over_r;
 
   /// Analytic B_u(r)/r for the surviving (post-drop_first(true,false)) HIP
   /// shape functions on the first element. See header comment in v1 code
@@ -103,7 +102,6 @@ class HIPBasis : public LIPBasis<T> {
 };
 
 } // namespace polynomial_basis
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif

@@ -12,16 +12,15 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#ifndef LIB1DFEM_MATH_H
-#define LIB1DFEM_MATH_H
+#ifndef HELFEM_FEM_MATH_H
+#define HELFEM_FEM_MATH_H
 
-#include <lib1dfem/types.h>
+#include <types.h>
 #include <cmath>
 #include <algorithm>
 #include <limits>
 
 namespace helfem {
-namespace lib1dfem {
 namespace math {
 
 /// Inverse cosh. x is mathematically >= 1 but is clamped to 1 because the
@@ -117,7 +116,6 @@ Vec<T> bessel_kl(const Vec<T> & r, int L) {
 }
 
 } // namespace math
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif
