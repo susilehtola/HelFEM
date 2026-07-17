@@ -111,19 +111,20 @@ endif()
 
 install(TARGETS helfem_blas EXPORT helfemTargets)
 
-# Eigen3 (>= 3.4) -- header-only. Prefer a system install, else fetch
-# v3.4.0. The range form `3.4...99` accepts any >= 3.4 (a bare `3.4`
-# is read as the exclusive [3.4, 3.5) by Eigen's ConfigVersion and would
-# reject e.g. Fedora's Eigen 5). The system Eigen is used verbatim -- no
-# patching -- which is why HELFEM_EIGEN_BLAS is restricted to LP64, where
-# stock Eigen's 32-bit BLAS backend already matches the linked BLAS.
+# Eigen3 (>= 3.4) -- header-only. Prefer a system install, else fetch the
+# latest stable release (5.0.1). The range form `3.4...99` accepts any
+# >= 3.4 (a bare `3.4` is read as the exclusive [3.4, 3.5) by Eigen's
+# ConfigVersion and would reject e.g. Fedora's Eigen 5). The system Eigen
+# is used verbatim -- no patching -- which is why HELFEM_EIGEN_BLAS is
+# restricted to LP64, where stock Eigen's 32-bit BLAS backend already
+# matches the linked BLAS.
 find_package(Eigen3 3.4...99 QUIET NO_MODULE)
 if(NOT Eigen3_FOUND)
-    message(STATUS "Eigen3 >= 3.4 not found; fetching v3.4.0")
+    message(STATUS "Eigen3 >= 3.4 not found; fetching v5.0.1")
     include(FetchContent)
     FetchContent_Declare(Eigen3
         GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-        GIT_TAG        3.4.0)
+        GIT_TAG        5.0.1)
     set(EIGEN_BUILD_DOC       OFF CACHE INTERNAL "")
     set(EIGEN_BUILD_PKGCONFIG OFF CACHE INTERNAL "")
     set(BUILD_TESTING         OFF CACHE INTERNAL "")
