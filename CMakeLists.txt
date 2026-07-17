@@ -155,6 +155,11 @@ if(NOT wignernj_FOUND)
     FetchContent_Declare(wignernj
         GIT_REPOSITORY https://github.com/susilehtola/wignernj.git
         GIT_TAG        v0.8.0)
+    # gaunt.cpp calls the __float128 C entry point ::gaunt_q, which wignernj
+    # only compiles when its quadmath build is enabled. In wignernj 0.8.0 that
+    # option was renamed BUILD_QUADMATH -> WIGNERNJ_BUILD_QUADMATH and defaults
+    # OFF, so it must be set explicitly here or ::gaunt_q fails to link.
+    set(WIGNERNJ_BUILD_QUADMATH ON CACHE INTERNAL "")
     FetchContent_MakeAvailable(wignernj)
     if(NOT TARGET wignernj::wignernj)
         add_library(wignernj::wignernj ALIAS wignernj)
