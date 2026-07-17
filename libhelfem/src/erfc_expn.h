@@ -16,8 +16,7 @@
 #define ATOMIC_ERFC_EXPN_H
 
 namespace helfem {
-  namespace atomic {
-    namespace erfc_expn {
+  namespace erfc_expn {
       /**
        * Computes the complementary error function expansion as
        * described in J. G. Ángyán, I. Gerber and M. Marsman, "Spherical
@@ -31,7 +30,6 @@ namespace helfem {
        * rather than being capped at double.
        */
       template <typename T> T Phi(unsigned int n, T Xi, T xi);
-    }
   }
 }
 

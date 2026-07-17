@@ -63,13 +63,9 @@ namespace helfem {
   } // namespace utils
 } // namespace helfem
 
-#include "GaussianNucleus.h"
-#include "HollowNucleus.h"
 #include "ModelPotential.h"
-#include "PointNucleus.h"
 #include "PolynomialBasis.h"
 #include "RadialBasis.h"
-#include "SphericalNucleus.h"
 
 namespace helfem {
   namespace polynomial_basis {

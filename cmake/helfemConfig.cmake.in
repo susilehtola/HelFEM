@@ -43,21 +43,27 @@ if(@HELFEM_HAS_HDF5@)
     pkg_check_modules(LIBXC REQUIRED IMPORTED_TARGET libxc)
 endif()
 
-# Bring in the imported targets: helfem::helfem, helfem::helfem-common,
-# helfem::legendre, helfem::lib1dfem, helfem::blas (+ helfem::hdf5).
+# Bring in the imported targets: helfem::helfem, helfem::helfemqc,
+# helfem::helfem-common, helfem::legendre, helfem::lib1dfem, helfem::blas
+# (+ helfem::hdf5). (helfem::qc is the in-tree alias of helfem::helfemqc;
+# only the real target name is exported.)
 include("${CMAKE_CURRENT_LIST_DIR}/helfemTargets.cmake")
 
 # In-tree, the atomic FE code (TwoDBasis, DFTGrid, gaunt, ... everything
 # under src/) lives in libhelfem-common.a, which links PUBLIC to
-# libhelfem.a. A downstream target_link_libraries(x helfem::helfem) does
+# libhelfemqc.a (the quantum-chemistry layer) and libhelfem.a (the general
+# FEM core). A downstream target_link_libraries(x helfem::helfem) does
 # NOT drag helfem-common in via that PUBLIC link, because helfem-common
 # depends on helfem, not the other way round. Consumers reaching for
 # helfem::helfem expect the atomic backend to work out of the box, so
 # append the higher-level libs to helfem::helfem's interface closure.
+# (helfem::helfemqc is pulled in transitively by helfem-common, but list
+# it explicitly so a consumer linking helfem::helfem always sees the QC
+# layer.)
 if(TARGET helfem::helfem AND TARGET helfem::helfem-common)
     set_property(TARGET helfem::helfem APPEND PROPERTY
         INTERFACE_LINK_LIBRARIES
-            helfem::helfem-common helfem::legendre)
+            helfem::helfem-common helfem::helfemqc helfem::legendre)
 endif()
 
 check_required_components(helfem)

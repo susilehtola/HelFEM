@@ -2,6 +2,28 @@
 
 Status: proposal for discussion. Prototype in `docs/autoconv_prototype.cpp`.
 
+**Phase 3 is done** (branch `libhelfemqc-split`): the quantum-chemistry layer
+now lives in a separate `libhelfemqc` target (`helfem::helfemqc`, in-tree alias
+`helfem::qc`) that links PUBLIC to `helfem`. Final classification, with two
+deviations from the original table below:
+
+- **Moved to libhelfemqc** — the concrete nucleus models (`PointNucleus`,
+  `GaussianNucleus`, `HollowNucleus`, `SphericalNucleus`, `RegularizedNucleus`,
+  header + `.cpp`), the FE Coulomb/exchange assembler `CoulombExchangeFE.h`, and
+  the atom-centred orbital bases `NAORadialBasis.h` / `GTO.h` / `STO.h`.
+- **Kept in libhelfem (general)** — the abstract base
+  `modelpotential::ModelPotentialT<T>` (`ModelPotential.{h,cpp}`), whose
+  `virtual T V(T r) const = 0` interface `RadialBasis` consumes by pointer, and
+  the trivial `RadialPotentialT` (`RadialPotential.*`, general `r^n` math). Also
+  kept: `erfc_expn` (`erfc_expn.{h,cpp}`), a general screened-Coulomb Green's
+  function that `quadrature::erfc_integral` depends on — it did **not** move;
+  instead its namespace `helfem::atomic::erfc_expn` was renamed to
+  `helfem::erfc_expn` (dropping the misleading `atomic`).
+
+`helfem-common` now links `helfemqc` PUBLIC; the installed CMake package chains
+`helfem::helfemqc` into `helfem::helfem`'s interface. Pure move — energies are
+bit-identical to master.
+
 ## Goal
 
 Turn `libhelfem` into a **proper, reusable, domain-agnostic finite-element
@@ -45,8 +67,10 @@ So this is ~60% a consolidation, not a rewrite.
 | `FiniteElementBasis` (+ `matrix_element`) | libhelfem | **libhelfem** | the general assembly + the unifying evaluator |
 | `RadialBasis` | libhelfem | **libhelfem** | radial/spherical FEM is domain-neutral; already physics-free once `f` is injected |
 | radial 2e primitives (`twoe_integral`, `yukawa_integral` per multipole L) | libhelfem | **libhelfem** | the `r<^L/r>^(L+1)` Green's function is math, not chemistry |
-| nucleus models, `ModelPotential`/`RadialPotential` | libhelfem | **libhelfemqc** | these are just `f(r)` |
-| `CoulombExchangeFE`, `erfc_expn` | libhelfem | **libhelfemqc** | kernel choice + angular coupling + Fock assembly is chemistry |
+| concrete nucleus models (`PointNucleus`, `GaussianNucleus`, ...) | libhelfem | **libhelfemqc** | these are just `f(r)` — the electron-nuclear charge distributions |
+| `ModelPotential` (abstract base) / `RadialPotential` | libhelfem | **libhelfem** | the `virtual V(r)` interface `RadialBasis` consumes + the general `r^n` potential stay general |
+| `CoulombExchangeFE` | libhelfem | **libhelfemqc** | kernel choice + angular coupling + Fock assembly is chemistry |
+| `erfc_expn` | libhelfem | **libhelfem** | general screened-Coulomb Green's function `quadrature` depends on; kept general, namespace `atomic::` dropped |
 | `NAORadialBasis`, `GTO`, `STO` | libhelfem | **libhelfemqc** | atomic orbitals |
 | gaunt, SCF, DFT, checkpoint, atomic/diatomic bases | helfem-common | **HelFEM app** | unchanged |
 
@@ -112,10 +136,12 @@ choice, and the Fock build.
    bit-identical at double (exact-order path), and a known-hard element
    (finite-nucleus, 2e cusp) converges to eps(T) at double **and** gains digits
    at quad.
-3. **Split `libhelfemqc`.** Move nucleus models, `ModelPotential`/
-   `RadialPotential`, `CoulombExchangeFE`, `erfc_expn`, `NAO`/`GTO`/`STO` up into
-   a new `libhelfemqc` target; `libhelfem` keeps only FEM + evaluators. Update
-   `helfem-common` to link `libhelfemqc`. Downstream `find_package` consumer test.
+3. **Split `libhelfemqc`. (DONE)** Move the concrete nucleus models,
+   `CoulombExchangeFE`, `NAO`/`GTO`/`STO` up into a new `libhelfemqc` target;
+   `libhelfem` keeps FEM + evaluators plus the domain-neutral pieces the
+   evaluators depend on (the `ModelPotential` abstract base, `RadialPotential`,
+   and `erfc_expn`). `helfem-common` links `libhelfemqc`. Downstream
+   `find_package` consumer test passes.
 4. **Fold `lib1dfem` into `libhelfem`.** Collapse the base-primitive library into
    the FEM library; one general target.
 
@@ -130,5 +156,7 @@ choice, and the Fock build.
   `helfem::qc::` sub-namespace to mirror the target split.
 - **Performance.** The exact-order short-circuit must cover the SCF hot path so
   auto-convergence never adds cost where the integrand is polynomial.
-- **`erfc_expn` still lives in `atomic::`.** Rename its namespace as part of the
-  QC move.
+- **`erfc_expn` namespace.** ~~Still lives in `atomic::`; rename as part of the
+  QC move.~~ Done in Phase 3: renamed `helfem::atomic::erfc_expn` ->
+  `helfem::erfc_expn`. The function itself stayed in `libhelfem` (general
+  screened-Coulomb Green's function), it was not moved to the QC layer.

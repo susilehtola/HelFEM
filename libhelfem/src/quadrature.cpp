@@ -221,7 +221,7 @@ namespace helfem {
       Mat<T> Fn(ri.size(), rk.size());
       for (Eigen::Index i = 0; i < ri.size(); ++i)
         for (Eigen::Index k = 0; k < rk.size(); ++k)
-          Fn(i, k) = atomic::erfc_expn::Phi<T>(L, mu * ri(i), mu * rk(k));
+          Fn(i, k) = erfc_expn::Phi<T>(L, mu * ri(i), mu * rk(k));
 
       Mat<T> bfprodij = make_bfprod<T>(bfi);
       Mat<T> bfprodkl = make_bfprod<T>(bfk);
