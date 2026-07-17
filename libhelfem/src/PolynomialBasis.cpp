@@ -13,18 +13,14 @@
  * for the full license text.
  */
 
-// v2 refactor (Phase 1): the abstract PolynomialBasis base class definitions
-// have moved into lib1dfem/include/lib1dfem/PolynomialBasis.h (templated,
-// header-only). This translation unit now only holds the factory that
-// constructs the concrete libhelfem-side polynomial bases by primitive ID.
+// The abstract PolynomialBasis base class and the concrete primitive bases
+// are templated, header-only definitions (PolynomialBasisT.h and the
+// LIP/HIP/HIP2/HIP3/Legendre subclass headers), all pulled in by the
+// PolynomialBasis.h facade together with the double-precision aliases and
+// the Gauss-Lobatto node generator. This translation unit only holds the
+// factory that constructs the concrete bases by primitive ID.
 
 #include "PolynomialBasis.h"
-#include "LIPBasis.h"
-#include "HIPBasis.h"
-#include "LegendreBasis.h"
-#include <lib1dfem/HIP2Basis.h>  // analytic HIP order 2 (primbas=8 since v2)
-#include <lib1dfem/HIP3Basis.h>  // analytic HIP order 3 (primbas=9 since v2)
-#include <lib1dfem/lobatto.h>
 #include <cmath>
 
 // (GeneralHIPBasis was removed when its callers were either rerouted to
@@ -52,8 +48,8 @@ namespace helfem {
 
       case(4):
         {
-          helfem::lib1dfem::Vec<double> x, w;
-          helfem::lib1dfem::lobatto::lobatto_compute<double>(Nnodes, x, w);
+          helfem::Vec<double> x, w;
+          helfem::lobatto::lobatto_compute<double>(Nnodes, x, w);
           poly=new polynomial_basis::LIPBasis(x, primbas);
           printf("Basis set composed of %i-node LIPs with Gauss-Lobatto nodes.\n",Nnodes);
           break;
@@ -61,8 +57,8 @@ namespace helfem {
 
       case(5):
         {
-          helfem::lib1dfem::Vec<double> x, w;
-          helfem::lib1dfem::lobatto::lobatto_compute<double>(Nnodes, x, w);
+          helfem::Vec<double> x, w;
+          helfem::lobatto::lobatto_compute<double>(Nnodes, x, w);
           poly=new polynomial_basis::HIPBasis(x, primbas);
           printf("Basis set composed of %i-node HIPs with Gauss-Lobatto nodes.\n",Nnodes);
           break;
@@ -70,7 +66,7 @@ namespace helfem {
 
       case(100):
         {
-          helfem::lib1dfem::Vec<double> x(Nnodes);
+          helfem::Vec<double> x(Nnodes);
           for(int i=0;i<Nnodes;i++)
             x(i) = std::cos(M_PI*(Nnodes-1-i)/(Nnodes-1));
           poly=new polynomial_basis::LIPBasis(x, 4);
@@ -80,7 +76,7 @@ namespace helfem {
 
       case(101):
         {
-          helfem::lib1dfem::Vec<double> x(Nnodes);
+          helfem::Vec<double> x(Nnodes);
           for(int i=0;i<Nnodes;i++)
             x(i) = std::cos(M_PI*(Nnodes-1-i)/(Nnodes-1));
           poly=new polynomial_basis::HIPBasis(x, 5);
@@ -92,9 +88,9 @@ namespace helfem {
         {
           // Analytic HIP2 (closed-form Hermite, second-order). Replaces the
           // runtime-inverted GeneralHIPBasis(nder=2) path.
-          helfem::lib1dfem::Vec<double> x, w;
-          helfem::lib1dfem::lobatto::lobatto_compute<double>(Nnodes, x, w);
-          poly = new lib1dfem::polynomial_basis::HIP2Basis<double>(x, primbas);
+          helfem::Vec<double> x, w;
+          helfem::lobatto::lobatto_compute<double>(Nnodes, x, w);
+          poly = new polynomial_basis::HIP2BasisT<double>(x, primbas);
           printf("Basis set composed of %i-node 2nd order analytic HIPs with Gauss-Lobatto nodes.\n", Nnodes);
           break;
         }
@@ -103,9 +99,9 @@ namespace helfem {
         {
           // Analytic HIP3 (closed-form Hermite, third-order). Replaces the
           // runtime-inverted GeneralHIPBasis(nder=3) path.
-          helfem::lib1dfem::Vec<double> x, w;
-          helfem::lib1dfem::lobatto::lobatto_compute<double>(Nnodes, x, w);
-          poly = new lib1dfem::polynomial_basis::HIP3Basis<double>(x, primbas);
+          helfem::Vec<double> x, w;
+          helfem::lobatto::lobatto_compute<double>(Nnodes, x, w);
+          poly = new polynomial_basis::HIP3BasisT<double>(x, primbas);
           printf("Basis set composed of %i-node 3rd order analytic HIPs with Gauss-Lobatto nodes.\n", Nnodes);
           break;
         }

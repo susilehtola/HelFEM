@@ -17,7 +17,7 @@
 #include "FiniteElementBasis.h"
 #include "Matrix.h"
 #include "../general/eigen_io.h"
-#include <lib1dfem/chebyshev.h>
+#include <chebyshev.h>
 #include <Eigen/Eigenvalues>
 #include <algorithm>
 #include <cmath>
@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
       /*zero_func_right=*/true, /*zero_deriv_right=*/true);
 
   helfem::Vector xq, wq;
-  helfem::lib1dfem::chebyshev::chebyshev<double>(Nquad, xq, wq);
+  helfem::chebyshev::chebyshev<double>(Nquad, xq, wq);
 
   helfem::Matrix bf, dbf;
   poly->eval_dnf(xq, bf,  0, 1.0);

@@ -12,16 +12,15 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#ifndef LIB1DFEM_GRID_H
-#define LIB1DFEM_GRID_H
+#ifndef HELFEM_FEM_GRID_H
+#define HELFEM_FEM_GRID_H
 
-#include <lib1dfem/types.h>
+#include <types.h>
 #include <cmath>
 #include <cstdio>
 #include <stdexcept>
 
 namespace helfem {
-namespace lib1dfem {
 namespace grid {
 
 /// Form a 1D grid of element boundaries on [0, rmax] with `num_el`
@@ -102,7 +101,6 @@ Vec<T> get_grid(T rmax, int num_el, int igrid, T zexp,
 }
 
 } // namespace grid
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif

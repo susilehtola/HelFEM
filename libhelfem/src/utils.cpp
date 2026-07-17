@@ -13,7 +13,7 @@
  * for the full license text.
  */
 #include "utils.h"
-#include <lib1dfem/math.h>
+#include <math.h>
 // Scalar formatter that prints a T value at its own precision (no truncation
 // to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.
 #include "../../src/general/eigen_io.h"
@@ -25,18 +25,18 @@
 
 namespace helfem {
   namespace utils {
-    // Thin wrappers around the templated lib1dfem math helpers.
+    // Thin wrappers around the templated FEM math helpers.
     // arcosh is only ever used from the diatomic driver at double, so it
     // stays a scalar function; the Bessel functions are called from the
     // templated radial layer and follow the scalar type.
     double arcosh(double x) {
-      return helfem::lib1dfem::math::arcosh<double>(x);
+      return helfem::math::arcosh<double>(x);
     }
     template <typename T> T bessel_il(T r, int L) {
-      return helfem::lib1dfem::math::bessel_il<T>(r, L);
+      return helfem::math::bessel_il<T>(r, L);
     }
     template <typename T> T bessel_kl(T r, int L) {
-      return helfem::lib1dfem::math::bessel_kl<T>(r, L);
+      return helfem::math::bessel_kl<T>(r, L);
     }
 
     template double      bessel_il<double>     (double, int);

@@ -6,7 +6,7 @@
 #   target_link_libraries(mytarget PRIVATE helfem::helfem)
 #
 # This exposes the IMPORTED target `helfem::helfem` and chains
-# helfem::helfem-common, helfem::legendre, helfem::lib1dfem, helfem::blas
+# helfem::helfem-common, helfem::legendre, helfem::blas
 # (an external LP64 BLAS/LAPACK, only when the build used EIGEN_USE_BLAS)
 # and their transitive dependencies. The linear algebra is Eigen
 # (header-only), so a default build pulls in no BLAS at all.
@@ -44,7 +44,7 @@ if(@HELFEM_HAS_HDF5@)
 endif()
 
 # Bring in the imported targets: helfem::helfem, helfem::helfemqc,
-# helfem::helfem-common, helfem::legendre, helfem::lib1dfem, helfem::blas
+# helfem::helfem-common, helfem::legendre, helfem::blas
 # (+ helfem::hdf5). (helfem::qc is the in-tree alias of helfem::helfemqc;
 # only the real target name is exported.)
 include("${CMAKE_CURRENT_LIST_DIR}/helfemTargets.cmake")

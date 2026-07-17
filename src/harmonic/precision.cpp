@@ -35,13 +35,13 @@
 //
 // Nothing here is a special-cased "high precision path": FiniteElementBasisT<T>
 // and get_basis_T<T> are the ordinary production classes, instantiated at a
-// different T. Everything below them (PolynomialBasis<T>, LIPBasis<T>,
+// different T. Everything below them (PolynomialBasisT<T>, LIPBasisT<T>,
 // lobatto_compute<T>) was already generic.
 
 #include "PolynomialBasis.h"
 #include "FiniteElementBasis.h"
 #include "Matrix.h"
-#include <lib1dfem/chebyshev.h>
+#include <chebyshev.h>
 #include <Eigen/Eigenvalues>
 #include <cstdio>
 #include <cstdlib>
@@ -60,9 +60,9 @@ namespace {
   template <typename T>
   std::vector<long double> solve(double xmax, int Nelem, int Nnodes, int primbas,
                                  int Nquad, int nstate) {
-    namespace pb = helfem::lib1dfem::polynomial_basis;
+    namespace pb = helfem::polynomial_basis;
 
-    auto poly = std::shared_ptr<const pb::PolynomialBasis<T>>(
+    auto poly = std::shared_ptr<const pb::PolynomialBasisT<T>>(
         polynomial_basis::get_basis_T<T>(primbas, Nnodes));
 
     const helfem::Vec<T> r =
@@ -73,7 +73,7 @@ namespace {
         /*zero_func_right=*/true, /*zero_deriv_right=*/true);
 
     helfem::Vec<T> xq, wq;
-    helfem::lib1dfem::chebyshev::chebyshev<T>(Nquad, xq, wq);
+    helfem::chebyshev::chebyshev<T>(Nquad, xq, wq);
 
     // H = T + V with V = 1/2 x^2, T = 1/2 |psi'|^2 (matrix_element supplies the
     // 1/2 on the kinetic term via the derivative-derivative form below).

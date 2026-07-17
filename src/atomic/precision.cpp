@@ -126,11 +126,11 @@ namespace {
                   int primbas,
                   const helfem::Matrix *Pguess = nullptr,
                   helfem::Matrix *Pout = nullptr) {
-    namespace pb = helfem::lib1dfem::polynomial_basis;
+    namespace pb = helfem::polynomial_basis;
     Quiet quiet;
 
     // --- Basis -------------------------------------------------------------
-    auto poly = std::shared_ptr<const pb::PolynomialBasis<T>>(
+    auto poly = std::shared_ptr<const pb::PolynomialBasisT<T>>(
         polynomial_basis::get_basis_T<T>(primbas, Nnodes));
     const int Nquad = 5 * poly->get_nbf();
 

@@ -49,7 +49,7 @@ target_include_directories(helfemqc
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../libhelfem/src>
 )
 # PUBLIC helfem: the QC layer consumes RadialBasis / FiniteElementBasis /
-# PolynomialBasis / ModelPotential (the abstract base) and lib1dfem's
+# PolynomialBasis / ModelPotential (the abstract base) and the folded-in FEM
 # quadrature, and its headers expose them, so consumers inherit helfem.
 target_link_libraries(helfemqc PUBLIC helfem)
 target_compile_features(helfemqc PUBLIC cxx_std_17)

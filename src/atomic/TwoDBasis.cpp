@@ -64,7 +64,7 @@ namespace helfem {
       template <typename T>
       TwoDBasisT<T>::TwoDBasisT(int Z_, modelpotential::nuclear_model_t model_,
                                 T Rrms_,
-                                const std::shared_ptr<const helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> & poly,
+                                const std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> & poly,
                                 bool zeroder_, int n_quad,
                                 const helfem::Vec<T> & bval,
                                 const Eigen::VectorXi & lval_e,

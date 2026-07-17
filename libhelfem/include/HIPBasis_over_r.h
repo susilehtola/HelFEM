@@ -11,17 +11,16 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-#ifndef LIB1DFEM_HIPBASIS_OVER_R_H
-#define LIB1DFEM_HIPBASIS_OVER_R_H
+#ifndef HELFEM_FEM_HIPBASIS_OVER_R_H
+#define HELFEM_FEM_HIPBASIS_OVER_R_H
 
-#include <lib1dfem/types.h>
-#include <lib1dfem/LIPBasis_eval.h>
+#include <types.h>
+#include <LIPBasis_eval.h>
 #include <cmath>
 #include <sstream>
 #include <stdexcept>
 
 namespace helfem {
-namespace lib1dfem {
 namespace polynomial_basis {
 namespace detail {
 
@@ -173,7 +172,6 @@ void eval_hip_prim_over_r(const Vec<T> & x, const Vec<T> & x0,
 
 } // namespace detail
 } // namespace polynomial_basis
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif

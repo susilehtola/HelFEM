@@ -43,7 +43,7 @@ namespace helfem {
 
       RadialBasis::RadialBasis(const polynomial_basis::FiniteElementBasis & fem_, int n_quad) : fem(fem_) {
         // Get quadrature rule
-        lib1dfem::chebyshev::chebyshev<double>(n_quad,xq,wq);
+        chebyshev::chebyshev<double>(n_quad,xq,wq);
         for(Eigen::Index i=0;i<xq.size();i++) {
           if(!std::isfinite(xq[i]))
             printf("xq[%i]=%e\n",(int) i, xq[i]);
@@ -111,7 +111,7 @@ namespace helfem {
         size_t n_quad(std::max(xq.size(), rh.xq.size()));
 
         helfem::Vector xproj, wproj;
-        lib1dfem::chebyshev::chebyshev<double>(n_quad, xproj, wproj);
+        chebyshev::chebyshev<double>(n_quad, xproj, wproj);
 
         // Find element pairs that share any mu range.
         std::vector<std::vector<size_t>> overlap(fem.get_nelem());

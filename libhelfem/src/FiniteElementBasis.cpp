@@ -14,7 +14,7 @@
  */
 
 #include "FiniteElementBasis.h"
-#include <lib1dfem/lobatto.h>
+#include <lobatto.h>
 #include <algorithm>
 #include <cfloat>
 #include <iostream>
@@ -31,12 +31,12 @@ namespace helfem {
     }
 
     template<typename T>
-    FiniteElementBasisT<T>::FiniteElementBasisT(const std::shared_ptr<const helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> & poly_,
+    FiniteElementBasisT<T>::FiniteElementBasisT(const std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> & poly_,
                                            const helfem::Vec<T> &bval_, bool zero_func_left_, bool zero_deriv_left_, bool zero_func_right_, bool zero_deriv_right_) : zero_func_left(zero_func_left_), zero_deriv_left(zero_deriv_left_), zero_func_right(zero_func_right_), zero_deriv_right(zero_deriv_right_) {
       // Phase 5.26: bval is Eigen at both the public boundary and the
       // internal storage; direct assignment, no bridge.
       bval = bval_;
-      poly = std::shared_ptr<const helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>>(poly_->copy());
+      poly = std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>>(poly_->copy());
       // Update list of basis functions
       update_bf_list();
       // Check that basis functions are continuous
@@ -53,8 +53,8 @@ namespace helfem {
         throw std::logic_error("Can't update basis function list since there are no elements!\n");
 
       // Form list of element boundaries
-      first_func_in_element = helfem::lib1dfem::IVec::Zero(bval.size() - 1);
-      last_func_in_element  = helfem::lib1dfem::IVec::Zero(bval.size() - 1);
+      first_func_in_element = helfem::IVec::Zero(bval.size() - 1);
+      last_func_in_element  = helfem::IVec::Zero(bval.size() - 1);
       for (Eigen::Index iel = 0; iel < first_func_in_element.size(); ++iel) {
         first_func_in_element(iel) = (iel == 0) ? 0
             : last_func_in_element(iel - 1) - poly->get_noverlap() + 1;
@@ -157,7 +157,7 @@ namespace helfem {
     }
 
     template<typename T>
-    std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> FiniteElementBasisT<T>::get_poly() const { return std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>>(poly->copy()); }
+    std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> FiniteElementBasisT<T>::get_poly() const { return std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>>(poly->copy()); }
 
     template<typename T>
     T FiniteElementBasisT<T>::scaling_factor(size_t iel) const {
@@ -274,16 +274,16 @@ namespace helfem {
     }
 
     template<typename T>
-    helfem::lib1dfem::IVec FiniteElementBasisT<T>::basis_indices(size_t iel) const {
+    helfem::IVec FiniteElementBasisT<T>::basis_indices(size_t iel) const {
       // Phase 5.5: native Eigen pass-through.
-      std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> p(get_basis(iel));
+      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(get_basis(iel));
       return p->get_enabled();
     }
 
     template<typename T>
-    std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>>
+    std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>>
     FiniteElementBasisT<T>::get_basis(size_t iel) const {
-      std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> p(poly->copy());
+      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(poly->copy());
       if (iel == 0)
         p->drop_first(zero_func_left, zero_deriv_left);
       if (iel == bval.size() - 2)
@@ -314,14 +314,14 @@ namespace helfem {
       return get_basis(iel)->get_nbf();
     }
 
-    // Phase 5.3: eval_* migrated to Eigen; internal lib1dfem call no longer
+    // Phase 5.3: eval_* migrated to Eigen; internal primitive-basis call no longer
     // bridges (its signature matches).
 
     template<typename T>
     void FiniteElementBasisT<T>::eval_dnf(const helfem::Vec<T> & x, helfem::Mat<T> & dnf, int n, size_t iel) const {
-      // helfem::Vec<T> == lib1dfem::Vec<double>, same for Matrix; no
+      // helfem::Vec<T> == Vec<double>, same for Matrix; no
       // conversion needed.
-      std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> p(get_basis(iel));
+      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(get_basis(iel));
       p->eval_dnf(x, dnf, n, scaling_factor(iel));
     }
 
@@ -341,7 +341,7 @@ namespace helfem {
             " element " << iel << " starts at " << (double) element_begin(iel) << ".\n";
         throw std::logic_error(oss.str());
       }
-      std::shared_ptr<helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>> p(get_basis(iel));
+      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(get_basis(iel));
       helfem::Mat<T> dnf_over_r;
       p->eval_over_r(x, dnf_over_r, n, scaling_factor(iel));
       return dnf_over_r;
@@ -491,7 +491,7 @@ namespace helfem {
         bool have = false;
         int n = std::max(nstart, 2);
         for (;;) {
-          helfem::lib1dfem::lobatto::lobatto_compute<T>(n, x, w);
+          helfem::lobatto::lobatto_compute<T>(n, x, w);
           cur = fe.matrix_element(iel, eval_lh, eval_rh, x, w, f, x_left, x_right);
           if (have) {
             const T diff  = (cur - prev).cwiseAbs().maxCoeff();

@@ -12,22 +12,21 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#ifndef LIB1DFEM_LEGENDREBASIS_H
-#define LIB1DFEM_LEGENDREBASIS_H
+#ifndef HELFEM_FEM_LEGENDREBASIS_H
+#define HELFEM_FEM_LEGENDREBASIS_H
 
-#include <lib1dfem/PolynomialBasis.h>
-#include <lib1dfem/legendre_poly.h>
+#include <PolynomialBasisT.h>
+#include <legendre_poly.h>
 #include <cmath>
 #include <sstream>
 #include <stdexcept>
 
 namespace helfem {
-namespace lib1dfem {
 namespace polynomial_basis {
 
 /// Legendre spectral element basis. Phase 5.2: Eigen-typed.
 template <typename T>
-class LegendreBasis : public PolynomialBasis<T> {
+class LegendreBasisT : public PolynomialBasisT<T> {
  protected:
   /// Maximum polynomial order
   int lmax;
@@ -35,17 +34,17 @@ class LegendreBasis : public PolynomialBasis<T> {
   Mat<T> Tmat;
 
   Mat<T> f_eval(const Vec<T> & x) const {
-    return helfem::lib1dfem::legendre::legendre_batch<T>(lmax, x);
+    return helfem::legendre::legendre_batch<T>(lmax, x);
   }
   Mat<T> df_eval(const Vec<T> & x) const {
-    return helfem::lib1dfem::legendre::dlegendre_batch<T>(lmax, x);
+    return helfem::legendre::dlegendre_batch<T>(lmax, x);
   }
   Mat<T> d2f_eval(const Vec<T> & x) const {
-    return helfem::lib1dfem::legendre::d2legendre_batch<T>(lmax, x);
+    return helfem::legendre::d2legendre_batch<T>(lmax, x);
   }
 
  public:
-  LegendreBasis(int n_nodes, int id_ = 3) {
+  LegendreBasisT(int n_nodes, int id_ = 3) {
     lmax = n_nodes - 1;
     Tmat = Mat<T>::Zero(lmax + 1, lmax + 1);
     // First shape function: (P_0 - P_1) / 2
@@ -67,10 +66,10 @@ class LegendreBasis : public PolynomialBasis<T> {
     this->id       = id_;
   }
 
-  ~LegendreBasis() override = default;
+  ~LegendreBasisT() override = default;
 
-  LegendreBasis<T> * copy() const override {
-    return new LegendreBasis<T>(*this);
+  LegendreBasisT<T> * copy() const override {
+    return new LegendreBasisT<T>(*this);
   }
 
   void drop_first(bool func, bool deriv) override {
@@ -100,7 +99,7 @@ class LegendreBasis : public PolynomialBasis<T> {
   }
 
   // Pull the base's 3-arg eval_over_r overload back into scope.
-  using PolynomialBasis<T>::eval_over_r;
+  using PolynomialBasisT<T>::eval_over_r;
 
   /// Analytic B_u(r)/r and r-derivatives for the surviving Legendre shape
   /// functions on the first element (r = element_length * (x+1)).
@@ -109,15 +108,15 @@ class LegendreBasis : public PolynomialBasis<T> {
                    T element_length) const override {
     if (n < 0 || n > 2) {
       std::ostringstream oss;
-      oss << "LegendreBasis::eval_over_r: derivative order " << n
+      oss << "LegendreBasisT::eval_over_r: derivative order " << n
           << " not implemented (only 0, 1, 2 supported).\n";
       throw std::logic_error(oss.str());
     }
     if (this->enabled.size() == 0)
-      throw std::logic_error("LegendreBasis::eval_over_r: no surviving basis functions.\n");
+      throw std::logic_error("LegendreBasisT::eval_over_r: no surviving basis functions.\n");
     if (this->enabled(0) == 0)
       throw std::logic_error(
-          "LegendreBasis::eval_over_r requires drop_first(zero_func=true): "
+          "LegendreBasisT::eval_over_r requires drop_first(zero_func=true): "
           "the value-shape (1-x)/2 has B(-1)=1 and B/r is singular at the origin.\n");
 
     // Build Q_n, Q'_n, Q''_n for n = 0..lmax at every integration point.
@@ -170,7 +169,6 @@ class LegendreBasis : public PolynomialBasis<T> {
 };
 
 } // namespace polynomial_basis
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif

@@ -18,7 +18,7 @@
 #include "PolynomialBasis.h"
 #include "FiniteElementBasis.h"
 #include "Matrix.h"
-#include <lib1dfem/chebyshev.h>
+#include <chebyshev.h>
 #include <Eigen/Eigenvalues>
 #include <algorithm>
 #include <cmath>
@@ -97,7 +97,7 @@ int main(int argc, char **argv) {
       /*zero_func_right=*/true, /*zero_deriv_right=*/true);
 
   helfem::Vector xq, wq;
-  helfem::lib1dfem::chebyshev::chebyshev<double>(Nquad, xq, wq);
+  helfem::chebyshev::chebyshev<double>(Nquad, xq, wq);
 
   const size_t Nbf = fem.get_nbf();
   printf("Basis set contains %i functions\n", (int) Nbf);

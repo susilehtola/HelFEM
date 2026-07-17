@@ -15,14 +15,14 @@
 # Code generator for arbitrary-order derivatives of LIP (Lagrange
 # interpolating polynomial) basis functions.
 #
-# v2 refactor: emits a templated header for lib1dfem. The generated
+# v2 refactor: emits a templated header for libhelfem. The generated
 # function is a free template (lives in
-# helfem::lib1dfem::polynomial_basis::detail::eval_lip_prim_dnf) so
-# both lib1dfem's LIPBasis<T> and any future caller can use it at any
+# helfem::polynomial_basis::detail::eval_lip_prim_dnf) so
+# both the LIPBasisT<T> primitive basis and any future caller can use it at any
 # scalar type T.
 #
 # Run with:
-#     python3 generate_lip_code.py > ../../lib1dfem/include/lib1dfem/LIPBasis_eval.h
+#     python3 generate_lip_code.py > ../include/LIPBasis_eval.h
 #
 # The output is checked in; SymPy is NOT required (this script uses
 # only plain Python).
@@ -44,12 +44,11 @@ print('''/*
 #ifndef LIB1DFEM_LIPBASIS_EVAL_H
 #define LIB1DFEM_LIPBASIS_EVAL_H
 
-#include <lib1dfem/types.h>
+#include <types.h>
 #include <sstream>
 #include <stdexcept>
 
 namespace helfem {
-namespace lib1dfem {
 namespace polynomial_basis {
 namespace detail {
 
@@ -133,7 +132,6 @@ print('}')    # close eval_lip_prim_dnf
 print('''
 } // namespace detail
 } // namespace polynomial_basis
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif''')

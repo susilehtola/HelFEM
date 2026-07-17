@@ -17,8 +17,8 @@
 #include "LIPBasis.h"
 #include "Matrix.h"
 #include "../general/eigen_io.h"
-#include <lib1dfem/chebyshev.h>
-#include <lib1dfem/lobatto.h>
+#include <chebyshev.h>
+#include <lobatto.h>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -31,13 +31,13 @@ void run(double R, int n_quad) {
 
   // Get primitive polynomial representation for LIP
   helfem::Vector x, w;
-  helfem::lib1dfem::lobatto::lobatto_compute<double>(2, x, w);
+  helfem::lobatto::lobatto_compute<double>(2, x, w);
   auto pbas = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
       new polynomial_basis::LIPBasis(x, 0));
 
   // Gauss-Chebyshev nodes for the outer TEI quadrature.
   helfem::Vector xq, wq;
-  helfem::lib1dfem::chebyshev::chebyshev<double>(n_quad, xq, wq);
+  helfem::chebyshev::chebyshev<double>(n_quad, xq, wq);
 
   // Inner integral by quadrature.
   const helfem::Matrix teiinner =

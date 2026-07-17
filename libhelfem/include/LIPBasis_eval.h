@@ -9,15 +9,14 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-#ifndef LIB1DFEM_LIPBASIS_EVAL_H
-#define LIB1DFEM_LIPBASIS_EVAL_H
+#ifndef HELFEM_FEM_LIPBASIS_EVAL_H
+#define HELFEM_FEM_LIPBASIS_EVAL_H
 
-#include <lib1dfem/types.h>
+#include <types.h>
 #include <sstream>
 #include <stdexcept>
 
 namespace helfem {
-namespace lib1dfem {
 namespace polynomial_basis {
 namespace detail {
 
@@ -1213,7 +1212,6 @@ default: {
 
 } // namespace detail
 } // namespace polynomial_basis
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif

@@ -36,7 +36,7 @@
 namespace helfem {
   namespace quadrature {
     template <typename T>
-    using PolyBasis = helfem::lib1dfem::polynomial_basis::PolynomialBasis<T>;
+    using PolyBasis = helfem::polynomial_basis::PolynomialBasisT<T>;
 
     /// Inner in-element two-electron integral
     ///   phi(r) = (1 / r^(L+1)) * integral_0^r dr' r'^L B_k(r') B_l(r')

@@ -12,17 +12,16 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#ifndef LIB1DFEM_LOBATTO_H
-#define LIB1DFEM_LOBATTO_H
+#ifndef HELFEM_FEM_LOBATTO_H
+#define HELFEM_FEM_LOBATTO_H
 
-#include <lib1dfem/types.h>
+#include <types.h>
 #include <cmath>
 #include <limits>
 #include <sstream>
 #include <stdexcept>
 
 namespace helfem {
-namespace lib1dfem {
 namespace lobatto {
 
 /// Compute a Gauss-Lobatto quadrature rule for
@@ -109,7 +108,6 @@ void lobatto_compute(int n, Vec<T> & x, Vec<T> & w) {
 }
 
 } // namespace lobatto
-} // namespace lib1dfem
 } // namespace helfem
 
 #endif

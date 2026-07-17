@@ -36,12 +36,10 @@ target_include_directories(helfem-common
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../libhelfem/src/>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-        # `chebyshev.h` and `lobatto.h` are thin double-only shims over
-        # lib1dfem's Eigen-typed Gauss-Chebyshev / Gauss-Lobatto
-        # quadrature, spelling their outputs as helfem::Vector. They
-        # live in src/general/ next to their callers; callers include
-        # them as `#include "chebyshev.h"` / `#include "lobatto.h"`,
-        # which resolve through this path.
+        # src/general/ carries shared application headers (angular.h,
+        # eigen_io.h, ...) that its neighbours include as `#include "x.h"`.
+        # (The Gauss-Chebyshev / Gauss-Lobatto quadrature now lives in
+        # libhelfem as <chebyshev.h> / <lobatto.h>.)
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/general>
         # Installed headers live at include/helfem/{atomic,general}/;
         # consumers include as <helfem/atomic/TwoDBasis.h>.
