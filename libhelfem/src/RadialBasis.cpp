@@ -30,6 +30,115 @@ namespace helfem {
   namespace atomic {
     namespace basis {
 
+      // --------------------------------------------------------------------
+      // Auto-converging quadrature for the two-electron radial primitives.
+      //
+      // Mirrors the refinement pattern of FiniteElementBasis.cpp's
+      // converge_panel (PR #257): recompute the block at a rising quadrature
+      // order until it stops changing to 8*eps(T). Because the tolerance is
+      // tied to eps(T), the order required to satisfy it grows on its own
+      // with the precision of T -- so the accuracy of the two-electron
+      // integrals is set by the scalar type rather than by a user-supplied
+      // --nquad.
+      //
+      // Unlike the one-electron path this needs no breakpoint splitting: the
+      // 2e integrand is smooth per branch. The r</r> split is handled
+      // structurally by fsmallbig/fbig plus the `ints += ints.transpose()`
+      // symmetrization in quadrature::twoe_integral, and
+      // quadrature::twoe_inner_integral accumulates the inner integral
+      // between consecutive outer nodes -- one rule drives both the outer
+      // nodes and the inner segments, so plain order-refinement converges.
+      //
+      // The rule family stays Gauss-Chebyshev to match the existing scheme;
+      // switching families would perturb the results more than necessary.
+      // --------------------------------------------------------------------
+      namespace {
+        /// Order cap for the refinement loop.
+        const int twoe_nmax = 512;
+        /// Warn at most once per process if a primitive hits the order cap.
+        bool twoe_cap_warned = false;
+
+        /// Refine `eval(n)` -- which must build its own n-point Chebyshev
+        /// rule -- by doubling n from nstart until the returned block is
+        /// stable. The 2e blocks are (nbf^2 x nbf^2), i.e. their shape is
+        /// independent of n, so the block-difference comparison is well
+        /// defined.
+        ///
+        /// Two things end the refinement, both meaning "all of T's precision
+        /// has been extracted":
+        ///
+        ///   1. True eps convergence: the block stops changing to 8*eps(T),
+        ///      exactly the criterion the one-electron matrix_element uses
+        ///      (FiniteElementBasis.cpp converge_panel). Low-degree bases /
+        ///      small elements hit this.
+        ///
+        ///   2. Roundoff-floor stall: unlike the one-electron path -- whose
+        ///      polynomial weight makes the Gauss-Lobatto block exact at a
+        ///      finite order, so its difference collapses to true zero -- the
+        ///      2e Coulomb/Yukawa kernel is NOT polynomial-exact, so the
+        ///      block difference converges geometrically only down to the
+        ///      roundoff floor of the (nbf^2 x nbf^2) assembly (a small
+        ///      multiple of eps above 8*eps*scale) and then wobbles. Once the
+        ///      difference is deep in the asymptotic regime (well below
+        ///      sqrt(eps)*scale) and a doubling of the order no longer at
+        ///      least halves it, further refinement only chases roundoff:
+        ///      the block has converged to T's precision. This is a normal
+        ///      outcome, not a failure, so it returns quietly.
+        ///
+        /// The nmax cap + one-shot warning is thus a genuine backstop for
+        /// pathological non-convergence, not the common high-degree case.
+        template <typename T, typename Fn>
+        helfem::Mat<T> converge_rule(const Fn & eval, int nstart, const char * what) {
+          const T eps  = std::numeric_limits<T>::epsilon();
+          const T tol  = T(8) * eps;
+          const T sqrteps = std::sqrt(eps);
+
+          helfem::Mat<T> prev, cur;
+          bool have = false;
+          T prevdiff = T(-1);
+          int n = std::max(nstart, 2);
+          for (;;) {
+            cur = eval(n);
+            if (have) {
+              const T diff  = (cur - prev).cwiseAbs().maxCoeff();
+              const T scale = cur.cwiseAbs().maxCoeff();
+              // (1) true eps convergence
+              if (diff <= tol * (scale + tol))
+                return cur;
+              // (2) roundoff-floor stall: deep in the asymptotic regime and no
+              // longer improving by at least 2x per doubling.
+              if (prevdiff >= T(0) && diff <= sqrteps * (scale + tol) &&
+                  diff > T(0.5) * prevdiff)
+                return cur;
+              prevdiff = diff;
+            }
+            prev = cur;
+            have = true;
+            if (n >= twoe_nmax) {
+              if (!twoe_cap_warned) {
+                twoe_cap_warned = true;
+                printf("Warning: FEMRadialBasis::%s hit the Gauss-Chebyshev order"
+                       " cap (n=%d) without converging to eps(T); using best"
+                       " estimate.\n", what, twoe_nmax);
+                fflush(stdout);
+              }
+              return cur;
+            }
+            n = std::min(2 * n, twoe_nmax);
+          }
+        }
+      }
+
+      template <typename T>
+      int FEMRadialBasisT<T>::twoe_nstart() const {
+        // Seed from the requested --nquad so the common case converges in
+        // 1-2 refinement steps; the loop is what guarantees the accuracy.
+        int n = (int) xq.size();
+        if (n < 5) n = 5;
+        if (n > twoe_nmax) n = twoe_nmax;
+        return n;
+      }
+
       template <typename T>
       FEMRadialBasisT<T>::FEMRadialBasisT() {}
 
@@ -214,11 +323,6 @@ namespace helfem {
           const FEMRadialBasisT<T> & rh,
           BasisKind bra, BasisKind ket,
           const std::function<T(T)> & weight) const {
-        // Pick a quadrature rule sized for the finer of the two bases.
-        const Eigen::Index n_quad = std::max(xq.size(), rh.xq.size());
-        helfem::Vec<T> xproj, wproj;
-        helfem::chebyshev::chebyshev<T>((int) n_quad, xproj, wproj);
-
         // List overlapping (iel, jel) element pairs.
         std::vector<std::vector<size_t>> overlap(fem.get_nelem());
         for (size_t iel = 0; iel < fem.get_nelem(); ++iel) {
@@ -233,40 +337,52 @@ namespace helfem {
           }
         }
 
-        helfem::Mat<T> S = helfem::Mat<T>::Zero(Nbf(), rh.Nbf());
-        for (size_t iel = 0; iel < fem.get_nelem(); ++iel) {
-          for (size_t jel : overlap[iel]) {
-            const T intstart = std::max(fem.element_begin(iel),
-                                        rh.fem.element_begin(jel));
-            const T intend   = std::min(fem.element_end(iel),
-                                        rh.fem.element_end(jel));
-            const T intmid   = T(0.5) * (intend + intstart);
-            const T intlen   = T(0.5) * (intend - intstart);
+        // Auto-converge the projection: the rule order is refined until the
+        // whole (Nbf x rh.Nbf) matrix is stable to 8*eps(T). The shape does
+        // not depend on the order, so the comparison is well defined. Seeded
+        // from a rule sized for the finer of the two bases.
+        const int nstart = std::max({(int) xq.size(), (int) rh.xq.size(), 5});
+        return converge_rule<T>(
+            [&](int n) {
+              helfem::Vec<T> xproj, wproj;
+              helfem::chebyshev::chebyshev<T>(n, xproj, wproj);
 
-            const helfem::Vec<T> r =
-                helfem::Vec<T>::Constant(xproj.size(), intmid) + intlen * xproj;
+              helfem::Mat<T> S = helfem::Mat<T>::Zero(Nbf(), rh.Nbf());
+              for (size_t iel = 0; iel < fem.get_nelem(); ++iel) {
+                for (size_t jel : overlap[iel]) {
+                  const T intstart = std::max(fem.element_begin(iel),
+                                              rh.fem.element_begin(jel));
+                  const T intend   = std::min(fem.element_end(iel),
+                                              rh.fem.element_end(jel));
+                  const T intmid   = T(0.5) * (intend + intstart);
+                  const T intlen   = T(0.5) * (intend - intstart);
 
-            const helfem::Vec<T> xi = fem.eval_prim(r, iel);
-            const helfem::Vec<T> xj = rh.fem.eval_prim(r, jel);
+                  const helfem::Vec<T> r =
+                      helfem::Vec<T>::Constant(xproj.size(), intmid) + intlen * xproj;
 
-            helfem::Vec<T> wtot = wproj * intlen;
-            if (weight)
-              for (Eigen::Index i = 0; i < r.size(); ++i)
-                wtot(i) *= weight(r(i));
+                  const helfem::Vec<T> xi = fem.eval_prim(r, iel);
+                  const helfem::Vec<T> xj = rh.fem.eval_prim(r, jel);
 
-            const helfem::Mat<T> ifunc = eval_B_at<T>(fem,    xi, iel, bra);
-            const helfem::Mat<T> jfunc = eval_B_at<T>(rh.fem, xj, jel, ket);
+                  helfem::Vec<T> wtot = wproj * intlen;
+                  if (weight)
+                    for (Eigen::Index i = 0; i < r.size(); ++i)
+                      wtot(i) *= weight(r(i));
 
-            size_t ifirst, ilast; get_idx(iel, ifirst, ilast);
-            size_t jfirst, jlast; rh.get_idx(jel, jfirst, jlast);
-            const Eigen::Index Ni = ilast - ifirst + 1;
-            const Eigen::Index Nj = jlast - jfirst + 1;
-            // ifunc^T * diag(wtot) * jfunc = (ifunc^T * wtot.asDiagonal()) * jfunc.
-            S.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj)
-                += ifunc.transpose() * wtot.asDiagonal() * jfunc;
-          }
-        }
-        return S;
+                  const helfem::Mat<T> ifunc = eval_B_at<T>(fem,    xi, iel, bra);
+                  const helfem::Mat<T> jfunc = eval_B_at<T>(rh.fem, xj, jel, ket);
+
+                  size_t ifirst, ilast; get_idx(iel, ifirst, ilast);
+                  size_t jfirst, jlast; rh.get_idx(jel, jfirst, jlast);
+                  const Eigen::Index Ni = ilast - ifirst + 1;
+                  const Eigen::Index Nj = jlast - jfirst + 1;
+                  // ifunc^T * diag(wtot) * jfunc = (ifunc^T * wtot.asDiagonal()) * jfunc.
+                  S.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj)
+                      += ifunc.transpose() * wtot.asDiagonal() * jfunc;
+                }
+              }
+              return S;
+            },
+            nstart, "matrix_element(cross-basis)");
       }
 
       template <typename T>
@@ -486,10 +602,18 @@ namespace helfem {
         T Rmin(fem.element_begin(iel));
         T Rmax(fem.element_end(iel));
 
-        // Integral by quadrature
+        // Integral by auto-converging quadrature: the rule order is refined
+        // internally until the block is stable to 8*eps(T), so the accuracy
+        // follows T and not the caller's --nquad.
         std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> p(fem.get_basis(iel));
-        // Phase 5.7: quadrature::twoe_integral is now Eigen.
-        helfem::Mat<T> tei = quadrature::twoe_integral<T>(Rmin, Rmax, xq, wq, p, L);
+        helfem::Mat<T> tei = converge_rule<T>(
+            [&](int n) {
+              helfem::Vec<T> x, w;
+              helfem::chebyshev::chebyshev<T>(n, x, w);
+              // Phase 5.7: quadrature::twoe_integral is now Eigen.
+              return quadrature::twoe_integral<T>(Rmin, Rmax, x, w, p, L);
+            },
+            twoe_nstart(), "twoe_integral");
         if (tei.array().isNaN().any())
           printf("twoe_integral(%i,%i) has NaN!\n", L, (int) iel);
         return tei;
@@ -561,13 +685,39 @@ namespace helfem {
         T Rmin(fem.element_begin(iel));
         T Rmax(fem.element_end(iel));
 
-        // Integral by quadrature
+        // Integral by auto-converging quadrature (see converge_rule above).
         std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> p(fem.get_basis(iel));
-        return quadrature::yukawa_integral<T>(Rmin, Rmax, xq, wq, p, L, lambda);
+        return converge_rule<T>(
+            [&](int n) {
+              helfem::Vec<T> x, w;
+              helfem::chebyshev::chebyshev<T>(n, x, w);
+              return quadrature::yukawa_integral<T>(Rmin, Rmax, x, w, p, L, lambda);
+            },
+            twoe_nstart(), "yukawa_integral");
       }
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::erfc_integral(int L, T mu, size_t iel, size_t kel) const {
+        // NOTE (auto-convergence): unlike twoe_integral / yukawa_integral, the
+        // range-separated erfc primitive is NOT auto-converged. It does not go
+        // through the smooth quadrature::twoe_inner_integral machinery (whose
+        // r</r> split is structural, giving a per-branch-smooth integrand that
+        // refines geometrically to eps). Instead it builds a dense Green's-
+        // function matrix Phi(L, mu*ri, mu*rk) and, for the intra-element block
+        // (iel==kel), integrates ACROSS the electronic cusp at ri=rk using the
+        // Nint=Nq sub-interval trick. That intra-element integrand has only
+        // limited smoothness, so the modified Gauss-Chebyshev rule converges
+        // ALGEBRAICALLY, not geometrically: doubling the order cuts the error
+        // by ~20x while the cost grows O(n^3), so reaching 8*eps(T) would need
+        // n ~ 10^3 (minutes per call) -- it never converges in practice. See
+        // the branch report for the measured convergence table. Auto-refining
+        // this block would therefore (a) hit the order cap on every call and
+        // (b) diverge from any fixed-order reference by the cusp error (~1e-5
+        // in the LC-wPBE total energy at production orders), so we keep the
+        // caller-seeded fixed rule here. The inter-element (iel!=kel) block has
+        // no cusp and does refine geometrically, but is left on the same fixed
+        // rule so a single erfc call uses one consistent order.
+        //
         // Number of quadrature points
         size_t Nq = (size_t) xq.size();
         // Number of subintervals
