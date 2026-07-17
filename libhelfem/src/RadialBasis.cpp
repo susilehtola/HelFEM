@@ -144,19 +144,23 @@ namespace helfem {
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::matrix_element(
           size_t iel, BasisKind bra, BasisKind ket,
-          const std::function<T(T)> & weight) const {
+          const std::function<T(T)> & weight,
+          const std::vector<T> & breakpoints, int poly_degree_f) const {
         auto lhs = make_evaluator<T>(this, bra);
         auto rhs = make_evaluator<T>(this, ket);
-        return fem.matrix_element(iel, lhs, rhs, xq, wq, weight);
+        // Phase 2: FE basis auto-converges its own quadrature to eps(T).
+        return fem.matrix_element_auto(iel, lhs, rhs, weight, breakpoints, poly_degree_f);
       }
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::matrix_element(
           BasisKind bra, BasisKind ket,
-          const std::function<T(T)> & weight) const {
+          const std::function<T(T)> & weight,
+          const std::vector<T> & breakpoints, int poly_degree_f) const {
         auto lhs = make_evaluator<T>(this, bra);
         auto rhs = make_evaluator<T>(this, ket);
-        return fem.matrix_element(lhs, rhs, xq, wq, weight);
+        // Phase 2: FE basis auto-converges its own quadrature to eps(T).
+        return fem.matrix_element_auto(lhs, rhs, weight, breakpoints, poly_degree_f);
       }
 
       template <typename T>
@@ -166,7 +170,9 @@ namespace helfem {
           T x_left, T x_right) const {
         auto lhs = make_evaluator<T>(this, bra);
         auto rhs = make_evaluator<T>(this, ket);
-        return fem.matrix_element(iel, lhs, rhs, xq, wq, weight, x_left, x_right);
+        // Phase 2: auto-converge over the reference sub-range [x_left,x_right].
+        return fem.matrix_element_auto(iel, lhs, rhs, weight,
+                                       std::vector<T>(), -1, x_left, x_right);
       }
 
       template <typename T>
@@ -311,15 +317,19 @@ namespace helfem {
         }
       }
 
+      // overlap / kinetic have a polynomial (unit) weight -> poly_degree_f = 0.
+      // nuclear / kinetic_l use the R = B/r representation, whose integrand is
+      // rational (not polynomial), so they leave poly_degree_f = -1 and let the
+      // order-refinement converge.
       template <typename T>
-      helfem::Mat<T> FEMRadialBasisT<T>::overlap() const { return matrix_element(BasisKind::B0, BasisKind::B0, kNoWeight<T>()); }
+      helfem::Mat<T> FEMRadialBasisT<T>::overlap() const { return matrix_element(BasisKind::B0, BasisKind::B0, kNoWeight<T>(), std::vector<T>(), 0); }
       template <typename T>
-      helfem::Mat<T> FEMRadialBasisT<T>::overlap(size_t iel) const { return matrix_element(iel, BasisKind::B0, BasisKind::B0, kNoWeight<T>()); }
+      helfem::Mat<T> FEMRadialBasisT<T>::overlap(size_t iel) const { return matrix_element(iel, BasisKind::B0, BasisKind::B0, kNoWeight<T>(), std::vector<T>(), 0); }
 
       template <typename T>
-      helfem::Mat<T> FEMRadialBasisT<T>::kinetic() const { return T(0.5) * matrix_element(BasisKind::B1, BasisKind::B1, kNoWeight<T>()); }
+      helfem::Mat<T> FEMRadialBasisT<T>::kinetic() const { return T(0.5) * matrix_element(BasisKind::B1, BasisKind::B1, kNoWeight<T>(), std::vector<T>(), 0); }
       template <typename T>
-      helfem::Mat<T> FEMRadialBasisT<T>::kinetic(size_t iel) const { return T(0.5) * matrix_element(iel, BasisKind::B1, BasisKind::B1, kNoWeight<T>()); }
+      helfem::Mat<T> FEMRadialBasisT<T>::kinetic(size_t iel) const { return T(0.5) * matrix_element(iel, BasisKind::B1, BasisKind::B1, kNoWeight<T>(), std::vector<T>(), 0); }
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::kinetic_l() const { return T(0.5) * matrix_element(BasisKind::R0, BasisKind::R0, kNoWeight<T>()); }
@@ -333,16 +343,20 @@ namespace helfem {
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::polynomial_confinement(size_t iel, int N, T shift_pot) const {
+        // The r < shift_pot cutoff is a kink at r = shift_pot; split the
+        // element there so each smooth sub-panel converges by order-refinement.
         return matrix_element(iel, BasisKind::R0, BasisKind::R0,
                               [N, shift_pot](T r) {
                                 return (r < shift_pot)
                                     ? T(0)
                                     : std::pow(r - shift_pot, N + 2);
-                              });
+                              },
+                              std::vector<T>{shift_pot}, -1);
       }
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::exponential_confinement(size_t iel, int N, T r_0, T shift_pot) const {
+        // Kink at r = shift_pot (see polynomial_confinement).
         return matrix_element(iel, BasisKind::B0, BasisKind::B0,
                               [r_0, N, shift_pot](T r) {
                                 if (r < shift_pot) return T(0);
@@ -358,26 +372,31 @@ namespace helfem {
                                 V += std::exp(r_ratio);
                                 V *= fact;
                                 return V;
-                              });
+                              },
+                              std::vector<T>{shift_pot}, -1);
       }
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::barrier_confinement(size_t iel, T V, T shift_pot) const {
+        // Step at r = shift_pot -> breakpoint.
         return matrix_element(iel, BasisKind::B0, BasisKind::B0,
                               [V, shift_pot](T r) {
                                 return (r < shift_pot) ? T(0) : V;
-                              });
+                              },
+                              std::vector<T>{shift_pot}, -1);
       }
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::junq_confinement(size_t iel, int N, T V0, T r_c, T shift_pot) const {
+        // Kink at r = shift_pot -> breakpoint.
         return matrix_element(iel, BasisKind::B0, BasisKind::B0,
                               [N, r_c, V0, shift_pot](T r) {
                                 if (r < shift_pot) return T(0);
                                 const T denominator  = std::pow(r_c - r, N);
                                 const T exponential  = std::exp(-(r_c - shift_pot) / (r - shift_pot));
                                 return V0 * exponential / denominator;
-                              });
+                              },
+                              std::vector<T>{shift_pot}, -1);
       }
 
       template <typename T>
@@ -430,6 +449,12 @@ namespace helfem {
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::model_potential(const modelpotential::ModelPotentialT<T> *model,
                                                          size_t iel) const {
+        // Non-polynomial weight -> order-refine (poly_degree_f = -1). Smooth
+        // models (point, Gaussian, GSZ, SAP) converge to eps(T) by refinement.
+        // Models with a hard boundary (uniform sphere / hollow shell) have a
+        // kink at the nuclear radius; ModelPotentialT exposes only V(r), not
+        // that radius, so no breakpoint is passed here -- if such a boundary
+        // ever falls inside an element the panel would refine to the order cap.
         return matrix_element(iel, BasisKind::B0, BasisKind::B0,
                               [model](T r){ return model->V(r); });
       }
