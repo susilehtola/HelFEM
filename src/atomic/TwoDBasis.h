@@ -134,9 +134,7 @@ namespace helfem {
       public:
         TwoDBasisT();
         /// Constructor
-        // Phase 5.19: bval/lval/mval accepted as Eigen at the public
-        // boundary so a consumer does not need to include <armadillo>
-        // to instantiate the basis.
+        // bval/lval/mval are accepted as Eigen types at the public boundary.
         TwoDBasisT(int Z, modelpotential::nuclear_model_t model, T Rrms,
                    const std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> &poly,
                    bool zeroder, int n_quad,
