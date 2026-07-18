@@ -237,18 +237,24 @@ namespace helfem {
         } else if(m==0 && n!=0) {
           chsh = [n](double mu) { return std::pow(std::cosh(mu), n); };
         }
-        return fem.matrix_element(false, false, xq, wq, chsh);
+        // Auto-converging: refine the Gauss-Chebyshev order until the block is
+        // stable to eps(double), so accuracy follows the FP type instead of the
+        // caller's --nquad. Same Chebyshev family + converge_block the two-
+        // electron and Plm/Qlm integrals use, so at production nquad (the seed)
+        // this reproduces the old fixed-order result. The sinh/cosh weight is
+        // smooth and non-singular here, so no seed fallback is needed.
+        return converge_block(
+            [&](int nq) {
+              helfem::Vector x, w;
+              chebyshev::chebyshev<double>(nq, x, w);
+              return fem.matrix_element(false, false, x, w, chsh);
+            },
+            std::max((int) xq.size(), 5), "radial_integral");
       }
 
       helfem::Matrix RadialBasis::overlap(const RadialBasis & rh, int n) const {
-        // Use the larger number of quadrature points to make sure the
-        // projection is computed correctly.
-        size_t n_quad(std::max(xq.size(), rh.xq.size()));
-
-        helfem::Vector xproj, wproj;
-        chebyshev::chebyshev<double>(n_quad, xproj, wproj);
-
-        // Find element pairs that share any mu range.
+        // Find element pairs that share any mu range (independent of the
+        // quadrature order).
         std::vector<std::vector<size_t>> overlap(fem.get_nelem());
         for(size_t iel=0;iel<fem.get_nelem();iel++) {
           double istart(fem.element_begin(iel));
@@ -261,40 +267,51 @@ namespace helfem {
           }
         }
 
-        helfem::Matrix S(helfem::Matrix::Zero(Nbf(), rh.Nbf()));
-        for(size_t iel=0;iel<fem.get_nelem();iel++) {
-          for(size_t jj=0;jj<overlap[iel].size();jj++) {
-            size_t jel=overlap[iel][jj];
-            // FE-side element ranges.
-            double imin(fem.element_begin(iel));
-            double imax(fem.element_end(iel));
-            double jmin(rh.fem.element_begin(jel));
-            double jmax(rh.fem.element_end(jel));
-            // Shared range.
-            double intstart(std::max(imin, jmin));
-            double intend(std::min(imax, jmax));
-            double intmid(0.5*(intend+intstart));
-            double intlen(0.5*(intend-intstart));
+        // Auto-converging projection: refine the Gauss-Chebyshev order until the
+        // whole (Nbf x rh.Nbf) block is stable to eps(double), so the accuracy
+        // follows the FP type rather than either basis's --nquad. Seeded from
+        // the finer of the two bases.
+        return converge_block(
+            [&](int nq) {
+              helfem::Vector xproj, wproj;
+              chebyshev::chebyshev<double>(nq, xproj, wproj);
 
-            helfem::Vector mu(intmid*helfem::Vector::Ones(xproj.size())+intlen*xproj);
-            helfem::Vector xi(fem.eval_prim(mu, iel));
-            helfem::Vector xj(rh.fem.eval_prim(mu, jel));
+              helfem::Matrix S(helfem::Matrix::Zero(Nbf(), rh.Nbf()));
+              for(size_t iel=0;iel<fem.get_nelem();iel++) {
+                for(size_t jj=0;jj<overlap[iel].size();jj++) {
+                  size_t jel=overlap[iel][jj];
+                  // FE-side element ranges.
+                  double imin(fem.element_begin(iel));
+                  double imax(fem.element_end(iel));
+                  double jmin(rh.fem.element_begin(jel));
+                  double jmax(rh.fem.element_end(jel));
+                  // Shared range.
+                  double intstart(std::max(imin, jmin));
+                  double intend(std::min(imax, jmax));
+                  double intmid(0.5*(intend+intstart));
+                  double intlen(0.5*(intend-intstart));
 
-            size_t ifirst, ilast;
-            get_idx(iel, ifirst, ilast);
-            size_t jfirst, jlast;
-            rh.get_idx(jel, jfirst, jlast);
+                  helfem::Vector mu(intmid*helfem::Vector::Ones(xproj.size())+intlen*xproj);
+                  helfem::Vector xi(fem.eval_prim(mu, iel));
+                  helfem::Vector xj(rh.fem.eval_prim(mu, jel));
 
-            helfem::Vector wtot(wproj*intlen);
-            wtot.array() *= mu.array().sinh();
-            if(n!=0) wtot.array() *= mu.array().cosh().pow((double) n);
-            helfem::Matrix ibf(fem.eval_dnf(xi, 0, iel));
-            helfem::Matrix jbf(rh.fem.eval_dnf(xj, 0, jel));
-            helfem::Matrix s(ibf.transpose()*wtot.asDiagonal()*jbf);
-            S.block(ifirst, jfirst, ilast-ifirst+1, jlast-jfirst+1) += s;
-          }
-        }
-        return S;
+                  size_t ifirst, ilast;
+                  get_idx(iel, ifirst, ilast);
+                  size_t jfirst, jlast;
+                  rh.get_idx(jel, jfirst, jlast);
+
+                  helfem::Vector wtot(wproj*intlen);
+                  wtot.array() *= mu.array().sinh();
+                  if(n!=0) wtot.array() *= mu.array().cosh().pow((double) n);
+                  helfem::Matrix ibf(fem.eval_dnf(xi, 0, iel));
+                  helfem::Matrix jbf(rh.fem.eval_dnf(xj, 0, jel));
+                  helfem::Matrix s(ibf.transpose()*wtot.asDiagonal()*jbf);
+                  S.block(ifirst, jfirst, ilast-ifirst+1, jlast-jfirst+1) += s;
+                }
+              }
+              return S;
+            },
+            std::max({(int) xq.size(), (int) rh.xq.size(), 5}), "overlap");
       }
 
       helfem::Matrix RadialBasis::Plm_integral(int k, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
@@ -343,7 +360,15 @@ namespace helfem {
 
       helfem::Matrix RadialBasis::kinetic() const {
         std::function<double(double)> sinhmu = [](double mu) {return std::sinh(mu);};
-        return fem.matrix_element(true, true, xq, wq, sinhmu);
+        // Auto-converging (see radial_integral): refine the Gauss-Chebyshev
+        // order until the derivative block is stable to eps(double).
+        return converge_block(
+            [&](int nq) {
+              helfem::Vector x, w;
+              chebyshev::chebyshev<double>(nq, x, w);
+              return fem.matrix_element(true, true, x, w, sinhmu);
+            },
+            std::max((int) xq.size(), 5), "kinetic");
       }
 
       helfem::Matrix RadialBasis::twoe_integral(int alpha, int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
