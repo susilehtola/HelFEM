@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 1.0);
   parser.add<int>("nelem", 0, "number of elements", true);
   parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
-  parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
+  parser.add<int>("nquad", 0, "radial quadrature points: DFT grid + auto-convergence seed (no longer sets integral accuracy, which now converges automatically)", false, 0);
   parser.add<std::string>("method", 0, "DFT method to use", false, "lda_x");
   parser.add<int>("ldft", 0, "theta rule for dft quadrature (0 for auto)", false, 0);
   parser.add<int>("mdft", 0, "phi rule for dft quadrature (0 for auto; unused by the pure-m path)", false, 0);
