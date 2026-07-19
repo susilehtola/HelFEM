@@ -78,16 +78,25 @@ namespace helfem {
         /// Check that coordinates match
         const helfem::Vec<T> rlh = eval_coord(xlh, iel);
         const helfem::Vec<T> rrh = eval_coord(xrh, iel + 1);
-        const double dr = (rlh - rrh).norm();
-        if(dr > 10*DBL_EPSILON*(1+rlh.norm())) {
+        // Keep the comparison in T: narrowing to double here discards the
+        // precision the check is made at, and for _Float128 it is a
+        // greater-conversion-rank narrowing (-Wnarrowing).
+        const T dr = (rlh - rrh).norm();
+        // Deliberately a DBL_EPSILON-scaled sanity bound rather than eps(T):
+        // this catches a mis-built grid, it is not a precision assertion.
+        // Bound the tolerance once so the diagnostic below reports the same
+        // value that was actually applied.
+        const T drtol = T(10)*T(DBL_EPSILON)*(T(1) + rlh.norm());
+        if(dr > drtol) {
           std::cout << "rlh:\n"     << rlh.template cast<double>().transpose()       << "\n";
           std::cout << "rrh:\n"     << rrh.template cast<double>().transpose()       << "\n";
           std::cout << "rrh-rlh:\n" << (rrh-rlh).template cast<double>().transpose() << "\n";
           std::ostringstream oss;
-          // Narrow at the diagnostic boundary only: _Float128 has no
-          // unambiguous operator<< in libstdc++. Never narrow in the
-          // computation itself.
-          oss << "Coordinates do not match between elements " << iel << " and " << iel+1 << ", difference " << (double) dr << " tolerance " << (double)(100*DBL_EPSILON*rlh.norm()) << "!\n";
+          // fmt_sci renders T at its own precision: _Float128 has no
+          // unambiguous operator<< in libstdc++, so never stream T directly.
+          oss << "Coordinates do not match between elements " << iel << " and " << iel+1
+              << ", difference " << helfem::io::fmt_sci(dr)
+              << " tolerance " << helfem::io::fmt_sci(drtol) << "!\n";
           throw std::logic_error(oss.str());
         }
 
