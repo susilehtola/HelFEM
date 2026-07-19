@@ -112,6 +112,10 @@ int main(int argc, char **argv) {
   // checkpoint (for --load and for the diatomic_dline / diatomic_dgrid
   // / diatomic_cpl analysis tools).
   parser.add<std::string>("save", 0, "save results to checkpoint file", false, "");
+  // SCF convergence algorithms handed to OOO's state machine: a '+'
+  // separated subset of DIIS, ODA, CG and LBFGS. OOO switches between
+  // whichever are enabled and collapses gracefully on a subset.
+  parser.add<std::string>("scfmethods", 0, "SCF convergence methods: '+' separated subset of DIIS, ODA, CG, LBFGS", false, "DIIS + ODA + CG");
 
   parser.parse_check(argc, argv);
 
@@ -605,7 +609,7 @@ int main(int argc, char **argv) {
     scfsolver.initialize_with_fock(CoreH);
   }
 
-  scfsolver.run();
+  scfsolver.run(parser.get<std::string>("scfmethods"));
 
   if (savefile.size()) {
     Checkpoint savechk(savefile, /*writemode=*/true);
