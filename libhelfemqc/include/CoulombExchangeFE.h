@@ -192,6 +192,24 @@ namespace helfem {
           for (size_t iel = 0; iel < Nel; ++iel) {
             disjoint_small[(size_t) L * Nel + iel] =
                 detail_fe_2e::r_small<T>(radial, L, iel, yukawa, lambda);
+            // The "big" factor carries the r^{-L-1} weight (or the Yukawa
+            // k_L, which behaves as r^{-L-1} at small r too). On the
+            // innermost element, which touches r = 0, that integral
+            // DIVERGES: the FE functions vanish as r there, so the integrand
+            // goes as r^{1-L} -- finite for L < 2, log-divergent at L = 2,
+            // power-divergent beyond. Order-refining it is hopeless by
+            // construction, and it used to grind such blocks to the
+            // Gauss-Lobatto order cap and emit a spurious "hit the order
+            // cap" warning (the block magnitude grows without bound with the
+            // rule order rather than settling).
+            //
+            // It is also never needed: both the J and K assemblies read
+            // r_big only for the OUTER element of a disjoint pair, which is
+            // always iel >= 1. So leave iel == 0 default-constructed. An
+            // empty matrix makes an accidental future use fail loudly on a
+            // size mismatch rather than silently read a fabricated zero.
+            if (iel == 0)
+              continue;
             disjoint_big  [(size_t) L * Nel + iel] =
                 detail_fe_2e::r_big<T>  (radial, L, iel, yukawa, lambda);
           }
@@ -301,7 +319,12 @@ namespace helfem {
           const helfem::Mat<T> Psub =
               P_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj);
           const T jsmall = (r_small(jel) * Psub).trace();
-          const T jbig   = (r_big  (jel) * Psub).trace();
+          // r_big is undefined on the innermost element -- see the note in
+          // compute_disjoint_radial_integrals. It is only ever needed as the
+          // OUTER element of a disjoint pair, i.e. when some iel < jel
+          // exists, so jel == 0 must not touch it. The loop below that
+          // consumes jbig is empty at jel == 0 anyway.
+          const T jbig   = (jel > 0) ? T((r_big(jel) * Psub).trace()) : T(0);
           for (size_t iel = 0; iel < jel; ++iel) {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
@@ -424,7 +447,12 @@ namespace helfem {
           const helfem::Mat<T> Psub =
               P_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj);
           const T jsmall = (r_small(jel) * Psub).trace();
-          const T jbig   = (r_big  (jel) * Psub).trace();
+          // r_big is undefined on the innermost element -- see the note in
+          // compute_disjoint_radial_integrals. It is only ever needed as the
+          // OUTER element of a disjoint pair, i.e. when some iel < jel
+          // exists, so jel == 0 must not touch it. The loop below that
+          // consumes jbig is empty at jel == 0 anyway.
+          const T jbig   = (jel > 0) ? T((r_big(jel) * Psub).trace()) : T(0);
           for (size_t iel = 0; iel < jel; ++iel) {
             size_t ifirst, ilast;
             radial.get_idx(iel, ifirst, ilast);
