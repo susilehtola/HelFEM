@@ -232,6 +232,9 @@ int main(int argc, char **argv) {
 
   parser.add<std::string>("load", 0, "load orbital guess from checkpoint file", false, "");
   parser.add<std::string>("save", 0, "save results to checkpoint file",       false, "");
+  // SCF convergence algorithms handed to OOO's state machine: a '+'
+  // separated subset of DIIS, ODA, CG and LBFGS.
+  parser.add<std::string>("scfmethods", 0, "SCF convergence methods: '+' separated subset of DIIS, ODA, CG, LBFGS", false, "DIIS + ODA + CG");
 
   // SAP / effective-potential generation (parity with bespoke gensap).
   // With a functional active, gensap tabulates the radial effective
@@ -339,6 +342,7 @@ int main(int argc, char **argv) {
   opts.conf_barrier = conf_barrier;
   opts.shift_conf   = shift_conf;
   opts.verbosity    = 5;
+  opts.scf_methods  = parser.get<std::string>("scfmethods");
   opts.iguess       = parser.get<int>("iguess");
   opts.load_file    = parser.get<std::string>("load");
   opts.save_file    = parser.get<std::string>("save");

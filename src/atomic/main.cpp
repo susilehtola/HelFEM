@@ -124,6 +124,10 @@ int main(int argc, char **argv) {
   // Save basis + final AO densities + electron counts to a checkpoint
   // for downstream reuse (--load, density_line, etc.).
   parser.add<std::string>("save", 0, "save results to checkpoint file", false, "");
+  // SCF convergence algorithms handed to OOO's state machine: a '+'
+  // separated subset of DIIS, ODA, CG and LBFGS. OOO switches between
+  // whichever are enabled and collapses gracefully on a subset.
+  parser.add<std::string>("scfmethods", 0, "SCF convergence methods: '+' separated subset of DIIS, ODA, CG, LBFGS", false, "DIIS + ODA + CG");
 
   parser.parse_check(argc, argv);
 
@@ -653,7 +657,7 @@ int main(int argc, char **argv) {
     scfsolver.initialize_with_fock(CoreH);
   }
 
-  scfsolver.run();
+  scfsolver.run(parser.get<std::string>("scfmethods"));
 
   // --save: reconstruct the AO densities from the converged per-block
   // orbitals + occupations and write them plus the basis to a

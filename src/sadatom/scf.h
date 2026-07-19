@@ -67,6 +67,9 @@ namespace helfem {
         Eigen::VectorXi fixed_per_l_b;
         /// OOO verbosity; 0 for silent, higher for per-iteration prints.
         int verbosity = 5;
+        /// SCF convergence algorithms handed to OOO's state machine: a
+        /// '+' separated subset of DIIS, ODA, CG and LBFGS.
+        std::string scf_methods = "DIIS + ODA + CG";
         /// Load orbital guess from checkpoint. Empty = start from core-H
         /// guess as before. When non-empty, the old basis + per-l AO
         /// densities are read from the checkpoint, projected into the

@@ -413,7 +413,7 @@ namespace helfem {
         } else {
           scfsolver.initialize_with_fock(CoreH);
         }
-        scfsolver.run();
+        scfsolver.run(opts.scf_methods);
 
         // Extract results. Convert OOO's per-block orbital matrices
         // (in the Sinvh-orthonormal basis) back to AO coefficients
