@@ -558,7 +558,9 @@ namespace helfem {
           opts.x_func         = x_func;
           opts.c_func         = c_func;
           opts.dftthr         = dftthr;
-          opts.fixed_per_l_a  = occ;
+          // fixed_per_l_* are real-valued (fractional occupations are
+          // allowed); the tabulated PBE ground-state config is integral.
+          opts.fixed_per_l_a  = occ.cast<double>();
           opts.verbosity      = 0;
           auto res = sadatom::scf::run_atomic_scf(opts);
           basis_out = res.basis;

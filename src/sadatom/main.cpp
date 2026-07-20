@@ -30,6 +30,8 @@
 #include "../atomic/basis.h"
 #include "scf.h"
 #include "../general/eigen_io.h"
+// std::abs / std::round / std::lround for the --occs integrality check.
+#include <cmath>
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -228,7 +230,7 @@ int main(int argc, char **argv) {
   parser.add<bool>  ("add_conf",     0, "Add element boundary at shifted confinement radius?", false, true);
 
   parser.add<int>("iguess", 0, "initial guess: 0 core Hamiltonian, 1 GSZ, 2 SAP, 3 Thomas-Fermi", false, 2);
-  parser.add<std::string>("occs", 0, "occupations: 'auto' (Aufbau), or space-separated per-l counts (lmax+1 totals; unrestricted also accepts 2*(lmax+1) as alpha then beta)", false, "auto");
+  parser.add<std::string>("occs", 0, "occupations: 'auto' (Aufbau), or space-separated per-l counts (lmax+1 integer totals; unrestricted also accepts 2*(lmax+1) as alpha then beta, which may be fractional)", false, "auto");
 
   parser.add<std::string>("load", 0, "load orbital guess from checkpoint file", false, "");
   parser.add<std::string>("save", 0, "save results to checkpoint file",       false, "");
@@ -348,34 +350,42 @@ int main(int argc, char **argv) {
   opts.save_file    = parser.get<std::string>("save");
 
   // Explicit occupations. "auto" leaves OOO to fill by Aufbau. Otherwise
-  // parse space-separated per-l integer counts and pin them via the
+  // parse space-separated per-l counts and pin them via the
   // frozen-occupation API (opts.fixed_per_l_*). Restricted expects
   // lmax+1 per-l totals; unrestricted accepts lmax+1 totals (Hund
   // high-spin split into alpha/beta) or 2*(lmax+1) explicit alpha-then-
-  // beta counts.
+  // beta counts.  The explicit alpha/beta form accepts fractional
+  // counts; the Hund-split form does not, since the shell-filling
+  // arithmetic is integral.
   {
     const std::string occstr = parser.get<std::string>("occs");
     if (occstr != "auto" && occstr != "AUTO" && occstr != "Auto") {
       std::istringstream iss(occstr);
-      std::vector<int> vals; int v;
+      std::vector<double> vals; double v;
       while (iss >> v) vals.push_back(v);
       const int nl = lmax + 1;
-      auto to_ivec = [](const std::vector<int> & x) {
-        Eigen::VectorXi o(x.size());
+      auto to_dvec = [](const std::vector<double> & x) {
+        Eigen::VectorXd o(x.size());
         for (size_t i = 0; i < x.size(); ++i) o(i) = x[i];
         return o;
       };
       if (restricted) {
         if ((int) vals.size() != nl)
           throw std::logic_error("Restricted --occs needs lmax+1 per-l totals.\n");
-        opts.fixed_per_l_a = to_ivec(vals);
+        opts.fixed_per_l_a = to_dvec(vals);
       } else if ((int) vals.size() == nl) {
         // Hund high-spin split of each per-l total across n-shells: fill
         // shells of capacity 2*(2l+1), putting up to (2l+1) per shell in
         // alpha before beta (matches the bespoke driver's hund_rule).
-        Eigen::VectorXi a = Eigen::VectorXi::Zero(nl), b = Eigen::VectorXi::Zero(nl);
+        // Integral only: the fill is defined shell by shell.
+        for (int l = 0; l < nl; ++l)
+          if (std::abs(vals[l] - std::round(vals[l])) > 1e-10)
+            throw std::logic_error("Fractional --occs requires the explicit "
+                                   "2*(lmax+1) alpha-then-beta form; the "
+                                   "lmax+1 Hund-split form takes integers.\n");
+        Eigen::VectorXd a = Eigen::VectorXd::Zero(nl), b = Eigen::VectorXd::Zero(nl);
         for (int l = 0; l < nl; ++l) {
-          int numel = vals[l];
+          int numel = static_cast<int>(std::lround(vals[l]));
           while (numel > 0) {
             const int numsh = std::min(numel, 2 * (2 * l + 1));
             const int na    = std::min(numsh, 2 * l + 1);
@@ -387,8 +397,8 @@ int main(int argc, char **argv) {
         opts.fixed_per_l_a = a;
         opts.fixed_per_l_b = b;
       } else if ((int) vals.size() == 2 * nl) {
-        opts.fixed_per_l_a = to_ivec(std::vector<int>(vals.begin(), vals.begin() + nl));
-        opts.fixed_per_l_b = to_ivec(std::vector<int>(vals.begin() + nl, vals.end()));
+        opts.fixed_per_l_a = to_dvec(std::vector<double>(vals.begin(), vals.begin() + nl));
+        opts.fixed_per_l_b = to_dvec(std::vector<double>(vals.begin() + nl, vals.end()));
       } else {
         throw std::logic_error("Unrestricted --occs needs lmax+1 totals or 2*(lmax+1) alpha/beta counts.\n");
       }
