@@ -63,8 +63,11 @@ namespace helfem {
         // 2*(2l+1)) and leave fixed_per_l_b empty.
         // Unrestricted: pass both; each entry is the alpha or beta
         // count in that l (up to 2l+1).
-        Eigen::VectorXi fixed_per_l_a;
-        Eigen::VectorXi fixed_per_l_b;
+        // Counts may be fractional: OOO's frozen-occupation API takes
+        // reals, so a partially filled l shell can be pinned at any
+        // occupation in [0, 2l+1] (or [0, 2*(2l+1)] when restricted).
+        Eigen::VectorXd fixed_per_l_a;
+        Eigen::VectorXd fixed_per_l_b;
         /// OOO verbosity; 0 for silent, higher for per-iteration prints.
         int verbosity = 5;
         /// SCF convergence algorithms handed to OOO's state machine: a
