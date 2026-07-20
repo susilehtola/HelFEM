@@ -175,10 +175,22 @@ find_package(OpenOrbitalOptimizer QUIET)
 if(NOT OpenOrbitalOptimizer_FOUND)
     message(STATUS "OpenOrbitalOptimizer not found; fetching from GitHub")
     include(FetchContent)
+    # EXCLUDE_FROM_ALL keeps the fetched copy's install() rules out of our
+    # install tree. Without it `cmake --install` deposits OOO in
+    # CMAKE_INSTALL_PREFIX, which the next configure's find_package then
+    # picks up -- freezing the dependency at that snapshot and making
+    # ./compile.sh non-idempotent. Only honoured from CMake 3.28; we
+    # require 3.20, so apply it conditionally.
+    set(_ooo_exclude "")
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
+        set(_ooo_exclude EXCLUDE_FROM_ALL)
+    endif()
     FetchContent_Declare(OpenOrbitalOptimizer
         GIT_REPOSITORY https://github.com/susilehtola/OpenOrbitalOptimizer.git
-        GIT_TAG        master)
+        GIT_TAG        master
+        ${_ooo_exclude})
     FetchContent_MakeAvailable(OpenOrbitalOptimizer)
+    unset(_ooo_exclude)
 else()
     message(STATUS "Using system OpenOrbitalOptimizer")
 endif()
