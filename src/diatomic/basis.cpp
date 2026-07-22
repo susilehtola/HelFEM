@@ -16,6 +16,7 @@
 #include "quadrature.h"
 #include "PolynomialBasis.h"
 #include "chebyshev.h"
+#include "lobatto.h"
 #include <Eigen/Eigenvalues>
 #include "../general/angular_index_helpers.h"
 #include <cstring>
@@ -45,11 +46,31 @@ namespace helfem {
       // Auto-converging quadrature for the in-element two-electron kernel.
       //
       // Mirrors the atomic Stage-1 helper (libhelfem/src/RadialBasis.cpp,
-      // converge_rule): recompute a probe block at a rising Gauss-Chebyshev
-      // order until it stops changing, so the accuracy of the two-electron
-      // radial integrals is set by the floating-point type (here double's eps)
+      // converge_rule): recompute a probe block at a rising quadrature order
+      // until it stops changing, so the accuracy of the two-electron radial
+      // integrals is set by the floating-point type (here double's eps)
       // instead of a user-supplied --nquad. The diatomic path is double-only,
       // so this is a plain double specialization rather than a template.
+      //
+      // The probe builds its own rule, and the FAMILY is chosen per
+      // integrand class (see libhelfem/src/RadialBasis.cpp for the full
+      // analysis of why this matters):
+      //   * Gauss-Lobatto for the analytic blocks -- radial_integral's
+      //     sinh^m cosh^n weights, kinetic's sinh weight, and the
+      //     cross-basis overlap projection. These integrands are entire (or
+      //     polynomial x entire), so a polynomial-exact rule converges
+      //     geometrically and exit (1) fires after a doubling or two. The
+      //     modified Gauss-Chebyshev rule, being the trapezoid rule under
+      //     the sin^4-Jacobian Perez-Jorda transformation, has a FIXED
+      //     Euler-Maclaurin order O(n^-10) no matter how smooth the
+      //     integrand -- ample for double, but needlessly slow to refine.
+      //   * Gauss-Chebyshev for the P_L/Q_L Green's-function blocks
+      //     (Plm/Qlm integrals, the in-element two-electron kernel). Over
+      //     the element touching mu=0 the Q_L(cosh mu) weight is endpoint-
+      //     singular (Q_L(1) = +inf), which a Lobatto endpoint node would
+      //     evaluate directly, and for endpoint-singular integrands the
+      //     Chebyshev rule's sin^4 node clustering is the right treatment
+      //     anyway.
       //
       // TWO stopping conditions, both meaning "all of double's precision has
       // been extracted":
@@ -160,7 +181,7 @@ namespace helfem {
               }
               if(!twoe_cap_warned) {
                 twoe_cap_warned = true;
-                printf("Warning: diatomic %s hit the Gauss-Chebyshev order cap"
+                printf("Warning: diatomic %s hit the quadrature order cap"
                        " (n=%d) without converging to eps(double); using best"
                        " estimate.\n", what, twoe_nmax);
                 fflush(stdout);
@@ -237,16 +258,16 @@ namespace helfem {
         } else if(m==0 && n!=0) {
           chsh = [n](double mu) { return std::pow(std::cosh(mu), n); };
         }
-        // Auto-converging: refine the Gauss-Chebyshev order until the block is
-        // stable to eps(double), so accuracy follows the FP type instead of the
-        // caller's --nquad. Same Chebyshev family + converge_block the two-
-        // electron and Plm/Qlm integrals use, so at production nquad (the seed)
-        // this reproduces the old fixed-order result. The sinh/cosh weight is
-        // smooth and non-singular here, so no seed fallback is needed.
+        // Auto-converging: refine the quadrature order until the block is
+        // stable to eps(double), so accuracy follows the FP type instead of
+        // the caller's --nquad. The sinh/cosh weight is entire, so the
+        // polynomial-exact Gauss-Lobatto rule converges geometrically (see
+        // the family note atop converge_block) and no seed fallback is
+        // needed.
         return converge_block(
             [&](int nq) {
               helfem::Vector x, w;
-              chebyshev::chebyshev<double>(nq, x, w);
+              lobatto::lobatto_compute<double>(nq, x, w);
               return fem.matrix_element(false, false, x, w, chsh);
             },
             std::max((int) xq.size(), 5), "radial_integral");
@@ -267,14 +288,16 @@ namespace helfem {
           }
         }
 
-        // Auto-converging projection: refine the Gauss-Chebyshev order until the
+        // Auto-converging projection: refine the quadrature order until the
         // whole (Nbf x rh.Nbf) block is stable to eps(double), so the accuracy
         // follows the FP type rather than either basis's --nquad. Seeded from
-        // the finer of the two bases.
+        // the finer of the two bases. The integrand (polynomials x the entire
+        // sinh cosh^n weight) is analytic, so the Gauss-Lobatto rule converges
+        // geometrically (see the family note atop converge_block).
         return converge_block(
             [&](int nq) {
               helfem::Vector xproj, wproj;
-              chebyshev::chebyshev<double>(nq, xproj, wproj);
+              lobatto::lobatto_compute<double>(nq, xproj, wproj);
 
               helfem::Matrix S(helfem::Matrix::Zero(Nbf(), rh.Nbf()));
               for(size_t iel=0;iel<fem.get_nelem();iel++) {
@@ -291,7 +314,13 @@ namespace helfem {
                   double intmid(0.5*(intend+intstart));
                   double intlen(0.5*(intend-intstart));
 
-                  helfem::Vector mu(intmid*helfem::Vector::Ones(xproj.size())+intlen*xproj);
+                  // The Lobatto rule includes x = +-1, whose mapped image
+                  // intmid +- intlen can round a few ulps past the exact
+                  // interval ends and trip eval_prim's bounds check; clamp
+                  // to the interval, whose ends are exact element
+                  // boundaries of one basis and interior to the other.
+                  helfem::Vector mu((intmid*helfem::Vector::Ones(xproj.size())+intlen*xproj)
+                                        .cwiseMax(intstart).cwiseMin(intend));
                   helfem::Vector xi(fem.eval_prim(mu, iel));
                   helfem::Vector xj(rh.fem.eval_prim(mu, jel));
 
@@ -360,12 +389,13 @@ namespace helfem {
 
       helfem::Matrix RadialBasis::kinetic() const {
         std::function<double(double)> sinhmu = [](double mu) {return std::sinh(mu);};
-        // Auto-converging (see radial_integral): refine the Gauss-Chebyshev
-        // order until the derivative block is stable to eps(double).
+        // Auto-converging (see radial_integral): refine the Gauss-Lobatto
+        // order until the derivative block is stable to eps(double); the
+        // sinh weight is entire, so the refinement is geometric.
         return converge_block(
             [&](int nq) {
               helfem::Vector x, w;
-              chebyshev::chebyshev<double>(nq, x, w);
+              lobatto::lobatto_compute<double>(nq, x, w);
               return fem.matrix_element(true, true, x, w, sinhmu);
             },
             std::max((int) xq.size(), 5), "kinetic");
