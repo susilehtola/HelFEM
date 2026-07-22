@@ -85,15 +85,27 @@ namespace helfem {
 
       const int nbf = poly->get_nbf();
       Mat<T> inner(x.size(), nbf * nbf);
-      // Row 0: integral from rmin to r(0)
-      inner.row(0) = twoe_inner_integral_wrk<T>(rmin, r(0), rmin, rmax, x, wx, poly, fsmallbig, fbig).transpose();
+      // Row 0: integral from rmin to r(0). With an endpoint-including rule
+      // (Gauss-Lobatto) r(0) == rmin and the segment is empty; skip the
+      // kernel evaluation, which on the innermost element (rmin = 0) would
+      // otherwise hit fsmallbig(0, 0) and poison the row with NaN.
+      const bool empty_first = (r(0) == rmin);
+      if (empty_first)
+        inner.row(0).setZero();
+      else
+        inner.row(0) = twoe_inner_integral_wrk<T>(rmin, r(0), rmin, rmax, x, wx, poly, fsmallbig, fbig).transpose();
       for (Eigen::Index ip = 1; ip < x.size(); ++ip)
         inner.row(ip) = twoe_inner_integral_wrk<T>(r(ip - 1), r(ip), rmin, rmax, x, wx, poly, fsmallbig, fbig).transpose();
 
       // Rescale: undo the per-segment R^(-L-1) factor we applied for
-      // numerical stability.
-      for (Eigen::Index ip = 1; ip < x.size(); ++ip)
+      // numerical stability. When row 0 is an empty segment it carries
+      // nothing, and skipping it also avoids evaluating fbig(0) = inf on
+      // the innermost element.
+      for (Eigen::Index ip = 1; ip < x.size(); ++ip) {
+        if (ip == 1 && empty_first)
+          continue;
         inner.row(ip) += inner.row(ip - 1) * (fbig(r(ip)) / fbig(r(ip - 1)));
+      }
 
       return inner;
     }
