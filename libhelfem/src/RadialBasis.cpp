@@ -17,6 +17,7 @@
 #include "quadrature.h"
 #include "utils.h"
 #include <chebyshev.h>
+#include <lobatto.h>
 #include <limits>
 // Scalar formatter that prints a T value at its own precision (no truncation
 // to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.
@@ -49,8 +50,30 @@ namespace helfem {
       // between consecutive outer nodes -- one rule drives both the outer
       // nodes and the inner segments, so plain order-refinement converges.
       //
-      // The rule family stays Gauss-Chebyshev to match the existing scheme;
-      // switching families would perturb the results more than necessary.
+      // The rule family is Gauss-Lobatto, NOT the modified Gauss-Chebyshev
+      // rule used elsewhere. This matters: despite its name, the modified
+      // Gauss-Chebyshev rule (chebyshev.h) is not a Gaussian rule but the
+      // equispaced trapezoid rule pushed through the variable transformation
+      // x(t) with Jacobian ~ sin^4(t). Its error is governed by the Euler-
+      // Maclaurin expansion of the transformed integrand g(t) = f(x(t))
+      // sin^4(t): near the endpoints sin^4 contributes only even powers
+      // t^4, t^6, t^8 and x(t)-x(0) ~ t^5, so the first odd derivative of g
+      // that survives at the boundary is g^(9), leaving a FIXED algebraic
+      // error O(n^-10) for every smooth integrand (measured: the block diff
+      // shrinks by 2^-10 per order doubling, at any n). That is ample for
+      // double -- n ~ 300 reaches 1e-16 -- but it can never follow eps(T)
+      // for wide types: reaching 1e-33 in _Float128 would take n ~ 10^4.
+      //
+      // Gauss-Lobatto is polynomial-exact (degree 2n-3), and the 2e radial
+      // primitives are polynomial-friendly: the accumulated inner integral
+      // is G(r) * r^(-L-1) with G(r) = int_rmin^r B_k B_l r'^L dr' a
+      // polynomial, so on the innermost element (rmin = 0) the outer
+      // integrand B_i B_j G / r^(L+1) is itself a POLYNOMIAL of degree
+      // <= 4(nbf-1), integrated exactly once 2n-3 covers it, and on outer
+      // elements it is a rational function whose only pole (r = 0) lies
+      // outside the element, so the rule converges geometrically. Either
+      // way the refinement loop terminates at modest n for every T instead
+      // of grinding the Chebyshev rule's order-10 wall to the cap.
       // --------------------------------------------------------------------
       namespace {
         /// Order cap for the refinement loop.
@@ -58,7 +81,7 @@ namespace helfem {
         /// Warn at most once per process if a primitive hits the order cap.
         bool twoe_cap_warned = false;
 
-        /// Refine `eval(n)` -- which must build its own n-point Chebyshev
+        /// Refine `eval(n)` -- which must build its own n-point Lobatto
         /// rule -- by doubling n from nstart until the returned block is
         /// stable. The 2e blocks are (nbf^2 x nbf^2), i.e. their shape is
         /// independent of n, so the block-difference comparison is well
@@ -69,21 +92,22 @@ namespace helfem {
         ///
         ///   1. True eps convergence: the block stops changing to 8*eps(T),
         ///      exactly the criterion the one-electron matrix_element uses
-        ///      (FiniteElementBasis.cpp converge_panel). Low-degree bases /
-        ///      small elements hit this.
+        ///      (FiniteElementBasis.cpp converge_panel). This is the common
+        ///      exit: the innermost element's Coulomb block is polynomial
+        ///      and hence EXACT once 2n-3 covers its degree, and the outer
+        ///      elements' rational integrands converge geometrically.
         ///
-        ///   2. Roundoff-floor stall: unlike the one-electron path -- whose
-        ///      polynomial weight makes the Gauss-Lobatto block exact at a
-        ///      finite order, so its difference collapses to true zero -- the
-        ///      2e Coulomb/Yukawa kernel is NOT polynomial-exact, so the
-        ///      block difference converges geometrically only down to the
-        ///      roundoff floor of the (nbf^2 x nbf^2) assembly (a small
-        ///      multiple of eps above 8*eps*scale) and then wobbles. Once the
-        ///      difference is deep in the asymptotic regime (well below
-        ///      sqrt(eps)*scale) and a doubling of the order no longer at
-        ///      least halves it, further refinement only chases roundoff:
-        ///      the block has converged to T's precision. This is a normal
-        ///      outcome, not a failure, so it returns quietly.
+        ///   2. Roundoff-floor stall: for the branches that are not
+        ///      polynomial (Yukawa's Bessel kernels, weighted cross-basis
+        ///      projections) the block difference converges geometrically
+        ///      only down to the roundoff floor of the (nbf^2 x nbf^2)
+        ///      assembly (a small multiple of eps above 8*eps*scale) and
+        ///      then wobbles. Once the difference is deep in the asymptotic
+        ///      regime (well below sqrt(eps)*scale) and a doubling of the
+        ///      order no longer at least halves it, further refinement only
+        ///      chases roundoff: the block has converged to T's precision.
+        ///      This is a normal outcome, not a failure, so it returns
+        ///      quietly.
         ///
         /// The nmax cap + one-shot warning is thus a genuine backstop for
         /// pathological non-convergence, not the common high-degree case.
@@ -117,7 +141,7 @@ namespace helfem {
             if (n >= twoe_nmax) {
               if (!twoe_cap_warned) {
                 twoe_cap_warned = true;
-                printf("Warning: FEMRadialBasis::%s hit the Gauss-Chebyshev order"
+                printf("Warning: FEMRadialBasis::%s hit the Gauss-Lobatto order"
                        " cap (n=%d) without converging to eps(T); using best"
                        " estimate.\n", what, twoe_nmax);
                 fflush(stdout);
@@ -345,7 +369,7 @@ namespace helfem {
         return converge_rule<T>(
             [&](int n) {
               helfem::Vec<T> xproj, wproj;
-              helfem::chebyshev::chebyshev<T>(n, xproj, wproj);
+              helfem::lobatto::lobatto_compute<T>(n, xproj, wproj);
 
               helfem::Mat<T> S = helfem::Mat<T>::Zero(Nbf(), rh.Nbf());
               for (size_t iel = 0; iel < fem.get_nelem(); ++iel) {
@@ -357,8 +381,14 @@ namespace helfem {
                   const T intmid   = T(0.5) * (intend + intstart);
                   const T intlen   = T(0.5) * (intend - intstart);
 
+                  // The Lobatto rule includes x = +-1, whose mapped image
+                  // intmid +- intlen can round a few ulps past the exact
+                  // interval ends and trip eval_prim's bounds check; clamp
+                  // to the interval, whose ends are exact element
+                  // boundaries of one basis and interior to the other.
                   const helfem::Vec<T> r =
-                      helfem::Vec<T>::Constant(xproj.size(), intmid) + intlen * xproj;
+                      (helfem::Vec<T>::Constant(xproj.size(), intmid) + intlen * xproj)
+                          .cwiseMax(intstart).cwiseMin(intend);
 
                   const helfem::Vec<T> xi = fem.eval_prim(r, iel);
                   const helfem::Vec<T> xj = rh.fem.eval_prim(r, jel);
@@ -609,7 +639,7 @@ namespace helfem {
         helfem::Mat<T> tei = converge_rule<T>(
             [&](int n) {
               helfem::Vec<T> x, w;
-              helfem::chebyshev::chebyshev<T>(n, x, w);
+              helfem::lobatto::lobatto_compute<T>(n, x, w);
               // Phase 5.7: quadrature::twoe_integral is now Eigen.
               return quadrature::twoe_integral<T>(Rmin, Rmax, x, w, p, L);
             },
@@ -690,7 +720,7 @@ namespace helfem {
         return converge_rule<T>(
             [&](int n) {
               helfem::Vec<T> x, w;
-              helfem::chebyshev::chebyshev<T>(n, x, w);
+              helfem::lobatto::lobatto_compute<T>(n, x, w);
               return quadrature::yukawa_integral<T>(Rmin, Rmax, x, w, p, L, lambda);
             },
             twoe_nstart(), "yukawa_integral");
