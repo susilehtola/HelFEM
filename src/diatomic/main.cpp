@@ -609,7 +609,8 @@ int main(int argc, char **argv) {
     scfsolver.initialize_with_fock(CoreH);
   }
 
-  scfsolver.run(parser.get<std::string>("scfmethods"));
+  scfsolver.set("methods", parser.get<std::string>("scfmethods"));
+  scfsolver.run();
 
   if (savefile.size()) {
     Checkpoint savechk(savefile, /*writemode=*/true);

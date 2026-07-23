@@ -657,7 +657,8 @@ int main(int argc, char **argv) {
     scfsolver.initialize_with_fock(CoreH);
   }
 
-  scfsolver.run(parser.get<std::string>("scfmethods"));
+  scfsolver.set("methods", parser.get<std::string>("scfmethods"));
+  scfsolver.run();
 
   // --save: reconstruct the AO densities from the converged per-block
   // orbitals + occupations and write them plus the basis to a
