@@ -108,6 +108,7 @@ option(HELFEM_EIGEN_BLAS
 add_library(helfem_blas INTERFACE)
 add_library(helfem::blas ALIAS helfem_blas)
 set(HELFEM_EIGEN_BLAS_ACTIVE OFF)
+set(HELFEM_EIGEN_LAPACKE_ACTIVE OFF)
 if(HELFEM_EIGEN_BLAS)
     # Eigen's BLAS backend is int32-only; ask FindBLAS for an LP64
     # interface explicitly. (BLA_SIZEOF_INTEGER is honoured from CMake
@@ -119,6 +120,23 @@ if(HELFEM_EIGEN_BLAS)
         target_link_libraries(helfem_blas INTERFACE BLAS::BLAS LAPACK::LAPACK)
         set(HELFEM_EIGEN_BLAS_ACTIVE ON)
         message(STATUS "BLAS (for EIGEN_USE_BLAS): ${BLAS_LIBRARIES}")
+        # Eigen can also route its dense decompositions -- including the
+        # SelfAdjointEigenSolver used in every SCF iteration -- to LAPACK,
+        # but only through the LAPACKE C interface (EIGEN_USE_LAPACKE).
+        # LAPACKE is a separate library/header from LAPACK itself, so
+        # detect it separately and degrade to Eigen's own decompositions
+        # when absent. Same LP64 constraint: lapack_int is int32 unless
+        # LAPACKE was built ILP64, which the LP64 LAPACK above rules out.
+        find_library(LAPACKE_LIBRARY NAMES lapacke)
+        find_path(LAPACKE_INCLUDE_DIR NAMES lapacke.h)
+        if(LAPACKE_LIBRARY AND LAPACKE_INCLUDE_DIR)
+            target_link_libraries(helfem_blas INTERFACE ${LAPACKE_LIBRARY})
+            target_include_directories(helfem_blas INTERFACE ${LAPACKE_INCLUDE_DIR})
+            set(HELFEM_EIGEN_LAPACKE_ACTIVE ON)
+            message(STATUS "LAPACKE (for EIGEN_USE_LAPACKE): ${LAPACKE_LIBRARY}")
+        else()
+            message(STATUS "No LAPACKE found; Eigen's own decompositions stay in use")
+        endif()
     else()
         message(STATUS "No LP64 BLAS/LAPACK found; using Eigen's built-in kernels "
                        "(set CMAKE_PREFIX_PATH to point at a BLAS, or -DHELFEM_EIGEN_BLAS=OFF to silence)")
@@ -158,6 +176,10 @@ endif()
 if(HELFEM_EIGEN_BLAS_ACTIVE)
     add_compile_definitions(EIGEN_USE_BLAS)
     message(STATUS "Eigen dense products routed through the external BLAS (EIGEN_USE_BLAS, LP64)")
+endif()
+if(HELFEM_EIGEN_LAPACKE_ACTIVE)
+    add_compile_definitions(EIGEN_USE_LAPACKE)
+    message(STATUS "Eigen dense decompositions routed through LAPACKE (EIGEN_USE_LAPACKE, LP64)")
 endif()
 
 # Wigner-nj symbols (>= 0.7.0). System install preferred, else fetch.
