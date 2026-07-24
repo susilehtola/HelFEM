@@ -19,7 +19,7 @@
 #include "utils.h"
 #include "../general/scf_helpers.h"
 #include "../general/dftfuncs.h"
-#include <cfloat>
+#include <limits>
 #include <sstream>
 
 #ifdef _OPENMP
@@ -112,6 +112,16 @@ namespace helfem {
             atomic::basis::FEMRadialBasis::BasisKind::B0,
             atomic::basis::FEMRadialBasis::BasisKind::B0,
             potfunc, breakpoints);
+      }
+
+      std::vector< std::pair<int, helfem::Matrix> > TwoDBasis::Rmatrices() const {
+        std::vector< std::pair<int, helfem::Matrix> > rmat;
+        for(int n=-2;n<=3;n++) {
+          if(n==0) continue;
+          rmat.push_back(std::make_pair(n, helfem::assemble_radial_diagonal(radial,
+              [&](size_t iel) { return radial.radial_integral(n, iel); })));
+        }
+        return rmat;
       }
 
       helfem::Matrix TwoDBasis::model_potential(const modelpotential::ModelPotential * pot) const {
@@ -758,7 +768,7 @@ namespace helfem {
           }
           helfem::Vector cen=((a+b)/2);
           double dmax = electron_density(cen, iel, Prad, rsqweight)(0);
-          if(del(imax) - dmax >= 100*DBL_EPSILON) {
+          if(del(imax) - dmax >= 100*std::numeric_limits<double>::epsilon()) {
             std::ostringstream oss;
             oss << "Density maximization failed! Quadrature max " << del(imax) << " optimized max " << dmax << " difference " << dmax-del(imax) << "!\n";
             throw std::logic_error(oss.str());

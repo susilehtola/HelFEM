@@ -8,10 +8,9 @@
  * Written by Susi Lehtola, 2018-
  * Copyright (c) 2018- Susi Lehtola
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * See the LICENSE file at the root of this source distribution
+ * for the full license text.
  */
 
 #include "../general/cmdline.h"
@@ -20,21 +19,23 @@
 #include "FiniteElementBasis.h"
 #include "chebyshev.h"
 
+#include <Eigen/Eigenvalues>
+
 using namespace helfem;
 
-arma::mat overlap(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
-  return fem.matrix_element(false, false, x, wx, nullptr);
+helfem::Matrix overlap(const helfem::polynomial_basis::FiniteElementBasis & fem, const helfem::Vector & x, const helfem::Vector & wx) {
+  return fem.matrix_element(0, 0, x, wx, nullptr);
 }
 
-arma::mat potential(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx, double De, double a, double re) {
+helfem::Matrix potential(const helfem::polynomial_basis::FiniteElementBasis & fem, const helfem::Vector & x, const helfem::Vector & wx, double De, double a, double re) {
   std::function<double(double)> V = [&](double r) {
     return De*std::pow(1-exp(-a*(r-re)),2);
   };
-  return fem.matrix_element(false, false, x, wx, V);
+  return fem.matrix_element(0, 0, x, wx, V);
 }
 
-arma::mat kinetic(const helfem::polynomial_basis::FiniteElementBasis & fem, const arma::vec & x, const arma::vec & wx) {
-  return 0.5*fem.matrix_element(true, true, x, wx, nullptr);
+helfem::Matrix kinetic(const helfem::polynomial_basis::FiniteElementBasis & fem, const helfem::Vector & x, const helfem::Vector & wx) {
+  return 0.5*fem.matrix_element(1, 1, x, wx, nullptr);
 }
 
 int main(int argc, char **argv) {
@@ -62,7 +63,6 @@ int main(int argc, char **argv) {
   double De = parser.get<double>("De");
   double a = parser.get<double>("a");
   double re = parser.get<double>("re");
-  double m = parser.get<double>("m");
   bool deuteron = parser.get<bool>("deuteron");
   std::string save = parser.get<std::string>("save");
 
@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
     Nquad=5*poly->get_nbf();
 
   // Radial grid
-  arma::vec r(arma::linspace<arma::vec>(0,rmax,Nelem+1));
+  helfem::Vector r(helfem::Vector::LinSpaced(Nelem+1,0.0,rmax));
 
   // Finite element basis
   bool zero_func_left=true;
@@ -82,70 +82,64 @@ int main(int argc, char **argv) {
   helfem::polynomial_basis::FiniteElementBasis fem(poly, r, zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
 
   // Quadrature rule
-  arma::vec xq, wq;
-  chebyshev::chebyshev(Nquad,xq,wq);
+  helfem::Vector xq, wq;
+  chebyshev::chebyshev<double>(Nquad,xq,wq);
 
   size_t Nbf(fem.get_nbf());
   printf("Basis set contains %i functions\n",(int) Nbf);
 
   // Form overlap matrix
-  arma::mat S(overlap(fem, xq, wq));
+  helfem::Matrix S(overlap(fem, xq, wq));
   // Form potential matrix
-  arma::mat V(potential(fem, xq, wq, De, a, re));
+  helfem::Matrix V(potential(fem, xq, wq, De, a, re));
   // Form kinetic energy matrix
-  arma::mat T(kinetic(fem, xq, wq));
+  helfem::Matrix T(kinetic(fem, xq, wq));
   if(deuteron)
     T/=2.0;
 
   // Form Hamiltonian
-  arma::mat H(T+V);
-
-  //S.print("Overlap");
-  //T.print("Kinetic");
-  //V.print("Potential");
-  //H.print("Hamiltonian");
+  helfem::Matrix H(T+V);
 
   // Form orthonormal basis
-  arma::vec Sval;
-  arma::mat Svec;
-  arma::eig_sym(Sval,Svec,S);
+  Eigen::SelfAdjointEigenSolver<helfem::Matrix> Ses(S);
+  helfem::Vector Sval(Ses.eigenvalues());
+  helfem::Matrix Svec(Ses.eigenvectors());
 
-  //Sval.print("S eigenvalues");
-  printf("Smallest value of overlap matrix is % e, condition number is %e\n",Sval(0),Sval(Sval.n_elem-1)/Sval(0));
-  printf("Smallest and largest bf norms are %e and %e\n",arma::min(arma::abs(arma::diagvec(S))),arma::max(arma::abs(arma::diagvec(S))));
+  printf("Smallest value of overlap matrix is % e, condition number is %e\n",Sval(0),Sval(Sval.size()-1)/Sval(0));
+  printf("Smallest and largest bf norms are %e and %e\n",S.diagonal().cwiseAbs().minCoeff(),S.diagonal().cwiseAbs().maxCoeff());
 
   // Form half-inverse
-  arma::mat Sinvh(Svec * arma::diagmat(arma::pow(Sval, -0.5)) * arma::trans(Svec));
+  helfem::Matrix Sinvh(Svec * Sval.cwiseInverse().cwiseSqrt().asDiagonal() * Svec.transpose());
 
   // Form orthonormal Hamiltonian
-  arma::mat Horth(arma::trans(Sinvh)*H*Sinvh);
+  helfem::Matrix Horth(Sinvh.transpose()*H*Sinvh);
 
   // Diagonalize Hamiltonian
-  arma::vec E;
-  arma::mat C;
-  arma::eig_sym(E,C,Horth);
+  Eigen::SelfAdjointEigenSolver<helfem::Matrix> Hes(Horth);
+  helfem::Vector E(Hes.eigenvalues());
+  helfem::Matrix C(Hes.eigenvectors());
 
   // Go back to non-orthonormal basis
   C=Sinvh*C;
 
   for(size_t i=0;i<10;i++)
-    printf("E[%i] = % .15e\n",(int) i, E[i]);
+    printf("E[%i] = % .15e\n",(int) i, E(i));
 
   // Test orthonormality
-  arma::mat Smo(C.t()*S*C);
-  Smo-=arma::eye<arma::mat>(Smo.n_rows,Smo.n_cols);
-  printf("Orbital orthonormality devation is %e\n",arma::norm(Smo,"fro"));
+  helfem::Matrix Smo(C.transpose()*S*C);
+  Smo-=helfem::Matrix::Identity(Smo.rows(),Smo.cols());
+  printf("Orbital orthonormality devation is %e\n",Smo.norm());
 
   // Evaluate the basis set: 0th derivative
-  arma::mat bfval(fem.eval_dnf(xq, 0));
-  arma::mat phival(bfval*C);
-  arma::mat coords(fem.eval_coord(xq));
-  arma::mat weights(fem.eval_weights(wq));
+  helfem::Matrix bfval(fem.eval_dnf(xq, 0));
+  helfem::Matrix phival(bfval*C);
+  helfem::Vector coords(fem.eval_coord(xq));
+  helfem::Vector weights(fem.eval_weights(wq));
 
   // Test orbitals are still orthonormal
-  arma::mat Sgrid(phival.t()*arma::diagmat(weights)*phival);
-  Sgrid-=arma::eye<arma::mat>(Sgrid.n_rows,Sgrid.n_cols);
-  printf("Orbital orthonormality devation on grid is %e\n",arma::norm(Sgrid,"fro"));
+  helfem::Matrix Sgrid(phival.transpose()*weights.asDiagonal()*phival);
+  Sgrid-=helfem::Matrix::Identity(Sgrid.rows(),Sgrid.cols());
+  printf("Orbital orthonormality devation on grid is %e\n",Sgrid.norm());
 
   Checkpoint chkpt(save, true);
   chkpt.write("bf",bfval);

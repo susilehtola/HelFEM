@@ -8,24 +8,27 @@
  * Written by Susi Lehtola, 2018-
  * Copyright (c) 2018- Susi Lehtola
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * See the LICENSE file at the root of this source distribution
+ * for the full license text.
  */
 #include "../general/cmdline.h"
 #include "../general/constants.h"
 #include "../general/dftfuncs.h"
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
+#include "../general/eigen_io.h"
 
 #include "openorbitaloptimizer/scfsolver.hpp"
 
-#include "utils.h"
+#include "basis.h"
 #include "dftgrid.h"
-#include "solver.h"
-#include "configurations.h"
+
+#include <Eigen/Eigenvalues>
+#include <algorithm>
 #include <cfloat>
+#include <fstream>
+#include <sstream>
 
 using namespace helfem;
 
@@ -43,6 +46,12 @@ int consistent_lmax(int njellium) {
 }
 
 int main(int argc, char **argv) {
+  // Solver-facing scalar type. The sadatom chemistry layer (TwoDBasis,
+  // DFTGrid, libxc) is double-only, so this is not yet wired beyond
+  // double; the libhelfem radial machinery underneath is fully
+  // templated to eps(T).
+  using OOO_Real = double;
+
   cmdline::parser parser;
 
   // full option name, no short option, description, argument required
@@ -57,7 +66,6 @@ int main(int argc, char **argv) {
   parser.add<std::string>("method", 0, "method to use", false, "lda_x");
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
-  parser.add<int>("taylor_order", 0, "order of Taylor expansion near the nucleus", false, -1);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.add<int>("njellium", 0,"number of jellium electrons", true);
@@ -70,7 +78,7 @@ int main(int argc, char **argv) {
   parser.add<double>("Rmax", 0, "Size of vacuum region", false, 40.0);
   parser.add<int>("M", 0, "spin multiplicity", true);
   parser.add<int>("lmax", 0, "maximum angular momentum", false, 4);
-  parser.add<bool>("oda", 0, "Run optimal damping?", false, true);
+  parser.add<std::string>("scfmethods", 0, "SCF convergence methods: '+' separated subset of DIIS, ODA, CG, LBFGS", false, "DIIS + ODA + CG");
   parser.add<std::string>("loadfock", 0, "file to load guess fock matrix from", false, "");
   parser.add<std::string>("savefock", 0, "file to save fock matrix to", false, "");
   parser.add<bool>("saveorb", 0, "save radial orbitals to disk?", false, false);
@@ -92,7 +100,6 @@ int main(int argc, char **argv) {
   double dftthr(parser.get<double>("dftthr"));
 
   int primbas(parser.get<int>("primbas"));
-  int taylor_order(parser.get<int>("taylor_order"));
   std::string xparf(parser.get<std::string>("x_pars"));
   std::string cparf(parser.get<std::string>("c_pars"));
 
@@ -107,21 +114,21 @@ int main(int argc, char **argv) {
 
   bool zeroright(parser.get<bool>("zeroright"));
   int lmax(parser.get<int>("lmax"));
-  bool oda(parser.get<bool>("oda"));
+  std::string scfmethods(parser.get<std::string>("scfmethods"));
 
   std::string loadfock(parser.get<std::string>("loadfock"));
   std::string savefock(parser.get<std::string>("savefock"));
   bool saveorb(parser.get<bool>("saveorb"));
 
   // Parse xc parameters
-  arma::vec x_pars, c_pars;
+  helfem::Vector x_pars, c_pars;
   if(xparf.size()) {
     x_pars = scf::parse_xc_params(xparf);
-    x_pars.t().print("Exchange functional parameters");
+    helfem::io::print_matrix("Exchange functional parameters", helfem::Matrix(x_pars.transpose()));
   }
   if(cparf.size()) {
     c_pars = scf::parse_xc_params(cparf);
-    c_pars.t().print("Correlation functional parameters");
+    helfem::io::print_matrix("Correlation functional parameters", helfem::Matrix(c_pars.transpose()));
   }
 
   // Get primitive basis
@@ -134,10 +141,6 @@ int main(int argc, char **argv) {
     throw std::logic_error("Insufficient radial quadrature.\n");
   // Order of quadrature rule
   printf("Using %i point quadrature rule.\n",Nquad);
-
-  // Set default order of Taylor expansion
-  if(taylor_order==-1)
-    taylor_order = poly->get_nprim()-1;
 
   // Functional
   int x_func, c_func;
@@ -179,27 +182,27 @@ int main(int argc, char **argv) {
   double Erep = (rs > 0 ) ? 3*std::pow(R,5)/(5*std::pow(rs,6)) : 0.0;
 
   // Uniform part of grid
-  arma::vec bval_unif;
+  helfem::Vector bval_unif;
   if(Nuelem)
     bval_unif = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nuelem, R, 1, 0.0, 0, 0, 0, Z, 0, 0, 0.0, false, 0.0);
 
-  arma::vec bval;
+  helfem::Vector bval;
   if(Nelem>0) {
     // Atomic grid
     double rinfty = (Nuelem>0) ? bval_unif(1) : Rmax;
-    arma::vec bval_atom = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nelem, rinfty, igrid, zexp, 0, 0, 0.0, Z, 0, 0, 0.0, false, 0.0);
+    helfem::Vector bval_atom = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nelem, rinfty, igrid, zexp, 0, 0, 0.0, Z, 0, 0, 0.0, false, 0.0);
 
     // Glue grids together
-    if(bval_unif.n_elem) {
-      bval.zeros(bval_atom.n_elem+bval_unif.n_elem-2);
-      bval.subvec(0,bval_atom.n_elem-1) = bval_atom;
-      if(bval_atom(bval_atom.n_elem-1) != bval_unif(1)) {
+    if(bval_unif.size()) {
+      bval = helfem::Vector::Zero(bval_atom.size()+bval_unif.size()-2);
+      bval.head(bval_atom.size()) = bval_atom;
+      if(bval_atom(bval_atom.size()-1) != bval_unif(1)) {
         std::ostringstream oss;
-        oss << "Grids don't coincide: difference " << bval_atom(bval_atom.n_elem-1) - bval_unif(1) << "!\n";
+        oss << "Grids don't coincide: difference " << bval_atom(bval_atom.size()-1) - bval_unif(1) << "!\n";
         throw std::logic_error(oss.str());
       }
-      if(bval_unif.n_elem>2) {
-        bval.subvec(bval_atom.n_elem,bval.n_elem-1) = bval_unif.subvec(2,bval_unif.n_elem-1);
+      if(bval_unif.size()>2) {
+        bval.tail(bval_unif.size()-2) = bval_unif.segment(2,bval_unif.size()-2);
       }
     } else {
       bval = bval_atom;
@@ -210,10 +213,11 @@ int main(int argc, char **argv) {
 
   // Handle vacancy case
   if(vacancy) {
-    arma::vec vbval(bval.n_elem+1);
-    vbval.subvec(0,bval.n_elem-1)=bval;
-    vbval(bval.n_elem) = r_inner;
-    bval = arma::sort(vbval, "ascend");
+    helfem::Vector vbval(bval.size()+1);
+    vbval.head(bval.size())=bval;
+    vbval(bval.size()) = r_inner;
+    std::sort(vbval.data(), vbval.data()+vbval.size());
+    bval = vbval;
   }
 
   // Add vacuum region
@@ -221,26 +225,25 @@ int main(int argc, char **argv) {
     int Nvelem = std::ceil(Rmax/friedel_period*Nufreq);
 
     // Points in vacuum region
-    arma::vec bval_vac = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nvelem, Rmax, 1, 0.0, 0, 0, 0, Z, 0, 0, 0.0, false, 0.0);
+    helfem::Vector bval_vac = atomic::basis::form_grid(modelpotential::POINT_NUCLEUS, 0.0, Nvelem, Rmax, 1, 0.0, 0, 0, 0, Z, 0, 0, 0.0, false, 0.0);
     // offset
-    bval_vac += bval(bval.n_elem-1);
+    bval_vac.array() += bval(bval.size()-1);
 
-    arma::vec bval_new(bval.n_elem+bval_vac.n_elem-1);
-    bval_new.subvec(0,bval.n_elem-1) = bval;
-    bval_new.subvec(bval.n_elem,bval_new.n_elem-1) = bval_vac.subvec(1,bval_vac.n_elem-1);
-    if(bval_new(bval.n_elem-1) != bval_vac(0)) {
+    helfem::Vector bval_new(bval.size()+bval_vac.size()-1);
+    bval_new.head(bval.size()) = bval;
+    bval_new.tail(bval_vac.size()-1) = bval_vac.segment(1,bval_vac.size()-1);
+    if(bval_new(bval.size()-1) != bval_vac(0)) {
       std::ostringstream oss;
-      oss << "Grids don't coincide: difference " << bval_new(bval.n_elem-1) - bval_vac(0) << "!\n";
+      oss << "Grids don't coincide: difference " << bval_new(bval.size()-1) - bval_vac(0) << "!\n";
       throw std::logic_error(oss.str());
     }
     bval=bval_new;
   }
-  bval.print("Final grid for calculation");
+  helfem::io::print_matrix("Final grid for calculation", helfem::Matrix(bval));
 
   bool zeroder = false;
-  auto basis = sadatom::basis::TwoDBasis(Z, modelpotential::POINT_NUCLEUS, 0.0, poly, zeroder, Nquad, bval, taylor_order, lmax, zeroright);
+  auto basis = sadatom::basis::TwoDBasis(Z, modelpotential::POINT_NUCLEUS, 0.0, poly, zeroder, Nquad, bval, lmax, zeroright);
   printf("Basis set has %i radial functions\n",(int) basis.Nbf());
-  printf("%ith order Taylor series used to evaluate basis functions for r <= %e, error %e\n",taylor_order, basis.get_small_r_taylor_cutoff(), basis.get_taylor_diff());
 
   std::function<double(double, double)> sphere_pot = [&](double r, double R) {
     const double prefac = std::pow(R/rs,3);
@@ -264,23 +267,28 @@ int main(int argc, char **argv) {
       return 0.0;
   };
 
+  // The background potential has kinks at the sphere radii
+  std::vector<double> potential_breakpoints;
+  if(r_inner>0) potential_breakpoints.push_back(r_inner);
+  if(r_outer>0) potential_breakpoints.push_back(r_outer);
+
   // Energy of nucleus in external field
   double Enucfield = -Z*potfunc(0);
   printf("potfunc(0) = %e Enucfield = %e\n",potfunc(0),Enucfield);
   fflush(stdout);
 
   // Form overlap matrix
-  arma::mat S=basis.overlap();
+  helfem::Matrix S=basis.overlap();
   // Get half-inverse
-  arma::mat Sinvh=basis.Sinvh();
+  helfem::Matrix Sinvh=basis.Sinvh();
   // Form kinetic energy matrix
-  arma::mat T=basis.kinetic();
+  helfem::Matrix T=basis.kinetic();
   // Form kinetic energy matrix
-  arma::mat Tl=basis.kinetic_l();
+  helfem::Matrix Tl=basis.kinetic_l();
   // Form nuclear attraction energy matrix
-  arma::mat Vnuc=basis.nuclear();
+  helfem::Matrix Vnuc=basis.nuclear();
   // Uniform background potential
-  arma::mat Vunif=basis.potential(potfunc);
+  helfem::Matrix Vunif=basis.potential(potfunc, potential_breakpoints);
 
   // Form DFT grid
   auto grid = helfem::sadatom::dftgrid::DFTGrid(&basis);
@@ -288,71 +296,81 @@ int main(int argc, char **argv) {
   basis.compute_tei();
 
   // Jellium Hamiltonian
-  OpenOrbitalOptimizer::FockMatrix<double> H_jellium(lmax+1);
+  OpenOrbitalOptimizer::FockMatrix<OOO_Real> H_jellium(lmax+1);
   for(int l=0;l<=lmax;l++) {
     // Uniform potential is cancelled out by the jellium density
-    H_jellium[l] = Sinvh.t() * (T + l*(l+1)*Tl) * Sinvh;
+    H_jellium[l] = Sinvh.transpose() * (T + l*(l+1)*Tl) * Sinvh;
   }
 
   // Compute the jellium eigenvalues
-  std::vector<arma::mat> Cjellium(lmax+1);
-  std::vector<arma::vec> Ejellium(lmax+1);
+  std::vector<helfem::Matrix> Cjellium(lmax+1);
+  std::vector<helfem::Vector> Ejellium(lmax+1);
   std::vector<std::tuple<double,int,int>> jellium_energies;
   for(int l=0;l<=lmax;l++) {
-    arma::eig_sym(Ejellium[l], Cjellium[l], H_jellium[l]);
+    Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(H_jellium[l]);
+    Ejellium[l] = es.eigenvalues();
     // Convert to non-orthogonal basis
-    Cjellium[l] = Sinvh*Cjellium[l];
+    Cjellium[l] = Sinvh*es.eigenvectors();
 
     printf("l = %i eigenvalues\n",l);
-    Ejellium[l].t().print();
+    helfem::io::print_matrix("", helfem::Matrix(Ejellium[l].transpose()));
 
-    for(size_t io=0;io<Ejellium[l].n_elem;io++)
-      jellium_energies.push_back(std::make_tuple(Ejellium[l](io),l,io));
+    for(Eigen::Index io=0;io<Ejellium[l].size();io++)
+      jellium_energies.push_back(std::make_tuple(Ejellium[l](io),l,(int) io));
   }
   std::sort(jellium_energies.begin(), jellium_energies.end(), [](std::tuple<double,int,int> const & t1, std::tuple<double,int,int> const & t2) {
     return std::get<0>(t1) < std::get<0>(t2);
   });
 
+  const Eigen::Index Nrad = Sinvh.rows();
+  const double angfac = 4.0*M_PI;
+
+  // Divide each slice of a cube by a scalar (helfem::Cube has no
+  // whole-object arithmetic)
+  auto divided_cube = [](const helfem::Cube & C, double f) {
+    helfem::Cube out(C.size());
+    for (size_t l = 0; l < C.size(); ++l) out[l] = C[l] / f;
+    return out;
+  };
 
   // Fock builder
-  OpenOrbitalOptimizer::FockBuilder<double, double> restricted_builder = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm) {
+  OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> restricted_builder = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm) {
     const auto & orbitals = dm.first;
     const auto & occupations = dm.second;
 
     // Kinetic energy
     double Ekin=0.0;
     // Radial density matrix
-    arma::mat Prad(Sinvh.n_rows, Sinvh.n_rows, arma::fill::zeros);
-    arma::cube Pl(Sinvh.n_rows, Sinvh.n_rows, lmax+1, arma::fill::zeros);
+    helfem::Matrix Prad = helfem::Matrix::Zero(Nrad, Nrad);
+    helfem::Cube Pl(lmax+1, helfem::Matrix::Zero(Nrad, Nrad));
     for(int l=0;l<=lmax;l++) {
       // Nothing to do
-      if(arma::max(arma::abs(occupations[l]))==0.0)
+      if(occupations[l].cwiseAbs().maxCoeff()==0.0)
         continue;
 
       // Same radial basis for all l!
-      arma::mat C = Sinvh*orbitals[l];
-      arma::mat P = C*arma::diagmat(occupations[l])*C.t();
-      Pl.slice(l) = P;
+      helfem::Matrix C = Sinvh*orbitals[l];
+      helfem::Matrix P = C*occupations[l].asDiagonal()*C.transpose();
+      Pl[l] = P;
       Prad += P;
 
       // Kinetic energy
-      Ekin += arma::trace(P*T) + l*(l+1)*arma::trace(P*Tl);
+      Ekin += (P*T).trace() + l*(l+1)*(P*Tl).trace();
     }
 
-    double Enuc=arma::trace(Prad*Vnuc);
-    double Eunif=arma::trace(Prad*Vunif);
+    double Enuc=(Prad*Vnuc).trace();
+    double Eunif=(Prad*Vunif).trace();
 
     // Coulomb matrix
-    double angfac(4.0*M_PI);
-    arma::mat J(basis.coulomb(Prad/angfac));
+    helfem::Matrix J(basis.coulomb(Prad/angfac));
 
     double Exc=0.0;
-    arma::cube XC;
-    double nelnum;
+    helfem::Cube XC;
+    double nelnum = 0.0;
     if(x_func > 0 || c_func > 0) {
-      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pl/angfac, XC, Exc, nelnum, dftthr);
+      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, divided_cube(Pl,angfac), XC, Exc, nelnum, dftthr);
       // Potential needs to be divided as well
-      XC/=angfac;
+      for(size_t l=0;l<XC.size();l++) XC[l]/=angfac;
       if(verbose) {
         printf("DFT energy %.10e\n",Exc);
         printf("Error in integrated number of electrons % e\n",nelnum-(Z-Q+njellium));
@@ -360,7 +378,7 @@ int main(int argc, char **argv) {
       }
     }
 
-    double Ecoul = 0.5*arma::trace(Prad*J);
+    double Ecoul = 0.5*(Prad*J).trace();
     double Etot = Ekin + Enuc + Enucfield + Eunif + Erep + Ecoul + Exc;
 
     if(true) {
@@ -374,61 +392,60 @@ int main(int argc, char **argv) {
       printf("total energy           % .10f\n",Etot);
     }
 
-    OpenOrbitalOptimizer::FockMatrix<double> fock(lmax+1);
+    OpenOrbitalOptimizer::FockMatrix<OOO_Real> fock(lmax+1);
     for(int l=0;l<=lmax;l++) {
       fock[l] = T + l*(l+1)*Tl + Vnuc + Vunif + J;
       if(x_func>0 || c_func>0)
-        fock[l] += XC.slice(l);
-      fock[l] = Sinvh.t() * fock[l] * Sinvh;
+        fock[l] += XC[l];
+      fock[l] = Sinvh.transpose() * fock[l] * Sinvh;
     }
     return std::make_pair(Etot,fock);
   };
 
   // Fock builder
-  OpenOrbitalOptimizer::FockBuilder<double, double> unrestricted_builder = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm) {
+  OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> unrestricted_builder = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm) {
     const auto & orbitals = dm.first;
     const auto & occupations = dm.second;
 
     // Kinetic energy
     double Ekin=0.0;
     // Radial density matrix
-    arma::mat Prad(Sinvh.n_rows, Sinvh.n_rows, arma::fill::zeros);
+    helfem::Matrix Prad = helfem::Matrix::Zero(Nrad, Nrad);
 
-    arma::cube Pal(Sinvh.n_rows, Sinvh.n_rows, lmax+1, arma::fill::zeros);
-    arma::cube Pbl(Sinvh.n_rows, Sinvh.n_rows, lmax+1, arma::fill::zeros);
+    helfem::Cube Pal(lmax+1, helfem::Matrix::Zero(Nrad, Nrad));
+    helfem::Cube Pbl(lmax+1, helfem::Matrix::Zero(Nrad, Nrad));
     for(int l=0;l<=lmax;l++) {
       // Nothing to do
-      if(arma::max(arma::abs(occupations[l]))==0.0)
+      if(occupations[l].cwiseAbs().maxCoeff()==0.0)
         continue;
 
       // Same radial basis for all l!
-      arma::mat Ca = Sinvh*orbitals[l];
-      arma::mat Cb = Sinvh*orbitals[l+lmax+1];
-      arma::mat Pa = Ca*arma::diagmat(occupations[l])*Ca.t();
-      arma::mat Pb = Cb*arma::diagmat(occupations[l+lmax+1])*Cb.t();
-      Pal.slice(l) = Pa;
-      Pbl.slice(l) = Pb;
+      helfem::Matrix Ca = Sinvh*orbitals[l];
+      helfem::Matrix Cb = Sinvh*orbitals[l+lmax+1];
+      helfem::Matrix Pa = Ca*occupations[l].asDiagonal()*Ca.transpose();
+      helfem::Matrix Pb = Cb*occupations[l+lmax+1].asDiagonal()*Cb.transpose();
+      Pal[l] = Pa;
+      Pbl[l] = Pb;
       Prad += Pa+Pb;
 
       // Kinetic energy
-      Ekin += arma::trace((Pa+Pb)*T) + l*(l+1)*arma::trace((Pa+Pb)*Tl);
+      Ekin += ((Pa+Pb)*T).trace() + l*(l+1)*((Pa+Pb)*Tl).trace();
     }
 
-    double Enuc=arma::trace(Prad*Vnuc);
-    double Eunif=arma::trace(Prad*Vunif);
+    double Enuc=(Prad*Vnuc).trace();
+    double Eunif=(Prad*Vunif).trace();
 
     // Coulomb matrix
-    double angfac(4.0*M_PI);
-    arma::mat J(basis.coulomb(Prad/angfac));
+    helfem::Matrix J(basis.coulomb(Prad/angfac));
 
     double Exc=0.0;
-    arma::cube XCa, XCb;
-    double nelnum;
+    helfem::Cube XCa, XCb;
+    double nelnum = 0.0;
     if(x_func > 0 || c_func > 0) {
-      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pal/angfac, Pbl/angfac, XCa, XCb, Exc, nelnum, true, dftthr);
+      grid.eval_Fxc(x_func, x_pars, c_func, c_pars, divided_cube(Pal,angfac), divided_cube(Pbl,angfac), XCa, XCb, Exc, nelnum, true, dftthr);
       // Potential needs to be divided as well
-      XCa/=angfac;
-      XCb/=angfac;
+      for(size_t l=0;l<XCa.size();l++) XCa[l]/=angfac;
+      for(size_t l=0;l<XCb.size();l++) XCb[l]/=angfac;
       if(verbose) {
         printf("DFT energy %.10e\n",Exc);
         printf("Error in integrated number of electrons % e\n",nelnum-(Z-Q+njellium));
@@ -436,7 +453,7 @@ int main(int argc, char **argv) {
       }
     }
 
-    double Ecoul = 0.5*arma::trace(Prad*J);
+    double Ecoul = 0.5*(Prad*J).trace();
     double Etot = Ekin + Enuc + Enucfield + Eunif + Erep + Ecoul + Exc;
 
     if(true) {
@@ -450,93 +467,114 @@ int main(int argc, char **argv) {
       printf("total energy           % .10f\n",Etot);
     }
 
-    OpenOrbitalOptimizer::FockMatrix<double> fock(2*lmax+2);
+    OpenOrbitalOptimizer::FockMatrix<OOO_Real> fock(2*lmax+2);
     for(int l=0;l<=lmax;l++) {
       fock[l] = T + l*(l+1)*Tl + Vnuc + Vunif + J;
       if(x_func>0 || c_func>0)
-        fock[l] += XCa.slice(l);
-      fock[l] = Sinvh.t() * fock[l] * Sinvh;
+        fock[l] += XCa[l];
+      fock[l] = Sinvh.transpose() * fock[l] * Sinvh;
 
       fock[l+lmax+1] = T + l*(l+1)*Tl + Vnuc + Vunif + J;
       if(x_func>0 || c_func>0)
-        fock[l+lmax+1] += XCb.slice(l);
-      fock[l+lmax+1] = Sinvh.t() * fock[l+lmax+1] * Sinvh;
+        fock[l+lmax+1] += XCb[l];
+      fock[l+lmax+1] = Sinvh.transpose() * fock[l+lmax+1] * Sinvh;
     }
     return std::make_pair(Etot,fock);
   };
 
-  std::function<arma::mat(const OpenOrbitalOptimizer::DensityMatrix<double, double> &)> radial_density_matrix = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm) {
+  std::function<helfem::Matrix(const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> &)> radial_density_matrix = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm) {
     const auto & orbitals = dm.first;
     const auto & occupations = dm.second;
     // Radial density matrix
-    arma::mat Prad(Sinvh.n_rows, Sinvh.n_rows, arma::fill::zeros);
+    helfem::Matrix Prad = helfem::Matrix::Zero(Nrad, Nrad);
     for(int l=0;l<=lmax;l++) {
       // Nothing to do
-      if(arma::max(arma::abs(occupations[l]))==0.0)
+      if(occupations[l].cwiseAbs().maxCoeff()==0.0)
         continue;
 
       // Same radial basis for all l!
-      arma::mat C = Sinvh*orbitals[l];
-      arma::mat P = C*arma::diagmat(occupations[l])*C.t();
+      helfem::Matrix C = Sinvh*orbitals[l];
+      helfem::Matrix P = C*occupations[l].asDiagonal()*C.transpose();
       Prad += P;
     }
     return Prad;
   };
 
-  std::function<void(const OpenOrbitalOptimizer::DensityMatrix<double, double> &, const std::string &)> save_density = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm, const std::string & fname) {
-    auto Prad = radial_density_matrix(dm);
+  std::function<void(const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> &, const std::string &)> save_density = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm, const std::string & fname) {
+    helfem::Matrix Prad = radial_density_matrix(dm);
     // Remove the angular factor
-    Prad /= 4.0*M_PI;
+    Prad /= angfac;
 
-    arma::vec r(basis.radii());
-    arma::vec density(basis.electron_density(Prad, false));
-    size_t Npoints(r.n_elem);
+    helfem::Vector r(basis.radii());
+    helfem::Vector density(basis.electron_density(Prad, false));
+    Eigen::Index Npoints(r.size());
     // and pack it for libxc
-    arma::mat rho_arr(Npoints,2);
+    helfem::Matrix rho_arr(Npoints,2);
     rho_arr.col(0)=r;
     rho_arr.col(1)=density;
-    rho_arr.save(fname, arma::raw_ascii);
+    helfem::io::write_raw_ascii(fname, rho_arr);
   };
 
-  std::function<void(const OpenOrbitalOptimizer::FockMatrix<double> &, const std::string &)> save_fock = [&](const OpenOrbitalOptimizer::FockMatrix<double> & fock, const std::string & fname) {
-    arma::cube fockmat(Sinvh.n_cols, Sinvh.n_cols, fock.size());
+  // Fock matrices are saved as ASCII: a "nblocks nrows ncols" header
+  // followed by the stacked blocks, one matrix row per line.
+  std::function<void(const OpenOrbitalOptimizer::FockMatrix<OOO_Real> &, const std::string &)> save_fock = [&](const OpenOrbitalOptimizer::FockMatrix<OOO_Real> & fock, const std::string & fname) {
+    std::ofstream out(fname);
+    if(!out)
+      throw std::runtime_error("Could not open " + fname + " for writing.\n");
+    out << fock.size() << " " << fock[0].rows() << " " << fock[0].cols() << "\n";
+    out.precision(17);
+    out.setf(std::ios::scientific);
     for(size_t i=0;i<fock.size();i++)
-      fockmat.slice(i)=fock[i];
-    fockmat.save(fname,arma::arma_binary);
+      for(Eigen::Index r=0;r<fock[i].rows();r++) {
+        for(Eigen::Index c=0;c<fock[i].cols();c++)
+          out << " " << fock[i](r,c);
+        out << "\n";
+      }
   };
 
-  std::function<arma::cube(std::string &)> load_fock = [&](const std::string & fname) {
-    arma::cube fockmat;
-    fockmat.load(fname,arma::arma_binary);
+  std::function<helfem::Cube(const std::string &)> load_fock = [&](const std::string & fname) {
+    std::ifstream in(fname);
+    if(!in)
+      throw std::runtime_error("Could not open " + fname + " for reading.\n");
+    size_t nblocks;
+    Eigen::Index nrows, ncols;
+    in >> nblocks >> nrows >> ncols;
+    helfem::Cube fockmat(nblocks, helfem::Matrix(nrows,ncols));
+    for(size_t i=0;i<nblocks;i++)
+      for(Eigen::Index r=0;r<nrows;r++)
+        for(Eigen::Index c=0;c<ncols;c++)
+          in >> fockmat[i](r,c);
+    if(!in)
+      throw std::runtime_error("Error reading Fock matrix from " + fname + ".\n");
     return fockmat;
   };
 
   // Diagonalize a Fock matrix block to obtain orbital energies and orbital
   // coefficients in the non-orthonormal basis.
-  auto diagonalize_blocks = [&](const OpenOrbitalOptimizer::FockMatrix<double> & fock,
-                                std::vector<arma::vec> & Eblock,
-                                std::vector<arma::mat> & Cblock) {
+  auto diagonalize_blocks = [&](const OpenOrbitalOptimizer::FockMatrix<OOO_Real> & fock,
+                                std::vector<helfem::Vector> & Eblock,
+                                std::vector<helfem::Matrix> & Cblock) {
     Eblock.resize(fock.size());
     Cblock.resize(fock.size());
     for(size_t b=0; b<fock.size(); b++) {
-      arma::mat fsym = 0.5*(fock[b] + fock[b].t());
-      arma::mat V;
-      arma::eig_sym(Eblock[b], V, fsym);
-      Cblock[b] = Sinvh * V;
+      helfem::Matrix fsym = 0.5*(fock[b] + fock[b].transpose());
+      Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(fsym);
+      Eblock[b] = es.eigenvalues();
+      Cblock[b] = Sinvh * es.eigenvectors();
     }
   };
 
   // Print orbital information (occupation, energy, <r>, r(max)) for the
   // requested range of blocks. The block index modulo lmax+1 gives l.
-  auto print_orbitals = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm,
-                            const std::vector<arma::vec> & Eblock,
-                            const std::vector<arma::mat> & Cblock,
+  auto print_orbitals = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm,
+                            const std::vector<helfem::Vector> & Eblock,
+                            const std::vector<helfem::Matrix> & Cblock,
                             const std::vector<std::string> & block_descriptions,
                             size_t bstart, size_t bend) {
     static const char shtype[] = "spdfgh";
     const auto & occupations = dm.second;
 
-    std::vector< std::pair<int, arma::mat> > rmat(basis.Rmatrices());
+    std::vector< std::pair<int, helfem::Matrix> > rmat(basis.Rmatrices());
 
     for(size_t b=bstart; b<bend; b++) {
       int l = (int)(b % (lmax+1));
@@ -550,19 +588,19 @@ int main(int argc, char **argv) {
       }
       printf(" %12s\n","r(max)");
 
-      for(size_t io=0;io<Eblock[b].n_elem;io++) {
+      for(Eigen::Index io=0;io<Eblock[b].size();io++) {
         double occ = occupations[b](io);
         if(std::abs(occ) < savethr)
           continue;
 
-        arma::vec orb = Cblock[b].col(io);
-        arma::mat P = orb*orb.t();
+        helfem::Vector orb = Cblock[b].col(io);
+        helfem::Matrix P = orb*orb.transpose();
 
         int n = (int)io + l + 1;
         char ltag = (l < 6) ? shtype[l] : '?';
         printf("%2i%c % 8.4f % 16.9f", n, ltag, occ, Eblock[b](io));
         for(size_t ir=0;ir<rmat.size();ir++) {
-          double rpos = std::pow(arma::trace(P*rmat[ir].second), 1.0/rmat[ir].first);
+          double rpos = std::pow((P*rmat[ir].second).trace(), 1.0/rmat[ir].first);
           printf(" %12e", rpos);
         }
         printf(" %12e\n", basis.electron_density_maximum_radius(P));
@@ -573,21 +611,21 @@ int main(int argc, char **argv) {
   // Save the radial values of all occupied orbitals from the requested block
   // range to {prefix}_orbs.dat together with their energies, occupations and
   // angular momenta. Companion files store the first and second derivatives.
-  auto save_orbitals = [&](const OpenOrbitalOptimizer::DensityMatrix<double, double> & dm,
-                           const std::vector<arma::vec> & Eblock,
-                           const std::vector<arma::mat> & Cblock,
+  auto save_orbitals = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm,
+                           const std::vector<helfem::Vector> & Eblock,
+                           const std::vector<helfem::Matrix> & Cblock,
                            size_t bstart, size_t bend,
                            const std::string & prefix) {
     const auto & occupations = dm.second;
 
-    arma::vec r(basis.radii());
-    arma::vec wt(basis.quadrature_weights());
+    helfem::Vector r(basis.radii());
+    helfem::Vector wt(basis.quadrature_weights());
 
     // Collect occupied orbital indices
-    std::vector< std::vector<size_t> > occ_idx(bend-bstart);
+    std::vector< std::vector<Eigen::Index> > occ_idx(bend-bstart);
     size_t norb = 0;
     for(size_t b=bstart; b<bend; b++) {
-      for(size_t io=0; io<occupations[b].n_elem; io++) {
+      for(Eigen::Index io=0; io<occupations[b].size(); io++) {
         if(std::abs(occupations[b](io)) > savethr) {
           occ_idx[b-bstart].push_back(io);
           norb++;
@@ -596,24 +634,22 @@ int main(int argc, char **argv) {
     }
 
     // Evaluate orbitals, derivatives and second derivatives
-    std::vector<arma::mat> orbval(bend-bstart), orbdval(bend-bstart), orblval(bend-bstart);
+    std::vector<helfem::Matrix> orbval(bend-bstart), orbdval(bend-bstart), orblval(bend-bstart);
     for(size_t b=bstart; b<bend; b++) {
       const auto & idx = occ_idx[b-bstart];
       if(idx.empty())
         continue;
-      arma::uvec oidx(idx.size());
+      helfem::Matrix Cl(Cblock[b].rows(), idx.size());
       for(size_t i=0;i<idx.size();i++)
-        oidx(i) = idx[i];
-      arma::mat Cl = Cblock[b].cols(oidx);
+        Cl.col(i) = Cblock[b].col(idx[i]);
       orbval[b-bstart]  = basis.orbitals(Cl);
       orbdval[b-bstart] = basis.orbitals_derivative(Cl);
       orblval[b-bstart] = basis.orbitals_second_derivative(Cl);
 
       // Fix the phases: the largest density value should be at a positive amplitude
-      for(size_t io=0; io<orbval[b-bstart].n_cols; io++) {
-        arma::vec odens = arma::square(orbval[b-bstart].col(io));
-        arma::uword imax;
-        odens.max(imax);
+      for(Eigen::Index io=0; io<orbval[b-bstart].cols(); io++) {
+        Eigen::Index imax;
+        orbval[b-bstart].col(io).cwiseAbs2().maxCoeff(&imax);
         if(orbval[b-bstart](imax,io) < 0.0) {
           orbval[b-bstart].col(io)  *= -1;
           orbdval[b-bstart].col(io) *= -1;
@@ -622,14 +658,14 @@ int main(int argc, char **argv) {
       }
     }
 
-    auto save_data = [&](const std::string & fname, const std::vector<arma::mat> & data) {
+    auto save_data = [&](const std::string & fname, const std::vector<helfem::Matrix> & data) {
       FILE *out = fopen(fname.c_str(),"w");
       if(!out) {
         fprintf(stderr,"Failed to open %s for writing\n", fname.c_str());
         return;
       }
       // Header: number of radial points and orbitals
-      fprintf(out,"%i %i\n",(int) r.n_elem,(int) norb);
+      fprintf(out,"%i %i\n",(int) r.size(),(int) norb);
       // Orbital angular momenta
       for(size_t b=bstart; b<bend; b++) {
         int l = (int)(b % (lmax+1));
@@ -639,21 +675,21 @@ int main(int argc, char **argv) {
       fprintf(out,"\n");
       // Orbital occupations
       for(size_t b=bstart; b<bend; b++)
-        for(size_t i : occ_idx[b-bstart])
+        for(Eigen::Index i : occ_idx[b-bstart])
           fprintf(out," %e", occupations[b](i));
       fprintf(out,"\n");
       // Orbital energies
       for(size_t b=bstart; b<bend; b++)
-        for(size_t i : occ_idx[b-bstart])
+        for(Eigen::Index i : occ_idx[b-bstart])
           fprintf(out," %e", Eblock[b](i));
       fprintf(out,"\n");
       // Radial data
-      for(size_t ir=0; ir<r.n_elem; ir++) {
+      for(Eigen::Index ir=0; ir<r.size(); ir++) {
         fprintf(out,"%e", r(ir));
         fprintf(out," % e", wt(ir));
         for(size_t b=bstart; b<bend; b++) {
           const auto & block = data[b-bstart];
-          for(size_t ic=0; ic<block.n_cols; ic++)
+          for(Eigen::Index ic=0; ic<block.cols(); ic++)
             fprintf(out," % e", block(ir,ic));
         }
         fprintf(out,"\n");
@@ -684,8 +720,9 @@ int main(int argc, char **argv) {
 
   if(M==0) {
     // OOO data
-    arma::uvec number_of_blocks_per_particle_type({(arma::uword) (lmax+1)});
-    arma::vec maximum_occupation(lmax+1);
+    OpenOrbitalOptimizer::IndexVector number_of_blocks_per_particle_type(1);
+    number_of_blocks_per_particle_type(0) = lmax+1;
+    Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> maximum_occupation(lmax+1);
     std::vector<std::string> block_descriptions(lmax+1);
     for(int l=0;l<=lmax;l++) {
       maximum_occupation(l) = 2*(2*l+1);
@@ -694,45 +731,43 @@ int main(int argc, char **argv) {
       oss << "l=" << l;
       block_descriptions[l] = oss.str();
     }
-    maximum_occupation.t().print("Max occ");
+    helfem::io::print_matrix("Max occ", helfem::Matrix(maximum_occupation.transpose()));
 
-    arma::vec number_of_particles({(double) nelec});
+    Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> number_of_particles(1);
+    number_of_particles(0) = nelec;
 
     // Core guess
-    OpenOrbitalOptimizer::FockMatrix<double> coreH(lmax+1);
+    OpenOrbitalOptimizer::FockMatrix<OOO_Real> coreH(lmax+1);
     for(int l=0;l<=lmax;l++)
-      coreH[l] = Sinvh.t() * (T + l*(l+1)*Tl + Vnuc + Vunif) * Sinvh;
+      coreH[l] = Sinvh.transpose() * (T + l*(l+1)*Tl + Vnuc + Vunif) * Sinvh;
     if(loadfock != "") {
-      arma::cube fock = load_fock(loadfock);
-      if(fock.n_slices == lmax+1 or fock.n_slices == 2*lmax+2) {
+      helfem::Cube fock = load_fock(loadfock);
+      if((int) fock.size() == lmax+1 or (int) fock.size() == 2*lmax+2) {
         for(int l=0;l<=lmax;l++)
-          coreH[l]=fock.slice(l);
+          coreH[l]=fock[l];
       } else {
         throw std::logic_error("Guess Fock matrix has unexpected angular dimensions!\n");
       }
     }
 
-    OpenOrbitalOptimizer::SCFSolver scfsolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles, restricted_builder, block_descriptions);
-    scfsolver.maximum_iterations(maxiter);
-    scfsolver.convergence_threshold(convthr);
+    OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles, restricted_builder, block_descriptions);
+    scfsolver.set("maximum_iterations", maxiter);
+    scfsolver.set("convergence_threshold", convthr);
+    scfsolver.set("methods", scfmethods);
+    scfsolver.print_citation();
     scfsolver.initialize_with_fock(coreH);
-    if(oda) {
-      try {
-        scfsolver.run_optimal_damping();
-      } catch(...) {};
-    } else {
-      scfsolver.run();
-    }
-    save_density(scfsolver.get_solution(), density_name);
+    scfsolver.run();
+
+    auto dm = std::make_pair(scfsolver.get_orbitals(), scfsolver.get_orbital_occupations());
+    auto fock = scfsolver.get_fock_matrix();
+    save_density(dm, density_name);
     if(savefock != "") {
-      save_fock(scfsolver.get_fock_matrix(), savefock);
+      save_fock(fock, savefock);
     }
 
     {
-      auto dm = scfsolver.get_solution();
-      auto fock = scfsolver.get_fock_matrix();
-      std::vector<arma::vec> Eblock;
-      std::vector<arma::mat> Cblock;
+      std::vector<helfem::Vector> Eblock;
+      std::vector<helfem::Matrix> Cblock;
       diagonalize_blocks(fock, Eblock, Cblock);
       print_orbitals(dm, Eblock, Cblock, block_descriptions, 0, fock.size());
       if(saveorb)
@@ -744,8 +779,10 @@ int main(int argc, char **argv) {
     scf::parse_nela_nelb(nela,nelb,Q,M,Z+njellium);
 
     // OOO data
-    arma::uvec number_of_blocks_per_particle_type({(arma::uword) (lmax+1), (arma::uword) (lmax+1)});
-    arma::vec maximum_occupation(2*lmax+2);
+    OpenOrbitalOptimizer::IndexVector number_of_blocks_per_particle_type(2);
+    number_of_blocks_per_particle_type(0) = lmax+1;
+    number_of_blocks_per_particle_type(1) = lmax+1;
+    Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> maximum_occupation(2*lmax+2);
     std::vector<std::string> block_descriptions(2*lmax+2);
     for(int l=0;l<=lmax;l++) {
       maximum_occupation(l) = 2*l+1;
@@ -757,52 +794,51 @@ int main(int argc, char **argv) {
       block_descriptions[l] = oss.str() + " alpha";
       block_descriptions[l+lmax+1] = oss.str() + " beta";
     }
-    maximum_occupation.t().print("Max occ");
+    helfem::io::print_matrix("Max occ", helfem::Matrix(maximum_occupation.transpose()));
 
-    arma::vec number_of_particles({(double) nela, (double) nelb});
+    Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> number_of_particles(2);
+    number_of_particles(0) = nela;
+    number_of_particles(1) = nelb;
 
     // Core guess
-    OpenOrbitalOptimizer::FockMatrix<double> coreH(2*lmax+2);
+    OpenOrbitalOptimizer::FockMatrix<OOO_Real> coreH(2*lmax+2);
     for(int l=0;l<=lmax;l++) {
-      coreH[l] = Sinvh.t() * (T + l*(l+1)*Tl + Vnuc + Vunif) * Sinvh;
+      coreH[l] = Sinvh.transpose() * (T + l*(l+1)*Tl + Vnuc + Vunif) * Sinvh;
       coreH[l+lmax+1] = coreH[l];
     }
     if(loadfock != "") {
-      arma::cube fock = load_fock(loadfock);
+      helfem::Cube fock = load_fock(loadfock);
       for(int l=0;l<=lmax;l++) {
-        coreH[l]=fock.slice(l);
+        coreH[l]=fock[l];
 
-        if(fock.n_slices == lmax+1) {
+        if((int) fock.size() == lmax+1) {
           coreH[l+lmax+1] = coreH[l];
-        } else if(fock.n_slices == 2*lmax+2) {
-          coreH[l+lmax+1] = fock.slice(l+lmax+1);
+        } else if((int) fock.size() == 2*lmax+2) {
+          coreH[l+lmax+1] = fock[l+lmax+1];
         } else {
           throw std::logic_error("Guess Fock matrix has unexpected angular dimensions!\n");
         }
       }
     }
 
-    OpenOrbitalOptimizer::SCFSolver scfsolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles, unrestricted_builder, block_descriptions);
-    scfsolver.maximum_iterations(maxiter);
-    scfsolver.convergence_threshold(convthr);
+    OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles, unrestricted_builder, block_descriptions);
+    scfsolver.set("maximum_iterations", maxiter);
+    scfsolver.set("convergence_threshold", convthr);
+    scfsolver.set("methods", scfmethods);
+    scfsolver.print_citation();
     scfsolver.initialize_with_fock(coreH);
-    if(oda) {
-      try {
-        scfsolver.run_optimal_damping();
-      } catch(...) {};
-    } else {
-      scfsolver.run();
-    }
-    save_density(scfsolver.get_solution(), density_name);
+    scfsolver.run();
+
+    auto dm = std::make_pair(scfsolver.get_orbitals(), scfsolver.get_orbital_occupations());
+    auto fock = scfsolver.get_fock_matrix();
+    save_density(dm, density_name);
     if(savefock != "") {
-      save_fock(scfsolver.get_fock_matrix(), savefock);
+      save_fock(fock, savefock);
     }
 
     {
-      auto dm = scfsolver.get_solution();
-      auto fock = scfsolver.get_fock_matrix();
-      std::vector<arma::vec> Eblock;
-      std::vector<arma::mat> Cblock;
+      std::vector<helfem::Vector> Eblock;
+      std::vector<helfem::Matrix> Cblock;
       diagonalize_blocks(fock, Eblock, Cblock);
       printf("\nAlpha orbitals\n");
       print_orbitals(dm, Eblock, Cblock, block_descriptions, 0, lmax+1);
