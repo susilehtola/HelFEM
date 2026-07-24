@@ -148,6 +148,9 @@ namespace helfem {
         /// specified by its coefficient vector c (length Nrad) in the
         /// u = r * R basis.
         double slater_F(int k, const helfem::Vector & c) const;
+        /// Matrices of r^n, n = -2..3 (skipping 0), for computing <r^n>
+        /// expectation values of orbitals
+        std::vector< std::pair<int, helfem::Matrix> > Rmatrices() const;
         /// Compute radial orbitals
         helfem::Matrix orbitals(const helfem::Matrix & C) const;
         /// Compute radial orbitals' first derivative
