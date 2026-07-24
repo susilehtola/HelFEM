@@ -50,10 +50,11 @@ endif()
 # - HELFEM_PYTHON: build the pybind11 `_helfem` module.
 #
 # - HELFEM_EIGEN_BLAS: route Eigen's dense products through an external
-#   BLAS (see the option definition below). Off by default -- the linear
-#   algebra is Eigen's own header-only kernels and no BLAS is needed at
-#   all. (There is no ILP64 knob any more: Eigen indexes with a 64-bit
-#   type unconditionally, and the optional BLAS backend requires a 32-bit
+#   BLAS (see the option definition below). ON by default, with a
+#   graceful fallback: if no usable LP64 BLAS is found the build simply
+#   uses Eigen's own header-only kernels and links no BLAS at all.
+#   (There is no ILP64 knob any more: Eigen indexes with a 64-bit type
+#   unconditionally, and the optional BLAS backend requires a 32-bit
 #   LP64 BLAS.)
 option(USE_OPENMP "Build the OpenMP-parallel version" ON)
 option(HELFEM_BINARIES "Build the HelFEM executables under src/" ON)
@@ -80,16 +81,20 @@ else()
 endif()
 option(HELFEM_FLOAT128 "Instantiate the templated core at _Float128 (needs C++23)" ${HELFEM_FLOAT128_DEFAULT})
 # Route Eigen's dense products (GEMM/GEMV/SYRK/...) through an external
-# BLAS via EIGEN_USE_BLAS, instead of Eigen's own kernels. A speed-up for
-# large dense products, and it makes Eigen's results reproduce an external
-# BLAS bit-for-bit. It requires a 32-bit-integer (LP64) BLAS -- stock
-# Eigen's BLAS backend is int32-only and we do NOT patch Eigen -- so the
-# BLAS found below is an ordinary LP64 one (e.g. libflexiblas, reference
-# BLAS, LP64 OpenBLAS/MKL). Off by default: the default build needs no BLAS
-# at all, since Eigen is header-only.
+# BLAS via EIGEN_USE_BLAS, instead of Eigen's own kernels. Vendor BLAS
+# libraries are typically faster for large dense products, and this makes
+# Eigen's results reproduce the external BLAS bit-for-bit. It requires a
+# 32-bit-integer (LP64) BLAS -- stock Eigen's BLAS backend is int32-only
+# and we do NOT patch Eigen -- so the BLAS found below is an ordinary LP64
+# one (e.g. libflexiblas, reference BLAS, LP64 OpenBLAS/MKL). ON by
+# default because vendor libraries are the sane performance default; if
+# no LP64 BLAS is found the configure falls back to Eigen's header-only
+# kernels with a STATUS notice instead of failing, so BLAS never becomes
+# a hard dependency. Set OFF to force the header-only kernels (also the
+# reproducible-across-machines choice).
 option(HELFEM_EIGEN_BLAS
        "Route Eigen dense products through an external LP64 BLAS (EIGEN_USE_BLAS)"
-       OFF)
+       ON)
 
 # ---------------------------------------------------------------------------
 # Dependencies
@@ -102,11 +107,22 @@ option(HELFEM_EIGEN_BLAS
 # empty. libhelfem links it PUBLIC so consumers inherit the same linkage.
 add_library(helfem_blas INTERFACE)
 add_library(helfem::blas ALIAS helfem_blas)
+set(HELFEM_EIGEN_BLAS_ACTIVE OFF)
 if(HELFEM_EIGEN_BLAS)
-    find_package(BLAS REQUIRED)
-    find_package(LAPACK REQUIRED)
-    target_link_libraries(helfem_blas INTERFACE BLAS::BLAS LAPACK::LAPACK)
-    message(STATUS "BLAS (for EIGEN_USE_BLAS): ${BLAS_LIBRARIES}")
+    # Eigen's BLAS backend is int32-only; ask FindBLAS for an LP64
+    # interface explicitly. (BLA_SIZEOF_INTEGER is honoured from CMake
+    # 3.22; older CMake ignores it and we get the default search.)
+    set(BLA_SIZEOF_INTEGER 4)
+    find_package(BLAS QUIET)
+    find_package(LAPACK QUIET)
+    if(BLAS_FOUND AND LAPACK_FOUND)
+        target_link_libraries(helfem_blas INTERFACE BLAS::BLAS LAPACK::LAPACK)
+        set(HELFEM_EIGEN_BLAS_ACTIVE ON)
+        message(STATUS "BLAS (for EIGEN_USE_BLAS): ${BLAS_LIBRARIES}")
+    else()
+        message(STATUS "No LP64 BLAS/LAPACK found; using Eigen's built-in kernels "
+                       "(set CMAKE_PREFIX_PATH to point at a BLAS, or -DHELFEM_EIGEN_BLAS=OFF to silence)")
+    endif()
 endif()
 
 install(TARGETS helfem_blas EXPORT helfemTargets)
@@ -139,7 +155,7 @@ endif()
 # BLAS/LAPACK come in via the helfem::blas target above; here we only add
 # the define. Placed before add_subdirectory() so all in-tree targets
 # inherit it. LP64-only, so stock Eigen's int32 BLAS backend matches.
-if(HELFEM_EIGEN_BLAS)
+if(HELFEM_EIGEN_BLAS_ACTIVE)
     add_compile_definitions(EIGEN_USE_BLAS)
     message(STATUS "Eigen dense products routed through the external BLAS (EIGEN_USE_BLAS, LP64)")
 endif()

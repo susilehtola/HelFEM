@@ -8,8 +8,9 @@
 # This exposes the IMPORTED target `helfem::helfem` and chains
 # helfem::helfem-common, helfem::legendre, helfem::blas
 # (an external LP64 BLAS/LAPACK, only when the build used EIGEN_USE_BLAS)
-# and their transitive dependencies. The linear algebra is Eigen
-# (header-only), so a default build pulls in no BLAS at all.
+# and their transitive dependencies. When the build fell back to Eigen's
+# header-only kernels (no LP64 BLAS found, or HELFEM_EIGEN_BLAS=OFF),
+# no BLAS is needed here either.
 
 include(CMakeFindDependencyMacro)
 
@@ -27,10 +28,12 @@ if(@USE_OPENMP@)
     find_dependency(OpenMP COMPONENTS CXX)
 endif()
 
-# An external LP64 BLAS/LAPACK is a dependency only when HelFEM was built
-# with HELFEM_EIGEN_BLAS (to back EIGEN_USE_BLAS). Otherwise the linear
-# algebra is Eigen's own kernels and no BLAS is needed.
-if(@HELFEM_EIGEN_BLAS@)
+# An external LP64 BLAS/LAPACK is a dependency only when the build
+# actually linked one to back EIGEN_USE_BLAS (HELFEM_EIGEN_BLAS on AND
+# an LP64 BLAS found). Otherwise the linear algebra is Eigen's own
+# kernels and no BLAS is needed.
+if(@HELFEM_EIGEN_BLAS_ACTIVE@)
+    set(BLA_SIZEOF_INTEGER 4)
     find_dependency(BLAS)
     find_dependency(LAPACK)
 endif()

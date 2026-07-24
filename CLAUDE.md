@@ -32,10 +32,10 @@ cmake -B objdir -DCMAKE_PREFIX_PATH="/opt/libxc;$(brew --prefix)"
 
 **Key CMake options:**
 - `HELFEM_BINARIES=OFF` — build only `libhelfem` (skips the HDF5 and libxc requirements)
-- `HELFEM_EIGEN_BLAS` (default `OFF`) — route Eigen's dense products (GEMM/GEMV/SYRK) through an external BLAS via `EIGEN_USE_BLAS`, instead of Eigen's own kernels. A speed-up for large dense products, and it makes Eigen reproduce that BLAS bit-for-bit. Requires a **32-bit-integer (LP64) BLAS** (stock Eigen's BLAS backend is int32-only and HelFEM does **not** patch Eigen). **Off by default, the build links no BLAS at all** — the linear algebra is header-only Eigen. There is no ILP64 knob: Eigen indexes with a 64-bit type unconditionally.
+- `HELFEM_EIGEN_BLAS` (default `ON`) — route Eigen's dense products (GEMM/GEMV/SYRK) through an external BLAS via `EIGEN_USE_BLAS`, instead of Eigen's own kernels. Vendor BLAS is typically faster for large dense products, and it makes Eigen reproduce that BLAS bit-for-bit. Requires a **32-bit-integer (LP64) BLAS** (stock Eigen's BLAS backend is int32-only and HelFEM does **not** patch Eigen). **Graceful fallback:** if no LP64 BLAS is found, the configure prints a notice and uses Eigen's header-only kernels — BLAS is never a hard dependency. Set `OFF` to force the header-only kernels (the machine-independent-reproducibility choice). There is no ILP64 knob: Eigen indexes with a 64-bit type unconditionally.
 - `USE_OPENMP` (default `ON`) — consumed as the `OpenMP::OpenMP_CXX` imported target. On **macOS**, AppleClang ships no OpenMP runtime; `brew install libomp` first (or configure with `-DUSE_OPENMP=OFF`).
 
-**Dependencies:** Eigen ≥ 3.4 (auto-fetched if absent), BLAS/LAPACK (only when `HELFEM_EIGEN_BLAS=ON`),
+**Dependencies:** Eigen ≥ 3.4 (auto-fetched if absent), BLAS/LAPACK (optional; used when found and `HELFEM_EIGEN_BLAS=ON`, the default),
 wignernj (auto-fetched), OpenOrbitalOptimizer (auto-fetched); binaries additionally
 need HDF5 (C++ interface) and libxc. The Legendre special functions are C++ (no
 Fortran compiler required).
