@@ -166,16 +166,20 @@ namespace helfem {
     ///   when both are zero on entry;
     /// * restr = -1 means "auto": closed shell -> 1 restricted,
     ///   otherwise 0 unrestricted;
-    /// * restricted mode requires nela == nelb, else throws.
+    /// * restricted mode requires nela == nelb, else throws -- unless
+    ///   allow_open_shell_restricted is set, for solvers whose
+    ///   restricted mode is a spin-averaged single density channel
+    ///   (sadatom) where an odd electron count is meaningful.
     /// Returns the derived (restricted, Ntot = nela + nelb) pair via
     /// out-refs so both drivers can use them directly below.
     inline void derive_nela_nelb_restricted(
         int & nela, int & nelb, int & restr, int Q, int M, int Ztotal,
-        bool & restricted, int & Ntot) {
+        bool & restricted, int & Ntot,
+        bool allow_open_shell_restricted = false) {
       scf::parse_nela_nelb(nela, nelb, Q, M, Ztotal);
       if (restr == -1) restr = (nela == nelb) ? 1 : 0;
       restricted = (restr != 0);
-      if (restricted && nela != nelb)
+      if (restricted && nela != nelb && !allow_open_shell_restricted)
         throw std::logic_error("Restricted mode requires nela == nelb (closed shell). "
                                 "Use --restricted=0 (or leave -1 for auto) for open-shell.");
       Ntot = nela + nelb;

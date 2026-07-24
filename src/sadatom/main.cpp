@@ -283,8 +283,25 @@ int main(int argc, char **argv) {
 
   bool restricted;
   int Ntot;
-  helfem::scf_driver::derive_nela_nelb_restricted(
-      nela, nelb, restr, Q, M, Z, restricted, Ntot);
+  if (M == 0 && nela == 0 && nelb == 0 && restr != 0) {
+    // Spin-restricted, spin-averaged calculation: the SCF sees a
+    // single density channel and only the total electron count
+    // matters, so no multiplicity is needed and the count may be
+    // odd. This is the sadatom default (and matches the aij
+    // convention, where M=0 runs spin-restricted).
+    Ntot = Z - Q;
+    if (Ntot <= 0)
+      throw std::logic_error("No electrons to correlate: Z - Q <= 0.\n");
+    nela = (Ntot + 1) / 2;
+    nelb = Ntot / 2;
+    restricted = true;
+  } else {
+    // Restricted here means spin-averaged, so an open shell
+    // (nela != nelb) is fine: the SCF only consults Ntot.
+    helfem::scf_driver::derive_nela_nelb_restricted(
+        nela, nelb, restr, Q, M, Z, restricted, Ntot,
+        /*allow_open_shell_restricted=*/true);
+  }
   (void) Ntot;  // sadatom SCF driver does its own per-l particle counting.
 
   helfem::Vector x_pars, c_pars;
