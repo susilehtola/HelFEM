@@ -610,6 +610,8 @@ int main(int argc, char **argv) {
   }
 
   scfsolver.set("methods", parser.get<std::string>("scfmethods"));
+  scfsolver.print_citation();
+  scfsolver.print_settings();
   scfsolver.run();
 
   if (savefile.size()) {
