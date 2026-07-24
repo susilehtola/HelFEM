@@ -164,24 +164,38 @@ namespace helfem {
     /// CLI-input normalisation shared by both drivers:
     /// * scf::parse_nela_nelb fills in nela/nelb from --Q and --M
     ///   when both are zero on entry;
+    /// * M = 0 with no explicit nela/nelb runs spin-restricted
+    ///   straight from the total electron count Ztotal - Q: the
+    ///   restricted SCF sees a single density channel where only
+    ///   Ntot matters (and may be odd), so no multiplicity is
+    ///   needed. An explicit --restricted=0 with M=0 is an error
+    ///   since the alpha/beta split is then undefined.
     /// * restr = -1 means "auto": closed shell -> 1 restricted,
-    ///   otherwise 0 unrestricted;
-    /// * restricted mode requires nela == nelb, else throws -- unless
-    ///   allow_open_shell_restricted is set, for solvers whose
-    ///   restricted mode is a spin-averaged single density channel
-    ///   (sadatom) where an odd electron count is meaningful.
+    ///   otherwise 0 unrestricted. Restricted mode with an open
+    ///   shell (nela != nelb) is allowed when requested explicitly:
+    ///   only Ntot enters the restricted SCF, which distributes any
+    ///   unpaired electrons over the frontier orbitals.
     /// Returns the derived (restricted, Ntot = nela + nelb) pair via
-    /// out-refs so both drivers can use them directly below.
+    /// out-refs so the drivers can use them directly below.
     inline void derive_nela_nelb_restricted(
         int & nela, int & nelb, int & restr, int Q, int M, int Ztotal,
-        bool & restricted, int & Ntot,
-        bool allow_open_shell_restricted = false) {
+        bool & restricted, int & Ntot) {
+      if (M == 0 && nela == 0 && nelb == 0) {
+        if (restr == 0)
+          throw std::logic_error("Unrestricted mode needs a multiplicity (--M) or "
+                                 "explicit nela/nelb.\n");
+        Ntot = Ztotal - Q;
+        if (Ntot <= 0)
+          throw std::logic_error("No electrons: Z - Q <= 0.\n");
+        nela = (Ntot + 1) / 2;
+        nelb = Ntot / 2;
+        restr = 1;
+        restricted = true;
+        return;
+      }
       scf::parse_nela_nelb(nela, nelb, Q, M, Ztotal);
       if (restr == -1) restr = (nela == nelb) ? 1 : 0;
       restricted = (restr != 0);
-      if (restricted && nela != nelb && !allow_open_shell_restricted)
-        throw std::logic_error("Restricted mode requires nela == nelb (closed shell). "
-                                "Use --restricted=0 (or leave -1 for auto) for open-shell.");
       Ntot = nela + nelb;
     }
 
