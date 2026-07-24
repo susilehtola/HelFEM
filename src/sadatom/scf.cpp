@@ -264,7 +264,7 @@ namespace helfem {
         OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(
             number_of_blocks_per_particle_type, maximum_occupation,
             number_of_particles, fock_builder, block_descriptions);
-        scfsolver.verbosity(opts.verbosity);
+        scfsolver.set("verbosity", opts.verbosity);
 
         // Frozen per-l occupation: hand OOO a per-block particle count
         // vector so Aufbau is bypassed. Same pattern as atomic_ooo /
@@ -413,7 +413,12 @@ namespace helfem {
         } else {
           scfsolver.initialize_with_fock(CoreH);
         }
-        scfsolver.run(opts.scf_methods);
+        scfsolver.set("methods", opts.scf_methods);
+        if (opts.verbosity > 0) {
+          scfsolver.print_citation();
+          scfsolver.print_settings();
+        }
+        scfsolver.run();
 
         // Extract results. Convert OOO's per-block orbital matrices
         // (in the Sinvh-orthonormal basis) back to AO coefficients
