@@ -428,63 +428,54 @@ namespace helfem {
         AtomicSCFResult result;
         result.basis = basis;
 
-        auto extract_channel = [&](size_t t, helfem::Cube & orbs_out, Eigen::VectorXi & occs_out) {
+        auto extract_channel = [&](size_t t, helfem::Cube & orbs_out, Eigen::VectorXi & occs_out,
+                                   std::vector<helfem::Vector> & occs_orb_out) {
           orbs_out.assign(nblock, helfem::Matrix::Zero(Nrad, Nrad));
           occs_out = Eigen::VectorXi::Zero(nblock);
+          occs_orb_out.assign(nblock, helfem::Vector());
           for (size_t l = 0; l < nblock; ++l) {
             const helfem::Matrix C_ao = Sinvh * orbitals[t * nblock + l];
             orbs_out[l] = C_ao;
-            // Round OOO's Tbase (double) per-orbital occupations up to
-            // the nearest integer total per l. Aufbau on integer
-            // electron counts yields integer occupations for the
-            // occupied orbitals; sum them.
-            int total = 0;
-            for (Eigen::Index i = 0; i < occupations[t * nblock + l].size(); ++i)
-              total += static_cast<int>(std::round(occupations[t * nblock + l](i)));
-            occs_out(l) = total;
+            // Keep OOO's per-orbital occupations verbatim: they are what
+            // was converged, and they are fractional whenever OOO
+            // optimizes the occupations.
+            occs_orb_out[l] = occupations[t * nblock + l];
+            // Rounded per-l total, for the checkpoint and the consumers
+            // that want an integer electron count per channel.
+            occs_out(l) = static_cast<int>(std::round(occs_orb_out[l].sum()));
           }
         };
-        extract_channel(0, result.orbs_a, result.occs_a);
+        extract_channel(0, result.orbs_a, result.occs_a, result.occs_orb_a);
         if (!restricted)
-          extract_channel(1, result.orbs_b, result.occs_b);
+          extract_channel(1, result.orbs_b, result.occs_b, result.occs_orb_b);
 
         // Rebuild the converged per-l radial density cube(s) from the
         // final orbitals + integer per-l occupations (Aufbau filling,
         // consistent with the converged ground state and with the
         // checkpoint written below). Used both for --save and for the
         // gensap effective-potential / SAP-table output in main.cpp.
-        auto build_cube = [&](const helfem::Cube & orbs_ao, const Eigen::VectorXi & occs_per_l,
+        auto build_cube = [&](const helfem::Cube & orbs_ao,
+                               const std::vector<helfem::Vector> & occs_per_orb,
                                helfem::Cube & Pcube_out) {
           Pcube_out.assign(nblock, helfem::Matrix::Zero(Nrad, Nrad));
           for (size_t l = 0; l < nblock; ++l) {
-            if (occs_per_l(l) <= 0) continue;
-            // For an integer per-l total N in a manifold of capacity
-            // 2*(2l+1) restricted or (2l+1) unrestricted, split
-            // evenly across the N/max_orb lowest orbitals.
+            // Use the converged per-orbital occupations directly. They
+            // already encode the Aufbau filling in the integer case, and
+            // unlike a re-derived filling they stay correct when OOO has
+            // optimized fractional occupations.
+            const helfem::Vector & occ_vec = occs_per_orb[l];
+            if (occ_vec.size() == 0 || occ_vec.cwiseAbs().maxCoeff() == 0.0) continue;
             const helfem::Matrix & orb_l = orbs_ao[l];
-            const int norb = orb_l.cols();
-            const double per_orb = (restricted ? 2.0 * (2 * l + 1) : 2.0 * l + 1);
-            // AO density with occupations set: pick occs from OOO
-            // internal (they are what's converged). For simplicity
-            // fall back to a diagonal-per-orbital occupation of
-            // occs_per_l(l) / norb capped at per_orb.
-            helfem::Vector occ_vec = helfem::Vector::Zero(norb);
-            double remaining = static_cast<double>(occs_per_l(l));
-            for (int i = 0; i < norb && remaining > 0; ++i) {
-              const double take = std::min<double>(per_orb, remaining);
-              occ_vec(i) = take;
-              remaining -= take;
-            }
             Pcube_out[l] = orb_l * occ_vec.asDiagonal() * orb_l.transpose();
           }
         };
 
-        build_cube(result.orbs_a, result.occs_a, result.Pl_a);
+        build_cube(result.orbs_a, result.occs_orb_a, result.Pl_a);
         helfem::Matrix Prad_tot = helfem::Matrix::Zero(Nrad, Nrad);
         for (size_t l = 0; l < nblock; ++l)
           Prad_tot += result.Pl_a[l];
         if (!restricted) {
-          build_cube(result.orbs_b, result.occs_b, result.Pl_b);
+          build_cube(result.orbs_b, result.occs_orb_b, result.Pl_b);
           for (size_t l = 0; l < nblock; ++l)
             Prad_tot += result.Pl_b[l];
         }

@@ -92,11 +92,21 @@ namespace helfem {
         helfem::Cube orbs_a;
         /// Per-l occupation numbers (alpha channel for unrestricted).
         /// Length lmax+1. For restricted, this is the FULL per-l count
-        /// (up to 2*(2l+1)).
+        /// (up to 2*(2l+1)). Rounded to integers for the checkpoint and
+        /// the Aufbau-style consumers; see occs_orb_a for the exact
+        /// values.
         Eigen::VectorXi occs_a;
         /// Beta channel (empty for restricted).
         helfem::Cube orbs_b;
         Eigen::VectorXi occs_b;
+        /// Per-l, per-orbital occupation numbers exactly as converged by
+        /// OpenOrbitalOptimizer -- occs_orb_a[l](i) is the occupation of
+        /// the i:th orbital of the l channel. These are NOT rounded, so
+        /// they retain fractional occupations (OOO optimizes them, and
+        /// the spherically averaged open-shell atoms that seed the SAP /
+        /// SAD databases genuinely need them). occs_a above is their
+        /// rounded per-l sum.
+        std::vector<helfem::Vector> occs_orb_a, occs_orb_b;
         /// Converged total radial density matrix (alpha+beta),
         /// Nrad x Nrad. Consumed by the gensap effective-potential /
         /// SAP-table output path (basis::coulomb_screening /
