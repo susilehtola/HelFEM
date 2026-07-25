@@ -27,6 +27,10 @@ namespace helfem {
   namespace sadatom {
     namespace scf {
 
+      /// Occupation below which a saved orbital is treated as
+      /// unoccupied and dropped from the checkpoint.
+      static const double occ_save_threshold = 1e-12;
+
       AtomicSCFResult run_atomic_scf(const AtomicSCFOptions & opts) {
         using OOO_Real = double;
 
@@ -484,6 +488,14 @@ namespace helfem {
         // --save path: write basis-defining params + per-l AO density
         // cube(s) + per-l electron counts. Rebuilding a matching basis
         // needs (Z, lmax, bval); the density cube is used by --load.
+        //
+        // The WAVE FUNCTIONS are written alongside the densities: the
+        // occupied AO orbital coefficients per l, plus their exact
+        // (possibly fractional) occupations. A density is a lossy
+        // record -- it cannot be taken apart into orbitals again -- so
+        // the orbitals are what a downstream consumer needs to rebuild
+        // the state, project it into another basis, or reconstruct the
+        // effective potential without tabulating and interpolating it.
         if (opts.save_file.size()) {
           Checkpoint savechk(opts.save_file, /*writemode=*/true);
           savechk.write("sadatom_Z",       opts.Z);
@@ -496,6 +508,30 @@ namespace helfem {
           for (size_t l = 0; l < nblock; ++l)
             savechk.write(std::string("sadatom_Pal_") + std::to_string(l),
                           result.Pl_a[l]);
+          // Occupied orbitals + their exact occupations, per l. Columns
+          // whose occupation is numerically zero are dropped: they are
+          // the unoccupied remainder of the block and carry no
+          // information about the state.
+          auto write_orbitals = [&](const helfem::Cube & orbs,
+                                     const std::vector<helfem::Vector> & occs,
+                                     const char * ctag) {
+            for (size_t l = 0; l < nblock; ++l) {
+              const helfem::Vector & occ_l = occs[l];
+              std::vector<Eigen::Index> keep;
+              for (Eigen::Index i = 0; i < occ_l.size(); ++i)
+                if (std::abs(occ_l(i)) > occ_save_threshold) keep.push_back(i);
+
+              helfem::Matrix C(orbs[l].rows(), (Eigen::Index) keep.size());
+              helfem::Matrix o((Eigen::Index) keep.size(), 1);
+              for (size_t k = 0; k < keep.size(); ++k) {
+                C.col((Eigen::Index) k) = orbs[l].col(keep[k]);
+                o((Eigen::Index) k, 0)  = occ_l(keep[k]);
+              }
+              savechk.write(std::string("sadatom_C") + ctag + "l_" + std::to_string(l), C);
+              savechk.write(std::string("sadatom_occ") + ctag + "l_" + std::to_string(l), o);
+            }
+          };
+          write_orbitals(result.orbs_a, result.occs_orb_a, "a");
           {
             // Checkpoint stores integers as N x 1 matrices.
             Eigen::MatrixXi oa(result.occs_a.size(), 1);
@@ -506,6 +542,7 @@ namespace helfem {
             for (size_t l = 0; l < nblock; ++l)
               savechk.write(std::string("sadatom_Pbl_") + std::to_string(l),
                             result.Pl_b[l]);
+            write_orbitals(result.orbs_b, result.occs_orb_b, "b");
             Eigen::MatrixXi ob(result.occs_b.size(), 1);
             for (Eigen::Index i = 0; i < result.occs_b.size(); ++i) ob(i, 0) = result.occs_b(i);
             savechk.write("sadatom_occs_b", ob);
