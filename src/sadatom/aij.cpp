@@ -158,7 +158,11 @@ int main(int argc, char **argv) {
     // Outer cavity has constant background charge. Altogether, this leads to
     R = cbrt(Z-Q+njellium)*rs;
     r_inner = cbrt(Z-Q)*rs;
-    r_outer = R - r_inner;
+    // The background occupies the shell [r_inner, r_outer] at the
+    // uniform density 3/(4 pi rs^3), so its charge is
+    // (r_outer/rs)^3 - (r_inner/rs)^3. Requiring that to equal njellium
+    // gives r_outer^3 = (njellium + Z - Q) rs^3, i.e. r_outer = R.
+    r_outer = R;
   } else {
     // cavity size is determined by number of jellium electrons and the background density
     R = cbrt(njellium)*rs;
@@ -178,8 +182,26 @@ int main(int argc, char **argv) {
   } else {
     printf("%i jellium electrons with rs = % .3f leads to R = % .10f lmax = %i\n",njellium,rs,R,lmax);
   }
+  // The background charge follows from the shell geometry; report it so
+  // a mismatch with njellium is visible rather than silent.
+  if(rs > 0) {
+    const double bgcharge = std::pow(r_outer/rs,3) - std::pow(r_inner/rs,3);
+    printf("Background charge is % .10f, should be %i\n", bgcharge, njellium);
+    if(std::abs(bgcharge - njellium) > 1e-8*std::max(1,njellium))
+      throw std::logic_error("Background charge does not match the number of jellium electrons!\n");
+  }
   printf("Friedel period is % .3f, using %i uniform elements.\n", friedel_period, Nuelem);
-  double Erep = (rs > 0 ) ? 3*std::pow(R,5)/(5*std::pow(rs,6)) : 0.0;
+  // Self-repulsion of the positive background. The background is the
+  // shell [r_inner, r_outer], i.e. ball(r_outer) minus ball(r_inner) at
+  // the same density, so its self-energy is E_out + E_in - W with
+  // E_X = (3/5) Q_X^2 / X the ball self-energies and
+  // W = (3 Q_in Q_out / 2 r_outer) (1 - r_inner^2 / 5 r_outer^2) their
+  // mutual interaction. With Q_X = (X/rs)^3 this collapses to the
+  // expression below, which reduces to the full-sphere 3 R^5/(5 rs^6)
+  // when r_inner = 0.
+  double Erep = (rs > 0 ) ? (3*std::pow(r_outer,5) + 4.5*std::pow(r_inner,5)
+                             - 7.5*std::pow(r_inner,3)*std::pow(r_outer,2))
+                            / (5*std::pow(rs,6)) : 0.0;
 
   // Uniform part of grid
   helfem::Vector bval_unif;
