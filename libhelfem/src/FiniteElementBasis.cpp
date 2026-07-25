@@ -494,10 +494,12 @@ namespace helfem {
                                     const std::function<T(T)> & f,
                                     T x_left, T x_right, int nstart, int nmax) {
         const T tol = T(8) * std::numeric_limits<T>::epsilon();
+        const T sqrteps = std::sqrt(std::numeric_limits<T>::epsilon());
 
         helfem::Vec<T> x, w;
         helfem::Mat<T> prev, cur;
         bool have = false;
+        T prevdiff = T(-1), prevprevdiff = T(-1);
         int n = std::max(nstart, 2);
         for (;;) {
           helfem::lobatto::lobatto_compute<T>(n, x, w);
@@ -505,8 +507,24 @@ namespace helfem {
           if (have) {
             const T diff  = (cur - prev).cwiseAbs().maxCoeff();
             const T scale = cur.cwiseAbs().maxCoeff();
+            // (1) true eps convergence
             if (diff <= tol * (scale + tol))
               return cur;
+            // (2) roundoff-floor stall: blocks with internal cancellation
+            // have a summation-noise floor above 8*eps(T) relative; once
+            // the diff is deep in the asymptotic regime and no longer
+            // improves by at least 2x per doubling, it is noise.
+            if (prevdiff >= T(0) && diff <= sqrteps * (scale + tol) &&
+                diff > T(0.5) * prevdiff)
+              return cur;
+            // (3) two-doubling stall: floor noise can accidentally keep
+            // halving and dodge (2). Genuine quadrature convergence gains
+            // far more than 8x over two doublings; noise stays flat.
+            if (prevprevdiff >= T(0) && diff <= sqrteps * (scale + tol) &&
+                diff > T(0.125) * prevprevdiff)
+              return cur;
+            prevprevdiff = prevdiff;
+            prevdiff = diff;
           }
           prev = cur;
           have = true;
