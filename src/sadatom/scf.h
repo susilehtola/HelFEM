@@ -73,6 +73,12 @@ namespace helfem {
         /// SCF convergence algorithms handed to OOO's state machine: a
         /// '+' separated subset of DIIS, ODA, CG and LBFGS.
         std::string scf_methods = "DIIS + ODA + CG";
+        /// Outer SCF iteration cap. Matches OOO's own default; raise it
+        /// for systems that converge steadily but slowly, such as the
+        /// partially filled 3d atoms, where the 4s/3d near-degeneracy
+        /// leaves the error decreasing by a fraction of a percent per
+        /// iteration.
+        int maxiter = 128;
         /// Load orbital guess from checkpoint. Empty = start from core-H
         /// guess as before. When non-empty, the old basis + per-l AO
         /// densities are read from the checkpoint, projected into the
