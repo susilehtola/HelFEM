@@ -119,7 +119,7 @@ namespace helfem {
 
           helfem::Mat<T> prev, cur;
           bool have = false;
-          T prevdiff = T(-1);
+          T prevdiff = T(-1), prevprevdiff = T(-1);
           int n = std::max(nstart, 2);
           for (;;) {
             cur = eval(n);
@@ -134,6 +134,15 @@ namespace helfem {
               if (prevdiff >= T(0) && diff <= sqrteps * (scale + tol) &&
                   diff > T(0.5) * prevdiff)
                 return cur;
+              // (3) two-doubling stall: consecutive diffs at the roundoff
+              // floor are noise and can accidentally keep halving, dodging
+              // (2). Over TWO doublings genuine quadrature convergence
+              // gains far more than 8x (geometric convergence squares the
+              // error per doubling), while noise stays flat.
+              if (prevprevdiff >= T(0) && diff <= sqrteps * (scale + tol) &&
+                  diff > T(0.125) * prevprevdiff)
+                return cur;
+              prevprevdiff = prevdiff;
               prevdiff = diff;
             }
             prev = cur;
