@@ -33,6 +33,13 @@ namespace helfem {
       ~SphericalNucleusT();
       /// Potential
       T V(T r) const override;
+      /// The potential is piecewise: the interior of the uniformly
+      /// charged ball joins the exterior -Z/r at R0 with a discontinuous
+      /// second derivative, so the quadrature must split there.
+      std::vector<T> breakpoints(T a, T b) const override {
+        if (R0 > a && R0 < b) return std::vector<T>{R0};
+        return std::vector<T>();
+      }
       /// Get R0
       T get_R0() const;
       /// Set R0

@@ -33,6 +33,12 @@ namespace helfem {
       ~HollowNucleusT();
       /// Potential
       T V(T r) const override;
+      /// All the charge sits on the shell r = R, so the potential is
+      /// constant inside and -Z/r outside, with a kink at R.
+      std::vector<T> breakpoints(T a, T b) const override {
+        if (R > a && R < b) return std::vector<T>{R};
+        return std::vector<T>();
+      }
       /// Get R
       T get_R() const;
       /// Set R
