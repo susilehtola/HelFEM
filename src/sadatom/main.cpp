@@ -237,6 +237,7 @@ int main(int argc, char **argv) {
   // SCF convergence algorithms handed to OOO's state machine: a '+'
   // separated subset of DIIS, ODA, CG and LBFGS.
   parser.add<std::string>("scfmethods", 0, "SCF convergence methods: '+' separated subset of DIIS, ODA, CG, LBFGS", false, "DIIS + ODA + CG");
+  parser.add<int>("maxiter", 0, "maximum number of SCF iterations", false, 128);
 
   // SAP / effective-potential generation (parity with bespoke gensap).
   // With a functional active, gensap tabulates the radial effective
@@ -345,6 +346,7 @@ int main(int argc, char **argv) {
   opts.shift_conf   = shift_conf;
   opts.verbosity    = 5;
   opts.scf_methods  = parser.get<std::string>("scfmethods");
+  opts.maxiter      = parser.get<int>("maxiter");
   opts.iguess       = parser.get<int>("iguess");
   opts.load_file    = parser.get<std::string>("load");
   opts.save_file    = parser.get<std::string>("save");

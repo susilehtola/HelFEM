@@ -269,6 +269,7 @@ namespace helfem {
             number_of_blocks_per_particle_type, maximum_occupation,
             number_of_particles, fock_builder, block_descriptions);
         scfsolver.set("verbosity", opts.verbosity);
+        scfsolver.set("maximum_iterations", opts.maxiter);
 
         // Frozen per-l occupation: hand OOO a per-block particle count
         // vector so Aufbau is bypassed. Same pattern as atomic_ooo /
