@@ -270,6 +270,7 @@ namespace helfem {
             number_of_particles, fock_builder, block_descriptions);
         scfsolver.set("verbosity", opts.verbosity);
         scfsolver.set("maximum_iterations", opts.maxiter);
+        scfsolver.set("convergence_threshold", opts.convthr);
 
         // Frozen per-l occupation: hand OOO a per-block particle count
         // vector so Aufbau is bypassed. Same pattern as atomic_ooo /

@@ -79,6 +79,11 @@ namespace helfem {
         /// leaves the error decreasing by a fraction of a percent per
         /// iteration.
         int maxiter = 128;
+        /// SCF convergence threshold on the DIIS error. Matches OOO's
+        /// own default. Some systems have an arithmetic noise floor
+        /// above it -- their energy is stable to 1e-11 while the error
+        /// sits frozen just above the target -- and need it relaxed.
+        double convthr = 1e-7;
         /// Load orbital guess from checkpoint. Empty = start from core-H
         /// guess as before. When non-empty, the old basis + per-l AO
         /// densities are read from the checkpoint, projected into the
