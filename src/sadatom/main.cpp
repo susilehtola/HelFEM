@@ -243,7 +243,7 @@ int main(int argc, char **argv) {
   // With a functional active, gensap tabulates the radial effective
   // charge Zeff(r) = Z - r*(V_Hartree + V_xc) to result_<El>.dat -- the
   // data used to build the SAP guess (see src/general/sap.cpp).
-  parser.add<std::string>("pot", 0, "functional for the effective/SAP potential (empty = use --method)", false, "");
+  parser.add<std::string>("pot", 0, "functional for the effective/SAP potential; 'none' writes no table", false, "none");
   parser.add<bool>("savepot", 0, "also save the xc screening potential to xcpot.dat?", false, false);
   parser.add<bool>("saveing", 0, "also save the density ingredients to xcing.dat?", false, false);
   parser.add<bool>("saveorb", 0, "save radial orbitals to orbs_<El>_<spin>_l<l>.dat?", false, false);
@@ -463,11 +463,15 @@ int main(int argc, char **argv) {
   const bool savepot = parser.get<bool>("savepot");
   const bool saveing = parser.get<bool>("saveing");
 
-  int xp_func = x_func, cp_func = c_func;
-  if (potmethod.size()) {
-    ::parse_xc_func(xp_func, cp_func, potmethod);
+  // The SAP table is OPT-IN, via --pot. It does NOT fall back to the
+  // SCF --method: with --method defaulting to lda_x that fallback made
+  // every gensap run write result_<El>.dat, whereas the potential is a
+  // deliberate product one asks for. --pot=none parses to (0, 0) and
+  // so skips the write, exactly as the pre-OOO driver did.
+  int xp_func = 0, cp_func = 0;
+  ::parse_xc_func(xp_func, cp_func, potmethod);
+  if (xp_func > 0 || cp_func > 0)
     ::print_info(xp_func, cp_func);
-  }
   // Meta-GGA / range-separated potentials are not implemented in the
   // spherically symmetric screening path (matches the old driver).
   {
