@@ -113,7 +113,7 @@ int main(int argc, char **argv) {
   // (SAP); we keep that here since SAP typically converges materially
   // faster than the bare core-Hamiltonian guess. Ignored when --load
   // supplies orbitals from a checkpoint.
-  parser.add<int>("iguess", 0, "initial guess: 0 core Hamiltonian, 1 GSZ, 2 SAP, 3 Thomas-Fermi", false, 2);
+  parser.add<int>("iguess", 0, "initial guess: 0 core Hamiltonian, 1 GSZ, 2 SAP (tabulated), 3 Thomas-Fermi, 4 SAP (from the tabulated wave function)", false, 2);
 
   // Load orbital guess from a checkpoint written by an earlier run.
   // The old basis + AO densities Pa, Pb are read; densities are
@@ -515,8 +515,12 @@ int main(int argc, char **argv) {
       printf("Guess orbitals from Thomas-Fermi screened nucleus\n");
       model = new modelpotential::TFAtom(Z);
       break;
+    case 4:
+      printf("Guess orbitals from SAP screened nucleus, evaluated from the tabulated wave function\n");
+      model = new modelpotential::SAPFEAtom(Z);
+      break;
     default:
-      throw std::logic_error("Unsupported iguess value (expected 0..3).\n");
+      throw std::logic_error("Unsupported iguess value (expected 0..4).\n");
     }
     Vguess = basis.model_potential(model);
     delete model;

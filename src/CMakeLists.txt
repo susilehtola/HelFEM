@@ -5,6 +5,7 @@ general/timer.cpp general/elements.cpp
 general/angular.cpp general/scf_helpers.cpp general/lcao.cpp
 general/dftgrid_common.cpp
 general/gsz.cpp general/sap.cpp general/dftfuncs.cpp
+general/atomdb.cpp general/atomdb_data.cpp
 general/checkpoint.cpp atomic/basis.cpp
 atomic/TwoDBasis.cpp
 atomic/dftgrid.cpp sadatom/basis.cpp
@@ -136,6 +137,12 @@ target_link_libraries(over_r_test helfem-common legendre)
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem-common legendre)
 
+# Cross-checks the tabulated atomic wave functions: the enclosed charge
+# and Hartree screening atomdb builds from partial-element integrals,
+# against quadrature of the pointwise density.
+add_executable(atomdb_test general/atomdb_test.cpp)
+target_link_libraries(atomdb_test helfem-common legendre)
+
 # Round-trips the templated HDF5 checkpoint float I/O at double / long double
 # / _Float128 and asserts bit-identical reloads (proves the per-T memory type,
 # not a double-capped path).
@@ -218,4 +225,5 @@ install(FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/general/model_potential.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/general/RadialPotential.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/general/sap.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/general/atomdb.h"
     DESTINATION include/helfem/general)

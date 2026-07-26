@@ -49,6 +49,7 @@ After build, test binaries are in `objdir/src/` (or `install/bin/`):
 ./install/bin/gaunt_test       # Gaunt coefficient tests
 ./install/bin/sphtest          # Spherical harmonic tests
 ./install/bin/atomic_itest     # Atomic integration test
+./install/bin/atomdb_test      # Tabulated atomic wave functions
 ```
 
 ## Architecture
@@ -70,7 +71,9 @@ Low-level library with no HDF5/libxc dependency. Compiled as `helfem` static/sha
 
 Higher-level library linking against `helfem`. Contains SCF infrastructure, DFT wrappers, and basis sets for each geometry:
 
-- **`general/`**: SCF helpers (`scf_helpers.cpp`), DIIS (`diis.cpp`), L-BFGS (`lbfgs.cpp`), Gaunt coefficients (`gaunt.cpp`), DFT functional interface (`dftfuncs.cpp`), checkpoint I/O (`checkpoint.cpp`), superposition of atomic potentials (`sap.cpp`), model potentials (`model_potential.cpp`).
+- **`general/`**: SCF helpers (`scf_helpers.cpp`), DIIS (`diis.cpp`), L-BFGS (`lbfgs.cpp`), Gaunt coefficients (`gaunt.cpp`), DFT functional interface (`dftfuncs.cpp`), checkpoint I/O (`checkpoint.cpp`), superposition of atomic potentials (`sap.cpp`), model potentials (`model_potential.cpp`), tabulated atomic wave functions (`atomdb.cpp` + the generated `atomdb_data.cpp`).
+
+  `sap.cpp` and `atomdb.cpp` are two representations of the same SAP potential. `sap.cpp` tabulates the effective charge on a fixed radial grid and interpolates between knots; `atomdb.cpp` stores the *orbitals* of the same spherically averaged atoms and derives the density, the Hartree screening and the LDA exchange screening at whatever r is asked for, with no interpolation. Storing the orbitals rather than the potential keeps the tabulated object at the lowest polynomial degree in the problem — the density is twice the degree of the orbitals and the potential higher still, so a finite-element representation of the potential would need a finer grid than the one the orbitals were solved on. Both tables are regenerated from `gensap` checkpoints by `tools/gen_atomdb.py` and `tools/gen_sap_table.py`.
 - **`atomic/`**: 2D angular + radial basis (`TwoDBasis.cpp`) for spherical atoms; DFT integration grid.
 - **`sadatom/`**: Spherically-averaged atom solver (`solver.cpp`) — faster than `atomic/` for symmetric ground states; used to generate SAP initial guesses (`gensap`).
 - **`diatomic/`**: Prolate spheroidal coordinate basis (`basis.cpp`) and 2D quadrature (`twodquadrature.cpp`) for diatomic molecules.

@@ -8,6 +8,7 @@
 #include <GaussianNucleus.h>
 #include <RegularizedNucleus.h>
 #include "RadialPotential.h"
+#include "atomdb.h"
 
 namespace helfem {
   namespace modelpotential {
@@ -65,7 +66,9 @@ namespace helfem {
       double V(double r) const override;
     };
 
-    /// Superposition of atomic potentials
+    /// Superposition of atomic potentials, from the tabulated effective
+    /// charge of sap.cpp. Zeff is interpolated between tabulation knots,
+    /// so the potential is only piecewise smooth on the tabulation grid.
     class SAPAtom : public ModelPotential {
       /// Charge
       int Z;
@@ -76,6 +79,37 @@ namespace helfem {
       ~SAPAtom();
       /// Potential
       double V(double r) const override;
+    };
+
+    /// Superposition of atomic potentials, evaluated on the fly from the
+    /// tabulated atomic wave function (see src/general/atomdb.h) instead
+    /// of from an interpolated table of the effective charge.
+    ///
+    /// The potential this builds is the same object SAPAtom approximates,
+    /// but it is exact at every r: the density comes from the stored
+    /// orbitals, the Hartree screening from an exact partial-element
+    /// integration of that density, and the exchange screening from
+    /// libxc. Its only kinks are the element boundaries of the wave
+    /// function's own grid, which breakpoints() reports so the quadrature
+    /// can split there.
+    class SAPFEAtom : public ModelPotential {
+      /// The tabulated atom
+      atomdb::Atom atom;
+      /// Exchange and correlation functional ids used for the screening
+      int x_func, c_func;
+    public:
+      /// Constructor, with the LDA exchange-only screening the SAP
+      /// potential is defined with.
+      SAPFEAtom(int Z);
+      /// Constructor with an explicit libxc screening functional. LDAs
+      /// only: the screening is evaluated from the density alone.
+      SAPFEAtom(int Z, int x_func, int c_func);
+      /// Destructor
+      ~SAPFEAtom();
+      /// Potential
+      double V(double r) const override;
+      /// The element boundaries of the wave function's radial grid
+      std::vector<double> breakpoints(double a, double b) const override;
     };
   }
 }

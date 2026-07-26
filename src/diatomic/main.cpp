@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
   // is the default because it typically converges materially faster
   // than the bare core-Hamiltonian guess. Ignored when --load supplies
   // orbitals from a checkpoint.
-  parser.add<int>("iguess", 0, "initial guess: 0 core Hamiltonian, 1 GSZ, 2 SAP, 3 Thomas-Fermi", false, 2);
+  parser.add<int>("iguess", 0, "initial guess: 0 core Hamiltonian, 1 GSZ, 2 SAP (tabulated), 3 Thomas-Fermi, 4 SAP (from the tabulated wave function)", false, 2);
 
   // Load orbital guess from a checkpoint written by an earlier run.
   parser.add<std::string>("load", 0, "load orbital guess from checkpoint file", false, "");
@@ -483,8 +483,13 @@ int main(int argc, char **argv) {
       p1 = new modelpotential::TFAtom(Z1);
       p2 = new modelpotential::TFAtom(Z2);
       break;
+    case 4:
+      printf("Guess orbitals from SAP screened nuclei, evaluated from the tabulated wave functions\n");
+      p1 = new modelpotential::SAPFEAtom(Z1);
+      p2 = new modelpotential::SAPFEAtom(Z2);
+      break;
     default:
-      throw std::logic_error("Unsupported iguess value (expected 0..3).\n");
+      throw std::logic_error("Unsupported iguess value (expected 0..4).\n");
     }
     const int lquad = 4 * lmmax.maxCoeff() + 12;
     helfem::diatomic::twodquad::TwoDGrid qgrid(&basis, lquad);

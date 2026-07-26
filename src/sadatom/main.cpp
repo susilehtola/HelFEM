@@ -229,7 +229,7 @@ int main(int argc, char **argv) {
   parser.add<double>("shift_conf",   0, "Where does confinement start?",     false, 0.0);
   parser.add<bool>  ("add_conf",     0, "Add element boundary at shifted confinement radius?", false, true);
 
-  parser.add<int>("iguess", 0, "initial guess: 0 core Hamiltonian, 1 GSZ, 2 SAP, 3 Thomas-Fermi", false, 2);
+  parser.add<int>("iguess", 0, "initial guess: 0 core Hamiltonian, 1 GSZ, 2 SAP (tabulated), 3 Thomas-Fermi, 4 SAP (from the tabulated wave function)", false, 2);
   parser.add<std::string>("occs", 0, "occupations: 'auto' (Aufbau), or space-separated per-l counts (lmax+1 integer totals; unrestricted also accepts 2*(lmax+1) as alpha then beta, which may be fractional)", false, "auto");
 
   parser.add<std::string>("load", 0, "load orbital guess from checkpoint file", false, "");
