@@ -29,7 +29,15 @@ namespace helfem {
 
       /// Occupation below which a saved orbital is treated as
       /// unoccupied and dropped from the checkpoint.
-      static const double occ_save_threshold = 1e-12;
+      ///
+      /// 1e-6 rather than something closer to eps: OpenOrbitalOptimizer
+      /// leaves a long tail of numerically empty virtuals when it
+      /// optimizes fractional occupations, and storing them dominates
+      /// the record. Over Z = 1..118 a 1e-12 cutoff keeps 3049 orbitals
+      /// where 1e-6 keeps 1376 -- less than half the data for the same
+      /// physics, since the largest occupation dropped at 1e-6 is
+      /// 9.9e-7, a millionth of an electron.
+      static const double occ_save_threshold = 1e-6;
 
       AtomicSCFResult run_atomic_scf(const AtomicSCFOptions & opts) {
         using OOO_Real = double;
