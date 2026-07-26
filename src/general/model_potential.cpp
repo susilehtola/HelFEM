@@ -2,6 +2,7 @@
 #include "sap.h"
 #include "gsz.h"
 #include "eigen_io.h"
+#include <xc_funcs.h>
 #include <cfloat>
 
 namespace helfem {
@@ -75,6 +76,32 @@ namespace helfem {
 
     double SAPAtom::V(double r) const {
       return -::sap_effective_charge(Z,r)/r;
+    }
+
+    SAPFEAtom::SAPFEAtom(int Z_) : SAPFEAtom(Z_, XC_LDA_X, 0) {
+    }
+
+    SAPFEAtom::SAPFEAtom(int Z_, int x_func_, int c_func_) : atom(Z_), x_func(x_func_), c_func(c_func_) {
+    }
+
+    SAPFEAtom::~SAPFEAtom() {
+    }
+
+    double SAPFEAtom::V(double r) const {
+      return -atom.effective_charge(r,x_func,c_func)/r;
+    }
+
+    std::vector<double> SAPFEAtom::breakpoints(double a, double b) const {
+      // The density, and with it the potential, is a different polynomial
+      // in each element of the wave function's grid. Only the boundaries
+      // strictly inside (a, b) are reported: one coinciding with an
+      // element end is already handled by the element decomposition.
+      const helfem::Vector bval(atom.element_boundaries());
+      std::vector<double> bp;
+      for(Eigen::Index i=0;i<bval.size();i++)
+        if(bval(i) > a && bval(i) < b)
+          bp.push_back(bval(i));
+      return bp;
     }
   }
 }

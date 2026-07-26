@@ -257,7 +257,8 @@ namespace helfem {
           case 1: model = new modelpotential::GSZAtom(opts.Z); break;
           case 2: model = new modelpotential::SAPAtom(opts.Z); break;
           case 3: model = new modelpotential::TFAtom(opts.Z);  break;
-          default: throw std::logic_error("Unsupported iguess value (expected 0..3).\n");
+          case 4: model = new modelpotential::SAPFEAtom(opts.Z);  break;
+          default: throw std::logic_error("Unsupported iguess value (expected 0..4).\n");
           }
           Vguess = basis.model_potential(model);
           delete model;
