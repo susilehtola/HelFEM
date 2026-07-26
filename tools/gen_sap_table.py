@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regenerate the tabulated SAP effective charge in src/general/sap.cpp.
 
-Reads the "Z r Zeff" rows written by the atomdb_dump binary and splices a
+Reads the "Z r Zeff ..." rows written by the atomdb_dump binary and splices a
 fresh table into sap.cpp, leaving the interpolation code around it alone.
 
 Going through atomdb_dump rather than through gensap's result_<El>.dat
@@ -20,7 +20,7 @@ sapfile = sys.argv[1]
 Z, r, zeff = [], [], []
 for line in sys.stdin:
     f = line.split()
-    if len(f) != 3:
+    if len(f) < 3:
         continue
     Z.append(int(f[0]))
     r.append(float(f[1]))

@@ -13,9 +13,17 @@
  * for the full license text.
  */
 
-/* Dumps the SAP effective charge of every tabulated atom on a radial
-   grid, as "Z r Zeff" rows. tools/gen_sap_table.py turns the output into
-   the table in sap.cpp.
+/* Dumps every tabulated atom on a radial grid, as
+
+     Z  r  Zeff  4*pi*rho(r)  w(r)
+
+   rows, where w are the radial quadrature weights for the dr measure, so
+   that sum_i w_i r_i^2 (4 pi rho_i) is the electron count.
+
+   tools/gen_sap_table.py reads the first three columns and turns them
+   into the table in sap.cpp. The density and the weights are there for
+   the erfc fits of the potential, which need a quadrature to project
+   Zeff onto the fitting basis.
 
    Regenerating sap.cpp through this path rather than from gensap's
    result_<El>.dat files makes the two representations of the SAP
@@ -32,6 +40,7 @@
 
 #include "atomdb.h"
 #include <xc_funcs.h>
+#include <cmath>
 #include <cstdio>
 #include <vector>
 
@@ -42,12 +51,16 @@ int main(void) {
      parameters of its own. */
   const atomdb::Atom probe(1);
   const atomic::basis::FEMRadialBasis & rb = probe.basis();
-  std::vector<double> r;
+  std::vector<double> r, w;
   r.push_back(0.0);
+  w.push_back(0.0);
   for (size_t iel = 0; iel < rb.Nel(); iel++) {
     const helfem::Vector ri = rb.get_r(iel);
-    for (Eigen::Index ip = 0; ip < ri.size(); ip++)
+    const helfem::Vector wi = rb.get_wrad(iel);
+    for (Eigen::Index ip = 0; ip < ri.size(); ip++) {
       r.push_back(ri(ip));
+      w.push_back(wi(ip));
+    }
   }
   fprintf(stderr, "%zu radial points out to r = %.6f\n", r.size(), r.back());
 
@@ -55,20 +68,24 @@ int main(void) {
      table is a few CPU-minutes; the atoms are independent, so spread
      them and print afterwards in order. */
   const int maxZ = atomdb::max_Z();
-  std::vector<std::vector<double>> zeff(maxZ);
+  std::vector<std::vector<double>> zeff(maxZ), dens(maxZ);
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic)
 #endif
   for (int Z = 1; Z <= maxZ; Z++) {
     const atomdb::Atom atom(Z);
-    std::vector<double> z(r.size());
-    for (size_t ip = 0; ip < r.size(); ip++)
+    std::vector<double> z(r.size()), d(r.size());
+    for (size_t ip = 0; ip < r.size(); ip++) {
       z[ip] = atom.effective_charge(r[ip], XC_LDA_X, 0);
+      d[ip] = 4.0 * M_PI * atom.density(r[ip]);
+    }
     zeff[Z - 1] = std::move(z);
+    dens[Z - 1] = std::move(d);
   }
 
   for (int Z = 1; Z <= maxZ; Z++)
     for (size_t ip = 0; ip < r.size(); ip++)
-      printf("%3i %.17e %.17e\n", Z, r[ip], zeff[Z - 1][ip]);
+      printf("%3i %.17e %.17e %.17e %.17e\n", Z, r[ip], zeff[Z - 1][ip],
+             dens[Z - 1][ip], w[ip]);
   return 0;
 }
