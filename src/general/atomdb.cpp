@@ -221,8 +221,12 @@ namespace helfem {
       int x_func, c_func;
       /// The functionals, with a flag for whether each needs the gradient
       std::vector<std::pair<xc_func_type, bool>> funcs;
+      /// Whether any of them does, i.e. whether the density derivatives
+      /// have to be evaluated at all
+      bool any_gga = false;
 
       XCFunctionals(int x, int c) : x_func(x), c_func(c) {
+        funcs.reserve(2);
         for (int id : {x, c}) {
           if (id <= 0)
             continue;
@@ -254,6 +258,7 @@ namespace helfem {
           // because the screening is exchange-only; a general functional
           // needs libxc and therefore its threshold.
           funcs.emplace_back(f, gga);
+          any_gga = any_gga || gga;
         }
       }
       ~XCFunctionals() {
@@ -271,21 +276,30 @@ namespace helfem {
         return 0.0;
 
       // Spin-restricted density, split evenly between the channels: the
-      // database is spin-restricted by construction. Same for its
-      // derivatives, which a GGA screening needs.
-      double rho[2], grad[2], lapl[2];
+      // database is spin-restricted by construction.
+      double rho[2];
       rho[0] = rho[1] = 0.5 * density(r);
       if (rho[0] <= 0.0)
         return 0.0;
-      grad[0] = grad[1] = 0.5 * density_gradient(r);
-      lapl[0] = lapl[1] = 0.5 * density_laplacian(r);
-
-      // Reduced gradients, in libxc's (aa, ab, bb) order.
-      const double sigma[3] = {grad[0] * grad[0], grad[0] * grad[1],
-                               grad[1] * grad[1]};
 
       if (!xc_ || xc_->x_func != x_func || xc_->c_func != c_func)
         xc_ = std::make_shared<XCFunctionals>(x_func, c_func);
+
+      // The density derivatives are only worth having if something asks
+      // for them. The Laplacian in particular costs two orders of
+      // magnitude more than the density itself, and an LDA never looks
+      // at it -- evaluating it unconditionally made the LDA screening
+      // 150x slower than it needed to be.
+      double grad[2] = {0.0, 0.0}, lapl[2] = {0.0, 0.0};
+      double sigma[3] = {0.0, 0.0, 0.0};
+      if (xc_->any_gga) {
+        grad[0] = grad[1] = 0.5 * density_gradient(r);
+        lapl[0] = lapl[1] = 0.5 * density_laplacian(r);
+        // Reduced gradients, in libxc's (aa, ab, bb) order.
+        sigma[0] = grad[0] * grad[0];
+        sigma[1] = grad[0] * grad[1];
+        sigma[2] = grad[1] * grad[1];
+      }
 
       double vxc[2] = {0.0, 0.0};
       double vsigma[3] = {0.0, 0.0, 0.0};
