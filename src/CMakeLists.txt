@@ -143,6 +143,11 @@ target_link_libraries(gaunt_test helfem-common legendre)
 add_executable(atomdb_test general/atomdb_test.cpp)
 target_link_libraries(atomdb_test helfem-common legendre)
 
+# Emits the SAP effective charge of every tabulated atom; feeds
+# tools/gen_sap_table.py, which rebuilds the table in sap.cpp.
+add_executable(atomdb_dump general/atomdb_dump.cpp)
+target_link_libraries(atomdb_dump helfem-common legendre)
+
 # Round-trips the templated HDF5 checkpoint float I/O at double / long double
 # / _Float128 and asserts bit-identical reloads (proves the per-T memory type,
 # not a double-capped path).
