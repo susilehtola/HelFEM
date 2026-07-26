@@ -15,7 +15,9 @@
 
 #include "atomdb.h"
 #include "dftfuncs.h"
+#include <lobatto.h>
 #include <xc.h>
+#include <utility>
 #include <sstream>
 #include <stdexcept>
 
@@ -105,8 +107,8 @@ namespace helfem {
         size_t ifirst, ilast;
         radial_.get_idx(iel, ifirst, ilast);
         Psub_[iel] = P.block(ifirst, ifirst, ilast - ifirst + 1, ilast - ifirst + 1);
-        qel(iel) = (Psub_[iel] * radial_.radial_integral(0, iel)).trace();
-        mel(iel) = (Psub_[iel] * radial_.radial_integral(-1, iel)).trace();
+        qel(iel) = partial_integral(iel, -1.0, 1.0, false);
+        mel(iel) = partial_integral(iel, -1.0, 1.0, true);
       }
       // Accumulate inwards and outwards, so an evaluation only has to
       // integrate over the element the point falls in.
@@ -190,6 +192,60 @@ namespace helfem {
       return (d2 + 2.0 * d1 / r) / (4.0 * M_PI);
     }
 
+    /// The fixed rule used for the in-element integrals.
+    ///
+    /// The enclosed-charge integrand is the density contracted with
+    /// itself, a polynomial of degree 2*(nnodes-1) in the reference
+    /// coordinate, which an n-point Gauss-Lobatto rule integrates exactly
+    /// once 2n-3 >= 2*(nnodes-1), i.e. n >= nnodes+1. The 1/r integrand
+    /// is not a polynomial, but it is analytic on the element -- the pole
+    /// of 1/r sits outside [-1, 1], closest for the element just outside
+    /// the innermost one, where the Bernstein parameter is about 2.8 --
+    /// so the surplus points take it geometrically past machine
+    /// precision. Measured against quadrature of the pointwise density,
+    /// nnodes+4 already sits on the roundoff floor.
+    static const std::pair<helfem::Vector, helfem::Vector> & in_element_rule() {
+      static const std::pair<helfem::Vector, helfem::Vector> rule = []() {
+        helfem::Vector x, w;
+        helfem::lobatto::lobatto_compute(data::nnodes + 12, x, w);
+        return std::make_pair(x, w);
+      }();
+      return rule;
+    }
+
+    double Atom::partial_integral(size_t iel, double xa, double xb, bool over_r) const {
+      const double half_sub = 0.5 * (xb - xa);
+      if (half_sub <= 0.0)
+        return 0.0;
+      const polynomial_basis::FiniteElementBasis & fem = radial_.get_fem();
+
+      const helfem::Vector & xq = in_element_rule().first;
+      const helfem::Vector & wq = in_element_rule().second;
+      // Map the rule onto [xa, xb] within the reference element.
+      const helfem::Vector xi =
+          (0.5 * (xa + xb)) * helfem::Vector::Ones(xq.size()) + half_sub * xq;
+      const helfem::Vector r = fem.eval_coord(xi, iel);
+
+      // Contract the density first. Integrating the 20x20 matrix and
+      // tracing it against the density matrix afterwards computes 400
+      // matrix elements to extract one number; the integrand we actually
+      // want is the scalar sum_ij P_ij R_i(r) R_j(r).
+      const helfem::Matrix bf = radial_.get_bf(xi, iel);
+      const helfem::Vector quad =
+          ((bf * Psub_[iel]).array() * bf.array()).rowwise().sum();
+
+      // get_bf gives R = B/r, so the quadratic form is 4 pi rho. The
+      // weight is r^2 for the charge and r for the 1/r moment -- written
+      // as a multiplication rather than a division so that r = 0, which
+      // the innermost element reaches, needs no special case.
+      helfem::Vector integrand = (quad.array() * r.array()).matrix();
+      if (!over_r)
+        integrand.array() *= r.array();
+
+      return 0.5 * fem.element_length(iel) * half_sub *
+             (wq.array() * integrand.array()).sum();
+    }
+
     double Atom::enclosed_charge(double r) const {
       if (r <= 0.0)
         return 0.0;
@@ -197,8 +253,7 @@ namespace helfem {
         return nelectrons();
       double xprim;
       const size_t iel = locate(radial_.get_fem(), r, xprim);
-      return Qbelow_(iel) +
-             (Psub_[iel] * radial_.radial_integral(0, iel, -1.0, xprim)).trace();
+      return Qbelow_(iel) + partial_integral(iel, -1.0, xprim, false);
     }
 
     double Atom::hartree_screening(double r) const {
@@ -209,10 +264,8 @@ namespace helfem {
       double xprim;
       const size_t iel = locate(radial_.get_fem(), r, xprim);
       // r * V_H(r) = Q(<r) + r * integral_{r'>r} rho(r') / r' dV.
-      const double Qin =
-          Qbelow_(iel) + (Psub_[iel] * radial_.radial_integral(0, iel, -1.0, xprim)).trace();
-      const double Mout =
-          Mabove_(iel) + (Psub_[iel] * radial_.radial_integral(-1, iel, xprim, 1.0)).trace();
+      const double Qin = Qbelow_(iel) + partial_integral(iel, -1.0, xprim, false);
+      const double Mout = Mabove_(iel) + partial_integral(iel, xprim, 1.0, true);
       return Qin + r * Mout;
     }
 

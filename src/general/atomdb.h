@@ -97,6 +97,16 @@ namespace helfem {
       mutable std::shared_ptr<XCFunctionals> xc_;
 
     public:
+      /// Integral over the part of element iel between the reference
+      /// coordinates xa and xb, of the radial charge distribution
+      /// 4 pi r^2 rho(r) (over_r = false) or of it divided by r
+      /// (over_r = true). These are the two halves of the multipole
+      /// expansion of 1/r_>, restricted to the element the evaluation
+      /// point falls in; everything outside is already summed into
+      /// Qbelow_ and Mabove_.
+      double partial_integral(size_t iel, double xa, double xb, bool over_r) const;
+
+    public:
       /// Construct the record for nuclear charge Z (1 <= Z <= max_Z()).
       explicit Atom(int Z);
 
