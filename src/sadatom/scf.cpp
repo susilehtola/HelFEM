@@ -134,8 +134,15 @@ namespace helfem {
             Ekin_out += l * (l + 1) * (P_l * Tl).trace();
         };
 
-        OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> fock_builder =
-            [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm) {
+        // Shared implementation of the Fock build. `log_line`, when
+        // non-null, collects the energy breakdown instead of it going
+        // straight to stdout: a batched build evaluates its entries
+        // concurrently, and interleaved printf from several threads
+        // would be unreadable and out of order. Everything else here is
+        // either a local or a const capture, so the body is safe to run
+        // from several threads at once.
+        auto build_fock = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm,
+                              std::string * log_line) {
           const auto & orbitals    = dm.first;
           const auto & occupations = dm.second;
 
@@ -218,11 +225,18 @@ namespace helfem {
           const double Etot = Ekin + Enuc + Econf + Ecoul + Exc + Exx;
 
           if (opts.verbosity > 0) {
-            printf("Ekin %.10f  Enuc %.10f  Ecoul %.10f  Exc %.10f  Exx %.10f",
-                    Ekin, Enuc, Ecoul, Exc, Exx);
-            if (have_conf) printf("  Econf %.10f", Econf);
-            printf("  Etot %.10f\n", Etot);
-            fflush(stdout);
+            std::ostringstream line;
+            line << std::fixed << std::setprecision(10)
+                 << "Ekin " << Ekin << "  Enuc " << Enuc << "  Ecoul " << Ecoul
+                 << "  Exc " << Exc << "  Exx " << Exx;
+            if (have_conf) line << "  Econf " << Econf;
+            line << "  Etot " << Etot << "\n";
+            if (log_line) {
+              *log_line = line.str();
+            } else {
+              fputs(line.str().c_str(), stdout);
+              fflush(stdout);
+            }
           }
 
           auto build_fock_block = [&](size_t l, const helfem::Cube & XC_cube,
@@ -249,6 +263,54 @@ namespace helfem {
             }
           }
           return std::make_pair(Etot, fock);
+        };
+
+        OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> fock_builder =
+            [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm) {
+          return build_fock(dm, nullptr);
+        };
+
+        // Batched Fock build. The solver hands us every density it wants
+        // evaluated at once -- the ODA polytope's axis vertices, which
+        // share a set of orbitals and differ only in their occupations --
+        // and they are independent, so evaluate them concurrently.
+        //
+        // Going parallel across the batch rather than inside each build
+        // is deliberate. The per-build parallelism is over radial
+        // elements and over output angular momenta, and it scales badly:
+        // measured on atom-in-jellium, six threads bought 1.15x. The
+        // batch entries are perfectly independent, so this is the level
+        // that actually has parallelism in it. Nested OpenMP is off by
+        // default, so the inner regions collapse to serial and no
+        // oversubscription results.
+        OpenOrbitalOptimizer::BatchedFockBuilder<OOO_Real, OOO_Real> batched_fock_builder =
+            [&](const std::vector<OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real>> & dms) {
+          const size_t n = dms.size();
+          std::vector<OpenOrbitalOptimizer::FockBuilderReturn<OOO_Real, OOO_Real>> out(n);
+          std::vector<std::string> lines(n);
+
+          // Fill any lazily-built caches while still serial: the builds
+          // below only read them, but filling concurrently would race.
+          if (have_xc)
+            grid.prime_quadrature_cache(opts.x_func, opts.c_func);
+
+          if (n > 1) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+            for (long i = 0; i < (long) n; ++i)
+              out[i] = build_fock(dms[i], &lines[i]);
+          } else {
+            for (size_t i = 0; i < n; ++i)
+              out[i] = build_fock(dms[i], &lines[i]);
+          }
+
+          // Report in batch order, so the log reads the same whether or
+          // not the entries were evaluated concurrently.
+          for (const auto & line : lines)
+            if (line.size()) fputs(line.c_str(), stdout);
+          fflush(stdout);
+          return out;
         };
 
         // Initial-guess electron-nuclear potential. iguess 0 uses the
@@ -284,6 +346,7 @@ namespace helfem {
         OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(
             number_of_blocks_per_particle_type, maximum_occupation,
             number_of_particles, fock_builder, block_descriptions);
+        scfsolver.set_batched_fock_builder(batched_fock_builder);
         scfsolver.set("verbosity", opts.verbosity);
         scfsolver.set("maximum_iterations", opts.maxiter);
         scfsolver.set("convergence_threshold", opts.convthr);

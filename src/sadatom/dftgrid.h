@@ -99,6 +99,16 @@ namespace helfem {
         const helfem::sadatom::basis::TwoDBasis * basp;
 
       public:
+        /// Fill the basis set's quadrature-value cache for the orders the
+        /// given functionals need, so the grid loops become table lookups
+        /// rather than a polynomial evaluation per element per Fock
+        /// build. eval_Fxc calls this itself; it is public so that a
+        /// caller about to evaluate several Fock matrices concurrently
+        /// can fill the cache once, serially, first -- filling it from
+        /// several threads at once would be a data race, reading it from
+        /// several threads is fine.
+        void prime_quadrature_cache(int x_func, int c_func) const;
+
         /// Dummy constructor
         DFTGrid();
         /// Constructor

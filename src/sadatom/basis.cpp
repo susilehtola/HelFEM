@@ -429,6 +429,10 @@ namespace helfem {
       }
 
 
+      void TwoDBasis::fill_quadrature_cache(bool need_df, bool need_lf) const {
+        radial.fill_quadrature_cache(need_df, need_lf);
+      }
+
       helfem::Matrix TwoDBasis::eval_bf(size_t iel) const {
         return radial.get_bf(iel);
       }
