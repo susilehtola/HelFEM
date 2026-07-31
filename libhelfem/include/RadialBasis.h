@@ -84,6 +84,16 @@ namespace helfem {
         /// Finite element basis
         polynomial_basis::FiniteElementBasisT<T> fem;
 
+        /// Quadrature-node values of the basis functions and of their
+        /// first two derivatives, indexed by element. Filled on demand by
+        /// fill_quadrature_cache(); an empty entry means "not cached", so
+        /// the get_*(iel) overloads fall back to evaluating. Mutable
+        /// because filling them changes nothing an observer can see --
+        /// the values are a pure function of the element index.
+        mutable std::vector<helfem::Mat<T>> bfq_cache;
+        mutable std::vector<helfem::Mat<T>> dfq_cache;
+        mutable std::vector<helfem::Mat<T>> lfq_cache;
+
         /// Starting Gauss-Chebyshev order for the auto-converging
         /// two-electron primitives. Seeded from the requested n_quad so the
         /// common case converges in 1-2 refinement steps; the refinement
@@ -291,6 +301,22 @@ namespace helfem {
                                        bool lhder = false, bool rhder = false) const;
         /// Compute projection (Eigen; Phase 2a).
         helfem::Mat<T> overlap(const FEMRadialBasisT &rh) const;
+
+        /// Precompute the quadrature-node values of the basis functions
+        /// (and, on request, of their first and second derivatives) for
+        /// every element, so that the get_*(iel) overloads below become
+        /// table lookups.
+        ///
+        /// The values depend only on the element index -- the nodes are
+        /// the fixed rule `xq` -- so recomputing them, as the DFT grid
+        /// did on every Fock build, is pure repetition: it cost ~11% of
+        /// an atom-in-jellium run. Nel * Nquad * (nnodes+1) doubles per
+        /// requested order, a few MB even for a large grid.
+        ///
+        /// Call this from serial code. The cache is only *read* once
+        /// filled, so the parallel DFT-grid loops are safe afterwards,
+        /// but filling it concurrently is not.
+        void fill_quadrature_cache(bool need_df = false, bool need_lf = false) const;
 
         /// Evaluate basis functions at quadrature points (Eigen return).
         helfem::Mat<T> get_bf(size_t iel) const;

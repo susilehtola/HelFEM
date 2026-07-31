@@ -122,6 +122,12 @@ namespace helfem {
         /// Get list of basis function indices in element
         std::vector<Eigen::Index> bf_list(size_t iel) const;
 
+        /// Precompute the quadrature-node basis values behind eval_bf /
+        /// eval_df / eval_lf, so that repeated Fock builds look them up
+        /// rather than re-evaluating the polynomials. Serial: call it
+        /// before entering a parallel grid loop.
+        void fill_quadrature_cache(bool need_df, bool need_lf) const;
+
         /// Evaluate orbitals
         helfem::Vector eval_orbs(const helfem::Matrix & C, double r) const;
 

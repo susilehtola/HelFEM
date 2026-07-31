@@ -87,6 +87,13 @@ namespace helfem {
       /// Explicit override of the do_grad / do_tau / do_lapl flags
       void set_grad_tau_lapl(bool grad, bool tau, bool lapl);
 
+      /// Which orders of the basis functions the current functional
+      /// actually needs. Lets a caller prime a basis-value cache for the
+      /// right orders before entering the parallel grid loop, instead of
+      /// guessing or computing derivatives an LDA will never look at.
+      bool needs_grad() const { return do_grad; }
+      bool needs_lapl() const { return do_lapl; }
+
       /// Initialise vxc / vsigma / vtau / vlapl buffers with the
       /// correct shape and zero exc.
       void init_xc();

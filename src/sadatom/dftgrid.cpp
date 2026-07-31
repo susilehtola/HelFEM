@@ -494,6 +494,14 @@ namespace helfem {
       DFTGrid::~DFTGrid() {
       }
 
+      void DFTGrid::prime_quadrature_cache(int x_func, int c_func) const {
+        // A throwaway worker is the cheapest way to ask the functionals
+        // which orders they need; it allocates nothing beyond the flags.
+        DFTGridWorker probe(basp);
+        probe.check_grad_tau_lapl(x_func, c_func);
+        basp->fill_quadrature_cache(probe.needs_grad(), probe.needs_lapl());
+      }
+
       void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Cube & P, helfem::Cube & H, double & Exc, double & Nel, double thr) {
         const Eigen::Index Nrad = P[0].rows();
 
@@ -507,6 +515,12 @@ namespace helfem {
 
         double exc=0.0;
         double nel=0.0;
+
+        // The basis values at the quadrature nodes are a pure function of
+        // the element index, but every Fock build used to re-evaluate
+        // them -- ~11% of an atom-in-jellium run. Fill the cache once,
+        // here, while we are still serial; the loop below only reads it.
+        prime_quadrature_cache(x_func,c_func);
 
 #ifdef _OPENMP
 #pragma omp parallel reduction(+:exc,nel)
@@ -577,6 +591,11 @@ namespace helfem {
 
         double exc=0.0;
         double nel=0.0;
+
+        // Same as in the restricted overload: fill the basis-value cache
+        // while we are still serial.
+        prime_quadrature_cache(x_func,c_func);
+
 #ifdef _OPENMP
 #pragma omp parallel reduction(+:exc,nel)
 #endif

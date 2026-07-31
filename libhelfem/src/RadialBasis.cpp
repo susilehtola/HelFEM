@@ -821,7 +821,22 @@ namespace helfem {
       }
 
       template <typename T>
+      void FEMRadialBasisT<T>::fill_quadrature_cache(bool need_df, bool need_lf) const {
+        const size_t Nel = fem.get_nelem();
+        if (bfq_cache.size() != Nel) bfq_cache.assign(Nel, helfem::Mat<T>());
+        if (dfq_cache.size() != Nel) dfq_cache.assign(Nel, helfem::Mat<T>());
+        if (lfq_cache.size() != Nel) lfq_cache.assign(Nel, helfem::Mat<T>());
+        for (size_t iel = 0; iel < Nel; ++iel) {
+          if (!bfq_cache[iel].size()) bfq_cache[iel] = get_bf(xq, iel);
+          if (need_df && !dfq_cache[iel].size()) dfq_cache[iel] = get_df(xq, iel);
+          if (need_lf && !lfq_cache[iel].size()) lfq_cache[iel] = get_lf(xq, iel);
+        }
+      }
+
+      template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::get_bf(size_t iel) const {
+        if (iel < bfq_cache.size() && bfq_cache[iel].size())
+          return bfq_cache[iel];
         return get_bf(xq, iel);
       }
 
@@ -864,6 +879,8 @@ namespace helfem {
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::get_df(size_t iel) const {
+        if (iel < dfq_cache.size() && dfq_cache[iel].size())
+          return dfq_cache[iel];
         return get_df(xq, iel);
       }
 
@@ -885,6 +902,8 @@ namespace helfem {
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::get_lf(size_t iel) const {
+        if (iel < lfq_cache.size() && lfq_cache[iel].size())
+          return lfq_cache[iel];
         return get_lf(xq, iel);
       }
 
