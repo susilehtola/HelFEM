@@ -7,6 +7,25 @@ orbitals expanded in a shared finite-element basis, together with their
 Hartree potential, the SAP effective charge -- is derived from these at
 evaluation time, so the table never has to represent an object of higher
 polynomial degree than the orbitals themselves.
+
+Usage: gen_atomdb.py <checkpoint dir> <output.cpp> [occupation cutoff]
+
+The cutoff decides which orbitals make it into the database. It has to
+live here rather than in the SCF, because it is a property of the shipped
+table and not of the calculation: the checkpoints keep everything the
+solver produced.
+
+It defaults to 1e-14, one part in ~1e13 of the smallest electron count in
+the database, which is where a double stops resolving the total. Every
+orbital whose occupation is above the noise floor is kept, so the atoms
+come out neutral to 4e-12 electrons in total -- against 1.4e-13 for the
+untruncated set, i.e. the cutoff is not what limits the neutrality.
+
+Dropping to a cutoff of 0 keeps 8967 orbitals rather than 3412 and takes
+the generated file from 13 MB to 33 MB, all of it orbitals occupied at
+1e-15 and below. Raising it to the 1e-6 the SCF used to save at is what
+gave the shipped table its spurious -2.6e-6/r tail: the discarded
+occupation is exactly the effective charge left at infinity.
 """
 import h5py
 import numpy as np
@@ -14,11 +33,13 @@ import sys
 
 SRC = sys.argv[1]
 OUT = sys.argv[2]
+CUTOFF = float(sys.argv[3]) if len(sys.argv) > 3 else 1e-14
 MAXZ = 118
 
 meta = None
 bval = None
 norb = np.zeros((MAXZ, 4), dtype=int)
+dropped = np.zeros(MAXZ)
 occ_all = []
 coef_all = []
 
@@ -34,12 +55,26 @@ for Z in range(1, MAXZ + 1):
             C = np.array(f["sadatom_Cal_%d" % l])       # (norb, Nbf), one row per orbital
             o = np.array(f["sadatom_occal_%d" % l]).ravel()
             assert C.shape[0] == o.size
+            keep = o > CUTOFF
+            dropped[Z - 1] += o[~keep].sum()
+            C, o = C[keep], o[keep]
             norb[Z - 1, l] = C.shape[0]
             occ_all.append(o)
             coef_all.append(C.ravel())
 
 occ_all = np.concatenate(occ_all)
 coef_all = np.concatenate(coef_all)
+
+# Whatever occupation is discarded here is charge the tabulated atom no
+# longer carries, and the SAP effective charge tends to exactly that at
+# large r: a database that drops 1e-6 electrons ships a -1e-6/r tail on a
+# nominally neutral atom. Fail rather than let that happen quietly again.
+if dropped.max() > 1e-10:
+    worst = int(dropped.argmax()) + 1
+    raise SystemExit(
+        "cutoff %.1e discards %.2e electrons from Z=%d -- the tabulated atom "
+        "would not be neutral. Lower the cutoff, or check that the SCF is "
+        "still conserving particle number." % (CUTOFF, dropped.max(), worst))
 lmax, nnodes, primbas, nquad = meta
 Nbf = int(coef_all.size // occ_all.size)
 nelem = bval.size - 1
@@ -93,8 +128,10 @@ with open(OUT, "w") as f:
 
    Occupations were never pinned: they are whatever the fractional
    occupation optimizer converged to, which for the d and f blocks is
-   generally not an integer. Orbitals whose occupation fell below 1e-6
-   are not stored.
+   generally not an integer. Orbitals occupied at or below %.0e are not
+   stored, which leaves each atom neutral to better than 1e-12 electrons
+   -- the SAP effective charge of these atoms decays to zero rather than
+   to the charge a truncation forgot.
 
    The radial basis is shared by every record: %d-node LIPs on the %d
    elements delimited by `bval`, giving %d radial functions. Storing the
@@ -110,7 +147,7 @@ namespace helfem {
   namespace atomdb {
     namespace data {
 
-''' % (lmax, nelem, nnodes, nnodes, nelem, Nbf))
+''' % (lmax, nelem, nnodes, nnodes, CUTOFF, nelem, Nbf))
 
     f.write("      const int max_Z = %d;\n" % MAXZ)
     f.write("      const int lmax = %d;\n" % lmax)
@@ -145,3 +182,5 @@ namespace helfem {
     f.write("    }\n  }\n}\n")
 
 print("wrote %s: %d orbitals, %d coefficients" % (OUT, occ_all.size, coef_all.size))
+print("occupation cutoff %.1e; discarded %.2e electrons in total, at most %.2e "
+      "from one atom" % (CUTOFF, dropped.sum(), dropped.max()))

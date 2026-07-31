@@ -30,14 +30,21 @@ namespace helfem {
       /// Occupation below which a saved orbital is treated as
       /// unoccupied and dropped from the checkpoint.
       ///
-      /// 1e-6 rather than something closer to eps: OpenOrbitalOptimizer
-      /// leaves a long tail of numerically empty virtuals when it
-      /// optimizes fractional occupations, and storing them dominates
-      /// the record. Over Z = 1..118 a 1e-12 cutoff keeps 3049 orbitals
-      /// where 1e-6 keeps 1376 -- less than half the data for the same
-      /// physics, since the largest occupation dropped at 1e-6 is
-      /// 9.9e-7, a millionth of an electron.
-      static const double occ_save_threshold = 1e-6;
+      /// Zero but for exact zeros: the checkpoint keeps everything the
+      /// solver produced, and any decision about what is small enough to
+      /// throw away belongs to whoever consumes the record. Only
+      /// orbitals the SCF itself reports as exactly empty are skipped,
+      /// and those carry no charge by definition.
+      ///
+      /// This used to be 1e-6, which cost the tabulated atoms their
+      /// neutrality: the discarded occupation is precisely the effective
+      /// charge the SAP potential is left with at large r, so a
+      /// millionth of an electron dropped here became a spurious
+      /// -1e-6/r tail on a neutral atom. tools/gen_atomdb.py now sets
+      /// its own cutoff and refuses to emit a database that is not
+      /// neutral, so the truncation is visible and checked where it is
+      /// actually made.
+      static const double occ_save_threshold = 0.0;
 
       AtomicSCFResult run_atomic_scf(const AtomicSCFOptions & opts) {
         using OOO_Real = double;
