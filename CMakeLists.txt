@@ -96,6 +96,15 @@ option(HELFEM_EIGEN_BLAS
        "Route Eigen dense products through an external LP64 BLAS (EIGEN_USE_BLAS)"
        ON)
 
+# Route Eigen's dense DECOMPOSITIONS through LAPACK via the LAPACKE C
+# interface. Separate from HELFEM_EIGEN_BLAS above and OFF by default:
+# measured, Eigen's own header-only solvers beat LAPACKE by 2-2.5x at
+# every matrix size tried, and the SCF spends most of its time in them.
+# See the detailed numbers at the detection site below.
+option(HELFEM_EIGEN_LAPACKE
+       "Route Eigen dense decompositions through LAPACKE (EIGEN_USE_LAPACKE)"
+       OFF)
+
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
@@ -127,15 +136,44 @@ if(HELFEM_EIGEN_BLAS)
         # detect it separately and degrade to Eigen's own decompositions
         # when absent. Same LP64 constraint: lapack_int is int32 unless
         # LAPACKE was built ILP64, which the LP64 LAPACK above rules out.
+        #
+        # Off by default, because measured on this workload it is a
+        # pessimisation rather than an optimisation. Same Eigen call, same
+        # matrix, only the backend differing (ms, one core):
+        #
+        #   n     real symmetric        complex Hermitian
+        #         LAPACKE -> Eigen      LAPACKE -> Eigen
+        #   100      4.11 -> 1.71          8.81 -> 3.70
+        #   308     62.62 -> 29.17       186.45 -> 65.74
+        #   600    385.59 -> 196.33      1528   -> 675
+        #   1000   2032   -> 1143        7499   -> 2847
+        #
+        # Eigen's own solvers win by 2-2.5x at every size tried. They are
+        # header-only and get inlined and vectorised into the caller,
+        # while the LAPACKE route pays an out-of-line call per operation
+        # into a scalar-heavy tridiagonal QR whose rotation kernels
+        # (dlasr/zlasr) do not thread. Since the SCF spends ~44% of an
+        # atom-in-jellium run inside exactly those kernels, the default
+        # matters. Turn it on with -DHELFEM_EIGEN_LAPACKE=ON if a
+        # particular LAPACK is faster on some machine -- measure first.
+        #
+        # This is independent of EIGEN_USE_BLAS above, which stays on:
+        # the vendor GEMM is genuinely faster than Eigen's own, and the
+        # two switches control different things.
+        if(HELFEM_EIGEN_LAPACKE)
         find_library(LAPACKE_LIBRARY NAMES lapacke)
         find_path(LAPACKE_INCLUDE_DIR NAMES lapacke.h)
-        if(LAPACKE_LIBRARY AND LAPACKE_INCLUDE_DIR)
+        endif()
+        if(HELFEM_EIGEN_LAPACKE AND LAPACKE_LIBRARY AND LAPACKE_INCLUDE_DIR)
             target_link_libraries(helfem_blas INTERFACE ${LAPACKE_LIBRARY})
             target_include_directories(helfem_blas INTERFACE ${LAPACKE_INCLUDE_DIR})
             set(HELFEM_EIGEN_LAPACKE_ACTIVE ON)
             message(STATUS "LAPACKE (for EIGEN_USE_LAPACKE): ${LAPACKE_LIBRARY}")
+        elseif(HELFEM_EIGEN_LAPACKE)
+            message(STATUS "LAPACKE requested but not found; Eigen's own decompositions stay in use")
         else()
-            message(STATUS "No LAPACKE found; Eigen's own decompositions stay in use")
+            message(STATUS "Eigen's own dense decompositions in use "
+                           "(2-2.5x faster than LAPACKE here; -DHELFEM_EIGEN_LAPACKE=ON to override)")
         endif()
     else()
         message(STATUS "No LP64 BLAS/LAPACK found; using Eigen's built-in kernels "
