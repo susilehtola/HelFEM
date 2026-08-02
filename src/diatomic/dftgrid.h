@@ -84,9 +84,9 @@ namespace helfem {
         void compute_bf(size_t iel, size_t irad);
 
         /// Update values of density, restricted calculation
-        void update_density(const helfem::Matrix & P);
+        void update_density(const helfem::Matrix & Pexp);
         /// Update values of density, unrestricted calculation
-        void update_density(const helfem::Matrix & Pa, const helfem::Matrix & Pb);
+        void update_density(const helfem::Matrix & Paexp, const helfem::Matrix & Pbexp);
 
         // compute_Nel() is inherited from DFTGridWorkerBase.
         /// Compute kinetic energy

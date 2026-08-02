@@ -47,12 +47,15 @@ namespace helfem {
       DFTGridWorker::~DFTGridWorker() {
       }
 
-      void DFTGridWorker::update_density(const helfem::Matrix & P0) {
-        // Update values of density
-        if(!P0.size()) {
+      void DFTGridWorker::update_density(const helfem::Matrix & Pexp) {
+        // Update values of density. Pexp is the density already expanded
+        // to the dummy (Ndummy) basis: the expansion is the same at every
+        // grid point, so eval_Fxc does it once outside the loop rather
+        // than allocating and zeroing an Ndummy x Ndummy matrix here for
+        // every (element, radial point) pair.
+        if(!Pexp.size()) {
           throw std::runtime_error("Error - density matrix is empty!\n");
         }
-        const helfem::Matrix Pexp(basp->expand_boundaries(P0));
         helfem::Matrix P(bf_ind.size(), bf_ind.size());
         for(size_t i=0;i<bf_ind.size();i++)
           for(size_t j=0;j<bf_ind.size();j++)
@@ -119,8 +122,10 @@ namespace helfem {
           throw std::logic_error("Laplacian not implemented!\n");
       }
 
-      void DFTGridWorker::update_density(const helfem::Matrix & Pa0, const helfem::Matrix & Pb0) {
-        if(!Pa0.size() || !Pb0.size()) {
+      void DFTGridWorker::update_density(const helfem::Matrix & Paexp, const helfem::Matrix & Pbexp) {
+        // Both densities arrive already expanded to the dummy basis; see
+        // the restricted overload above for why.
+        if(!Paexp.size() || !Pbexp.size()) {
           throw std::runtime_error("Error - density matrix is empty!\n");
         }
 
@@ -128,8 +133,6 @@ namespace helfem {
         polarized=true;
 
         // Update density vector.
-        helfem::Matrix Paexp(basp->expand_boundaries(Pa0));
-        helfem::Matrix Pbexp(basp->expand_boundaries(Pb0));
         helfem::Matrix Pa(bf_ind.size(), bf_ind.size());
         helfem::Matrix Pb(bf_ind.size(), bf_ind.size());
         for(size_t i=0;i<bf_ind.size();i++)
@@ -525,10 +528,13 @@ namespace helfem {
           DFTGridWorker grid(basp,lang,mang);
           grid.check_grad_tau_lapl(x_func,c_func);
 
+          // Loop-invariant: expand once, not once per grid point.
+          const helfem::Matrix P_exp(basp->expand_boundaries(P_e));
+
           for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
             for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
               grid.compute_bf(iel,irad);
-              grid.update_density(P_e);
+              grid.update_density(P_exp);
               nel+=grid.compute_Nel();
               ekin+=grid.compute_Ekin();
 
@@ -564,10 +570,14 @@ namespace helfem {
           DFTGridWorker grid(basp,lang,mang);
           grid.check_grad_tau_lapl(x_func,c_func);
 
+          // Loop-invariant: expand once, not once per grid point.
+          const helfem::Matrix Pa_exp(basp->expand_boundaries(Pa_e));
+          const helfem::Matrix Pb_exp(basp->expand_boundaries(Pb_e));
+
           for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
             for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
               grid.compute_bf(iel,irad);
-              grid.update_density(Pa_e,Pb_e);
+              grid.update_density(Pa_exp,Pb_exp);
               nel+=grid.compute_Nel();
               ekin+=grid.compute_Ekin();
 
