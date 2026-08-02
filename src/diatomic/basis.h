@@ -77,9 +77,9 @@ namespace helfem {
         helfem::Matrix overlap(const RadialBasis & rh, int n) const;
 
         /// Compute Plm integral
-        helfem::Matrix Plm_integral(int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
+        helfem::Matrix Plm_integral(int beta, size_t iel, int L, int M, class MLegendreCache & leg) const;
         /// Compute Qlm integral
-        helfem::Matrix Qlm_integral(int alpha, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
+        helfem::Matrix Qlm_integral(int alpha, size_t iel, int L, int M, class MLegendreCache & leg) const;
         /// Compute primitive two-electron integral
         helfem::Matrix twoe_integral(int alpha, int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
 
