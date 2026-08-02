@@ -20,14 +20,18 @@ namespace helfem {
   namespace diatomic {
     namespace quadrature {
       // Legendre P/Q tables are Eigen-typed.
-      static helfem::Vector Plm(const legendretable::LegendreTable & tab, int L, int M, const helfem::Vector & chmu) {
-        return tab.get_Plm(L, M, chmu);
+      static helfem::Vector Plm(MLegendreCache & tab, int L, int M, const helfem::Vector & chmu) {
+        helfem::Vector v(chmu.size());
+        for(Eigen::Index i=0;i<chmu.size();i++) v(i)=tab.P(L,chmu(i));
+        return v;
       }
-      static helfem::Vector Qlm(const legendretable::LegendreTable & tab, int L, int M, const helfem::Vector & chmu) {
-        return tab.get_Qlm(L, M, chmu);
+      static helfem::Vector Qlm(MLegendreCache & tab, int L, int M, const helfem::Vector & chmu) {
+        helfem::Vector v(chmu.size());
+        for(Eigen::Index i=0;i<chmu.size();i++) v(i)=tab.Q(L,chmu(i));
+        return v;
       }
 
-      static helfem::Vector twoe_inner_integral_wrk(double mumin, double mumax, double mumin0, double mumax0, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
+      static helfem::Vector twoe_inner_integral_wrk(double mumin, double mumax, double mumin0, double mumax0, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, MLegendreCache & tab) {
         // Midpoint is at
         double mumid(0.5*(mumax+mumin));
         // and half-length of interval is
@@ -65,7 +69,7 @@ namespace helfem {
         return Eigen::Map<const helfem::Vector>(prod.data(), prod.size());
       }
 
-      helfem::Matrix twoe_inner_integral(double mumin, double mumax, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
+      helfem::Matrix twoe_inner_integral(double mumin, double mumax, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, MLegendreCache & tab) {
         // Midpoint is at
         double mumid(0.5*(mumax+mumin));
         // and half-length of interval is
@@ -83,7 +87,7 @@ namespace helfem {
         return inner;
       }
 
-      static helfem::Matrix twoe_integral_wrk(double mumin, double mumax, int k, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
+      static helfem::Matrix twoe_integral_wrk(double mumin, double mumax, int k, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, MLegendreCache & tab) {
         if(x.size() != wx.size()) {
           std::ostringstream oss;
           oss << "x and wx not compatible: " << x.size() << " vs " << wx.size() << "!\n";
@@ -122,7 +126,7 @@ namespace helfem {
         return bfprod.transpose()*inner;
       }
 
-      helfem::Matrix twoe_integral(double mumin, double mumax, int k, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, const legendretable::LegendreTable & tab) {
+      helfem::Matrix twoe_integral(double mumin, double mumax, int k, int l, const helfem::Vector & x, const helfem::Vector & wx, const std::shared_ptr<const polynomial_basis::PolynomialBasis> & poly, int L, int M, MLegendreCache & tab) {
         return twoe_integral_wrk(mumin,mumax,k,l,x,wx,poly,L,M,tab) + twoe_integral_wrk(mumin,mumax,l,k,x,wx,poly,L,M,tab).transpose();
       }
 
@@ -181,7 +185,7 @@ namespace helfem {
         return el;
       }
 
-      helfem::Matrix twoe_integral(const TwoElectronElement & el, int k, int l, int L, int M, const legendretable::LegendreTable & tab) {
+      helfem::Matrix twoe_integral(const TwoElectronElement & el, int k, int l, int L, int M, MLegendreCache & tab) {
         const Eigen::Index nq  = el.x.size();
         const Eigen::Index nbf = el.bf.cols();
 
@@ -214,7 +218,7 @@ namespace helfem {
             // bridges Eigen -> arma, allocates, and copies back, three
             // allocations per subinterval.
             for(Eigen::Index i=0;i<nq;i++)
-              legscratch(i) = tab.get_Plm(L, M, si.chmu(i));
+              legscratch(i) = tab.P(L, si.chmu(i));
             wp.array() *= legscratch.array();
 
             wbf = si.bf;
@@ -236,7 +240,7 @@ namespace helfem {
           if(kval!=0)
             wp.array() *= el.chmu.array().pow(kval);
           for(Eigen::Index i=0;i<nq;i++)
-            legscratch(i) = tab.get_Qlm(L, M, el.chmu(i));
+            legscratch(i) = tab.Q(L, el.chmu(i));
           wp.array() *= legscratch.array();
 
           wbfprod = el.bfprod;
