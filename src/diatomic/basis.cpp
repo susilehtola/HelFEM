@@ -580,7 +580,7 @@ namespace helfem {
                   if (idx == lm_map.size())
                     lm_map.push_back(p);
                   else if (!(lm_map[idx]==p))
-                    lm_map.insert(lm_map.begin()+idx,p);
+                    lm_map.insert(lm_map.begin()+idx,p);   // lmind() ordered by lm_less
                 }
 
                 // LM (same guard as above).
@@ -1205,6 +1205,20 @@ namespace helfem {
       }
 
 
+      // lm_map is ordered |M|-major, L-minor -- the opposite nesting to the
+      // shared operator< below, which LM_map still uses.
+      //
+      // The associated Legendre recurrence runs forward in L at FIXED m
+      // (Legendre.h: recur_plm_in_l), so one pass yields every L of a given
+      // |M| for what a single (L, |M|) costs. Grouping the map by |M| is what
+      // lets the integral build consume the recurrence in its natural order
+      // instead of restarting it for each L.
+      bool lm_less(const lmidx_t & lh, const lmidx_t & rh) {
+        if(lh.second != rh.second)
+          return lh.second < rh.second;   // |M| outer
+        return lh.first < rh.first;       // L inner
+      }
+
       bool operator<(const lmidx_t & lh, const lmidx_t & rh) {
         if(lh.first < rh.first)
           return true;
@@ -1234,13 +1248,20 @@ namespace helfem {
         if(lm_map.empty())
           return nstart;
 
-        // Probe the HARDEST multipole. lm_map is sorted ascending by (L, |M|)
-        // (see operator< on lmidx_t), so its back() is the largest L and, for
+        // Probe the HARDEST multipole: the largest L and, among entries with
         // that L, the largest |M| -- the sharpest Green's function and hence
         // the one that needs the most quadrature points. Converging it
         // converges every lower multipole.
-        const int L = lm_map.back().first;
-        const int M = lm_map.back().second;
+        //
+        // Found by scanning rather than by taking back(): lm_map is ordered
+        // |M|-major now (see lm_less), so its last entry is the largest |M|,
+        // not the largest L.
+        int L = lm_map[0].first, M = lm_map[0].second;
+        for(const lmidx_t & e : lm_map)
+          if(e.first > L || (e.first == L && e.second > M)) {
+            L = e.first;
+            M = e.second;
+          }
 
         int nconv = nstart;
         converge_block(
@@ -1409,7 +1430,7 @@ namespace helfem {
         M=std::abs(M);
         // Find index in the L,|M| table
         lmidx_t p(L,M);
-        std::vector<lmidx_t>::const_iterator low(std::lower_bound(lm_map.begin(),lm_map.end(),p));
+        std::vector<lmidx_t>::const_iterator low(std::lower_bound(lm_map.begin(),lm_map.end(),p,lm_less));
         if(check && low == lm_map.end()) {
           std::ostringstream oss;
           oss << "Could not find L=" << p.first << ", |M|= " << p.second << " on the list!\n";
