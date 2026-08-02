@@ -17,7 +17,6 @@
 
 #include <Matrix.h>
 #include <memory>
-#include "../general/legendretable.h"
 #include "../legendre/Legendre.h"
 #include <unordered_map>
 #include <cmath>

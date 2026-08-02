@@ -96,16 +96,17 @@ add_executable(atomic_teirank atomic/teirank.cpp)
 target_link_libraries(atomic_teirank helfem-common legendre)
 
 add_library(legendre
-  legendre/Legendre.cpp general/legendretable.cpp)
+  legendre/Legendre.cpp)
 target_compile_features(legendre PUBLIC cxx_std_17)
-# legendretable.{h,cpp} store the Plm/Qlm tables as helfem::Matrix, so
-# legendre needs the libhelfem (Matrix.h) and Eigen include paths that
-# the `helfem` target carries.
+# Legendre.h is header-only templates over helfem::Vec/Mat, so legendre
+# needs the libhelfem (Matrix.h) and Eigen include paths the `helfem`
+# target carries.
 target_link_libraries(legendre PUBLIC helfem)
 
-# helfem-common uses LegendreTable symbols internally, so a consumer
-# linking only helfem-common needs legendre transitively. Declared
-# after `legendre` is defined so the target reference resolves.
+# helfem-common calls the Legendre recurrences directly (the diatomic 2e
+# build evaluates them per |M| group), so a consumer linking only
+# helfem-common needs legendre transitively. Declared after `legendre` is
+# defined so the target reference resolves.
 target_link_libraries(helfem-common PUBLIC legendre)
 
 add_executable(legendre_test legendre/legendre_test.cpp)
