@@ -77,11 +77,11 @@ namespace helfem {
         helfem::Matrix overlap(const RadialBasis & rh, int n) const;
 
         /// Compute Plm integral
-        helfem::Matrix Plm_integral(int beta, size_t iel, int L, int M, class MLegendreCache & leg) const;
+        helfem::Matrix Plm_integral(int beta, size_t iel, int L, int M, quadrature::MLegendreCache & leg) const;
         /// Compute Qlm integral
-        helfem::Matrix Qlm_integral(int alpha, size_t iel, int L, int M, class MLegendreCache & leg) const;
+        helfem::Matrix Qlm_integral(int alpha, size_t iel, int L, int M, quadrature::MLegendreCache & leg) const;
         /// Compute primitive two-electron integral
-        helfem::Matrix twoe_integral(int alpha, int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const;
+        helfem::Matrix twoe_integral(int alpha, int beta, size_t iel, int L, int M, quadrature::MLegendreCache & leg) const;
 
         /// Build the element-only two-electron data (basis functions, product
         /// table, subinterval geometry). Independent of (alpha, beta, L, M), so
@@ -94,7 +94,7 @@ namespace helfem {
         /// stops changing to eps(double).
         quadrature::TwoElectronElement twoe_element(size_t iel, int n) const;
         /// Primitive two-electron integral from precomputed element data
-        helfem::Matrix twoe_integral(int alpha, int beta, const quadrature::TwoElectronElement & el, int L, int M, const legendretable::LegendreTable & legtab) const;
+        helfem::Matrix twoe_integral(int alpha, int beta, const quadrature::TwoElectronElement & el, int L, int M, quadrature::MLegendreCache & leg) const;
 
         /// Get quadrature points
         helfem::Vector get_chmu_quad() const;
@@ -140,7 +140,6 @@ namespace helfem {
         /// Gaunt coefficient table
         gaunt::Gaunt gaunt;
         /// Legendre function table
-        legendretable::LegendreTable legtab;
 
         /// Cached pure_indices(): dummy index of each real basis function.
         /// Built once; pure_indices() itself rebuilt it on every call, and it

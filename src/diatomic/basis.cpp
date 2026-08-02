@@ -20,6 +20,7 @@
 #include <Eigen/Eigenvalues>
 #include "../general/angular_index_helpers.h"
 #include <cstring>
+#include <limits>
 #include <unordered_map>
 #include "../legendre/Legendre.h"
 #include "../general/spherical_harmonics.h"
@@ -345,56 +346,7 @@ namespace helfem {
             std::max({(int) xq.size(), (int) rh.xq.size(), 5}), "overlap");
       }
 
-      // Associated Legendre values at the quadrature points of ONE element
-      // and ONE |M|, shared across that group's L values.
-      //
-      // The recurrence runs forward in L at fixed m, so a single pass yields
-      // every L of an |M| for what one (L, |M|) costs. The disjoint-integral
-      // build asks for one (L, |M|) at a time, though, and each ask used to
-      // rebuild the whole table and keep one entry -- 58.7 million times in a
-      // 30 s H2 run, against 395 thousand hits on the shared LegendreTable,
-      // whose stored points are those of the BASE rule and so never match the
-      // auto-converging refinement's.
-      //
-      // Caching here rather than in LegendreTable is what makes the scope
-      // right: the entries are exactly the points this (element, |M|) group
-      // asks for, they are reused by every L in the group and by all four
-      // integral families, and they are released when the group is done. One
-      // instance per (element, |M|) is built by the caller, so it is
-      // thread-local by construction and needs no locking.
-      class MLegendreCache {
-        int Mabs, Lmax;
-        std::unordered_map<double, std::vector<double>> Ptab, Qtab;
-
-        const std::vector<double> & fetch(bool wantP, double chmu) {
-          std::unordered_map<double, std::vector<double>> & tab = wantP ? Ptab : Qtab;
-          auto it = tab.find(chmu);
-          if(it != tab.end())
-            return it->second;
-          // One recurrence pass; keep this |M|'s column.
-          std::vector<double> full((size_t) (Lmax+1)*(Mabs+1), 0.0);
-          if(wantP)
-            ::helfem::legendre::plm(full.data(), Lmax, Mabs, chmu);
-          else
-            ::helfem::legendre::qlm(full.data(), Lmax, Mabs, chmu);
-          std::vector<double> col((size_t) (Lmax+1));
-          for(int L=0;L<=Lmax;L++) {
-            double v = full[(size_t) L + (size_t) Mabs*(Lmax+1)];
-            if(v!=0.0 && !std::isnormal(v))
-              v=0.0;                      // matches LegendreTable's filtering
-            col[(size_t) L] = v;
-          }
-          return tab.emplace(chmu, std::move(col)).first->second;
-        }
-
-      public:
-        MLegendreCache(int Mabs_, int Lmax_) : Mabs(Mabs_), Lmax(Lmax_) {}
-        /// Q is logarithmically singular at chmu == 1; the table reports zero.
-        double P(int L, double chmu) { return fetch(true,  chmu)[(size_t) L]; }
-        double Q(int L, double chmu) { return (chmu==1.0) ? 0.0 : fetch(false, chmu)[(size_t) L]; }
-      };
-
-      helfem::Matrix RadialBasis::Plm_integral(int k, size_t iel, int L, int M, MLegendreCache & leg) const {
+      helfem::Matrix RadialBasis::Plm_integral(int k, size_t iel, int L, int M, quadrature::MLegendreCache & leg) const {
         std::function<double(double)> Plm;
         if(k!=0) {
           Plm = [&leg, k, L](double mu) { return std::sinh(mu)*std::pow(std::cosh(mu), k)*leg.P(L,std::cosh(mu)); };
@@ -419,7 +371,7 @@ namespace helfem {
             std::max((int) xq.size(), 5), "Plm_integral", nullptr, true);
       }
 
-      helfem::Matrix RadialBasis::Qlm_integral(int k, size_t iel, int L, int M, MLegendreCache & leg) const {
+      helfem::Matrix RadialBasis::Qlm_integral(int k, size_t iel, int L, int M, quadrature::MLegendreCache & leg) const {
         std::function<double(double)> Qlm;
         if(k!=0) {
           Qlm = [&leg, k, L](double mu) { return std::sinh(mu)*std::pow(std::cosh(mu), k)*leg.Q(L,std::cosh(mu)); };
@@ -452,13 +404,13 @@ namespace helfem {
             std::max((int) xq.size(), 5), "kinetic");
       }
 
-      helfem::Matrix RadialBasis::twoe_integral(int alpha, int beta, size_t iel, int L, int M, const legendretable::LegendreTable & legtab) const {
+      helfem::Matrix RadialBasis::twoe_integral(int alpha, int beta, size_t iel, int L, int M, quadrature::MLegendreCache & leg) const {
         double mumin=fem.element_begin(iel);
         double mumax=fem.element_end(iel);
 
         // Integral by quadrature
         std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis> p(fem.get_basis(iel));
-        helfem::Matrix tei(quadrature::twoe_integral(mumin,mumax,alpha,beta,xq,wq,p,L,M,legtab));
+        helfem::Matrix tei(quadrature::twoe_integral(mumin,mumax,alpha,beta,xq,wq,p,L,M,leg));
 
         return tei;
       }
@@ -479,8 +431,8 @@ namespace helfem {
         return quadrature::twoe_element(fem.element_begin(iel), fem.element_end(iel), x, w, p);
       }
 
-      helfem::Matrix RadialBasis::twoe_integral(int alpha, int beta, const quadrature::TwoElectronElement & el, int L, int M, const legendretable::LegendreTable & legtab) const {
-        return quadrature::twoe_integral(el, alpha, beta, L, M, legtab);
+      helfem::Matrix RadialBasis::twoe_integral(int alpha, int beta, const quadrature::TwoElectronElement & el, int L, int M, quadrature::MLegendreCache & leg) const {
+        return quadrature::twoe_integral(el, alpha, beta, L, M, leg);
       }
 
       helfem::Vector RadialBasis::get_chmu_quad() const {
@@ -665,11 +617,6 @@ namespace helfem {
           printf("Computing Legendre function values ... ");
           fflush(stdout);
 
-          // Fill table with necessary values
-          legtab=legendretable::LegendreTable(Lmax,Mmax);
-          helfem::Vector chmu(radial.get_chmu_quad());
-          for(Eigen::Index i=0;i<chmu.size();i++)
-            legtab.compute(chmu(i));
           printf("done (% .3f s)\n",t.get());
           fflush(stdout);
 
@@ -781,9 +728,10 @@ namespace helfem {
         // Use the same auto-converged order as compute_tei so this diagnostic
         // reflects the kernel that was actually factorized.
         const quadrature::TwoElectronElement el(radial.twoe_element(iel, converged_twoe_order(iel)));
-        const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, legtab));
-        const helfem::Matrix T02(quadrature::twoe_integral(el, 0, 2, L, M, legtab));
-        const helfem::Matrix T22(quadrature::twoe_integral(el, 2, 2, L, M, legtab));
+        quadrature::MLegendreCache leg(std::abs(M), L);
+        const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, leg));
+        const helfem::Matrix T02(quadrature::twoe_integral(el, 0, 2, L, M, leg));
+        const helfem::Matrix T22(quadrature::twoe_integral(el, 2, 2, L, M, leg));
 
         const Eigen::Index n = T00.rows();
         helfem::Matrix W(2*n, 2*n);
@@ -799,10 +747,11 @@ namespace helfem {
         const quadrature::TwoElectronElement el(radial.twoe_element(iel, converged_twoe_order(iel)));
         const size_t Ni(radial.Nprim(iel));
 
-        const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, legtab));
-        const helfem::Matrix T02(quadrature::twoe_integral(el, 0, 2, L, M, legtab));
-        const helfem::Matrix T20(quadrature::twoe_integral(el, 2, 0, L, M, legtab));
-        const helfem::Matrix T22(quadrature::twoe_integral(el, 2, 2, L, M, legtab));
+        quadrature::MLegendreCache leg(std::abs(M), L);
+        const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, leg));
+        const helfem::Matrix T02(quadrature::twoe_integral(el, 0, 2, L, M, leg));
+        const helfem::Matrix T20(quadrature::twoe_integral(el, 2, 0, L, M, leg));
+        const helfem::Matrix T22(quadrature::twoe_integral(el, 2, 2, L, M, leg));
 
         const helfem::Matrix K00(utils::exchange_tei(T00,Ni,Ni,Ni,Ni));
         const helfem::Matrix K02(utils::exchange_tei(T02,Ni,Ni,Ni,Ni));
@@ -828,10 +777,11 @@ namespace helfem {
         // matches the one that produced cd_B / cd_sigma (otherwise kerr would
         // pick up the order mismatch rather than the factorization error).
         const quadrature::TwoElectronElement el(radial.twoe_element(iel, converged_twoe_order(iel)));
-        const helfem::Matrix T00(quadrature::twoe_integral(el,0,0,L,M,legtab));
-        const helfem::Matrix T02(quadrature::twoe_integral(el,0,2,L,M,legtab));
-        const helfem::Matrix T20(quadrature::twoe_integral(el,2,0,L,M,legtab));
-        const helfem::Matrix T22(quadrature::twoe_integral(el,2,2,L,M,legtab));
+        quadrature::MLegendreCache leg(std::abs(M), L);
+        const helfem::Matrix T00(quadrature::twoe_integral(el,0,0,L,M,leg));
+        const helfem::Matrix T02(quadrature::twoe_integral(el,0,2,L,M,leg));
+        const helfem::Matrix T20(quadrature::twoe_integral(el,2,0,L,M,leg));
+        const helfem::Matrix T22(quadrature::twoe_integral(el,2,2,L,M,leg));
 
         const Eigen::Index n = T00.rows();
         helfem::Matrix W(2*n,2*n);
@@ -1318,9 +1268,10 @@ namespace helfem {
         converge_block(
             [&](int n) {
               const quadrature::TwoElectronElement el(radial.twoe_element(iel, n));
-              const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, legtab));
-              const helfem::Matrix T02(quadrature::twoe_integral(el, 0, 2, L, M, legtab));
-              const helfem::Matrix T22(quadrature::twoe_integral(el, 2, 2, L, M, legtab));
+              quadrature::MLegendreCache leg(std::abs(M), L);
+        const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, leg));
+              const helfem::Matrix T02(quadrature::twoe_integral(el, 0, 2, L, M, leg));
+              const helfem::Matrix T22(quadrature::twoe_integral(el, 2, 2, L, M, leg));
               // Assemble the 2-channel kernel W exactly as compute_tei does, so
               // the probe measures the quantity that is actually factorized.
               const Eigen::Index nn = T00.rows();
@@ -1374,7 +1325,7 @@ namespace helfem {
           for(size_t ilm=lo;ilm<hi;ilm++)
             Lhi=std::max(Lhi,lm_map[ilm].first);
 
-          MLegendreCache leg(Mabs, Lhi);
+          quadrature::MLegendreCache leg(Mabs, Lhi);
           for(size_t ilm=lo;ilm<hi;ilm++) {
             const int L(lm_map[ilm].first);
             disjoint_P0[ilm*Nel+iel]=radial.Plm_integral(0,iel,L,Mabs,leg);
@@ -1415,13 +1366,26 @@ namespace helfem {
           const int nconv = converged_twoe_order(iel);
           const quadrature::TwoElectronElement eldata(radial.twoe_element(iel, nconv));
 
+          // lm_map is |M|-major, so the entries form contiguous runs of one
+          // |M|. Re-point the Legendre cache at each run as it starts: every
+          // L in the run then shares the recurrence at this element's points.
+          quadrature::MLegendreCache leg(0,0);
+          int curM = std::numeric_limits<int>::min();
+
           for(size_t ilm=0;ilm<lm_map.size();ilm++) {
             int L(lm_map[ilm].first);
             int M(lm_map[ilm].second);
+            if(M != curM) {
+              curM = M;
+              int Lhi = 0;
+              for(size_t i=ilm;i<lm_map.size() && lm_map[i].second==M;i++)
+                Lhi = std::max(Lhi, lm_map[i].first);
+              leg.reset(M, Lhi);
+            }
 
-            const helfem::Matrix T00(radial.twoe_integral(0,0,eldata,L,M,legtab));
-            const helfem::Matrix T02(radial.twoe_integral(0,2,eldata,L,M,legtab));
-            const helfem::Matrix T22(radial.twoe_integral(2,2,eldata,L,M,legtab));
+            const helfem::Matrix T00(radial.twoe_integral(0,0,eldata,L,M,leg));
+            const helfem::Matrix T02(radial.twoe_integral(0,2,eldata,L,M,leg));
+            const helfem::Matrix T22(radial.twoe_integral(2,2,eldata,L,M,leg));
 
             const Eigen::Index n = T00.rows();
             helfem::Matrix W(2*n, 2*n);
