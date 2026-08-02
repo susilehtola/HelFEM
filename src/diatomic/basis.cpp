@@ -613,13 +613,6 @@ namespace helfem {
           printf("done (% .3f s)\n",t.get());
           fflush(stdout);
 
-          t.set();
-          printf("Computing Legendre function values ... ");
-          fflush(stdout);
-
-          printf("done (% .3f s)\n",t.get());
-          fflush(stdout);
-
         } else {
           // One-electron matrices need gmax,5,gmax
           int lrval(gmax);

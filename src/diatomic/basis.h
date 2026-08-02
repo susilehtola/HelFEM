@@ -17,7 +17,6 @@
 
 #include "FiniteElementBasis.h"
 #include "../general/gaunt.h"
-#include "../general/legendretable.h"
 #include "quadrature.h"
 
 namespace helfem {
