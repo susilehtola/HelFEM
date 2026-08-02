@@ -115,6 +115,7 @@ namespace helfem {
       /// L, |M| index type
       typedef std::pair<int, int> lmidx_t;
       /// Sort operator
+      bool lm_less(const lmidx_t & lh, const lmidx_t & rh);
       bool operator<(const lmidx_t & lh, const lmidx_t & rh);
       /// Equivalence operator
       bool operator==(const lmidx_t & lh, const lmidx_t & rh);
