@@ -169,6 +169,32 @@ namespace helfem {
       H += (fhlp * f.adjoint()).real();
     }
 
+    /// Laplacian meta-GGA accumulation for an already-split basis.
+    ///
+    /// H is real, so with f = a + i b and l = c + i d,
+    ///     Re( f diag(v) l^H + l diag(v) f^H ) = X + X^T,
+    ///     X = a diag(v) c^T + b diag(v) d^T,
+    /// i.e. two real products and a symmetrisation, against two complex
+    /// products (eight real ones) before.
+    inline void increment_mgga_lapl_split(helfem::Matrix & H, const helfem::Vector & vlapl,
+                                          const helfem::Matrix & a, const helfem::Matrix & b,
+                                          const helfem::Matrix & c, const helfem::Matrix & d) {
+      if(a.cols() != vlapl.size()) {
+        std::ostringstream oss;
+        oss << "Number of functions " << a.cols() << " and potential values " << vlapl.size() << " do not match!\n";
+        throw std::runtime_error(oss.str());
+      }
+      helfem::Matrix av(a), bv(b);
+      for(Eigen::Index j=0;j<av.cols();j++) {
+        av.col(j) *= vlapl(j);
+        bv.col(j) *= vlapl(j);
+      }
+      helfem::Matrix X(av * c.transpose());
+      X.noalias() += bv * d.transpose();
+      H += X;
+      H += X.transpose();
+    }
+
     /// BLAS routine for the Laplacian part of meta-GGA quadrature:
     ///   H += f diag(w vlapl) l^dagger + l diag(w vlapl) f^dagger
     template<typename T> void increment_mgga_lapl(helfem::Matrix & H, const helfem::Vector & vlapl, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> & f, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> & l) {

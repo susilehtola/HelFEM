@@ -329,7 +329,7 @@ namespace helfem {
             gr(i,2)*=2.0*wtot(i)*vs(i)/scale_phi(i);
           }
           // Increment matrix
-          increment_gga< std::complex<double> >(H,gr,bf,bf_rho,bf_theta,bf_phi);
+          increment_gga_split(H,gr,bf_re,bf_im,bf_rho_re,bf_rho_im,bf_theta_re,bf_theta_im,bf_phi_re,bf_phi_im);
         }
 
         if(do_mgga_t || do_mgga_l) {
@@ -349,7 +349,7 @@ namespace helfem {
         }
         if(do_mgga_l) {
           helfem::Vector vl=vlapl.row(0).transpose().array()*wtot.array();
-          helfem::dftgrid_common::increment_mgga_lapl< std::complex<double> >(H,vl,bf,bf_lapl);
+          helfem::dftgrid_common::increment_mgga_lapl_split(H,vl,bf_re,bf_im,bf_lapl_re,bf_lapl_im);
         }
 
         for(size_t i=0;i<bf_ind.size();i++)
@@ -402,7 +402,7 @@ namespace helfem {
             gr_a(i,2)=wtot(i)*(2.0*vs_aa(i)*gr_a0(i,2) + vs_ab(i)*gr_b0(i,2))/scale_phi(i);
           }
           // Increment matrix
-          increment_gga< std::complex<double> >(Ha,gr_a,bf,bf_rho,bf_theta,bf_phi);
+          increment_gga_split(Ha,gr_a,bf_re,bf_im,bf_rho_re,bf_rho_im,bf_theta_re,bf_theta_im,bf_phi_re,bf_phi_im);
 
           if(beta) {
             helfem::Vector vs_bb=vsigma.row(2).transpose();
@@ -412,7 +412,7 @@ namespace helfem {
               gr_b(i,1)=wtot(i)*(2.0*vs_bb(i)*gr_b0(i,1) + vs_ab(i)*gr_a0(i,1))/scale_theta(i);
               gr_b(i,2)=wtot(i)*(2.0*vs_bb(i)*gr_b0(i,2) + vs_ab(i)*gr_a0(i,2))/scale_phi(i);
             }
-            increment_gga< std::complex<double> >(Hb,gr_b,bf,bf_rho,bf_theta,bf_phi);
+            increment_gga_split(Hb,gr_b,bf_re,bf_im,bf_rho_re,bf_rho_im,bf_theta_re,bf_theta_im,bf_phi_re,bf_phi_im);
           }
         }
 
@@ -450,8 +450,8 @@ namespace helfem {
         if(do_mgga_l) {
           helfem::Vector vl_a=vlapl.row(0).transpose().array()*wtot.array();
           helfem::Vector vl_b=vlapl.row(1).transpose().array()*wtot.array();
-          helfem::dftgrid_common::increment_mgga_lapl< std::complex<double> >(Ha,vl_a,bf,bf_lapl);
-          helfem::dftgrid_common::increment_mgga_lapl< std::complex<double> >(Hb,vl_b,bf,bf_lapl);
+          helfem::dftgrid_common::increment_mgga_lapl_split(Ha,vl_a,bf_re,bf_im,bf_lapl_re,bf_lapl_im);
+          helfem::dftgrid_common::increment_mgga_lapl_split(Hb,vl_b,bf_re,bf_im,bf_lapl_re,bf_lapl_im);
         }
 
         for(size_t i=0;i<bf_ind.size();i++)
