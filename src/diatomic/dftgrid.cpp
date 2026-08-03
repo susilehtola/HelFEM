@@ -65,7 +65,7 @@ namespace helfem {
         polarized=false;
 
         // Update density vector
-        Pv=P.cast<std::complex<double> >()*bf.conjugate();
+        PvA.noalias()=P*bf_re;  PvB.noalias()=P*bf_im;
 
         // Calculate density
         rho = helfem::Matrix::Zero(1,wtot.size());
@@ -73,7 +73,7 @@ namespace helfem {
 #pragma omp parallel for
 #endif
         for(size_t ip=0;ip<(size_t) wtot.size();ip++)
-          rho(0,ip)=std::real((Pv.col(ip).array()*bf.col(ip).array()).sum());
+          rho(0,ip)=(PvA.col(ip).dot(bf_re.col(ip))+PvB.col(ip).dot(bf_im.col(ip)));
 
         // Calculate gradient
         if(do_grad) {
@@ -84,9 +84,9 @@ namespace helfem {
 #endif
           for(size_t ip=0;ip<(size_t) wtot.size();ip++) {
             // Calculate values
-            double g_rad=grho(0,ip)=2.0*std::real((Pv.col(ip).array()*bf_rho.col(ip).array()).sum())/scale_r(ip);
-            double g_th=grho(1,ip)=2.0*std::real((Pv.col(ip).array()*bf_theta.col(ip).array()).sum())/scale_theta(ip);
-            double g_phi=grho(2,ip)=2.0*std::real((Pv.col(ip).array()*bf_phi.col(ip).array()).sum())/scale_phi(ip);
+            double g_rad=grho(0,ip)=2.0*(PvA.col(ip).dot(bf_rho_re.col(ip))+PvB.col(ip).dot(bf_rho_im.col(ip)))/scale_r(ip);
+            double g_th=grho(1,ip)=2.0*(PvA.col(ip).dot(bf_theta_re.col(ip))+PvB.col(ip).dot(bf_theta_im.col(ip)))/scale_theta(ip);
+            double g_phi=grho(2,ip)=2.0*(PvA.col(ip).dot(bf_phi_re.col(ip))+PvB.col(ip).dot(bf_phi_im.col(ip)))/scale_phi(ip);
             // Compute sigma as well
             sigma(0,ip)=g_rad*g_rad + g_th*g_th + g_phi*g_phi;
           }
@@ -98,9 +98,9 @@ namespace helfem {
           tau = helfem::Matrix::Zero(1,wtot.size());
 
           // Update helpers
-          Pv_rho=P.cast<std::complex<double> >()*bf_rho.conjugate();
-          Pv_theta=P.cast<std::complex<double> >()*bf_theta.conjugate();
-          Pv_phi=P.cast<std::complex<double> >()*bf_phi.conjugate();
+          PvA_rho.noalias()=P*bf_rho_re;  PvB_rho.noalias()=P*bf_rho_im;
+          PvA_theta.noalias()=P*bf_theta_re;  PvB_theta.noalias()=P*bf_theta_im;
+          PvA_phi.noalias()=P*bf_phi_re;  PvB_phi.noalias()=P*bf_phi_im;
 
           // Calculate values
 #ifdef _OPENMP
@@ -108,9 +108,9 @@ namespace helfem {
 #endif
           for(size_t ip=0;ip<(size_t) wtot.size();ip++) {
             // Gradient term
-            double kinrho(std::real((Pv_rho.col(ip).array()*bf_rho.col(ip).array()).sum())/std::pow(scale_r(ip),2));
-            double kintheta(std::real((Pv_theta.col(ip).array()*bf_theta.col(ip).array()).sum())/std::pow(scale_theta(ip),2));
-            double kinphi(std::real((Pv_phi.col(ip).array()*bf_phi.col(ip).array()).sum())/std::pow(scale_phi(ip),2));
+            double kinrho((PvA_rho.col(ip).dot(bf_rho_re.col(ip))+PvB_rho.col(ip).dot(bf_rho_im.col(ip)))/std::pow(scale_r(ip),2));
+            double kintheta((PvA_theta.col(ip).dot(bf_theta_re.col(ip))+PvB_theta.col(ip).dot(bf_theta_im.col(ip)))/std::pow(scale_theta(ip),2));
+            double kinphi((PvA_phi.col(ip).dot(bf_phi_re.col(ip))+PvB_phi.col(ip).dot(bf_phi_im.col(ip)))/std::pow(scale_phi(ip),2));
             double kin(kinrho + kintheta + kinphi);
 
             // Store values
@@ -141,8 +141,8 @@ namespace helfem {
             Pb(i,j)=Pbexp(bf_ind[i],bf_ind[j]);
           }
 
-        Pav=Pa.cast<std::complex<double> >()*bf.conjugate();
-        Pbv=Pb.cast<std::complex<double> >()*bf.conjugate();
+        PavA.noalias()=Pa*bf_re;  PavB.noalias()=Pa*bf_im;
+        PbvA.noalias()=Pb*bf_re;  PbvB.noalias()=Pb*bf_im;
 
         // Calculate density
         rho = helfem::Matrix::Zero(2,wtot.size());
@@ -150,8 +150,8 @@ namespace helfem {
 #pragma omp parallel for
 #endif
         for(size_t ip=0;ip<(size_t) wtot.size();ip++) {
-          rho(0,ip)=std::real((Pav.col(ip).array()*bf.col(ip).array()).sum());
-          rho(1,ip)=std::real((Pbv.col(ip).array()*bf.col(ip).array()).sum());
+          rho(0,ip)=(PavA.col(ip).dot(bf_re.col(ip))+PavB.col(ip).dot(bf_im.col(ip)));
+          rho(1,ip)=(PbvA.col(ip).dot(bf_re.col(ip))+PbvB.col(ip).dot(bf_im.col(ip)));
 
           /*
             double na=compute_density(Pa0,*basp,grid[ip].r);
@@ -170,13 +170,13 @@ namespace helfem {
 #pragma omp parallel for
 #endif
           for(size_t ip=0;ip<(size_t) wtot.size();ip++) {
-            double ga_rad=grho(0,ip)=2.0*std::real((Pav.col(ip).array()*bf_rho.col(ip).array()).sum())/scale_r(ip);
-            double ga_th=grho(1,ip)=2.0*std::real((Pav.col(ip).array()*bf_theta.col(ip).array()).sum())/scale_theta(ip);
-            double ga_phi=grho(2,ip)=2.0*std::real((Pav.col(ip).array()*bf_phi.col(ip).array()).sum())/scale_phi(ip);
+            double ga_rad=grho(0,ip)=2.0*(PavA.col(ip).dot(bf_rho_re.col(ip))+PavB.col(ip).dot(bf_rho_im.col(ip)))/scale_r(ip);
+            double ga_th=grho(1,ip)=2.0*(PavA.col(ip).dot(bf_theta_re.col(ip))+PavB.col(ip).dot(bf_theta_im.col(ip)))/scale_theta(ip);
+            double ga_phi=grho(2,ip)=2.0*(PavA.col(ip).dot(bf_phi_re.col(ip))+PavB.col(ip).dot(bf_phi_im.col(ip)))/scale_phi(ip);
 
-            double gb_rad=grho(3,ip)=2.0*std::real((Pbv.col(ip).array()*bf_rho.col(ip).array()).sum())/scale_r(ip);
-            double gb_th=grho(4,ip)=2.0*std::real((Pbv.col(ip).array()*bf_theta.col(ip).array()).sum())/scale_theta(ip);
-            double gb_phi=grho(5,ip)=2.0*std::real((Pbv.col(ip).array()*bf_phi.col(ip).array()).sum())/scale_phi(ip);
+            double gb_rad=grho(3,ip)=2.0*(PbvA.col(ip).dot(bf_rho_re.col(ip))+PbvB.col(ip).dot(bf_rho_im.col(ip)))/scale_r(ip);
+            double gb_th=grho(4,ip)=2.0*(PbvA.col(ip).dot(bf_theta_re.col(ip))+PbvB.col(ip).dot(bf_theta_im.col(ip)))/scale_theta(ip);
+            double gb_phi=grho(5,ip)=2.0*(PbvA.col(ip).dot(bf_phi_re.col(ip))+PbvB.col(ip).dot(bf_phi_im.col(ip)))/scale_phi(ip);
 
             // Compute sigma as well
             sigma(0,ip)=ga_rad*ga_rad + ga_th*ga_th + ga_phi*ga_phi;
@@ -191,13 +191,13 @@ namespace helfem {
           tau.resize(2,wtot.size());
 
           // Update helpers
-          Pav_rho=Pa.cast<std::complex<double> >()*bf_rho.conjugate();
-          Pav_theta=Pa.cast<std::complex<double> >()*bf_theta.conjugate();
-          Pav_phi=Pa.cast<std::complex<double> >()*bf_phi.conjugate();
+          PavA_rho.noalias()=Pa*bf_rho_re;  PavB_rho.noalias()=Pa*bf_rho_im;
+          PavA_theta.noalias()=Pa*bf_theta_re;  PavB_theta.noalias()=Pa*bf_theta_im;
+          PavA_phi.noalias()=Pa*bf_phi_re;  PavB_phi.noalias()=Pa*bf_phi_im;
 
-          Pbv_rho=Pb.cast<std::complex<double> >()*bf_rho.conjugate();
-          Pbv_theta=Pb.cast<std::complex<double> >()*bf_theta.conjugate();
-          Pbv_phi=Pb.cast<std::complex<double> >()*bf_phi.conjugate();
+          PbvA_rho.noalias()=Pb*bf_rho_re;  PbvB_rho.noalias()=Pb*bf_rho_im;
+          PbvA_theta.noalias()=Pb*bf_theta_re;  PbvB_theta.noalias()=Pb*bf_theta_im;
+          PbvA_phi.noalias()=Pb*bf_phi_re;  PbvB_phi.noalias()=Pb*bf_phi_im;
 
           // Calculate values
 #ifdef _OPENMP
@@ -205,14 +205,14 @@ namespace helfem {
 #endif
           for(size_t ip=0;ip<(size_t) wtot.size();ip++) {
             // Gradient term
-            double kinar=std::real((Pav_rho.col(ip).array()*bf_rho.col(ip).array()).sum())/std::pow(scale_r(ip),2);
-            double kinath=std::real((Pav_theta.col(ip).array()*bf_theta.col(ip).array()).sum())/std::pow(scale_theta(ip),2);
-            double kinaphi=std::real((Pav_phi.col(ip).array()*bf_phi.col(ip).array()).sum())/std::pow(scale_phi(ip),2);
+            double kinar=(PavA_rho.col(ip).dot(bf_rho_re.col(ip))+PavB_rho.col(ip).dot(bf_rho_im.col(ip)))/std::pow(scale_r(ip),2);
+            double kinath=(PavA_theta.col(ip).dot(bf_theta_re.col(ip))+PavB_theta.col(ip).dot(bf_theta_im.col(ip)))/std::pow(scale_theta(ip),2);
+            double kinaphi=(PavA_phi.col(ip).dot(bf_phi_re.col(ip))+PavB_phi.col(ip).dot(bf_phi_im.col(ip)))/std::pow(scale_phi(ip),2);
             double kina(kinar + kinath + kinaphi);
 
-            double kinbr=std::real((Pbv_rho.col(ip).array()*bf_rho.col(ip).array()).sum())/std::pow(scale_r(ip),2);
-            double kinbth=std::real((Pbv_theta.col(ip).array()*bf_theta.col(ip).array()).sum())/std::pow(scale_theta(ip),2);
-            double kinbphi=std::real((Pbv_phi.col(ip).array()*bf_phi.col(ip).array()).sum())/std::pow(scale_phi(ip),2);
+            double kinbr=(PbvA_rho.col(ip).dot(bf_rho_re.col(ip))+PbvB_rho.col(ip).dot(bf_rho_im.col(ip)))/std::pow(scale_r(ip),2);
+            double kinbth=(PbvA_theta.col(ip).dot(bf_theta_re.col(ip))+PbvB_theta.col(ip).dot(bf_theta_im.col(ip)))/std::pow(scale_theta(ip),2);
+            double kinbphi=(PbvA_phi.col(ip).dot(bf_phi_re.col(ip))+PbvB_phi.col(ip).dot(bf_phi_im.col(ip)))/std::pow(scale_phi(ip),2);
             double kinb(kinbr + kinbth + kinbphi);
 
             // Store values
@@ -285,7 +285,7 @@ namespace helfem {
           // Multiply weights into potential
           vrho = vrho.array() * wtot.array();
           // Increment matrix
-          increment_lda< std::complex<double> >(H,vrho,bf);
+          helfem::dftgrid_common::increment_lda_split(H,vrho,bf_re,bf_im);
         }
 
         if(do_gga) {
@@ -300,16 +300,16 @@ namespace helfem {
             gr(i,2)*=2.0*wtot(i)*vs(i)/scale_phi(i);
           }
           // Increment matrix
-          increment_gga< std::complex<double> >(H,gr,bf,bf_rho,bf_theta,bf_phi);
+          increment_gga_split(H,gr,bf_re,bf_im,bf_rho_re,bf_rho_im,bf_theta_re,bf_theta_im,bf_phi_re,bf_phi_im);
         }
 
         if(do_mgga_t) {
           helfem::Vector vt = vtau.row(0).transpose();
           vt = vt.array() * wtot.array() * 0.5;
 
-          increment_lda< std::complex<double> >(H,helfem::Vector(vt.array()*inv_scale_r2.array()),bf_rho);
-          increment_lda< std::complex<double> >(H,helfem::Vector(vt.array()*inv_scale_theta2.array()),bf_theta);
-          increment_lda< std::complex<double> >(H,helfem::Vector(vt.array()*inv_scale_phi2.array()),bf_phi);
+          helfem::dftgrid_common::increment_lda_split(H,helfem::Vector(vt.array()*inv_scale_r2.array()),bf_rho_re,bf_rho_im);
+          helfem::dftgrid_common::increment_lda_split(H,helfem::Vector(vt.array()*inv_scale_theta2.array()),bf_theta_re,bf_theta_im);
+          helfem::dftgrid_common::increment_lda_split(H,helfem::Vector(vt.array()*inv_scale_phi2.array()),bf_phi_re,bf_phi_im);
         }
         if(do_mgga_l)
           throw std::logic_error("Laplacian not implemented!\n");
@@ -335,12 +335,12 @@ namespace helfem {
           // Multiply weights into potential
           vrhoa = vrhoa.array() * wtot.array();
           // Increment matrix
-          increment_lda< std::complex<double> >(Ha,vrhoa,bf);
+          helfem::dftgrid_common::increment_lda_split(Ha,vrhoa,bf_re,bf_im);
 
           if(beta) {
             helfem::Vector vrhob = vxc.row(1).transpose();
             vrhob = vrhob.array() * wtot.array();
-            increment_lda< std::complex<double> >(Hb,vrhob,bf);
+            helfem::dftgrid_common::increment_lda_split(Hb,vrhob,bf_re,bf_im);
           }
         }
         if(!Ha.allFinite() || (beta && !Hb.allFinite()))
@@ -364,7 +364,7 @@ namespace helfem {
             gr_a(i,2)=wtot(i)*(2.0*vs_aa(i)*gr_a0(i,2) + vs_ab(i)*gr_b0(i,2))/scale_phi(i);
           }
           // Increment matrix
-          increment_gga< std::complex<double> >(Ha,gr_a,bf,bf_rho,bf_theta,bf_phi);
+          increment_gga_split(Ha,gr_a,bf_re,bf_im,bf_rho_re,bf_rho_im,bf_theta_re,bf_theta_im,bf_phi_re,bf_phi_im);
 
           if(beta) {
             helfem::Vector vs_bb = vsigma.row(2).transpose();
@@ -374,7 +374,7 @@ namespace helfem {
               gr_b(i,1)=wtot(i)*(2.0*vs_bb(i)*gr_b0(i,1) + vs_ab(i)*gr_a0(i,1))/scale_theta(i);
               gr_b(i,2)=wtot(i)*(2.0*vs_bb(i)*gr_b0(i,2) + vs_ab(i)*gr_a0(i,2))/scale_phi(i);
             }
-            increment_gga< std::complex<double> >(Hb,gr_b,bf,bf_rho,bf_theta,bf_phi);
+            increment_gga_split(Hb,gr_b,bf_re,bf_im,bf_rho_re,bf_rho_im,bf_theta_re,bf_theta_im,bf_phi_re,bf_phi_im);
           }
         }
 
@@ -383,16 +383,16 @@ namespace helfem {
           helfem::Vector vt_a = vtau.row(0).transpose();
           vt_a = vt_a.array() * wtot.array() * 0.5;
 
-          increment_lda< std::complex<double> >(Ha,helfem::Vector(vt_a.array()*inv_scale_r2.array()),bf_rho);
-          increment_lda< std::complex<double> >(Ha,helfem::Vector(vt_a.array()*inv_scale_theta2.array()),bf_theta);
-          increment_lda< std::complex<double> >(Ha,helfem::Vector(vt_a.array()*inv_scale_phi2.array()),bf_phi);
+          helfem::dftgrid_common::increment_lda_split(Ha,helfem::Vector(vt_a.array()*inv_scale_r2.array()),bf_rho_re,bf_rho_im);
+          helfem::dftgrid_common::increment_lda_split(Ha,helfem::Vector(vt_a.array()*inv_scale_theta2.array()),bf_theta_re,bf_theta_im);
+          helfem::dftgrid_common::increment_lda_split(Ha,helfem::Vector(vt_a.array()*inv_scale_phi2.array()),bf_phi_re,bf_phi_im);
           if(beta) {
             helfem::Vector vt_b = vtau.row(1).transpose();
             vt_b = vt_b.array() * wtot.array() * 0.5;
 
-            increment_lda< std::complex<double> >(Hb,helfem::Vector(vt_b.array()*inv_scale_r2.array()),bf_rho);
-            increment_lda< std::complex<double> >(Hb,helfem::Vector(vt_b.array()*inv_scale_theta2.array()),bf_theta);
-            increment_lda< std::complex<double> >(Hb,helfem::Vector(vt_b.array()*inv_scale_phi2.array()),bf_phi);
+            helfem::dftgrid_common::increment_lda_split(Hb,helfem::Vector(vt_b.array()*inv_scale_r2.array()),bf_rho_re,bf_rho_im);
+            helfem::dftgrid_common::increment_lda_split(Hb,helfem::Vector(vt_b.array()*inv_scale_theta2.array()),bf_theta_re,bf_theta_im);
+            helfem::dftgrid_common::increment_lda_split(Hb,helfem::Vector(vt_b.array()*inv_scale_phi2.array()),bf_phi_re,bf_phi_im);
           }
         }
         if(do_mgga_l) {
@@ -502,6 +502,17 @@ namespace helfem {
 
         if(do_lapl) {
           throw std::logic_error("Laplacian not implemented.\n");
+        }
+        // Split once per grid point: the density and Fock contractions
+        // below are real. See the atomic worker for the algebra.
+        bf_re = bf.real();  bf_im = bf.imag();
+        if(do_grad) {
+          bf_rho_re   = bf_rho.real();   bf_rho_im   = bf_rho.imag();
+          bf_theta_re = bf_theta.real(); bf_theta_im = bf_theta.imag();
+          bf_phi_re   = bf_phi.real();   bf_phi_im   = bf_phi.imag();
+        }
+        if(do_lapl) {
+          bf_lapl_re = bf_lapl.real(); bf_lapl_im = bf_lapl.imag();
         }
       }
 
