@@ -23,6 +23,7 @@
 // compute_Nel, etc.) stay in the derived classes.
 
 #include <Matrix.h>
+#include <vector>
 #include <sstream>
 #include <stdexcept>
 
@@ -167,6 +168,52 @@ namespace helfem {
       for(Eigen::Index j=0;j<fhlp.cols();j++)
         fhlp.col(j) *= vxc(j);
       H += (fhlp * f.adjoint()).real();
+    }
+
+    /// GGA accumulation, shared by all three geometries.
+    ///
+    /// gn is (npts x ncomp): one column of gradient weights per spatial
+    /// component -- one for the spherically averaged atom (radial only),
+    /// three for the atomic and diatomic grids. ga/gb hold the matching
+    /// component derivatives of the basis, split into real and imaginary
+    /// parts; pass gb empty for a real basis, where the imaginary work
+    /// drops out entirely.
+    ///
+    /// With f = a + i b and the gradient-weighted helper gamma likewise
+    /// split, Re( gamma f^H + f gamma^H ) = X + X^T with
+    ///     X = Re(gamma) a^T + Im(gamma) b^T,
+    /// so the two complex products of the old formulation collapse to two
+    /// real ones plus a symmetrisation -- the symmetry was being computed
+    /// and half-discarded along with the imaginary part.
+    inline void increment_gga_split(helfem::Matrix & H, const helfem::Matrix & gn,
+                                    const helfem::Matrix & a, const helfem::Matrix & b,
+                                    const std::vector<const helfem::Matrix *> & ga,
+                                    const std::vector<const helfem::Matrix *> & gb) {
+      const bool complex_basis = !gb.empty();
+      if(gn.cols() != (Eigen::Index) ga.size()) {
+        std::ostringstream oss;
+        oss << "Grad rho has " << gn.cols() << " columns but " << ga.size()
+            << " gradient components were given!\n";
+        throw std::runtime_error(oss.str());
+      }
+      if(complex_basis && gb.size() != ga.size())
+        throw std::runtime_error("Real and imaginary gradient component counts differ!\n");
+      if(H.rows() != a.rows() || H.cols() != a.rows())
+        throw std::runtime_error("Sizes of basis function and Fock matrices doesn't match!\n");
+
+      helfem::Matrix gre(helfem::Matrix::Zero(a.rows(), a.cols()));
+      helfem::Matrix gim;
+      if(complex_basis) gim = helfem::Matrix::Zero(a.rows(), a.cols());
+      for(size_t c=0;c<ga.size();c++)
+        for(Eigen::Index j=0;j<gre.cols();j++) {
+          gre.col(j) += gn(j,(Eigen::Index) c) * ga[c]->col(j);
+          if(complex_basis) gim.col(j) += gn(j,(Eigen::Index) c) * gb[c]->col(j);
+        }
+
+      helfem::Matrix X(gre * a.transpose());
+      if(complex_basis) X.noalias() += gim * b.transpose();
+      H += X;
+      H += X.transpose();
     }
 
     /// Laplacian meta-GGA accumulation for an already-split basis.

@@ -289,7 +289,7 @@ namespace helfem {
             gr.col(0).array() += 2.0*vlapl.row(0).transpose().array()*r.array()*(wrad.array()*4.0*M_PI);
           }
           // Increment matrix
-          increment_gga<double>(H,gr,bf,bf_rho);
+          helfem::dftgrid_common::increment_gga_split(H,gr,bf,helfem::Matrix(),{&bf_rho},{});
           if(!H.allFinite())
             fprintf(stderr,"NaN in Hamiltonian after GGA!\n");
         }
@@ -379,7 +379,7 @@ namespace helfem {
             gr_a.col(0).array() += 2.0*vlapl.row(0).transpose().array()*r.array()*(wrad.array()*4.0*M_PI);
           }
           // Increment matrix
-          increment_gga<double>(Ha,gr_a,bf,bf_rho);
+          helfem::dftgrid_common::increment_gga_split(Ha,gr_a,bf,helfem::Matrix(),{&bf_rho},{});
 
           if(beta) {
             helfem::Vector vs_bb = vsigma.row(2).transpose();
@@ -388,7 +388,7 @@ namespace helfem {
             if(do_mgga_l) {
               gr_b.col(0).array() += 2.0*vlapl.row(1).transpose().array()*r.array()*(wrad.array()*4.0*M_PI);
             }
-            increment_gga<double>(Hb,gr_b,bf,bf_rho);
+            helfem::dftgrid_common::increment_gga_split(Hb,gr_b,bf,helfem::Matrix(),{&bf_rho},{});
           }
           if(!Ha.allFinite() || (beta && !Hb.allFinite()))
             //throw std::logic_error("NaN encountered!\n");

@@ -433,15 +433,18 @@ namespace helfem {
 
           if (do_gga) {
             const helfem::Vector vs = vsigma.row(0).transpose();
-            // increment_gga wants (npts x 3); the phi column is identically
-            // zero, so its derivative matrix never contributes.
-            helfem::Matrix gr = helfem::Matrix::Zero(nang, 3);
+            // Two live components: the phi column is identically zero in
+            // the pure-m path, and the shared accumulator takes exactly as
+            // many components as it is given -- so unlike the old
+            // three-column call this no longer carries a dummy third.
+            helfem::Matrix gr = helfem::Matrix::Zero(nang, 2);
             for (Eigen::Index ia = 0; ia < nang; ia++) {
               const double f = 2.0 * wtot(ia) * vs(ia) / scale_r(ia);
               gr(ia, 0) = f * grho(0, ia);
               gr(ia, 1) = f * grho(1, ia);
             }
-            dftgrid::increment_gga<double>(Hm, gr, bf_m[im], dr_m[im], dth_m[im], bf_m[im]);
+            helfem::dftgrid_common::increment_gga_split(Hm, gr, bf_m[im], helfem::Matrix(),
+                                                        {&dr_m[im], &dth_m[im]}, {});
           }
 
           if (do_mgga_t || do_mgga_l) {
@@ -506,23 +509,25 @@ namespace helfem {
           if (do_gga) {
             const helfem::Vector vs_aa = vsigma.row(0).transpose();
             const helfem::Vector vs_ab = vsigma.row(1).transpose();
-            helfem::Matrix gr_a = helfem::Matrix::Zero(nang, 3);
+            helfem::Matrix gr_a = helfem::Matrix::Zero(nang, 2);
             for (Eigen::Index ia = 0; ia < nang; ia++) {
               const double f = wtot(ia) / scale_r(ia);
               gr_a(ia, 0) = f * (2.0 * vs_aa(ia) * grho(0, ia) + vs_ab(ia) * grho(2, ia));
               gr_a(ia, 1) = f * (2.0 * vs_aa(ia) * grho(1, ia) + vs_ab(ia) * grho(3, ia));
             }
-            dftgrid::increment_gga<double>(Hma, gr_a, bf_m[im], dr_m[im], dth_m[im], bf_m[im]);
+            helfem::dftgrid_common::increment_gga_split(Hma, gr_a, bf_m[im], helfem::Matrix(),
+                                                        {&dr_m[im], &dth_m[im]}, {});
 
             if (beta) {
               const helfem::Vector vs_bb = vsigma.row(2).transpose();
-              helfem::Matrix gr_b = helfem::Matrix::Zero(nang, 3);
+              helfem::Matrix gr_b = helfem::Matrix::Zero(nang, 2);
               for (Eigen::Index ia = 0; ia < nang; ia++) {
                 const double f = wtot(ia) / scale_r(ia);
                 gr_b(ia, 0) = f * (2.0 * vs_bb(ia) * grho(2, ia) + vs_ab(ia) * grho(0, ia));
                 gr_b(ia, 1) = f * (2.0 * vs_bb(ia) * grho(3, ia) + vs_ab(ia) * grho(1, ia));
               }
-              dftgrid::increment_gga<double>(Hmb, gr_b, bf_m[im], dr_m[im], dth_m[im], bf_m[im]);
+              helfem::dftgrid_common::increment_gga_split(Hmb, gr_b, bf_m[im], helfem::Matrix(),
+                                                        {&dr_m[im], &dth_m[im]}, {});
             }
           }
 
