@@ -131,33 +131,6 @@ namespace helfem {
       /// LDA quadrature accumulation is shared across geometries.
       using helfem::dftgrid_common::increment_lda;
 
-      /// BLAS routine for GGA-type quadrature
-      template<typename T> void increment_gga(helfem::Matrix & H, const helfem::Matrix & gn, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> & f, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> f_x) {
-        if(gn.cols()!=1) {
-          throw std::runtime_error("Grad rho must have three columns!\n");
-        }
-        if(f.rows() != f_x.rows() || f.cols() != f_x.cols()) {
-          throw std::runtime_error("Sizes of basis function and derivative matrices doesn't match!\n");
-        }
-        if(H.rows() != f.rows() || H.cols() != f.rows()) {
-          throw std::runtime_error("Sizes of basis function and Fock matrices doesn't match!\n");
-        }
-
-        // Compute helper: gamma_{ip} = \sum_c \chi_{ip;c} gr_{p;c}
-        //                 (N, Np)    =        (N Np; c)    (Np, 3)
-        Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> gamma =
-            Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>::Zero(f.rows(), f.cols());
-        {
-          // gn.col(0) holds the (single) radial gradient weight per point;
-          // scale column j of f_x by gn(j,0).
-          for(Eigen::Index j=0;j<f_x.cols();j++)
-            f_x.col(j) *= gn(j,0);
-          gamma += f_x;
-        }
-
-        // Form Fock matrix
-        H += (gamma*f.adjoint() + f*gamma.adjoint()).real();
-      }
 
       /// BLAS routine for mGGA-type quadrature
       template<typename T> void increment_mgga_lapl(helfem::Matrix & H, const helfem::Vector & vlapl, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> & f, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> & l) {
