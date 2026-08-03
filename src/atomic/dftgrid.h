@@ -56,11 +56,35 @@ namespace helfem {
         /// Values of laplacians in grid points, (3*Nbf) * Ngrid
         Eigen::MatrixXcd bf_lapl;
 
-        /// Density helper matrices: P_{uv} chi_v, and P_{uv} nabla(chi_v)
-        Eigen::MatrixXcd Pv, Pv_rho, Pv_theta, Pv_phi;
+        /// Real and imaginary parts of the basis values above, split once
+        /// per element in compute_bf.
+        ///
+        /// The density matrix is REAL while the basis is complex, so the
+        /// natural-looking P.cast<complex>() * bf.conjugate() runs a full
+        /// complex GEMM against an operand whose imaginary half is
+        /// identically zero -- four real products where two suffice. It is
+        /// where most of this driver's time goes: 72% of an oxygen run sat
+        /// in zgemm.
+        ///
+        /// Writing bf = a + i b, and noting P is symmetric so
+        /// Pv = P conj(bf) = P a - i P b, every contraction the density and
+        /// its gradients need has the form
+        ///     Re( sum_u Pv(u,ip) Y(u,ip) ) = (P a).Re(Y) + (P b).Im(Y),
+        /// i.e. purely real throughout. Splitting here rather than at the
+        /// point of use matters: extracting .real()/.imag() inside the
+        /// density loop costs about what the halved flops save.
+        helfem::Matrix bf_re, bf_im;
+        helfem::Matrix bf_rho_re, bf_rho_im;
+        helfem::Matrix bf_theta_re, bf_theta_im;
+        helfem::Matrix bf_phi_re, bf_phi_im;
+        helfem::Matrix bf_lapl_re, bf_lapl_im;
+
+        /// P*Re(X) and P*Im(X) for X = bf and its gradients -- the real
+        /// stand-ins for the complex Pv/Pv_rho/... helpers.
+        helfem::Matrix PvA, PvB, PvA_rho, PvB_rho, PvA_theta, PvB_theta, PvA_phi, PvB_phi;
         /// Same for spin-polarized
-        Eigen::MatrixXcd Pav, Pav_rho, Pav_theta, Pav_phi;
-        Eigen::MatrixXcd Pbv, Pbv_rho, Pbv_theta, Pbv_phi;
+        helfem::Matrix PavA, PavB, PavA_rho, PavB_rho, PavA_theta, PavB_theta, PavA_phi, PavB_phi;
+        helfem::Matrix PbvA, PbvB, PbvA_rho, PbvB_rho, PbvA_theta, PbvB_theta, PbvA_phi, PbvB_phi;
 
         /// Gradient of electron density, (3 x Nrho) x Npts (atomic-only:
         /// diatomic keeps its own decomposition; sadatom uses cube layout)
