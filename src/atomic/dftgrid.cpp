@@ -595,7 +595,7 @@ namespace helfem {
         double nel=0.0;
         double lapl=0;
 #ifdef _OPENMP
-#pragma omp parallel reduction(+:exc,nel,lapl)
+#pragma omp parallel reduction(+:exc,ekin,nel,lapl)
 #endif
         {
           DFTGridWorker grid(basp,lang,mang);
@@ -658,7 +658,7 @@ namespace helfem {
         double nel=0.0;
         double ekin=0.0;
 #ifdef _OPENMP
-#pragma omp parallel reduction(+:exc,nel)
+#pragma omp parallel reduction(+:exc,ekin,nel)
 #endif
         {
           DFTGridWorker grid(basp,lang,mang);
