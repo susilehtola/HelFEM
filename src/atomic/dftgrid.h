@@ -163,6 +163,40 @@ namespace helfem {
       /// LDA quadrature accumulation is shared across geometries.
       using helfem::dftgrid_common::increment_lda;
 
+      /// GGA accumulation for an already-split basis.
+      ///
+      /// With f = a + i b and the gradient-weighted helper gamma likewise
+      /// split, Re( gamma f^H + f gamma^H ) = X + X^T with
+      ///     X = Re(gamma) a^T + Im(gamma) b^T,
+      /// so the two complex products collapse to two real ones plus a
+      /// symmetrisation. Re(gamma) and Im(gamma) are each built from the
+      /// real and imaginary parts of the three gradient components.
+      inline void increment_gga_split(helfem::Matrix & H, const helfem::Matrix & gn,
+                                      const helfem::Matrix & a,  const helfem::Matrix & b,
+                                      const helfem::Matrix & ax, const helfem::Matrix & bx,
+                                      const helfem::Matrix & ay, const helfem::Matrix & by,
+                                      const helfem::Matrix & az, const helfem::Matrix & bz) {
+        if(gn.cols()!=3)
+          throw std::runtime_error("Grad rho must have three columns!\n");
+        if(H.rows() != a.rows() || H.cols() != a.rows())
+          throw std::runtime_error("Sizes of basis function and Fock matrices doesn't match!\n");
+
+        helfem::Matrix gre(ax), gim(bx);
+        for(Eigen::Index j=0;j<gre.cols();j++) {
+          gre.col(j) *= gn(j,0);
+          gim.col(j) *= gn(j,0);
+        }
+        for(Eigen::Index j=0;j<gre.cols();j++) {
+          gre.col(j) += gn(j,1)*ay.col(j) + gn(j,2)*az.col(j);
+          gim.col(j) += gn(j,1)*by.col(j) + gn(j,2)*bz.col(j);
+        }
+
+        helfem::Matrix X(gre * a.transpose());
+        X.noalias() += gim * b.transpose();
+        H += X;
+        H += X.transpose();
+      }
+
       /// BLAS routine for GGA-type quadrature
       template<typename T> void increment_gga(helfem::Matrix & H, const helfem::Matrix & gn, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> & f, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> f_x, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> f_y, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> f_z) {
         if(gn.cols()!=3) {
