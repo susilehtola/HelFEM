@@ -111,6 +111,35 @@ namespace helfem {
       void compute_xc(int func_id, const helfem::Vector & params, double thr, bool pot = true);
     };
 
+    /// Same as increment_lda below, but for a basis whose real and
+    /// imaginary parts have already been split.
+    ///
+    /// H is real, so for complex f the imaginary half of f diag(v) f^H is
+    /// built and thrown away. With f = a + i b,
+    ///     Re( f diag(v) f^H ) = a diag(v) a^T + b diag(v) b^T,
+    /// two real products instead of one complex one -- half the multiplies,
+    /// on the better-optimised real kernels.
+    ///
+    /// Taking a and b as arguments rather than splitting f here is the
+    /// point: extracting .real()/.imag() per call costs about what the
+    /// halved flops save, so the split has to be hoisted to where the
+    /// basis is built.
+    inline void increment_lda_split(helfem::Matrix & H, const helfem::Vector & vxc,
+                                    const helfem::Matrix & a, const helfem::Matrix & b) {
+      if(a.cols() != vxc.size() || b.cols() != vxc.size()) {
+        std::ostringstream oss;
+        oss << "Number of functions " << a.cols() << " and potential values " << vxc.size() << " do not match!\n";
+        throw std::runtime_error(oss.str());
+      }
+      helfem::Matrix av(a), bv(b);
+      for(Eigen::Index j=0;j<av.cols();j++) {
+        av.col(j) *= vxc(j);
+        bv.col(j) *= vxc(j);
+      }
+      H.noalias() += av * a.transpose();
+      H.noalias() += bv * b.transpose();
+    }
+
     /// BLAS routine for LDA-type quadrature: accumulate
     /// H += Re( (f .* vxc) * f^T ), i.e. the weighted outer product of
     /// the basis-function values f (Nbf x Npts) against themselves with
