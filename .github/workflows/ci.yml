@@ -1,0 +1,77 @@
+name: CI
+
+# Fast feedback on every push and pull request: build, then run the subset of
+# integration tests that finishes in minutes. The long tail runs weekly
+# (see weekly.yml).
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: build + quick tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build g++ \
+            libeigen3-dev libxc-dev libhdf5-dev \
+            libopenblas-dev liblapacke-dev
+
+      # wignernj and OpenOrbitalOptimizer are fetched by CMake. OOO is pinned
+      # to an explicit commit (see CMakeLists.txt), so this build is
+      # reproducible rather than tracking whatever master happens to be.
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=install
+
+      - name: Build
+        run: cmake --build build -j $(nproc)
+
+      # Both kinds of check.
+      #
+      # Reference comparison: every case is a well-behaved system with the
+      # configuration pinned where there is any ambiguity, so the converged
+      # energy is a property of the problem rather than of the linear algebra
+      # and is reproducible across library stacks. Verified by running the same
+      # binary under FlexiBLAS with NETLIB and with OpenBLAS: He/HF gives
+      # -2.8616799946 and pinned Be/PBE -14.5450377121 under both, to every
+      # printed digit. The tolerance is therefore set by SCF convergence, not
+      # by the BLAS. A case that cannot meet it does not belong in the suite.
+      - name: Quick integration tests (references)
+        run: |
+          python3 tests/run_tests.py --check tests/refs/ci.json --tag ci \
+            --bindir build/src -j $(nproc)
+
+      # Invariants are checked by the run above, but --smoke also passes with
+      # no reference file at all, which keeps the suite runnable on a platform
+      # whose references have not been recorded yet.
+      - name: Quick integration tests (invariants only)
+        if: always()
+        run: |
+          python3 tests/run_tests.py --smoke --tag ci \
+            --bindir build/src -j $(nproc)
+
+      # On failure, publish what this runner actually produced so the numbers
+      # can be compared against tests/refs/ci.json without a local rerun.
+      - name: Record energies for this platform
+        if: failure()
+        run: |
+          python3 tests/run_tests.py --generate ci-energies.json --tag ci \
+            --bindir build/src -j $(nproc) || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ci-energies
+          path: ci-energies.json
+          if-no-files-found: warn
