@@ -1,0 +1,625 @@
+{
+  "cases": {
+    "atomic-Be-field-Bz-lda-neg": {
+      "Coulomb": 7.1236031772,
+      "Emfield": 0.0034916086,
+      "Exx": 0.0,
+      "XC": -2.5165534052,
+      "_converged": true,
+      "_iterations": 5,
+      "_occupations": {
+        "sym2": "2 2"
+      },
+      "_seconds": 49.0,
+      "err": 1.64,
+      "kinetic": 14.3162834274,
+      "nel_err": 1.64e-12,
+      "nuclear": -33.3705175647,
+      "total": -14.4436927567
+    },
+    "atomic-Be-field-Bz-lda-pos": {
+      "Coulomb": 7.1236031772,
+      "Emfield": 0.0034916086,
+      "Exx": 0.0,
+      "XC": -2.5165534052,
+      "_converged": true,
+      "_iterations": 5,
+      "_occupations": {
+        "sym2": "2 2"
+      },
+      "_seconds": 38.6,
+      "err": 1.64,
+      "kinetic": 14.3162834274,
+      "nel_err": 1.64e-12,
+      "nuclear": -33.3705175647,
+      "total": -14.4436927567
+    },
+    "atomic-Be-field-Bz-neg": {
+      "Coulomb": 7.164623518,
+      "Emfield": 0.003557543,
+      "Exx": -2.668576655,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "sym2": "2 2"
+      },
+      "_seconds": 58.9,
+      "err": 1.54,
+      "kinetic": 14.5801109583,
+      "nel_err": 1.54e-12,
+      "nuclear": -33.6491561075,
+      "total": -14.5694407432
+    },
+    "atomic-Be-field-Bz-pos": {
+      "Coulomb": 7.164623518,
+      "Emfield": 0.003557543,
+      "Exx": -2.668576655,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "sym2": "2 2"
+      },
+      "_seconds": 43.6,
+      "err": 1.54,
+      "kinetic": 14.5801109583,
+      "nel_err": 1.54e-12,
+      "nuclear": -33.6491561075,
+      "total": -14.5694407432
+    },
+    "atomic-Be-field-Ez-lda-neg": {
+      "Coulomb": 7.1151876026,
+      "Eefield": -4.37998e-05,
+      "Exx": 0.0,
+      "XC": -2.5148464009,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "sym2": "2 2"
+      },
+      "_seconds": 65.3,
+      "err": 1.092,
+      "kinetic": 14.3093883724,
+      "nel_err": 1.092e-13,
+      "nuclear": -33.3569171489,
+      "total": -14.4472313745
+    },
+    "atomic-Be-field-Ez-lda-pos": {
+      "Coulomb": 7.1151876026,
+      "Eefield": -4.37998e-05,
+      "Exx": 0.0,
+      "XC": -2.5148464009,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "sym2": "2 2"
+      },
+      "_seconds": 49.6,
+      "err": -7.55,
+      "kinetic": 14.3093883724,
+      "nel_err": -7.55e-15,
+      "nuclear": -33.3569171489,
+      "total": -14.4472313745
+    },
+    "atomic-Be-field-Ez-neg": {
+      "Coulomb": 7.1559722328,
+      "Eefield": -4.56495e-05,
+      "Exx": -2.6669019072,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "sym2": "2 2"
+      },
+      "_seconds": 40.8,
+      "err": 1.013,
+      "kinetic": 14.5729543307,
+      "nel_err": 1.013e-13,
+      "nuclear": -33.635024985,
+      "total": -14.5730459781
+    },
+    "atomic-Be-field-Ez-pos": {
+      "Coulomb": 7.1559722328,
+      "Eefield": -4.56495e-05,
+      "Exx": -2.6669019072,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "sym2": "2 2"
+      },
+      "_seconds": 54.0,
+      "err": -2.22,
+      "kinetic": 14.5729543307,
+      "nel_err": -2.22e-15,
+      "nuclear": -33.635024985,
+      "total": -14.5730459781
+    },
+    "atomic-Be-hf-r": {
+      "Coulomb": 7.1560551636,
+      "Exx": -2.6669131299,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "sym0": "2 2"
+      },
+      "_seconds": 1.9,
+      "err": 3.375,
+      "kinetic": 14.573021084,
+      "nel_err": 3.375e-14,
+      "nuclear": -33.635186286,
+      "total": -14.5730231683
+    },
+    "atomic-Be-hf-u": {
+      "Coulomb": 7.1560551653,
+      "Exx": -2.6669131302,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "a:sym0": "1 1",
+        "b:sym0": "1 1"
+      },
+      "_seconds": 2.4,
+      "err": 1.51,
+      "kinetic": 14.5730210854,
+      "nel_err": 1.51e-14,
+      "nuclear": -33.6351862889,
+      "total": -14.5730231683
+    },
+    "atomic-Be-lda-r": {
+      "Coulomb": 7.1152581977,
+      "Exx": 0.0,
+      "XC": -2.5148562583,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "sym0": "2 2"
+      },
+      "_seconds": 2.4,
+      "err": 4.619,
+      "kinetic": 14.3094241396,
+      "nel_err": 4.619e-14,
+      "nuclear": -33.3570355531,
+      "total": -14.447209474
+    },
+    "atomic-Be-lda-u": {
+      "Coulomb": 7.1152685733,
+      "Exx": 0.0,
+      "XC": -2.5148587143,
+      "_converged": true,
+      "_iterations": 5,
+      "_occupations": {
+        "a:sym0": "1 1",
+        "b:sym0": "1 1"
+      },
+      "_seconds": 3.3,
+      "err": 1.954,
+      "kinetic": 14.309443242,
+      "nel_err": 1.954e-14,
+      "nuclear": -33.3570625751,
+      "total": -14.447209474
+    },
+    "atomic-Be-nop-l0": {
+      "Coulomb": 7.1401519313,
+      "Exx": 0.0,
+      "XC": -2.6275187903,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "sym0": "2 2"
+      },
+      "_seconds": 13.1,
+      "err": -3.153,
+      "kinetic": 14.5450415485,
+      "nel_err": -3.153e-14,
+      "nuclear": -33.6027137607,
+      "total": -14.5450390711
+    },
+    "atomic-Be-nop-pinned": {
+      "Coulomb": 7.1401519326,
+      "Exx": 0.0,
+      "XC": -2.6275187903,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "sym0": "2 2"
+      },
+      "_seconds": 134.2,
+      "err": -6.395,
+      "kinetic": 14.5450415466,
+      "nel_err": -6.395e-14,
+      "nuclear": -33.60271376,
+      "total": -14.5450390711
+    },
+    "atomic-H-hf-u": {
+      "Coulomb": 0.3125005143,
+      "Exx": -0.3125005143,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "a:sym0": "1"
+      },
+      "_seconds": 5.3,
+      "err": -8.327,
+      "kinetic": 0.5000011599,
+      "nel_err": -8.327e-15,
+      "nuclear": -1.0000011599,
+      "total": -0.5
+    },
+    "atomic-H-rsh-erfc-u": {
+      "Coulomb": 0.3063089886,
+      "Exx": -0.1296361279,
+      "XC": -0.1762331016,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "a:sym0": "1"
+      },
+      "_seconds": 35.5,
+      "err": 7.55,
+      "kinetic": 0.4912939436,
+      "nel_err": 7.55e-15,
+      "nuclear": -0.9908285421,
+      "total": -0.4990948394
+    },
+    "atomic-H-rsh-yukawa-u": {
+      "Coulomb": 0.3070325881,
+      "Exx": -0.1140776767,
+      "XC": -0.1914795646,
+      "_converged": true,
+      "_iterations": 5,
+      "_occupations": {
+        "a:sym0": "1"
+      },
+      "_seconds": 18.1,
+      "err": 1.155,
+      "kinetic": 0.4935914377,
+      "nel_err": 1.155e-14,
+      "nuclear": -0.993139398,
+      "total": -0.4980726135
+    },
+    "atomic-He-gga-r": {
+      "Coulomb": 2.0267367125,
+      "Exx": 0.0,
+      "XC": -1.0461619634,
+      "_converged": true,
+      "_iterations": 5,
+      "_occupations": {
+        "sym0": "2"
+      },
+      "_seconds": 15.5,
+      "err": -3.775,
+      "kinetic": 2.8559461443,
+      "nel_err": -3.775e-15,
+      "nuclear": -6.7294557603,
+      "total": -2.8929348668
+    },
+    "atomic-He-gga-u": {
+      "Coulomb": 2.0267367139,
+      "Exx": 0.0,
+      "XC": -1.0461619641,
+      "_converged": true,
+      "_iterations": 5,
+      "_occupations": {
+        "a:sym0": "1",
+        "b:sym0": "1"
+      },
+      "_seconds": 12.9,
+      "err": 6.661,
+      "kinetic": 2.8559461477,
+      "nel_err": 6.661e-15,
+      "nuclear": -6.7294557643,
+      "total": -2.8929348668
+    },
+    "atomic-He-hf-r": {
+      "Coulomb": 2.0515380305,
+      "Exx": -1.0257690153,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "sym0": "2"
+      },
+      "_seconds": 4.8,
+      "err": 4.441,
+      "kinetic": 2.8616803763,
+      "nel_err": 4.441e-16,
+      "nuclear": -6.7491293871,
+      "total": -2.8616799956
+    },
+    "atomic-He-hf-u": {
+      "Coulomb": 2.0515380298,
+      "Exx": -1.0257690149,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "a:sym0": "1",
+        "b:sym0": "1"
+      },
+      "_seconds": 3.4,
+      "err": -1.243,
+      "kinetic": 2.8616803751,
+      "nel_err": -1.243e-14,
+      "nuclear": -6.7491293856,
+      "total": -2.8616799956
+    },
+    "atomic-He-hybrid-r": {
+      "Coulomb": 2.0345562319,
+      "Exx": -0.2034556232,
+      "XC": -0.8684887933,
+      "_converged": true,
+      "_iterations": 5,
+      "_occupations": {
+        "sym0": "2"
+      },
+      "_seconds": 15.0,
+      "err": 1.776,
+      "kinetic": 2.8691329288,
+      "nel_err": 1.776e-15,
+      "nuclear": -6.7469634071,
+      "total": -2.9152186629
+    },
+    "atomic-He-hybrid-u": {
+      "Coulomb": 2.0345562602,
+      "Exx": -0.203455626,
+      "XC": -0.8684888043,
+      "_converged": true,
+      "_iterations": 5,
+      "_occupations": {
+        "a:sym0": "1",
+        "b:sym0": "1"
+      },
+      "_seconds": 13.4,
+      "err": -4.885,
+      "kinetic": 2.8691329969,
+      "nel_err": -4.885e-15,
+      "nuclear": -6.7469634896,
+      "total": -2.9152186629
+    },
+    "atomic-He-lda-r": {
+      "Coulomb": 1.9961216725,
+      "Exx": 0.0,
+      "XC": -0.9733148392,
+      "_converged": true,
+      "_iterations": 4,
+      "_occupations": {
+        "sym0": "2"
+      },
+      "_seconds": 3.0,
+      "err": 5.773,
+      "kinetic": 2.7679270868,
+      "nel_err": 5.773e-15,
+      "nuclear": -6.6255695442,
+      "total": -2.8348356241
+    },
+    "atomic-He-lda-u": {
+      "Coulomb": 1.9961217016,
+      "Exx": 0.0,
+      "XC": -0.9733148521,
+      "_converged": true,
+      "_iterations": 4,
+      "_occupations": {
+        "a:sym0": "1",
+        "b:sym0": "1"
+      },
+      "_seconds": 3.2,
+      "err": 1.243,
+      "kinetic": 2.7679271551,
+      "nel_err": 1.243e-14,
+      "nuclear": -6.6255696286,
+      "total": -2.8348356241
+    },
+    "atomic-He-mgga-r": {
+      "Coulomb": 2.0455707136,
+      "Exx": 0.0,
+      "XC": -1.0712420321,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "sym0": "2"
+      },
+      "_seconds": 23.1,
+      "err": -5.551,
+      "kinetic": 2.8717487477,
+      "nel_err": -5.551e-15,
+      "nuclear": -6.7557412901,
+      "total": -2.9096638609
+    },
+    "atomic-He-mgga-u": {
+      "Coulomb": 2.0455773353,
+      "Exx": 0.0,
+      "XC": -1.0712453027,
+      "_converged": true,
+      "_iterations": 5,
+      "_occupations": {
+        "a:sym0": "1",
+        "b:sym0": "1"
+      },
+      "_seconds": 15.8,
+      "err": -1.91,
+      "kinetic": 2.8717639073,
+      "nel_err": -1.91e-14,
+      "nuclear": -6.7557598008,
+      "total": -2.9096638609
+    },
+    "atomic-O-3P-p0-hf": {
+      "Coulomb": 36.6463097487,
+      "Exx": -8.2081190083,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 9,
+      "_occupations": {
+        "a:sym0": "1",
+        "a:sym1": "1 1 1",
+        "a:sym2": "1",
+        "b:sym1": "1 1 1"
+      },
+      "_seconds": 15.6,
+      "err": 1.36,
+      "kinetic": 74.814047262,
+      "nel_err": 1.36e-09,
+      "nuclear": -178.0662882453,
+      "total": -74.8140502429
+    },
+    "atomic-O-3P-pminus-hf": {
+      "Coulomb": 36.6287477649,
+      "Exx": -8.1896987893,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 8,
+      "_occupations": {
+        "a:sym0": "1",
+        "a:sym1": "1 1 1",
+        "a:sym2": "1",
+        "b:sym0": "1",
+        "b:sym1": "1 1"
+      },
+      "_seconds": 26.8,
+      "err": -6.799,
+      "kinetic": 74.8137262559,
+      "nel_err": -6.799e-10,
+      "nuclear": -178.0665098203,
+      "total": -74.8137345888
+    },
+    "atomic-O-3P-pplus-hf": {
+      "Coulomb": 36.6287477649,
+      "Exx": -8.1896987893,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 8,
+      "_occupations": {
+        "a:sym0": "1",
+        "a:sym1": "1 1 1",
+        "a:sym2": "1",
+        "b:sym1": "1 1",
+        "b:sym2": "1"
+      },
+      "_seconds": 27.4,
+      "err": -6.799,
+      "kinetic": 74.8137262559,
+      "nel_err": -6.799e-10,
+      "nuclear": -178.0665098203,
+      "total": -74.8137345888
+    },
+    "diatomic-H2-hf-r": {
+      "Coulomb": 1.317196921,
+      "Enucr": 0.7142857143,
+      "Exx": -0.6585984605,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "sym0": "2"
+      },
+      "_seconds": 10.8,
+      "err": -5.584,
+      "kinetic": 1.1260831695,
+      "nel_err": -5.584e-13,
+      "nuclear": -3.6325969144,
+      "total": -1.1336295702
+    },
+    "diatomic-H2-hf-u": {
+      "Coulomb": 1.3171969177,
+      "Enucr": 0.7142857143,
+      "Exx": -0.6585984589,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 6,
+      "_occupations": {
+        "a:sym0": "1",
+        "b:sym0": "1"
+      },
+      "_seconds": 13.0,
+      "err": -5.604,
+      "kinetic": 1.1260831646,
+      "nel_err": -5.604e-13,
+      "nuclear": -3.6325969079,
+      "total": -1.1336295702
+    },
+    "diatomic-H2-purem-off": {
+      "Coulomb": 1.2971230265,
+      "Enucr": 0.7142857143,
+      "Exx": 0.0,
+      "XC": -0.653152335,
+      "_converged": true,
+      "_iterations": 5,
+      "_occupations": {
+        "sym0": "2"
+      },
+      "_seconds": 85.9,
+      "err": -3.348,
+      "kinetic": 1.1077032321,
+      "nel_err": -3.348e-13,
+      "nuclear": -3.6034404158,
+      "total": -1.1374807779
+    },
+    "diatomic-H2-purem-on": {
+      "Coulomb": 1.2971230265,
+      "Enucr": 0.7142857143,
+      "Exx": 0.0,
+      "XC": -0.653152335,
+      "_converged": true,
+      "_iterations": 5,
+      "_occupations": {
+        "sym0": "2"
+      },
+      "_seconds": 7.6,
+      "err": -3.446,
+      "kinetic": 1.1077032321,
+      "nel_err": -3.446e-13,
+      "nuclear": -3.6034404159,
+      "total": -1.1374807779
+    },
+    "diatomic-He-dummy-hf": {
+      "Coulomb": 2.051537231,
+      "Enucr": 0.0,
+      "Exx": -1.0257686155,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 5,
+      "_occupations": {
+        "sym0": "2"
+      },
+      "_seconds": 14.3,
+      "err": 1.235,
+      "kinetic": 2.8616798345,
+      "nel_err": 1.235e-13,
+      "nuclear": -6.7491284448,
+      "total": -2.8616799948
+    },
+    "gensap-H-hf": {
+      "_converged": true,
+      "_format": "total-only",
+      "_iterations": 6,
+      "_seconds": 1.4,
+      "total": -0.5
+    },
+    "gensap-He-hf": {
+      "_converged": true,
+      "_format": "total-only",
+      "_iterations": 6,
+      "_seconds": 2.3,
+      "total": -2.8616799956
+    },
+    "gensap-He-lda": {
+      "_converged": true,
+      "_format": "total-only",
+      "_iterations": 4,
+      "_seconds": 1.1,
+      "total": -2.8348356241
+    }
+  },
+  "metadata": {
+    "bindir": "/home/work/HelFEM/objdir/src",
+    "date": "2026-08-05 19:28:25",
+    "flexiblas": "FlexiBLAS, version 3.5.0",
+    "git_commit": "65b2ed48c08abe04bad99161dbd857dd1e2d62bf",
+    "git_describe": "65b2ed4 tests: extend the pure-m equivalence to GGA and mGGA",
+    "omp_num_threads": "6"
+  }
+}
