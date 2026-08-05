@@ -1,0 +1,4479 @@
+{
+  "_comment": [
+    "Integration test cases for HelFEM. This file is DATA -- edit it freely;",
+    "the runner (run_tests.py) is independent of what is listed here.",
+    "",
+    "Coverage axes, per code:",
+    "  1. spin-restricted and spin-unrestricted",
+    "  2. quick s-only systems (H, He, H2) and harder ones with p/pi orbitals",
+    "     (Ne, Ar, Kr, BH, CH, NH, OH, FH, N2, CO)",
+    "  3. with and without symmetry",
+    "  4. HF, LDA, GGA, mGGA (tau- and laplacian-dependent) and hybrids",
+    "",
+    "Bases are deliberately SMALL and FIXED. A regression test needs a",
+    "reproducible basis, not a converged one -- physical accuracy is a",
+    "separate concern. Diatomic grids were nonetheless derived with",
+    "diatomic_cbasis (see tools/gen_diatomic_grids.sh) so they are sane.",
+    "",
+    "Determinism: every case runs with OMP_NUM_THREADS=1. Converged energies",
+    "are a deterministic function of the thread count (see the memory note",
+    "energies-depend-on-thread-count), so the thread count is part of the",
+    "reference, not an incidental detail."
+  ],
+  "defaults": {
+    "env": {
+      "OMP_NUM_THREADS": "1"
+    },
+    "timeout_s": 900,
+    "tolerance": 1e-08
+  },
+  "cases": [
+    {
+      "name": "atomic-H-hf-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "hf",
+        "open-shell",
+        "ci"
+      ],
+      "args": [
+        "--Z=H",
+        "--M=2",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-H-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=H",
+        "--M=2",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-H-gga-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "gga",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=H",
+        "--M=2",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-H-mgga-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "mgga",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=H",
+        "--M=2",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=mgga_x_tpss-mgga_c_tpss",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-H-hybrid-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "hybrid",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=H",
+        "--M=2",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_b3lyp",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-He-hf-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "hf",
+        "ci"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-He-hf-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "hf",
+        "ci"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-He-lda-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "ci"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-He-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "ci"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-He-gga-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "gga",
+        "ci"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-He-gga-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "gga",
+        "ci"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-He-mgga-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "mgga",
+        "ci"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=mgga_x_tpss-mgga_c_tpss",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-He-mgga-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "mgga",
+        "ci"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=mgga_x_tpss-mgga_c_tpss",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-He-hybrid-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "hybrid",
+        "ci"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_b3lyp",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-He-hybrid-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "hybrid",
+        "ci"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_b3lyp",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-He-rsh-erfc-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "rsh-erfc",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_cam_b3lyp",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-He-rsh-erfc-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "rsh-erfc",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_cam_b3lyp",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-He-rsh-yukawa-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "rsh-yukawa",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_camy_b3lyp",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-He-rsh-yukawa-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "rsh-yukawa",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_camy_b3lyp",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Be-hf-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "hf",
+        "ci"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--restricted=1"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-Be-hf-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "hf",
+        "ci"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--restricted=0"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-Be-lda-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "ci"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-Be-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "ci"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-Be-gga-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "gga"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--restricted=1"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-Be-gga-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "gga"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--restricted=0"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-Be-mgga-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "mgga"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=mgga_x_tpss-mgga_c_tpss",
+        "--restricted=1"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-Be-mgga-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "mgga"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=mgga_x_tpss-mgga_c_tpss",
+        "--restricted=0"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-Be-hybrid-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "hybrid"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_b3lyp",
+        "--restricted=1"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-Be-hybrid-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "hybrid"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_b3lyp",
+        "--restricted=0"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-Be-rsh-erfc-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "rsh-erfc",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_cam_b3lyp",
+        "--restricted=1"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-Be-rsh-erfc-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "rsh-erfc",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_cam_b3lyp",
+        "--restricted=0"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-Be-rsh-yukawa-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "rsh-yukawa",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_camy_b3lyp",
+        "--restricted=1"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-Be-rsh-yukawa-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "rsh-yukawa",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_camy_b3lyp",
+        "--restricted=0"
+      ],
+      "_why": "at lmax=0 there is no p in the basis, so the 2s/2p near-degeneracy cannot arise and no pin is needed"
+    },
+    {
+      "name": "atomic-N-hf-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "hf",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-N-hf-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "hf",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-N-lda-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-N-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-N-gga-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "gga",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-N-gga-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "gga",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-N-mgga-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "mgga",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=mgga_x_tpss-mgga_c_tpss",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-N-mgga-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "mgga",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=mgga_x_tpss-mgga_c_tpss",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-N-hybrid-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "hybrid",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_b3lyp",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-N-hybrid-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "hybrid",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_b3lyp",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-N-rsh-erfc-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "rsh-erfc",
+        "open-shell",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_cam_b3lyp",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-N-rsh-erfc-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "rsh-erfc",
+        "open-shell",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_cam_b3lyp",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-N-rsh-yukawa-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "rsh-yukawa",
+        "open-shell",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_camy_b3lyp",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-N-rsh-yukawa-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "rsh-yukawa",
+        "open-shell",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_camy_b3lyp",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Ne-hf-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "hf"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-Ne-hf-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "hf"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Ne-lda-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-Ne-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Ne-gga-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "gga"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-Ne-gga-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "gga"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Ne-mgga-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "mgga"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=mgga_x_tpss-mgga_c_tpss",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-Ne-mgga-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "mgga"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=mgga_x_tpss-mgga_c_tpss",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Ne-hybrid-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "hybrid"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_b3lyp",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-Ne-hybrid-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "hybrid"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_b3lyp",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Ne-rsh-erfc-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "rsh-erfc",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_cam_b3lyp",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-Ne-rsh-erfc-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "rsh-erfc",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_cam_b3lyp",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Ne-rsh-yukawa-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "rsh-yukawa",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_camy_b3lyp",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-Ne-rsh-yukawa-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "rsh-yukawa",
+        "range-separated",
+        "slow"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_camy_b3lyp",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Na-lda-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=Na",
+        "--M=2",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-Na-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=Na",
+        "--M=2",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Mg-lda-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda"
+      ],
+      "args": [
+        "--Z=Mg",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-Mg-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda"
+      ],
+      "args": [
+        "--Z=Mg",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-P-lda-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=P",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-P-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=P",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Ar-lda-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda"
+      ],
+      "args": [
+        "--Z=Ar",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-Ar-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda"
+      ],
+      "args": [
+        "--Z=Ar",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-K-lda-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=K",
+        "--M=2",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-K-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "open-shell"
+      ],
+      "args": [
+        "--Z=K",
+        "--M=2",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Ca-lda-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda"
+      ],
+      "args": [
+        "--Z=Ca",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-Ca-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda"
+      ],
+      "args": [
+        "--Z=Ca",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Cr-lda-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "open-shell",
+        "slow",
+        "held-out"
+      ],
+      "args": [
+        "--Z=Cr",
+        "--M=7",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ],
+      "_why": "HELD OUT pending the OOO convergence issue: spin-restricted Cr puts fractional occupations across the degenerate d shell and ran 7042s / 128 iterations without converging. Spin-restricted Fe behaves the same way (oscillates over 0.1 Eh). Both are good tests of the fractional-occupation path once it converges reliably. The convergence guard already refuses to record a value for this, so it fails loudly rather than silently."
+    },
+    {
+      "name": "atomic-Cr-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "open-shell",
+        "slow"
+      ],
+      "args": [
+        "--Z=Cr",
+        "--M=7",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Zn-lda-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "slow"
+      ],
+      "args": [
+        "--Z=Zn",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-Zn-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "slow"
+      ],
+      "args": [
+        "--Z=Zn",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Kr-lda-r",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "slow"
+      ],
+      "args": [
+        "--Z=Kr",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "atomic-Kr-lda-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "slow"
+      ],
+      "args": [
+        "--Z=Kr",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-O-3P-p0-hf",
+      "code": "atomic",
+      "tags": [
+        "configuration",
+        "open-shell",
+        "hf",
+        "ci"
+      ],
+      "_why": "hole in p0 (M_L = +0)",
+      "args": [
+        "--Z=O",
+        "--M=3",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--symmetry=1",
+        "--readocc=1"
+      ],
+      "input_files": {
+        "occs.dat": "3 3 0\n1 0 1\n1 0 -1\n"
+      }
+    },
+    {
+      "name": "atomic-O-3P-pplus-hf",
+      "code": "atomic",
+      "tags": [
+        "configuration",
+        "open-shell",
+        "hf",
+        "ci"
+      ],
+      "_why": "hole in p+ (M_L = -1)",
+      "args": [
+        "--Z=O",
+        "--M=3",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--symmetry=1",
+        "--readocc=1"
+      ],
+      "input_files": {
+        "occs.dat": "3 2 0\n1 1 1\n1 0 -1\n"
+      }
+    },
+    {
+      "name": "atomic-O-3P-pminus-hf",
+      "code": "atomic",
+      "tags": [
+        "configuration",
+        "open-shell",
+        "hf",
+        "ci"
+      ],
+      "_why": "hole in p- (M_L = +1)",
+      "args": [
+        "--Z=O",
+        "--M=3",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--symmetry=1",
+        "--readocc=1"
+      ],
+      "input_files": {
+        "occs.dat": "3 2 0\n1 0 1\n1 1 -1\n"
+      }
+    },
+    {
+      "name": "atomic-O-3P-p0-gga",
+      "code": "atomic",
+      "tags": [
+        "configuration",
+        "open-shell",
+        "gga"
+      ],
+      "_why": "hole in p0 (M_L = +0)",
+      "args": [
+        "--Z=O",
+        "--M=3",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--symmetry=1",
+        "--readocc=1"
+      ],
+      "input_files": {
+        "occs.dat": "3 3 0\n1 0 1\n1 0 -1\n"
+      }
+    },
+    {
+      "name": "atomic-O-3P-pplus-gga",
+      "code": "atomic",
+      "tags": [
+        "configuration",
+        "open-shell",
+        "gga"
+      ],
+      "_why": "hole in p+ (M_L = -1)",
+      "args": [
+        "--Z=O",
+        "--M=3",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--symmetry=1",
+        "--readocc=1"
+      ],
+      "input_files": {
+        "occs.dat": "3 2 0\n1 1 1\n1 0 -1\n"
+      }
+    },
+    {
+      "name": "atomic-O-3P-pminus-gga",
+      "code": "atomic",
+      "tags": [
+        "configuration",
+        "open-shell",
+        "gga"
+      ],
+      "_why": "hole in p- (M_L = +1)",
+      "args": [
+        "--Z=O",
+        "--M=3",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--symmetry=1",
+        "--readocc=1"
+      ],
+      "input_files": {
+        "occs.dat": "3 2 0\n1 0 1\n1 1 -1\n"
+      }
+    },
+    {
+      "name": "atomic-Be-field-Ez-pos",
+      "code": "atomic",
+      "tags": [
+        "field",
+        "frozen-occupations",
+        "hf",
+        "ci"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--symmetry=1",
+        "--readocc=1",
+        "--Ez=0.001"
+      ],
+      "input_files": {
+        "occs.dat": "2 2 0\n"
+      }
+    },
+    {
+      "name": "atomic-Be-field-Ez-neg",
+      "code": "atomic",
+      "tags": [
+        "field",
+        "frozen-occupations",
+        "hf",
+        "ci"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--symmetry=1",
+        "--readocc=1",
+        "--Ez=-0.001"
+      ],
+      "input_files": {
+        "occs.dat": "2 2 0\n"
+      }
+    },
+    {
+      "name": "atomic-Be-field-Bz-pos",
+      "code": "atomic",
+      "tags": [
+        "field",
+        "frozen-occupations",
+        "hf",
+        "ci"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--symmetry=1",
+        "--readocc=1",
+        "--Bz=0.05"
+      ],
+      "input_files": {
+        "occs.dat": "2 2 0\n"
+      }
+    },
+    {
+      "name": "atomic-Be-field-Bz-neg",
+      "code": "atomic",
+      "tags": [
+        "field",
+        "frozen-occupations",
+        "hf",
+        "ci"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF",
+        "--symmetry=1",
+        "--readocc=1",
+        "--Bz=-0.05"
+      ],
+      "input_files": {
+        "occs.dat": "2 2 0\n"
+      }
+    },
+    {
+      "name": "diatomic-H2-hf-r",
+      "code": "diatomic",
+      "tags": [
+        "restricted",
+        "hf",
+        "diatomic",
+        "ci"
+      ],
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=1.4",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=HF",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "diatomic-H2-hf-u",
+      "code": "diatomic",
+      "tags": [
+        "polarized",
+        "hf",
+        "diatomic",
+        "ci"
+      ],
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=1.4",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=HF",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "diatomic-H2-lda-r",
+      "code": "diatomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "diatomic"
+      ],
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=1.4",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "diatomic-H2-lda-u",
+      "code": "diatomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "diatomic"
+      ],
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=1.4",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "diatomic-BeH-hf-u",
+      "code": "diatomic",
+      "tags": [
+        "polarized",
+        "hf",
+        "diatomic",
+        "open-shell"
+      ],
+      "args": [
+        "--Z1=4",
+        "--Z2=1",
+        "--Rbond=2.538",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=12",
+        "--nela=3",
+        "--nelb=2",
+        "--method=HF",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "diatomic-BeH-lda-u",
+      "code": "diatomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "diatomic",
+        "open-shell"
+      ],
+      "args": [
+        "--Z1=4",
+        "--Z2=1",
+        "--Rbond=2.538",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=12",
+        "--nela=3",
+        "--nelb=2",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "diatomic-NH-hf-u",
+      "code": "diatomic",
+      "tags": [
+        "polarized",
+        "hf",
+        "diatomic",
+        "open-shell",
+        "slow"
+      ],
+      "args": [
+        "--Z1=7",
+        "--Z2=1",
+        "--Rbond=1.958",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,11",
+        "--nela=5",
+        "--nelb=3",
+        "--method=HF",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "diatomic-NH-lda-u",
+      "code": "diatomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "diatomic",
+        "open-shell",
+        "slow"
+      ],
+      "args": [
+        "--Z1=7",
+        "--Z2=1",
+        "--Rbond=1.958",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,11",
+        "--nela=5",
+        "--nelb=3",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "diatomic-N2-hf-r",
+      "code": "diatomic",
+      "tags": [
+        "restricted",
+        "hf",
+        "diatomic",
+        "slow"
+      ],
+      "args": [
+        "--Z1=7",
+        "--Z2=7",
+        "--Rbond=2.07",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=7",
+        "--nelb=7",
+        "--method=HF",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "diatomic-N2-hf-u",
+      "code": "diatomic",
+      "tags": [
+        "polarized",
+        "hf",
+        "diatomic",
+        "slow"
+      ],
+      "args": [
+        "--Z1=7",
+        "--Z2=7",
+        "--Rbond=2.07",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=7",
+        "--nelb=7",
+        "--method=HF",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "diatomic-N2-lda-r",
+      "code": "diatomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "diatomic",
+        "slow"
+      ],
+      "args": [
+        "--Z1=7",
+        "--Z2=7",
+        "--Rbond=2.07",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=7",
+        "--nelb=7",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1"
+      ]
+    },
+    {
+      "name": "diatomic-N2-lda-u",
+      "code": "diatomic",
+      "tags": [
+        "polarized",
+        "lda",
+        "diatomic",
+        "slow"
+      ],
+      "args": [
+        "--Z1=7",
+        "--Z2=7",
+        "--Rbond=2.07",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=7",
+        "--nelb=7",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-Be-nop-l0",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "gga",
+        "consistency",
+        "ci"
+      ],
+      "_why": "no p orbitals in the basis at all",
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe"
+      ]
+    },
+    {
+      "name": "atomic-Be-nop-pinned",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "gga",
+        "consistency",
+        "frozen-occupations",
+        "ci"
+      ],
+      "_why": "p orbitals present in the basis but unoccupied by construction",
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=gga_x_pbe",
+        "--symmetry=2",
+        "--readocc=1"
+      ],
+      "input_files": {
+        "occs.dat": "2 2 0 0\n"
+      }
+    },
+    {
+      "name": "diatomic-H2-purem-on",
+      "code": "diatomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "diatomic",
+        "consistency",
+        "ci"
+      ],
+      "_why": "cylindrical-symmetry fast path (analytic phi)",
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=1.4",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=lda_x-lda_c_vwn",
+        "--purem=1"
+      ]
+    },
+    {
+      "name": "diatomic-H2-purem-off",
+      "code": "diatomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "diatomic",
+        "consistency",
+        "ci"
+      ],
+      "_why": "general path, explicit phi quadrature",
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=1.4",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=lda_x-lda_c_vwn",
+        "--purem=0"
+      ]
+    },
+    {
+      "name": "atomic-H-rsh-erfc-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "open-shell",
+        "rsh-erfc",
+        "range-separated",
+        "ci"
+      ],
+      "args": [
+        "--Z=H",
+        "--M=2",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_cam_b3lyp",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "atomic-H-rsh-yukawa-u",
+      "code": "atomic",
+      "tags": [
+        "polarized",
+        "open-shell",
+        "rsh-yukawa",
+        "range-separated",
+        "ci"
+      ],
+      "args": [
+        "--Z=H",
+        "--M=2",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=hyb_gga_xc_camy_b3lyp",
+        "--restricted=0"
+      ]
+    },
+    {
+      "name": "gensap-H-hf",
+      "code": "gensap",
+      "tags": [
+        "spherical",
+        "hf",
+        "ci"
+      ],
+      "args": [
+        "--Z=H",
+        "--M=2",
+        "--lmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF"
+      ]
+    },
+    {
+      "name": "gensap-He-hf",
+      "code": "gensap",
+      "tags": [
+        "spherical",
+        "hf",
+        "ci"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF"
+      ]
+    },
+    {
+      "name": "gensap-He-lda",
+      "code": "gensap",
+      "tags": [
+        "spherical",
+        "lda",
+        "ci"
+      ],
+      "args": [
+        "--Z=He",
+        "--M=1",
+        "--lmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "gensap-Be-lda",
+      "code": "gensap",
+      "tags": [
+        "spherical",
+        "lda"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "gensap-N-hf",
+      "code": "gensap",
+      "tags": [
+        "spherical",
+        "hf"
+      ],
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=HF"
+      ]
+    },
+    {
+      "name": "gensap-Ne-lda",
+      "code": "gensap",
+      "tags": [
+        "spherical",
+        "lda"
+      ],
+      "args": [
+        "--Z=Ne",
+        "--M=1",
+        "--lmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "gensap-P-lda",
+      "code": "gensap",
+      "tags": [
+        "spherical",
+        "lda"
+      ],
+      "args": [
+        "--Z=P",
+        "--M=4",
+        "--lmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "gensap-Ar-lda",
+      "code": "gensap",
+      "tags": [
+        "spherical",
+        "lda"
+      ],
+      "args": [
+        "--Z=Ar",
+        "--M=1",
+        "--lmax=1",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "gensap-Cr-lda",
+      "code": "gensap",
+      "tags": [
+        "spherical",
+        "lda",
+        "slow"
+      ],
+      "args": [
+        "--Z=Cr",
+        "--M=7",
+        "--lmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "gensap-Zn-lda",
+      "code": "gensap",
+      "tags": [
+        "spherical",
+        "lda",
+        "slow"
+      ],
+      "args": [
+        "--Z=Zn",
+        "--M=1",
+        "--lmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "aij-Al-jellium",
+      "code": "aij",
+      "tags": [
+        "jellium",
+        "lda"
+      ],
+      "args": [
+        "--Z=Al",
+        "--M=2",
+        "--nelem=5",
+        "--nnodes=10",
+        "--method=lda_x",
+        "--njellium=6",
+        "--rs=2.07"
+      ]
+    },
+    {
+      "name": "aij-Al-njellium0",
+      "code": "aij",
+      "tags": [
+        "jellium",
+        "lda",
+        "consistency"
+      ],
+      "_why": "no jellium electrons: must reduce to the bare atom",
+      "args": [
+        "--Z=Al",
+        "--M=2",
+        "--nelem=5",
+        "--nnodes=10",
+        "--njellium=0",
+        "--rs=2.07",
+        "--method=lda_x"
+      ]
+    },
+    {
+      "name": "gensap-Al-lda_x",
+      "code": "gensap",
+      "tags": [
+        "spherical",
+        "lda",
+        "consistency"
+      ],
+      "_why": "bare Al, the limit aij must reproduce at njellium=0",
+      "args": [
+        "--Z=Al",
+        "--M=2",
+        "--lmax=2",
+        "--nelem=5",
+        "--nnodes=10",
+        "--method=lda_x"
+      ]
+    },
+    {
+      "name": "diatomic-He-dummy-hf",
+      "code": "diatomic",
+      "tags": [
+        "restricted",
+        "hf",
+        "diatomic",
+        "cross-code",
+        "ci"
+      ],
+      "_why": "He solved in prolate spheroidal coordinates with a zero-charge dummy centre; must reproduce the atomic solver",
+      "args": [
+        "--Z1=2",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=6",
+        "--nela=1",
+        "--nelb=1",
+        "--method=HF"
+      ]
+    },
+    {
+      "name": "diatomic-H2-purem-gga-on",
+      "code": "diatomic",
+      "tags": [
+        "restricted",
+        "gga",
+        "diatomic",
+        "consistency"
+      ],
+      "_why": "cylindrical-symmetry fast path (analytic phi)",
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=1.4",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--purem=1"
+      ]
+    },
+    {
+      "name": "diatomic-H2-purem-gga-off",
+      "code": "diatomic",
+      "tags": [
+        "restricted",
+        "gga",
+        "diatomic",
+        "consistency",
+        "slow"
+      ],
+      "_why": "general path, explicit phi quadrature",
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=1.4",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--purem=0"
+      ]
+    },
+    {
+      "name": "diatomic-H2-purem-mgga-on",
+      "code": "diatomic",
+      "tags": [
+        "restricted",
+        "mgga",
+        "diatomic",
+        "consistency"
+      ],
+      "_why": "cylindrical-symmetry fast path (analytic phi)",
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=1.4",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=mgga_x_tpss-mgga_c_tpss",
+        "--purem=1"
+      ]
+    },
+    {
+      "name": "diatomic-H2-purem-mgga-off",
+      "code": "diatomic",
+      "tags": [
+        "restricted",
+        "mgga",
+        "diatomic",
+        "consistency",
+        "slow"
+      ],
+      "_why": "general path, explicit phi quadrature",
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=1.4",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=mgga_x_tpss-mgga_c_tpss",
+        "--purem=0"
+      ]
+    },
+    {
+      "name": "diatomic-H-dummy-hf",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "hf"
+      ],
+      "_why": "H through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=1",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=0",
+        "--method=HF"
+      ]
+    },
+    {
+      "name": "diatomic-H-dummy-lda",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "lda"
+      ],
+      "_why": "H through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=1",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=0",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "diatomic-H-dummy-gga",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "gga"
+      ],
+      "_why": "H through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=1",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=0",
+        "--method=gga_x_pbe-gga_c_pbe"
+      ]
+    },
+    {
+      "name": "diatomic-H-dummy-mgga",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "mgga"
+      ],
+      "_why": "H through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=1",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=0",
+        "--method=mgga_x_tpss-mgga_c_tpss"
+      ]
+    },
+    {
+      "name": "diatomic-H-dummy-hybrid",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "hybrid"
+      ],
+      "_why": "H through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=1",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=0",
+        "--method=hyb_gga_xc_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-H-dummy-rsh-erfc",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "rsh-erfc"
+      ],
+      "_why": "H through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=1",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=0",
+        "--method=hyb_gga_xc_cam_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-H-dummy-rsh-yukawa",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "rsh-yukawa"
+      ],
+      "_why": "H through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=1",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=0",
+        "--method=hyb_gga_xc_camy_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-He-dummy-lda",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "lda"
+      ],
+      "_why": "He through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=2",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=6",
+        "--nela=1",
+        "--nelb=1",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "diatomic-He-dummy-gga",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "gga"
+      ],
+      "_why": "He through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=2",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=6",
+        "--nela=1",
+        "--nelb=1",
+        "--method=gga_x_pbe-gga_c_pbe"
+      ]
+    },
+    {
+      "name": "diatomic-He-dummy-mgga",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "mgga"
+      ],
+      "_why": "He through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=2",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=6",
+        "--nela=1",
+        "--nelb=1",
+        "--method=mgga_x_tpss-mgga_c_tpss"
+      ]
+    },
+    {
+      "name": "diatomic-He-dummy-hybrid",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "hybrid"
+      ],
+      "_why": "He through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=2",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=6",
+        "--nela=1",
+        "--nelb=1",
+        "--method=hyb_gga_xc_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-He-dummy-rsh-erfc",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "rsh-erfc"
+      ],
+      "_why": "He through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=2",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=6",
+        "--nela=1",
+        "--nelb=1",
+        "--method=hyb_gga_xc_cam_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-He-dummy-rsh-yukawa",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "rsh-yukawa"
+      ],
+      "_why": "He through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=2",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=6",
+        "--nela=1",
+        "--nelb=1",
+        "--method=hyb_gga_xc_camy_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-Be-dummy-hf",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "hf"
+      ],
+      "_why": "Be through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=4",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=8",
+        "--nela=2",
+        "--nelb=2",
+        "--method=HF"
+      ]
+    },
+    {
+      "name": "diatomic-Be-dummy-lda",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "lda"
+      ],
+      "_why": "Be through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=4",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=8",
+        "--nela=2",
+        "--nelb=2",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "diatomic-Be-dummy-gga",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "gga"
+      ],
+      "_why": "Be through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=4",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=8",
+        "--nela=2",
+        "--nelb=2",
+        "--method=gga_x_pbe-gga_c_pbe"
+      ]
+    },
+    {
+      "name": "diatomic-Be-dummy-mgga",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "mgga"
+      ],
+      "_why": "Be through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=4",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=8",
+        "--nela=2",
+        "--nelb=2",
+        "--method=mgga_x_tpss-mgga_c_tpss"
+      ]
+    },
+    {
+      "name": "diatomic-Be-dummy-hybrid",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "hybrid"
+      ],
+      "_why": "Be through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=4",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=8",
+        "--nela=2",
+        "--nelb=2",
+        "--method=hyb_gga_xc_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-Be-dummy-rsh-erfc",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "rsh-erfc"
+      ],
+      "_why": "Be through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=4",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=8",
+        "--nela=2",
+        "--nelb=2",
+        "--method=hyb_gga_xc_cam_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-Be-dummy-rsh-yukawa",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "rsh-yukawa"
+      ],
+      "_why": "Be through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=4",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=8",
+        "--nela=2",
+        "--nelb=2",
+        "--method=hyb_gga_xc_camy_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-N-dummy-hf",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "hf"
+      ],
+      "_why": "N through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=7",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=11,9",
+        "--nela=5",
+        "--nelb=2",
+        "--method=HF"
+      ]
+    },
+    {
+      "name": "diatomic-N-dummy-lda",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "lda"
+      ],
+      "_why": "N through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=7",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=11,9",
+        "--nela=5",
+        "--nelb=2",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "diatomic-N-dummy-gga",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "gga"
+      ],
+      "_why": "N through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=7",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=11,9",
+        "--nela=5",
+        "--nelb=2",
+        "--method=gga_x_pbe-gga_c_pbe"
+      ]
+    },
+    {
+      "name": "diatomic-N-dummy-mgga",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "mgga"
+      ],
+      "_why": "N through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=7",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=11,9",
+        "--nela=5",
+        "--nelb=2",
+        "--method=mgga_x_tpss-mgga_c_tpss"
+      ]
+    },
+    {
+      "name": "diatomic-N-dummy-hybrid",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "hybrid"
+      ],
+      "_why": "N through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=7",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=11,9",
+        "--nela=5",
+        "--nelb=2",
+        "--method=hyb_gga_xc_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-N-dummy-rsh-erfc",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "rsh-erfc"
+      ],
+      "_why": "N through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=7",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=11,9",
+        "--nela=5",
+        "--nelb=2",
+        "--method=hyb_gga_xc_cam_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-N-dummy-rsh-yukawa",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "rsh-yukawa"
+      ],
+      "_why": "N through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=7",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=11,9",
+        "--nela=5",
+        "--nelb=2",
+        "--method=hyb_gga_xc_camy_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-Ne-dummy-hf",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "hf"
+      ],
+      "_why": "Ne through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=10",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=5",
+        "--nelb=5",
+        "--method=HF"
+      ]
+    },
+    {
+      "name": "diatomic-Ne-dummy-lda",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "lda"
+      ],
+      "_why": "Ne through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=10",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=5",
+        "--nelb=5",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "diatomic-Ne-dummy-gga",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "gga"
+      ],
+      "_why": "Ne through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=10",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=5",
+        "--nelb=5",
+        "--method=gga_x_pbe-gga_c_pbe"
+      ]
+    },
+    {
+      "name": "diatomic-Ne-dummy-mgga",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "mgga"
+      ],
+      "_why": "Ne through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=10",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=5",
+        "--nelb=5",
+        "--method=mgga_x_tpss-mgga_c_tpss"
+      ]
+    },
+    {
+      "name": "diatomic-Ne-dummy-hybrid",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "hybrid"
+      ],
+      "_why": "Ne through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=10",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=5",
+        "--nelb=5",
+        "--method=hyb_gga_xc_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-Ne-dummy-rsh-erfc",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "rsh-erfc"
+      ],
+      "_why": "Ne through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=10",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=5",
+        "--nelb=5",
+        "--method=hyb_gga_xc_cam_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-Ne-dummy-rsh-yukawa",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "rsh-yukawa"
+      ],
+      "_why": "Ne through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=10",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=5",
+        "--nelb=5",
+        "--method=hyb_gga_xc_camy_b3lyp"
+      ]
+    },
+    {
+      "name": "diatomic-Na-dummy-lda",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "lda",
+        "slow"
+      ],
+      "_why": "Na through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=11",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,11",
+        "--nela=6",
+        "--nelb=5",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "diatomic-Mg-dummy-lda",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "lda",
+        "slow"
+      ],
+      "_why": "Mg through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=12",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,11",
+        "--nela=6",
+        "--nelb=6",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "diatomic-P-dummy-lda",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "lda",
+        "slow"
+      ],
+      "_why": "P through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=15",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=15,11",
+        "--nela=9",
+        "--nelb=6",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "diatomic-Ar-dummy-lda",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "lda",
+        "slow"
+      ],
+      "_why": "Ar through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=18",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=17,13",
+        "--nela=9",
+        "--nelb=9",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "diatomic-K-dummy-lda",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "lda",
+        "slow"
+      ],
+      "_why": "K through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=19",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=17,13",
+        "--nela=10",
+        "--nelb=9",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "diatomic-Ca-dummy-lda",
+      "code": "diatomic",
+      "tags": [
+        "cross-code",
+        "diatomic",
+        "lda",
+        "slow"
+      ],
+      "_why": "Ca through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
+      "args": [
+        "--Z1=20",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=17,13",
+        "--nela=10",
+        "--nelb=10",
+        "--method=lda_x-lda_c_vwn"
+      ]
+    },
+    {
+      "name": "atomic-Be-field-Ez-lda-pos",
+      "code": "atomic",
+      "tags": [
+        "field",
+        "frozen-occupations",
+        "lda",
+        "ci"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--symmetry=1",
+        "--readocc=1",
+        "--method=lda_x-lda_c_vwn",
+        "--Ez=0.001"
+      ],
+      "input_files": {
+        "occs.dat": "2 2 0\n"
+      }
+    },
+    {
+      "name": "atomic-Be-field-Ez-lda-neg",
+      "code": "atomic",
+      "tags": [
+        "field",
+        "frozen-occupations",
+        "lda",
+        "ci"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--symmetry=1",
+        "--readocc=1",
+        "--method=lda_x-lda_c_vwn",
+        "--Ez=-0.001"
+      ],
+      "input_files": {
+        "occs.dat": "2 2 0\n"
+      }
+    },
+    {
+      "name": "atomic-Be-field-Bz-lda-pos",
+      "code": "atomic",
+      "tags": [
+        "field",
+        "frozen-occupations",
+        "lda",
+        "ci"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--symmetry=1",
+        "--readocc=1",
+        "--method=lda_x-lda_c_vwn",
+        "--Bz=0.05"
+      ],
+      "input_files": {
+        "occs.dat": "2 2 0\n"
+      }
+    },
+    {
+      "name": "atomic-Be-field-Bz-lda-neg",
+      "code": "atomic",
+      "tags": [
+        "field",
+        "frozen-occupations",
+        "lda",
+        "ci"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--symmetry=1",
+        "--readocc=1",
+        "--method=lda_x-lda_c_vwn",
+        "--Bz=-0.05"
+      ],
+      "input_files": {
+        "occs.dat": "2 2 0\n"
+      }
+    },
+    {
+      "name": "atomic-Be-field-Ez-gga-pos",
+      "code": "atomic",
+      "tags": [
+        "field",
+        "frozen-occupations",
+        "gga"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--symmetry=1",
+        "--readocc=1",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--Ez=0.001"
+      ],
+      "input_files": {
+        "occs.dat": "2 2 0\n"
+      }
+    },
+    {
+      "name": "atomic-Be-field-Ez-gga-neg",
+      "code": "atomic",
+      "tags": [
+        "field",
+        "frozen-occupations",
+        "gga"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--symmetry=1",
+        "--readocc=1",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--Ez=-0.001"
+      ],
+      "input_files": {
+        "occs.dat": "2 2 0\n"
+      }
+    },
+    {
+      "name": "atomic-Be-field-Bz-gga-pos",
+      "code": "atomic",
+      "tags": [
+        "field",
+        "frozen-occupations",
+        "gga"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--symmetry=1",
+        "--readocc=1",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--Bz=0.05"
+      ],
+      "input_files": {
+        "occs.dat": "2 2 0\n"
+      }
+    },
+    {
+      "name": "atomic-Be-field-Bz-gga-neg",
+      "code": "atomic",
+      "tags": [
+        "field",
+        "frozen-occupations",
+        "gga"
+      ],
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=2",
+        "--mmax=2",
+        "--nelem=5",
+        "--nnodes=15",
+        "--symmetry=1",
+        "--readocc=1",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--Bz=-0.05"
+      ],
+      "input_files": {
+        "occs.dat": "2 2 0\n"
+      }
+    },
+    {
+      "name": "diatomic-CH-piplus-hf",
+      "code": "diatomic",
+      "tags": [
+        "polarized",
+        "open-shell",
+        "configuration",
+        "diatomic",
+        "hf",
+        "slow"
+      ],
+      "_why": "CH 2-Pi with the single pi electron pinned to m=+1",
+      "args": [
+        "--Z1=6",
+        "--Z2=1",
+        "--Rbond=2.116",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,11",
+        "--nela=4",
+        "--nelb=3",
+        "--symmetry=1",
+        "--readocc=1",
+        "--method=HF"
+      ],
+      "input_files": {
+        "occs.dat": "3 3 0\n1 0 1\n0 0 -1\n"
+      }
+    },
+    {
+      "name": "diatomic-CH-piminus-hf",
+      "code": "diatomic",
+      "tags": [
+        "polarized",
+        "open-shell",
+        "configuration",
+        "diatomic",
+        "hf",
+        "slow"
+      ],
+      "_why": "CH 2-Pi with the single pi electron pinned to m=-1",
+      "args": [
+        "--Z1=6",
+        "--Z2=1",
+        "--Rbond=2.116",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,11",
+        "--nela=4",
+        "--nelb=3",
+        "--symmetry=1",
+        "--readocc=1",
+        "--method=HF"
+      ],
+      "input_files": {
+        "occs.dat": "3 3 0\n0 0 1\n1 0 -1\n"
+      }
+    },
+    {
+      "name": "diatomic-CH-piplus-lda",
+      "code": "diatomic",
+      "tags": [
+        "polarized",
+        "open-shell",
+        "configuration",
+        "diatomic",
+        "lda",
+        "slow"
+      ],
+      "_why": "CH 2-Pi with the single pi electron pinned to m=+1",
+      "args": [
+        "--Z1=6",
+        "--Z2=1",
+        "--Rbond=2.116",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,11",
+        "--nela=4",
+        "--nelb=3",
+        "--symmetry=1",
+        "--readocc=1",
+        "--method=lda_x-lda_c_vwn"
+      ],
+      "input_files": {
+        "occs.dat": "3 3 0\n1 0 1\n0 0 -1\n"
+      }
+    },
+    {
+      "name": "diatomic-CH-piminus-lda",
+      "code": "diatomic",
+      "tags": [
+        "polarized",
+        "open-shell",
+        "configuration",
+        "diatomic",
+        "lda",
+        "slow"
+      ],
+      "_why": "CH 2-Pi with the single pi electron pinned to m=-1",
+      "args": [
+        "--Z1=6",
+        "--Z2=1",
+        "--Rbond=2.116",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,11",
+        "--nela=4",
+        "--nelb=3",
+        "--symmetry=1",
+        "--readocc=1",
+        "--method=lda_x-lda_c_vwn"
+      ],
+      "input_files": {
+        "occs.dat": "3 3 0\n0 0 1\n1 0 -1\n"
+      }
+    }
+  ],
+  "_invariants_comment": [
+    "Pairs of cases that must agree with EACH OTHER regardless of any",
+    "reference values. These catch whole classes of bug without needing a",
+    "known-good historical build, and they stay valid even when the",
+    "reference values legitimately change."
+  ],
+  "invariants": [
+    {
+      "name": "He-restricted-equals-polarized",
+      "_why": "closed shell: the polarized solution must collapse onto the restricted one",
+      "cases": [
+        "atomic-He-lda-r",
+        "atomic-He-lda-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-07
+    },
+    {
+      "name": "Be-restricted-equals-polarized",
+      "_why": "closed shell: the polarized solution must collapse onto the restricted one",
+      "cases": [
+        "atomic-Be-lda-r",
+        "atomic-Be-lda-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-07
+    },
+    {
+      "name": "Ne-restricted-equals-polarized",
+      "_why": "closed shell: the polarized solution must collapse onto the restricted one",
+      "cases": [
+        "atomic-Ne-lda-r",
+        "atomic-Ne-lda-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-07
+    },
+    {
+      "name": "Mg-restricted-equals-polarized",
+      "_why": "closed shell: the polarized solution must collapse onto the restricted one",
+      "cases": [
+        "atomic-Mg-lda-r",
+        "atomic-Mg-lda-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-07
+    },
+    {
+      "name": "Ar-restricted-equals-polarized",
+      "_why": "closed shell: the polarized solution must collapse onto the restricted one",
+      "cases": [
+        "atomic-Ar-lda-r",
+        "atomic-Ar-lda-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-07
+    },
+    {
+      "name": "Ca-restricted-equals-polarized",
+      "_why": "closed shell: the polarized solution must collapse onto the restricted one",
+      "cases": [
+        "atomic-Ca-lda-r",
+        "atomic-Ca-lda-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-07
+    },
+    {
+      "name": "Zn-restricted-equals-polarized",
+      "_why": "closed shell: the polarized solution must collapse onto the restricted one",
+      "cases": [
+        "atomic-Zn-lda-r",
+        "atomic-Zn-lda-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-07
+    },
+    {
+      "name": "Kr-restricted-equals-polarized",
+      "_why": "closed shell: the polarized solution must collapse onto the restricted one",
+      "cases": [
+        "atomic-Kr-lda-r",
+        "atomic-Kr-lda-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-07
+    },
+    {
+      "name": "O-3P-pplus-equals-pminus-hf",
+      "_why": "+m and -m holes are related by reflection: exactly degenerate. Measured -74.8146025595 (HF) for both, to all printed digits; the p0 component sits 2.94 mEh away.",
+      "cases": [
+        "atomic-O-3P-pplus-hf",
+        "atomic-O-3P-pminus-hf"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "O-3P-pplus-equals-pminus-gga",
+      "_why": "+m and -m holes are related by reflection: exactly degenerate. Measured -74.8146025595 (HF) for both, to all printed digits; the p0 component sits 2.94 mEh away.",
+      "cases": [
+        "atomic-O-3P-pplus-gga",
+        "atomic-O-3P-pminus-gga"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "Be-field-Ez-sign-degeneracy",
+      "_why": "an atom in a uniform electric field is reflection symmetric, so +field and -field must be EXACTLY degenerate",
+      "cases": [
+        "atomic-Be-field-Ez-pos",
+        "atomic-Be-field-Ez-neg"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "Be-field-Bz-sign-degeneracy",
+      "_why": "with m-symmetric occupations the Zeeman term cancels under B -> -B, so +field and -field must be EXACTLY degenerate",
+      "cases": [
+        "atomic-Be-field-Bz-pos",
+        "atomic-Be-field-Bz-neg"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "Be-unoccupied-p-does-not-contribute",
+      "_why": "an angular momentum present in the basis but unoccupied must not change the energy: lmax=0 and pinned-lmax=2 must agree. Measured -14.5450377121 for both, bit-for-bit. Catches the p basis leaking into the density.",
+      "cases": [
+        "atomic-Be-nop-l0",
+        "atomic-Be-nop-pinned"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "H2-purem-fast-path-equals-general-path",
+      "_why": "the pure-m path is an exact restriction, not an approximation: with a cylindrically symmetric density only M=0 survives, so dropping the phi quadrature changes nothing. Measured identical at every SCF iteration, -1.1374807779 both ways, at 4.74s vs 68.87s (14.5x). This guards the fast path against silently diverging from the general one.",
+      "cases": [
+        "diatomic-H2-purem-on",
+        "diatomic-H2-purem-off"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "gensap-equals-atomic-H-hf",
+      "_why": "H is half-filled/single-s, so its density is spherically symmetric and the spherical average sadatom solves is exact, not an approximation: the two codes solve the same problem. Cross-code check with no reference values.",
+      "cases": [
+        "gensap-H-hf",
+        "atomic-H-hf-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "gensap-equals-atomic-He-hf",
+      "_why": "He is closed shell, so its density is spherically symmetric and the spherical average sadatom solves is exact, not an approximation: the two codes solve the same problem. Cross-code check with no reference values.",
+      "cases": [
+        "gensap-He-hf",
+        "atomic-He-hf-r"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "gensap-equals-atomic-He-lda",
+      "_why": "He is closed shell, so its density is spherically symmetric and the spherical average sadatom solves is exact, not an approximation: the two codes solve the same problem. Cross-code check with no reference values.",
+      "cases": [
+        "gensap-He-lda",
+        "atomic-He-lda-r"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "gensap-equals-atomic-Be-lda",
+      "_why": "Be is closed shell, so its density is spherically symmetric and the spherical average sadatom solves is exact, not an approximation: the two codes solve the same problem. Cross-code check with no reference values.",
+      "cases": [
+        "gensap-Be-lda",
+        "atomic-Be-lda-r"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "gensap-equals-atomic-N-hf",
+      "_why": "N is half-filled/single-s, so its density is spherically symmetric and the spherical average sadatom solves is exact, not an approximation: the two codes solve the same problem. Cross-code check with no reference values.",
+      "cases": [
+        "gensap-N-hf",
+        "atomic-N-hf-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "gensap-equals-atomic-Ne-lda",
+      "_why": "Ne is closed shell, so its density is spherically symmetric and the spherical average sadatom solves is exact, not an approximation: the two codes solve the same problem. Cross-code check with no reference values.",
+      "cases": [
+        "gensap-Ne-lda",
+        "atomic-Ne-lda-r"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "gensap-equals-atomic-P-lda",
+      "_why": "P is half-filled/single-s, so its density is spherically symmetric and the spherical average sadatom solves is exact, not an approximation: the two codes solve the same problem. Cross-code check with no reference values.",
+      "cases": [
+        "gensap-P-lda",
+        "atomic-P-lda-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "gensap-equals-atomic-Ar-lda",
+      "_why": "Ar is closed shell, so its density is spherically symmetric and the spherical average sadatom solves is exact, not an approximation: the two codes solve the same problem. Cross-code check with no reference values.",
+      "cases": [
+        "gensap-Ar-lda",
+        "atomic-Ar-lda-r"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "gensap-equals-atomic-Cr-lda",
+      "_why": "Cr is half-filled/single-s, so its density is spherically symmetric and the spherical average sadatom solves is exact, not an approximation: the two codes solve the same problem. Cross-code check with no reference values.",
+      "cases": [
+        "gensap-Cr-lda",
+        "atomic-Cr-lda-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "gensap-equals-atomic-Zn-lda",
+      "_why": "Zn is closed shell, so its density is spherically symmetric and the spherical average sadatom solves is exact, not an approximation: the two codes solve the same problem. Cross-code check with no reference values.",
+      "cases": [
+        "gensap-Zn-lda",
+        "atomic-Zn-lda-r"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "aij-njellium0-equals-bare-atom",
+      "_why": "with no jellium electrons the atom-in-jellium problem IS the bare atom, so aij must reproduce the plain spherical solver exactly. Measured -240.3560448251 from both, to all printed digits. Ties the jellium machinery to the plain solvers at the one point where the two must coincide, with no reference values involved. (gensap carries an unoccupied d shell that aij does not; that it changes nothing is the same fact as the Be unoccupied-p invariant.)",
+      "cases": [
+        "aij-Al-njellium0",
+        "gensap-Al-lda_x"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-with-dummy-equals-atomic-He",
+      "_why": "a zero-charge centre adds no physics, so the diatomic code must reproduce the atomic one. Unlike gensap-equals-atomic this is convergence-limited rather than an identity -- the two use entirely different bases (prolate spheroidal vs radial x spherical harmonics) -- but with a cbasis-derived grid the agreement is sub-nanohartree: -2.8616799948 against -2.8616799946, and the tighter bases on each side converge to within 2e-10. Exercises the prolate spheroidal machinery -- Legendre expansion, off-centre nuclear attraction, the 2D basis -- against a known atomic answer.",
+      "cases": [
+        "diatomic-He-dummy-hf",
+        "atomic-He-hf-r"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "H2-purem-equals-general-gga",
+      "_why": "the pure-m path is an exact restriction: with a cylindrically symmetric density only M=0 survives, so dropping the phi quadrature changes nothing. Measured -1.1666914700 for both paths, speedup 91.6x (733s vs 8s). The general path is exercised by no other test and by no default run (purem is auto-on whenever symmetry>=1), so without this a divergence could persist indefinitely.",
+      "cases": [
+        "diatomic-H2-purem-gga-on",
+        "diatomic-H2-purem-gga-off"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "H2-purem-equals-general-mgga",
+      "_why": "the pure-m path is an exact restriction: with a cylindrically symmetric density only M=0 survives, so dropping the phi quadrature changes nothing. Measured -1.1804586903 for both paths, speedup 139x (3477s vs 25s). The general path is exercised by no other test and by no default run (purem is auto-on whenever symmetry>=1), so without this a divergence could persist indefinitely.",
+      "cases": [
+        "diatomic-H2-purem-mgga-on",
+        "diatomic-H2-purem-mgga-off"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-H-hf",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-H-dummy-hf",
+        "atomic-H-hf-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-H-lda",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-H-dummy-lda",
+        "atomic-H-lda-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-H-gga",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-H-dummy-gga",
+        "atomic-H-gga-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-H-mgga",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-H-dummy-mgga",
+        "atomic-H-mgga-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-H-hybrid",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-H-dummy-hybrid",
+        "atomic-H-hybrid-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-H-rsh-erfc",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-H-dummy-rsh-erfc",
+        "atomic-H-rsh-erfc-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-H-rsh-yukawa",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-H-dummy-rsh-yukawa",
+        "atomic-H-rsh-yukawa-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-He-lda",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-He-dummy-lda",
+        "atomic-He-lda-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-He-gga",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-He-dummy-gga",
+        "atomic-He-gga-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-He-mgga",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-He-dummy-mgga",
+        "atomic-He-mgga-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-He-hybrid",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-He-dummy-hybrid",
+        "atomic-He-hybrid-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-He-rsh-erfc",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-He-dummy-rsh-erfc",
+        "atomic-He-rsh-erfc-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-He-rsh-yukawa",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-He-dummy-rsh-yukawa",
+        "atomic-He-rsh-yukawa-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Be-hf",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Be-dummy-hf",
+        "atomic-Be-hf-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Be-lda",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Be-dummy-lda",
+        "atomic-Be-lda-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Be-gga",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Be-dummy-gga",
+        "atomic-Be-gga-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Be-mgga",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Be-dummy-mgga",
+        "atomic-Be-mgga-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Be-hybrid",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Be-dummy-hybrid",
+        "atomic-Be-hybrid-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Be-rsh-erfc",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Be-dummy-rsh-erfc",
+        "atomic-Be-rsh-erfc-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Be-rsh-yukawa",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Be-dummy-rsh-yukawa",
+        "atomic-Be-rsh-yukawa-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-N-hf",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-N-dummy-hf",
+        "atomic-N-hf-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-N-lda",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-N-dummy-lda",
+        "atomic-N-lda-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-N-gga",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-N-dummy-gga",
+        "atomic-N-gga-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-N-mgga",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-N-dummy-mgga",
+        "atomic-N-mgga-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-N-hybrid",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-N-dummy-hybrid",
+        "atomic-N-hybrid-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-N-rsh-erfc",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-N-dummy-rsh-erfc",
+        "atomic-N-rsh-erfc-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-N-rsh-yukawa",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-N-dummy-rsh-yukawa",
+        "atomic-N-rsh-yukawa-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Ne-hf",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Ne-dummy-hf",
+        "atomic-Ne-hf-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Ne-lda",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Ne-dummy-lda",
+        "atomic-Ne-lda-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Ne-gga",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Ne-dummy-gga",
+        "atomic-Ne-gga-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Ne-mgga",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Ne-dummy-mgga",
+        "atomic-Ne-mgga-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Ne-hybrid",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Ne-dummy-hybrid",
+        "atomic-Ne-hybrid-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Ne-rsh-erfc",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Ne-dummy-rsh-erfc",
+        "atomic-Ne-rsh-erfc-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Ne-rsh-yukawa",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Ne-dummy-rsh-yukawa",
+        "atomic-Ne-rsh-yukawa-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Na-lda",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Na-dummy-lda",
+        "atomic-Na-lda-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Mg-lda",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Mg-dummy-lda",
+        "atomic-Mg-lda-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-P-lda",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-P-dummy-lda",
+        "atomic-P-lda-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Ar-lda",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Ar-dummy-lda",
+        "atomic-Ar-lda-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-K-lda",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-K-dummy-lda",
+        "atomic-K-lda-u"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-dummy-equals-atomic-Ca-lda",
+      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
+      "cases": [
+        "diatomic-Ca-dummy-lda",
+        "atomic-Ca-lda-r"
+      ],
+      "field": "total",
+      "relative_tolerance": 1e-09,
+      "tolerance": 1e-08
+    },
+    {
+      "name": "Be-field-Ez-sign-degeneracy-lda",
+      "_why": "degeneracy on the DFT path, which is where it can actually break: the XC energy is a numerical quadrature, so a grid not symmetric under z -> -z would break the degeneracy here and nowhere else. At HF the exchange is analytic and the symmetry holds by construction.",
+      "cases": [
+        "atomic-Be-field-Ez-lda-pos",
+        "atomic-Be-field-Ez-lda-neg"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "Be-field-Bz-sign-degeneracy-lda",
+      "_why": "degeneracy on the DFT path, which is where it can actually break: the XC energy is a numerical quadrature, so a grid not symmetric under m -> -m would break the degeneracy here and nowhere else. At HF the exchange is analytic and the symmetry holds by construction.",
+      "cases": [
+        "atomic-Be-field-Bz-lda-pos",
+        "atomic-Be-field-Bz-lda-neg"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "Be-field-Ez-sign-degeneracy-gga",
+      "_why": "degeneracy on the DFT path, which is where it can actually break: the XC energy is a numerical quadrature, so a grid not symmetric under z -> -z would break the degeneracy here and nowhere else. At HF the exchange is analytic and the symmetry holds by construction.",
+      "cases": [
+        "atomic-Be-field-Ez-gga-pos",
+        "atomic-Be-field-Ez-gga-neg"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "Be-field-Bz-sign-degeneracy-gga",
+      "_why": "degeneracy on the DFT path, which is where it can actually break: the XC energy is a numerical quadrature, so a grid not symmetric under m -> -m would break the degeneracy here and nowhere else. At HF the exchange is analytic and the symmetry holds by construction.",
+      "cases": [
+        "atomic-Be-field-Bz-gga-pos",
+        "atomic-Be-field-Bz-gga-neg"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "CH-pi-plus-equals-minus-hf",
+      "_why": "pi+ and pi- are related by reflection, so they must be EXACTLY degenerate -- the molecular analogue of the O 3P p+/p- check. The HF variant is the one that can actually break: the XC energy is a numerical quadrature, so a grid not symmetric under m -> -m would break the degeneracy there and nowhere else.",
+      "cases": [
+        "diatomic-CH-piplus-hf",
+        "diatomic-CH-piminus-hf"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "CH-pi-plus-equals-minus-lda",
+      "_why": "pi+ and pi- are related by reflection, so they must be EXACTLY degenerate -- the molecular analogue of the O 3P p+/p- check. The DFT variant is the one that can actually break: the XC energy is a numerical quadrature, so a grid not symmetric under m -> -m would break the degeneracy there and nowhere else.",
+      "cases": [
+        "diatomic-CH-piplus-lda",
+        "diatomic-CH-piminus-lda"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    }
+  ]
+}
