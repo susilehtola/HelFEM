@@ -1,0 +1,72 @@
+name: Weekly full test suite
+
+# The whole integration suite, including the cases that take minutes to hours:
+# the heavy elements (Cr, Zn, Kr), the range-separated hybrids, and the
+# diatomics beyond H2. Too slow for per-push CI (see ci.yml), but they cover
+# the parts of the code the quick tier never touches.
+on:
+  schedule:
+    # Sundays at 03:00 UTC.
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Only run cases carrying this tag (blank = all)'
+        required: false
+        default: ''
+
+jobs:
+  full-suite:
+    name: full suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build g++ \
+            libeigen3-dev libxc-dev libhdf5-dev \
+            libopenblas-dev liblapacke-dev
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=install
+
+      - name: Build
+        run: cmake --build build -j $(nproc)
+
+      # Cases run one thread each and are parallelised across cases, which
+      # cannot change any result: converged energies are a deterministic
+      # function of OMP_NUM_THREADS, so each case pins it to 1.
+      # References first where we have them, then the reference-free
+      # invariants over the whole suite. See ci.yml for why recorded energies
+      # are portable: every case is well behaved and pinned, so the converged
+      # energy does not depend on the library stack.
+      - name: Full suite (references, where recorded)
+        run: |
+          python3 tests/run_tests.py --check tests/refs/ci.json \
+            ${{ github.event.inputs.tag && format('--tag {0}', github.event.inputs.tag) || '' }} \
+            --bindir build/src -j $(nproc) --timeout 7200
+
+      - name: Full suite (invariants over every case)
+        if: always()
+        run: |
+          python3 tests/run_tests.py --smoke \
+            ${{ github.event.inputs.tag && format('--tag {0}', github.event.inputs.tag) || '' }} \
+            --bindir build/src -j $(nproc) --timeout 7200
+
+      - name: Record energies for this platform
+        if: always()
+        run: |
+          python3 tests/run_tests.py --generate weekly-energies.json \
+            --bindir build/src -j $(nproc) --timeout 7200 || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weekly-energies
+          path: weekly-energies.json
+          if-no-files-found: warn
+          retention-days: 90
