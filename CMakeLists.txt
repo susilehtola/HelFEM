@@ -321,9 +321,18 @@ if(NOT OpenOrbitalOptimizer_FOUND)
     if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
         set(_ooo_exclude EXCLUDE_FROM_ALL)
     endif()
+    # Pinned to an explicit commit, NOT to master. With a floating branch two
+    # builds of identical HelFEM source can link different OOO and produce
+    # different numbers, with nothing in the HelFEM history to explain it --
+    # which makes `git bisect` meaningless, since every step samples a moving
+    # dependency. Bump this deliberately, in its own commit, so the bump is
+    # bisectable like any other change.
+    #
+    # a3abae9 is 83 commits past v0.4.0 and carries the Aufbau/occupation
+    # fixes; pinning to the v0.4.0 tag instead would silently revert them.
     FetchContent_Declare(OpenOrbitalOptimizer
         GIT_REPOSITORY https://github.com/susilehtola/OpenOrbitalOptimizer.git
-        GIT_TAG        master
+        GIT_TAG        a3abae9a2b7b2a3dd591579a7613643574da90c9
         ${_ooo_exclude})
     FetchContent_MakeAvailable(OpenOrbitalOptimizer)
     unset(_ooo_exclude)
