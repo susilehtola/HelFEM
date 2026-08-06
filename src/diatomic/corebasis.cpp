@@ -24,12 +24,65 @@
 #include "twodquadrature.h"
 #include "../general/eigen_io.h"
 #include <cfloat>
+#include <map>
 
 using namespace helfem;
+
+namespace {
+  // The convergence search re-tests the same basis many times. Two reasons.
+  //
+  // The outer threshold loop restarts the whole search at each threshold, but
+  // dEa and dEr for a given basis do not depend on the threshold -- only the
+  // acceptance bound does. So the trial pair rejected at 1e-k is rebuilt and
+  // rediagonalised, to the same numbers, at 1e-(k+1), and again at every
+  // threshold after that.
+  //
+  // And each channel re-evaluates its current basis as an "initial estimate"
+  // at every threshold, though that energy was already computed when the basis
+  // was accepted.
+  //
+  // Everything the basis depends on except Nelem and lmmax is fixed for the
+  // run (nuclear charges, geometry, quadrature, grid, fields, model
+  // potential), and norb only selects how many eigenvalues to sum. So the
+  // eigenvalues are a pure function of (Nelem, lmmax) and can be memoized.
+  struct EvalKey {
+    int Nelem;
+    std::vector<int> lmmax;
+    bool operator<(const EvalKey & o) const {
+      if(Nelem != o.Nelem) return Nelem < o.Nelem;
+      return lmmax < o.lmmax;
+    }
+  };
+  struct EvalValue {
+    helfem::Vector Ev;
+    Eigen::Index nang, nrad;
+  };
+  std::map<EvalKey, EvalValue> eval_cache;
+  size_t eval_hits = 0, eval_misses = 0;
+}
 
 void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int Nquad, int Nelem, double Rmax, const Eigen::VectorXi & lmmax, int igrid, double zexp, double Ez, double Qzz, double Bz, int norb, double & E, Eigen::Index & nang, Eigen::Index & nrad, helfem::Vector & Eval, int imodel) {
 
   int symm=1;
+
+  // Memoized on (Nelem, lmmax): see the note above eval_cache.
+  EvalKey key;
+  key.Nelem = Nelem;
+  key.lmmax.assign(lmmax.data(), lmmax.data() + lmmax.size());
+  {
+    auto it = eval_cache.find(key);
+    if(it != eval_cache.end()) {
+      ++eval_hits;
+      const helfem::Vector & Ev = it->second.Ev;
+      int nuse = std::min((int) Ev.size(), norb);
+      Eval = Ev.head(nuse);
+      E = Ev.head(nuse).sum();
+      nang = it->second.nang;
+      nrad = it->second.nrad;
+      return;
+    }
+  }
+  ++eval_misses;
 
   double Rhalf=0.5*Rbond;
   double mumax(utils::arcosh(Rmax/Rhalf));
@@ -103,11 +156,18 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
   scf::eig_gsym_sub(Ev, C, H0, Sinvh, dsym);
 
   // Sanity check
+  nang=basis.Nang();
+  nrad=basis.Nrad();
+
+  EvalValue val;
+  val.Ev = Ev;
+  val.nang = nang;
+  val.nrad = nrad;
+  eval_cache[key] = val;
+
   norb=std::min((int) Ev.size(),norb);
   Eval=Ev.head(norb);
   E=Ev.head(norb).sum();
-  nang=basis.Nang();
-  nrad=basis.Nrad();
 }
 
 int main(int argc, char **argv) {
@@ -300,6 +360,10 @@ int main(int argc, char **argv) {
       ithr++;
     }
   }
+
+  printf("Basis evaluations: %i built, %i served from cache (%.0f%% avoided).\n",
+         (int) eval_misses, (int) eval_hits,
+         100.0*eval_hits/std::max<size_t>(1,eval_hits+eval_misses));
 
   return 0;
 }
