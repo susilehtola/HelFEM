@@ -294,51 +294,65 @@ int main(int argc, char **argv) {
 
       printf("Initial energy is %e\n",E);
 
+      // Coordinate descent: exhaust the angular direction at fixed Nelem, then
+      // test the radial one once; if it helps, accept it and go round again.
+      //
+      // The previous structure tested BOTH directions at every step and took
+      // whichever helped more. That is a lot of wasted work, because the
+      // radial direction converges almost immediately and is then rejected
+      // over and over: 46 of 47 radial trials rejected for Ar, 70 of 72 for
+      // Kr. Each has a different lmmax, so each is a distinct basis that
+      // caching cannot help with -- and it is the expensive one of the pair,
+      // Nelem+nadd being a larger basis than the angular trial.
+      //
+      // The stopping condition is unchanged: the loop exits only when neither
+      // direction improves the energy by more than thr.
       int iiter=0;
-      double dE;
       while(true) {
-        iiter++;
+        // Angular, to exhaustion at the current Nelem.
+        while(true) {
+          iiter++;
+          double Ea;
+          helfem::Vector Eva;
+          Eigen::Index Nra, Naa;
+          Eigen::VectorXi lmtr(lmmax);
+          lmtr(m)+=nadd;
 
-        double Ea, Er;
-        helfem::Vector Eva, Evr;
-        Eigen::Index Nra, Naa;
-        Eigen::Index Nrr, Nar;
+          printf("m=%i iteration %i\n",(int) m,iiter);
+          eval(Z1, Z2, Rrms1, Rrms2, Rbond, poly, Nquad, Nelem, Rmax, lmtr, igrid, zexp, Ez, Qzz, Bz, norbs[m], Ea, Nra, Naa, Eva, imodel);
+          double dEa=Ea-E;
+          printf("Addition of %i partial waves decreases energy by %e\n",nadd,dEa);
+          if(dEa>-thr)
+            break;
 
-        Eigen::VectorXi lmtr(lmmax);
-        lmtr(m)+=nadd;
-
-        printf("m=%i iteration %i\n",(int) m,iiter);
-
-        eval(Z1, Z2, Rrms1, Rrms2, Rbond, poly, Nquad, Nelem, Rmax, lmtr, igrid, zexp, Ez, Qzz, Bz, norbs[m], Ea, Nra, Naa, Eva, imodel);
-        double dEa=Ea-E;
-        printf("Addition of %i partial waves decreases energy by %e\n",nadd,dEa);
-
-        eval(Z1, Z2, Rrms1, Rrms2, Rbond, poly, Nquad, Nelem+nadd, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], Er, Nrr, Nar, Evr, imodel);
-        double dEr=Er-E;
-        printf("Addition of %i radial elements decreases energy by %e\n",nadd,dEr);
-
-        dE=std::min(dEa,dEr);
-        if(dE>-thr)
-          break;
-
-        // Angular loop is not converged
-        cvd=false;
-
-        if(dEa==dE) {
+          cvd=false;
           lmmax=lmtr;
           E=Ea;
           Eval=Eva;
           Nrad=Nra;
           Nang=Naa;
           printf("Basis set has now %i partial waves\n",(int) lmmax(m));
-        } else {
-          Nelem+=nadd;
-          E=Er;
-          Eval=Evr;
-          Nrad=Nrr;
-          Nang=Nar;
-          printf("Basis set has now %i radial elements\n",Nelem);
+          helfem::io::print_matrix("Current eigenvalues", helfem::Matrix(Eval.transpose()));
+          printf("\n");
         }
+
+        // Radial, once.
+        double Er;
+        helfem::Vector Evr;
+        Eigen::Index Nrr, Nar;
+        eval(Z1, Z2, Rrms1, Rrms2, Rbond, poly, Nquad, Nelem+nadd, Rmax, lmmax, igrid, zexp, Ez, Qzz, Bz, norbs[m], Er, Nrr, Nar, Evr, imodel);
+        double dEr=Er-E;
+        printf("Addition of %i radial elements decreases energy by %e\n",nadd,dEr);
+        if(dEr>-thr)
+          break;
+
+        cvd=false;
+        Nelem+=nadd;
+        E=Er;
+        Eval=Evr;
+        Nrad=Nrr;
+        Nang=Nar;
+        printf("Basis set has now %i radial elements\n",Nelem);
         helfem::io::print_matrix("Current eigenvalues", helfem::Matrix(Eval.transpose()));
         printf("\n");
       }
