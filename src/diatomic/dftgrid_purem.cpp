@@ -648,8 +648,17 @@ namespace helfem {
         }
         Exc = exc; Ekin = ekin; Nel = nel;
         Ha_e = basp->remove_boundaries(Ha);
-        if (beta)
-          Hb_e = basp->remove_boundaries(Hb);
+        // Assign the beta output unconditionally. `beta` says whether the
+        // beta channel has any electrons, not whether the caller wants an
+        // output matrix: the Fock assembly adds XCb whenever the calculation
+        // is unrestricted, so leaving it default-constructed makes that an
+        // addition of an empty matrix -- a segfault under NDEBUG, where
+        // Eigen's size assertions are compiled out. Hb is zero-initialised,
+        // so this is also the right value: an empty beta channel contributes
+        // no exchange-correlation potential. DFTGrid::eval_Fxc already
+        // assigns unconditionally; the two grids differed in contract, and
+        // this one is the default path.
+        Hb_e = basp->remove_boundaries(Hb);
       }
 
     }

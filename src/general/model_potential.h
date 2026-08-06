@@ -93,8 +93,12 @@ namespace helfem {
     /// function's own grid, which breakpoints() reports so the quadrature
     /// can split there.
     class SAPFEAtom : public ModelPotential {
-      /// The tabulated atom
-      atomdb::Atom atom;
+      /// The tabulated atom. Empty for Z=0: the wave function database
+      /// covers 1..118 and rightly refuses Z=0, but a zero-charge dummy
+      /// centre is a legitimate thing to place in a diatomic calculation.
+      /// It has no electrons, hence no density and no screening, so the
+      /// potential is identically zero and no record is needed.
+      std::unique_ptr<atomdb::Atom> atom;
       /// Exchange and correlation functional ids used for the screening
       int x_func, c_func;
     public:

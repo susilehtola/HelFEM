@@ -81,14 +81,20 @@ namespace helfem {
     SAPFEAtom::SAPFEAtom(int Z_) : SAPFEAtom(Z_, XC_LDA_X, 0) {
     }
 
-    SAPFEAtom::SAPFEAtom(int Z_, int x_func_, int c_func_) : atom(Z_), x_func(x_func_), c_func(c_func_) {
+    SAPFEAtom::SAPFEAtom(int Z_, int x_func_, int c_func_) : x_func(x_func_), c_func(c_func_) {
+      // A zero-charge centre carries no electrons, so there is nothing to
+      // look up and nothing to screen. Constructing the record would throw:
+      // the database covers 1..118.
+      if(Z_ != 0)
+        atom = std::make_unique<atomdb::Atom>(Z_);
     }
 
     SAPFEAtom::~SAPFEAtom() {
     }
 
     double SAPFEAtom::V(double r) const {
-      return -atom.effective_charge(r,x_func,c_func)/r;
+      if(!atom) return 0.0;   // dummy centre
+      return -atom->effective_charge(r,x_func,c_func)/r;
     }
 
     std::vector<double> SAPFEAtom::breakpoints(double a, double b) const {
@@ -96,7 +102,8 @@ namespace helfem {
       // in each element of the wave function's grid. Only the boundaries
       // strictly inside (a, b) are reported: one coinciding with an
       // element end is already handled by the element decomposition.
-      const helfem::Vector bval(atom.element_boundaries());
+      if(!atom) return std::vector<double>();   // dummy centre
+      const helfem::Vector bval(atom->element_boundaries());
       std::vector<double> bp;
       for(Eigen::Index i=0;i<bval.size();i++)
         if(bval(i) > a && bval(i) < b)
