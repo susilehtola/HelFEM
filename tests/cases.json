@@ -2635,48 +2635,6 @@
       ]
     },
     {
-      "name": "diatomic-H-dummy-rsh-erfc",
-      "code": "diatomic",
-      "tags": [
-        "cross-code",
-        "diatomic",
-        "rsh-erfc"
-      ],
-      "_why": "H through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
-      "args": [
-        "--Z1=1",
-        "--Z2=0",
-        "--Rbond=1.0",
-        "--nelem=3",
-        "--nnodes=15",
-        "--lmax=4",
-        "--nela=1",
-        "--nelb=0",
-        "--method=hyb_gga_xc_cam_b3lyp"
-      ]
-    },
-    {
-      "name": "diatomic-H-dummy-rsh-yukawa",
-      "code": "diatomic",
-      "tags": [
-        "cross-code",
-        "diatomic",
-        "rsh-yukawa"
-      ],
-      "_why": "H through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
-      "args": [
-        "--Z1=1",
-        "--Z2=0",
-        "--Rbond=1.0",
-        "--nelem=3",
-        "--nnodes=15",
-        "--lmax=4",
-        "--nela=1",
-        "--nelb=0",
-        "--method=hyb_gga_xc_camy_b3lyp"
-      ]
-    },
-    {
       "name": "diatomic-He-dummy-lda",
       "code": "diatomic",
       "tags": [
@@ -2758,48 +2716,6 @@
         "--nela=1",
         "--nelb=1",
         "--method=hyb_gga_xc_b3lyp"
-      ]
-    },
-    {
-      "name": "diatomic-He-dummy-rsh-erfc",
-      "code": "diatomic",
-      "tags": [
-        "cross-code",
-        "diatomic",
-        "rsh-erfc"
-      ],
-      "_why": "He through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
-      "args": [
-        "--Z1=2",
-        "--Z2=0",
-        "--Rbond=1.0",
-        "--nelem=3",
-        "--nnodes=15",
-        "--lmax=6",
-        "--nela=1",
-        "--nelb=1",
-        "--method=hyb_gga_xc_cam_b3lyp"
-      ]
-    },
-    {
-      "name": "diatomic-He-dummy-rsh-yukawa",
-      "code": "diatomic",
-      "tags": [
-        "cross-code",
-        "diatomic",
-        "rsh-yukawa"
-      ],
-      "_why": "He through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
-      "args": [
-        "--Z1=2",
-        "--Z2=0",
-        "--Rbond=1.0",
-        "--nelem=3",
-        "--nnodes=15",
-        "--lmax=6",
-        "--nela=1",
-        "--nelb=1",
-        "--method=hyb_gga_xc_camy_b3lyp"
       ]
     },
     {
@@ -2908,48 +2824,6 @@
       ]
     },
     {
-      "name": "diatomic-Be-dummy-rsh-erfc",
-      "code": "diatomic",
-      "tags": [
-        "cross-code",
-        "diatomic",
-        "rsh-erfc"
-      ],
-      "_why": "Be through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
-      "args": [
-        "--Z1=4",
-        "--Z2=0",
-        "--Rbond=1.0",
-        "--nelem=3",
-        "--nnodes=15",
-        "--lmax=8",
-        "--nela=2",
-        "--nelb=2",
-        "--method=hyb_gga_xc_cam_b3lyp"
-      ]
-    },
-    {
-      "name": "diatomic-Be-dummy-rsh-yukawa",
-      "code": "diatomic",
-      "tags": [
-        "cross-code",
-        "diatomic",
-        "rsh-yukawa"
-      ],
-      "_why": "Be through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
-      "args": [
-        "--Z1=4",
-        "--Z2=0",
-        "--Rbond=1.0",
-        "--nelem=3",
-        "--nnodes=15",
-        "--lmax=8",
-        "--nela=2",
-        "--nelb=2",
-        "--method=hyb_gga_xc_camy_b3lyp"
-      ]
-    },
-    {
       "name": "diatomic-N-dummy-hf",
       "code": "diatomic",
       "tags": [
@@ -3055,48 +2929,6 @@
       ]
     },
     {
-      "name": "diatomic-N-dummy-rsh-erfc",
-      "code": "diatomic",
-      "tags": [
-        "cross-code",
-        "diatomic",
-        "rsh-erfc"
-      ],
-      "_why": "N through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
-      "args": [
-        "--Z1=7",
-        "--Z2=0",
-        "--Rbond=1.0",
-        "--nelem=3",
-        "--nnodes=15",
-        "--lmax=11,9",
-        "--nela=5",
-        "--nelb=2",
-        "--method=hyb_gga_xc_cam_b3lyp"
-      ]
-    },
-    {
-      "name": "diatomic-N-dummy-rsh-yukawa",
-      "code": "diatomic",
-      "tags": [
-        "cross-code",
-        "diatomic",
-        "rsh-yukawa"
-      ],
-      "_why": "N through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
-      "args": [
-        "--Z1=7",
-        "--Z2=0",
-        "--Rbond=1.0",
-        "--nelem=3",
-        "--nnodes=15",
-        "--lmax=11,9",
-        "--nela=5",
-        "--nelb=2",
-        "--method=hyb_gga_xc_camy_b3lyp"
-      ]
-    },
-    {
       "name": "diatomic-Ne-dummy-hf",
       "code": "diatomic",
       "tags": [
@@ -3199,48 +3031,6 @@
         "--nela=5",
         "--nelb=5",
         "--method=hyb_gga_xc_b3lyp"
-      ]
-    },
-    {
-      "name": "diatomic-Ne-dummy-rsh-erfc",
-      "code": "diatomic",
-      "tags": [
-        "cross-code",
-        "diatomic",
-        "rsh-erfc"
-      ],
-      "_why": "Ne through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
-      "args": [
-        "--Z1=10",
-        "--Z2=0",
-        "--Rbond=1.0",
-        "--nelem=3",
-        "--nnodes=15",
-        "--lmax=13,9",
-        "--nela=5",
-        "--nelb=5",
-        "--method=hyb_gga_xc_cam_b3lyp"
-      ]
-    },
-    {
-      "name": "diatomic-Ne-dummy-rsh-yukawa",
-      "code": "diatomic",
-      "tags": [
-        "cross-code",
-        "diatomic",
-        "rsh-yukawa"
-      ],
-      "_why": "Ne through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
-      "args": [
-        "--Z1=10",
-        "--Z2=0",
-        "--Rbond=1.0",
-        "--nelem=3",
-        "--nnodes=15",
-        "--lmax=13,9",
-        "--nela=5",
-        "--nelb=5",
-        "--method=hyb_gga_xc_camy_b3lyp"
       ]
     },
     {
@@ -3686,6 +3476,54 @@
       "input_files": {
         "occs.dat": "3 3 0\n0 0 1\n1 0 -1\n"
       }
+    },
+    {
+      "name": "diatomic-H-oneelectron",
+      "code": "diatomic",
+      "tags": [
+        "one-electron",
+        "hf",
+        "diatomic",
+        "exact",
+        "ci"
+      ],
+      "_why": "H with a zero-charge partner: one electron, exact energy -0.5",
+      "args": [
+        "--Z1=1",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=0",
+        "--method=HF",
+        "--iguess=0"
+      ]
+    },
+    {
+      "name": "diatomic-H2plus-oneelectron",
+      "code": "diatomic",
+      "tags": [
+        "one-electron",
+        "hf",
+        "diatomic",
+        "exact",
+        "ci"
+      ],
+      "_why": "H2+ at R=2: one electron, exact energy -0.6026342",
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=2.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=0",
+        "--method=HF",
+        "--iguess=0"
+      ]
     }
   ],
   "_invariants_comment": [
@@ -4031,28 +3869,6 @@
       "tolerance": 1e-08
     },
     {
-      "name": "diatomic-dummy-equals-atomic-H-rsh-erfc",
-      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
-      "cases": [
-        "diatomic-H-dummy-rsh-erfc",
-        "atomic-H-rsh-erfc-u"
-      ],
-      "field": "total",
-      "relative_tolerance": 1e-09,
-      "tolerance": 1e-08
-    },
-    {
-      "name": "diatomic-dummy-equals-atomic-H-rsh-yukawa",
-      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
-      "cases": [
-        "diatomic-H-dummy-rsh-yukawa",
-        "atomic-H-rsh-yukawa-u"
-      ],
-      "field": "total",
-      "relative_tolerance": 1e-09,
-      "tolerance": 1e-08
-    },
-    {
       "name": "diatomic-dummy-equals-atomic-He-lda",
       "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
       "cases": [
@@ -4091,28 +3907,6 @@
       "cases": [
         "diatomic-He-dummy-hybrid",
         "atomic-He-hybrid-r"
-      ],
-      "field": "total",
-      "relative_tolerance": 1e-09,
-      "tolerance": 1e-08
-    },
-    {
-      "name": "diatomic-dummy-equals-atomic-He-rsh-erfc",
-      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
-      "cases": [
-        "diatomic-He-dummy-rsh-erfc",
-        "atomic-He-rsh-erfc-r"
-      ],
-      "field": "total",
-      "relative_tolerance": 1e-09,
-      "tolerance": 1e-08
-    },
-    {
-      "name": "diatomic-dummy-equals-atomic-He-rsh-yukawa",
-      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
-      "cases": [
-        "diatomic-He-dummy-rsh-yukawa",
-        "atomic-He-rsh-yukawa-r"
       ],
       "field": "total",
       "relative_tolerance": 1e-09,
@@ -4174,28 +3968,6 @@
       "tolerance": 1e-08
     },
     {
-      "name": "diatomic-dummy-equals-atomic-Be-rsh-erfc",
-      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
-      "cases": [
-        "diatomic-Be-dummy-rsh-erfc",
-        "atomic-Be-rsh-erfc-r"
-      ],
-      "field": "total",
-      "relative_tolerance": 1e-09,
-      "tolerance": 1e-08
-    },
-    {
-      "name": "diatomic-dummy-equals-atomic-Be-rsh-yukawa",
-      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
-      "cases": [
-        "diatomic-Be-dummy-rsh-yukawa",
-        "atomic-Be-rsh-yukawa-r"
-      ],
-      "field": "total",
-      "relative_tolerance": 1e-09,
-      "tolerance": 1e-08
-    },
-    {
       "name": "diatomic-dummy-equals-atomic-N-hf",
       "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
       "cases": [
@@ -4251,28 +4023,6 @@
       "tolerance": 1e-08
     },
     {
-      "name": "diatomic-dummy-equals-atomic-N-rsh-erfc",
-      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
-      "cases": [
-        "diatomic-N-dummy-rsh-erfc",
-        "atomic-N-rsh-erfc-u"
-      ],
-      "field": "total",
-      "relative_tolerance": 1e-09,
-      "tolerance": 1e-08
-    },
-    {
-      "name": "diatomic-dummy-equals-atomic-N-rsh-yukawa",
-      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
-      "cases": [
-        "diatomic-N-dummy-rsh-yukawa",
-        "atomic-N-rsh-yukawa-u"
-      ],
-      "field": "total",
-      "relative_tolerance": 1e-09,
-      "tolerance": 1e-08
-    },
-    {
       "name": "diatomic-dummy-equals-atomic-Ne-hf",
       "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
       "cases": [
@@ -4322,28 +4072,6 @@
       "cases": [
         "diatomic-Ne-dummy-hybrid",
         "atomic-Ne-hybrid-r"
-      ],
-      "field": "total",
-      "relative_tolerance": 1e-09,
-      "tolerance": 1e-08
-    },
-    {
-      "name": "diatomic-dummy-equals-atomic-Ne-rsh-erfc",
-      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
-      "cases": [
-        "diatomic-Ne-dummy-rsh-erfc",
-        "atomic-Ne-rsh-erfc-r"
-      ],
-      "field": "total",
-      "relative_tolerance": 1e-09,
-      "tolerance": 1e-08
-    },
-    {
-      "name": "diatomic-dummy-equals-atomic-Ne-rsh-yukawa",
-      "_why": "a zero-charge centre adds no physics: the diatomic code must reproduce the atomic one. Convergence-limited rather than an identity (prolate spheroidal vs radial x spherical harmonics), but sub-nanohartree with cbasis-derived grids.",
-      "cases": [
-        "diatomic-Ne-dummy-rsh-yukawa",
-        "atomic-Ne-rsh-yukawa-r"
       ],
       "field": "total",
       "relative_tolerance": 1e-09,

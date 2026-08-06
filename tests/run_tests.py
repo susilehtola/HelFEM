@@ -182,7 +182,14 @@ def run_case(case, defaults, bindir, timeout_override=None):
     if "total" not in parsed:
         tail = "\n".join(out.strip().splitlines()[-5:])
         return {"_error": "no energy in output (exit %d)\n%s" % (proc.returncode, tail)}
-    if not parsed.get("_converged") and parsed.get("_format") != "legacy":
+    # A one-electron system has no two-electron interaction, so there is no SCF
+    # to iterate and OOO never prints its convergence marker -- the single
+    # diagonalisation IS the answer. Requiring the marker there rejects an
+    # exactly-correct result. Recognise it by the absence of any iteration
+    # rather than by inspecting the arguments.
+    trivially_exact = parsed.get("_iterations", 0) == 0
+    if not parsed.get("_converged") and not trivially_exact \
+       and parsed.get("_format") != "legacy":
         return {"_error": "did not converge (no 'Converged to energy' in output; "
                           "ran %.0fs, %d iterations) -- refusing to record an "
                           "unconverged energy as a reference"
