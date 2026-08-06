@@ -51,7 +51,45 @@ namespace helfem {
     /// higher-precision Fock build at double accuracy.
     template <typename T>
     class GauntT {
-      std::vector<T> table;
+      // Symmetry-reduced storage. The Gaunt coefficient
+      //     Y^{l1 l2 l3}_{m1 m2 m3} = int Y_l1^m1 Y_l2^m2 Y_l3^m3 dOmega
+      // is fully symmetric under permutation of its three columns and under
+      // negating all three m at once (Rasch & Yu 2004 eqs 4.3-4.5), and it
+      // vanishes unless the l form a triangle, l1+l2+l3 is even, and
+      // m1+m2+m3 = 0. Storing one representative per orbit removes all of
+      // that at once, in place of a dense array over five indices.
+      //
+      // Layout: one contiguous run per (l1,l2,l3) with l1>=l2>=l3, in which
+      // m3 = 0..min(l3,mcap) and, for each m3, m2 spans
+      // [max(-l2,-mcap), min(min(l1-m3,l2), mcap)]. m1 is implied by the
+      // m-sum rule. triple_base indexes the runs; NPOS marks a triple that
+      // fails the triangle or parity test, which is Rasch & Yu's null
+      // pointer.
+      //
+      // NOTE: the m2-interval reductions of Pinchon & Hoggan (2007, eqs
+      // 22-24), which exploit the extra symmetries when l1=l2, l2=l3 or
+      // m3=0, are NOT applied. They buy a further 10-18% of the coefficients
+      // (their Table I) at the cost of several interacting special cases in
+      // both build and lookup. Their larger saving -- 61% of the pointer
+      // array -- is already obtained here by indexing the runs on (l1,l2,l3)
+      // rather than on (l1,l2,l3,m3).
+      static constexpr std::size_t NPOS = static_cast<std::size_t>(-1);
+      std::vector<std::size_t> triple_base;
+      std::vector<T> coeffs;
+      int lall = 0;                  ///< max l on any of the three axes
+      // Bound on the m actually stored. It is 2*mcap, not mcap: the caller's
+      // bound constrains |M| and |m|, but the third index mp = M - m reaches
+      // |M|+|m| <= 2*mcap, and in this layout all three m are explicit axes.
+      // (In the old dense layout mp was implicit, so it never needed room.)
+      int mstore = 0;
+      std::size_t triple_index(int l1, int l2, int l3) const {
+        return (static_cast<std::size_t>(l1) * (lall + 1) + l2) * (lall + 1) + l3;
+      }
+      /// Offset of (l1,l2,l3,m3,m2) within its run, or NPOS if not stored.
+      std::size_t slot(int l1, int l2, int l3, int m3, int m2) const;
+      /// Number of m2 values stored for this (l1,l2,l3,m3).
+      int m2_count(int l1, int l2, int l3, int m3) const;
+
       int Lmax = 0, lmax = 0, lpmax = 0;
       // Caps on |M| and |m|. The triangular packing L*(L+1)+M assumes every
       // |M| <= L occurs, which is true for an atom but wildly false for a
@@ -61,15 +99,6 @@ namespace helfem {
       // 61 GB against 322 MB. Capping the m axes makes the packing rectangular
       // in those directions and the table proportional to what is used.
       int mcap = 0;
-      std::size_t lm_stride = 0;
-      std::size_t Lm_stride = 0;
-
-      std::size_t flat_index(int L, int M, int l, int m, int lp) const {
-        const std::size_t LM = static_cast<std::size_t>(L) * (2*mcap + 1) + (M + mcap);
-        const std::size_t lm = static_cast<std::size_t>(l) * (2*mcap + 1) + (m + mcap);
-        return LM * Lm_stride + lm * lm_stride + static_cast<std::size_t>(lp);
-      }
-
     public:
       GauntT() = default;
       /// mcap bounds |M| and |m| alike. Defaulted to the full range, which is

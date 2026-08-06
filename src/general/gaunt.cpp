@@ -125,16 +125,23 @@ namespace helfem {
     template <typename T>
     GauntT<T>::GauntT(int Lmax_, int lmax_, int lpmax_, int mcap_)
       : Lmax(Lmax_), lmax(lmax_), lpmax(lpmax_) {
-      // (L, M) packs to L*(2*mcap+1) + (M+mcap), and likewise (l, m). mp is
-      // implicit from the m-sum rule (mp = M - m), so there is no mp axis.
-      // Capping |M| and |m| is what keeps the table proportional to what a
-      // diatomic basis actually touches -- see the note on mcap in the header.
-      mcap = (mcap_ < 0) ? std::max(Lmax, lmax) : mcap_;
-      lm_stride = static_cast<std::size_t>(lpmax) + 1;
-      Lm_stride = static_cast<std::size_t>(lmax + 1) * (2*mcap + 1) * lm_stride;
-      const std::size_t total = static_cast<std::size_t>(Lmax + 1) * (2*mcap + 1) * Lm_stride;
+      lall = std::max(std::max(Lmax, lmax), lpmax);
+      mcap = (mcap_ < 0) ? lall : std::min(mcap_, lall);
+      mstore = std::min(2*mcap, lall);
+
+      // Walk the triples once to lay out the runs, then once more to fill.
+      triple_base.assign(static_cast<std::size_t>(lall + 1) * (lall + 1) * (lall + 1), NPOS);
+      std::size_t total = 0;
+      for(int l1 = 0; l1 <= lall; ++l1)
+        for(int l2 = (l1 + 1) / 2; l2 <= std::min(l1, lall); ++l2)
+          for(int l3 = l1 - l2; l3 <= std::min(l2, lall); ++l3) {
+            if((l1 + l2 + l3) % 2) continue;          // parity
+            triple_base[triple_index(l1, l2, l3)] = total;
+            for(int m3 = 0; m3 <= std::min(l3, mstore); ++m3)
+              total += m2_count(l1, l2, l3, m3);
+          }
+
       {
-        // Warn before allocating something that may not fit.
         const double gb = double(total) * sizeof(T) / (1024.0*1024.0*1024.0);
         if(gb > 1.0) {
           printf("\nWARNING: Gaunt table for Lmax=%i lmax=%i lpmax=%i (|m|<=%i) "
@@ -142,33 +149,52 @@ namespace helfem {
           fflush(stdout);
         }
       }
-      table.assign(total, T(0));
+      coeffs.assign(total, T(0));
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2) schedule(dynamic)
+#pragma omp parallel for schedule(dynamic)
 #endif
-      for(int L = 0; L <= Lmax; ++L) {
-        for(int l = 0; l <= lmax; ++l) {
-          const int lp_lo = std::abs(L - l);
-          const int lp_hi = std::min(lpmax, L + l);
-          for(int lp = lp_lo; lp <= lp_hi; ++lp) {
-            if(!gaunt_triple_nonzero(L, l, lp)) continue;
-            // The bounds exclude everything outside the stored window, so no
-            // entry is generated only to be discarded.
-            for(int M = std::max(-L, -mcap); M <= std::min(L, mcap); ++M) {
-              const T signM = (M & 1) ? T(-1) : T(1);
-              const int m_lo = std::max(std::max(-l, M - lp), -mcap);
-              const int m_hi = std::min(std::min( l, M + lp),  mcap);
-              for(int m = m_lo; m <= m_hi; ++m) {
-                const int mp = M - m;
-                const T g = wigner_gaunt<T>::eval(2*L, -2*M, 2*l, 2*m,
-                                                  2*lp, 2*mp);
-                table[flat_index(L, M, l, m, lp)] = signM * g;
+      for(int l1 = 0; l1 <= lall; ++l1)
+        for(int l2 = (l1 + 1) / 2; l2 <= std::min(l1, lall); ++l2)
+          for(int l3 = l1 - l2; l3 <= std::min(l2, lall); ++l3) {
+            if((l1 + l2 + l3) % 2) continue;
+            for(int m3 = 0; m3 <= std::min(l3, mstore); ++m3) {
+              const int m2lo = std::max(-l2, -mstore);
+              const int m2hi = std::min(std::min(l1 - m3, l2), mstore);
+              for(int m2 = m2lo; m2 <= m2hi; ++m2) {
+                const int m1 = -m2 - m3;
+                if(std::abs(m1) > l1) continue;
+                const std::size_t at = slot(l1, l2, l3, m3, m2);
+                if(at == NPOS) continue;
+                // Y^{l1l2l3}_{m1m2m3} with no conjugation: wignernj takes
+                // doubled arguments.
+                coeffs[at] = wigner_gaunt<T>::eval(2*l1, 2*m1, 2*l2, 2*m2, 2*l3, 2*m3);
               }
             }
           }
-        }
-      }
+    }
+
+    template <typename T>
+    int GauntT<T>::m2_count(int l1, int l2, int l3, int m3) const {
+      const int m2lo = std::max(-l2, -mstore);
+      const int m2hi = std::min(std::min(l1 - m3, l2), mstore);
+      return (m2hi >= m2lo) ? (m2hi - m2lo + 1) : 0;
+    }
+
+    template <typename T>
+    std::size_t GauntT<T>::slot(int l1, int l2, int l3, int m3, int m2) const {
+      if(l1 < 0 || l1 > lall || l2 < 0 || l3 < 0) return NPOS;
+      const std::size_t ti = triple_index(l1, l2, l3);
+      if(ti >= triple_base.size()) return NPOS;
+      const std::size_t base = triple_base[ti];
+      if(base == NPOS) return NPOS;
+      if(m3 < 0 || m3 > std::min(l3, mstore)) return NPOS;
+      const int m2lo = std::max(-l2, -mstore);
+      const int m2hi = std::min(std::min(l1 - m3, l2), mstore);
+      if(m2 < m2lo || m2 > m2hi) return NPOS;
+      std::size_t off = base;
+      for(int mm = 0; mm < m3; ++mm) off += m2_count(l1, l2, l3, mm);
+      return off + static_cast<std::size_t>(m2 - m2lo);
     }
 
     template <typename T>
@@ -182,10 +208,8 @@ namespace helfem {
       if(std::abs(M) > L) return T(0);
       if(std::abs(m) > l) return T(0);
       // Exceeding the stored window is different in kind: the coefficient is
-      // generally NOT zero, we simply did not build it. Returning zero there
-      // would be silently wrong, and wrong in a way no caller can detect, so
-      // throw instead. Reaching this means the table was constructed with a
-      // bound smaller than the caller needs.
+      // generally NOT zero, we simply did not build it. Returning zero would
+      // be silently wrong, and wrong in a way no caller can detect.
       if(std::abs(M) > mcap || std::abs(m) > mcap) {
         std::ostringstream oss;
         oss << "Gaunt coefficient requested outside the stored window: |M|="
@@ -195,8 +219,30 @@ namespace helfem {
             << "that covers the caller's range.\n";
         throw std::logic_error(oss.str());
       }
-      // mp is implicit (= M - m); a stored cell with |M - m| > lp is zero.
-      return table[flat_index(L, M, l, m, lp)];
+
+      // coeff = int Y_L^M* Y_l^m Y_lp^mp = (-1)^M Y^{L,l,lp}_{-M,m,mp}.
+      const int mp = M - m;
+      if(std::abs(mp) > lp) return T(0);
+      const T signM = (M & 1) ? T(-1) : T(1);
+
+      // Canonicalise onto the stored representative. The coefficient is
+      // invariant under any permutation of the three columns and under
+      // negating all three m, so try the 6 permutations and both signs and
+      // take whichever lands in the stored layout. Both operations are
+      // phase-free for Gaunt coefficients -- unlike 3j symbols -- so nothing
+      // has to be tracked through the transformation.
+      const int ll[3] = {L, l, lp};
+      const int mm[3] = {-M, m, mp};
+      static const int perm[6][3] = {{0,1,2},{0,2,1},{1,0,2},{1,2,0},{2,0,1},{2,1,0}};
+      for(int p = 0; p < 6; ++p) {
+        const int a = perm[p][0], b = perm[p][1], c = perm[p][2];
+        if(!(ll[a] >= ll[b] && ll[b] >= ll[c])) continue;
+        for(int sgn = 1; sgn >= -1; sgn -= 2) {
+          const std::size_t at = slot(ll[a], ll[b], ll[c], sgn*mm[c], sgn*mm[b]);
+          if(at != NPOS) return signM * coeffs[at];
+        }
+      }
+      return T(0);
     }
 
     template <typename T>
