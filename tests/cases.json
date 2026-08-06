@@ -3487,7 +3487,7 @@
         "exact",
         "ci"
       ],
-      "_why": "H with a zero-charge partner: one electron, exact energy -0.5",
+      "_why": "H with a zero-charge partner: one electron, exact energy -0.5; runs with the default SAP guess, which the fix to the pure-m beta output made viable -- before it, this case crashed and reported the guess energy instead of a solution",
       "args": [
         "--Z1=1",
         "--Z2=0",
@@ -3497,8 +3497,7 @@
         "--lmax=4",
         "--nela=1",
         "--nelb=0",
-        "--method=HF",
-        "--iguess=0"
+        "--method=HF"
       ]
     },
     {
@@ -3511,7 +3510,7 @@
         "exact",
         "ci"
       ],
-      "_why": "H2+ at R=2: one electron, exact energy -0.6026342",
+      "_why": "H2+ at R=2: one electron, exact energy -0.6026342; runs with the default SAP guess, which the fix to the pure-m beta output made viable -- before it, this case crashed and reported the guess energy instead of a solution",
       "args": [
         "--Z1=1",
         "--Z2=1",
@@ -3521,8 +3520,7 @@
         "--lmax=4",
         "--nela=1",
         "--nelb=0",
-        "--method=HF",
-        "--iguess=0"
+        "--method=HF"
       ]
     }
   ],
