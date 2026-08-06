@@ -53,18 +53,31 @@ namespace helfem {
     class GauntT {
       std::vector<T> table;
       int Lmax = 0, lmax = 0, lpmax = 0;
+      // Caps on |M| and |m|. The triangular packing L*(L+1)+M assumes every
+      // |M| <= L occurs, which is true for an atom but wildly false for a
+      // diatomic: there L is large while |M| is bounded by the basis, since M
+      // is a difference of two basis m values. Cu2 at lmax=46 reaches L=96
+      // with |M| <= 4, so the triangular table is ~190x larger than needed --
+      // 61 GB against 322 MB. Capping the m axes makes the packing rectangular
+      // in those directions and the table proportional to what is used.
+      int mcap = 0;
       std::size_t lm_stride = 0;
       std::size_t Lm_stride = 0;
 
       std::size_t flat_index(int L, int M, int l, int m, int lp) const {
-        const std::size_t LM = static_cast<std::size_t>(L) * (L + 1) + M;
-        const std::size_t lm = static_cast<std::size_t>(l) * (l + 1) + m;
+        const std::size_t LM = static_cast<std::size_t>(L) * (2*mcap + 1) + (M + mcap);
+        const std::size_t lm = static_cast<std::size_t>(l) * (2*mcap + 1) + (m + mcap);
         return LM * Lm_stride + lm * lm_stride + static_cast<std::size_t>(lp);
       }
 
     public:
       GauntT() = default;
-      GauntT(int Lmax, int lmax, int lpmax);
+      /// mcap bounds |M| and |m| alike. Defaulted to the full range, which is
+      /// what an atomic basis needs; a diatomic basis should pass its actual,
+      /// far smaller, bound. One cap suffices: mod_coeff routes plain basis m
+      /// values into the M axis (coeff(lj,mj,li,mi,L)), so the M axis cannot be
+      /// bounded more tightly than the m axis anyway.
+      GauntT(int Lmax, int lmax, int lpmax, int mcap = -1);
 
       /// Get Gaunt coefficient. mp is implicit: mp = M - m. Cells outside the
       /// stored range or violating |M|<=L, |m|<=l return 0.

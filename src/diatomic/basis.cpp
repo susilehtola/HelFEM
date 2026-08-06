@@ -606,10 +606,20 @@ namespace helfem {
           int lrval(std::max(Lmax+2,gmax));
           int midval(std::max(Lmax,5));
 
+          // |M| and |m| are bounded by the basis, not by L. Every M reaching
+          // the table is a difference mk-ml of two basis m values, and every m
+          // is a basis m or 0, so 2*max|m| covers both with margin. L, by
+          // contrast, runs up to lk+ll+2. Without this the triangular packing
+          // would size the m axes as if every |M|<=L occurred: for Cu2 at
+          // lmax=46,34,28 that is 61 GB rather than 322 MB.
+          const int mabs = std::max(std::abs(mval.maxCoeff()),
+                                    std::abs(mval.minCoeff()));
+          const int mcap = 2*mabs;
+
           Timer t;
           printf("Computing Gaunt coefficients ... ");
           fflush(stdout);
-          gaunt=gaunt::Gaunt(lrval,midval,lrval);
+          gaunt=gaunt::Gaunt(lrval,midval,lrval,mcap);
           printf("done (% .3f s)\n",t.get());
           fflush(stdout);
 
@@ -617,9 +627,11 @@ namespace helfem {
           // One-electron matrices need gmax,5,gmax
           int lrval(gmax);
           int midval(5);
-          int Mmax=mval.maxCoeff()-mval.minCoeff();
+          const int mabs = std::max(std::abs(mval.maxCoeff()),
+                                    std::abs(mval.minCoeff()));
+          const int mcap = 2*mabs;
 
-          gaunt=gaunt::Gaunt(lrval,midval,lrval);
+          gaunt=gaunt::Gaunt(lrval,midval,lrval,mcap);
         }
 
         // Cache the real->dummy index map once. pure_indices() rebuilds it on

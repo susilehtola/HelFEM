@@ -1,4 +1,5 @@
 #include <cfloat>
+#include <stdexcept>
 #include <cmath>
 #include <cstdio>
 #include "gaunt.h"
@@ -1655,5 +1656,56 @@ int main(void) {
   val=helfem::gaunt::modified_gaunt_coefficient(10,0,4,0,4,0);
   ref=5.8774027291321862e-02;
   if(std::abs(val-ref)>=DBL_EPSILON*(1.0+std::abs(ref))) printf("mod_coeff(10,0,4,0,4,0) value %e reference %e error %e\n",val,ref,val-ref);
+
+  // ---- Bounded-window table: correct values inside, a throw outside. ----
+  //
+  // The window is a storage choice, not a selection rule, so a request beyond
+  // it must fail loudly: the coefficient is generally nonzero and was simply
+  // never built, and returning zero would be wrong in a way no caller could
+  // detect. (|M|>L and |m|>l stay zero-valued -- those vanish as a matter of
+  // mathematics.)
+  {
+    const int Lm = 8, mcap = 2;
+    helfem::gaunt::Gaunt full(Lm, Lm, Lm);          // full m range
+    helfem::gaunt::Gaunt capped(Lm, Lm, Lm, mcap);  // |M|,|m| <= mcap
+
+    int mismatches = 0, checked = 0;
+    for(int L=0; L<=Lm; ++L)
+      for(int M=-std::min(L,mcap); M<=std::min(L,mcap); ++M)
+        for(int l=0; l<=Lm; ++l)
+          for(int m=-std::min(l,mcap); m<=std::min(l,mcap); ++m)
+            for(int lp=0; lp<=Lm; ++lp) {
+              const double a = full.coeff(L,M,l,m,lp);
+              const double b = capped.coeff(L,M,l,m,lp);
+              ++checked;
+              if(std::abs(a-b) > DBL_EPSILON*(1.0+std::abs(a))) ++mismatches;
+            }
+    if(mismatches)
+      printf("bounded Gaunt: %i/%i values differ from the full table\n", mismatches, checked);
+
+    // Inside the window but outside |M|<=L / |m|<=l: still zero, no throw.
+    if(capped.coeff(1, 2, 1, 0, 1) != 0.0)
+      printf("bounded Gaunt: |M|>L should be zero\n");
+
+    // Beyond the window: must throw rather than return zero.
+    bool threw = false;
+    try {
+      (void) capped.coeff(Lm, mcap+1, Lm, 0, Lm);
+    } catch(const std::logic_error &) {
+      threw = true;
+    }
+    if(!threw)
+      printf("bounded Gaunt: |M|=%i beyond the window returned silently instead of throwing\n", mcap+1);
+
+    threw = false;
+    try {
+      (void) capped.coeff(Lm, 0, Lm, mcap+1, Lm);
+    } catch(const std::logic_error &) {
+      threw = true;
+    }
+    if(!threw)
+      printf("bounded Gaunt: |m|=%i beyond the window returned silently instead of throwing\n", mcap+1);
+  }
+
 return 0;
 }
