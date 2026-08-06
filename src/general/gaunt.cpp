@@ -18,6 +18,7 @@
 
 #include "gaunt.h"
 #include <sstream>
+#include <utility>
 #include "utils.h"
 #include "wignernj.hpp"
 
@@ -225,24 +226,28 @@ namespace helfem {
       if(std::abs(mp) > lp) return T(0);
       const T signM = (M & 1) ? T(-1) : T(1);
 
-      // Canonicalise onto the stored representative. The coefficient is
-      // invariant under any permutation of the three columns and under
-      // negating all three m, so try the 6 permutations and both signs and
-      // take whichever lands in the stored layout. Both operations are
-      // phase-free for Gaunt coefficients -- unlike 3j symbols -- so nothing
-      // has to be tracked through the transformation.
-      const int ll[3] = {L, l, lp};
-      const int mm[3] = {-M, m, mp};
-      static const int perm[6][3] = {{0,1,2},{0,2,1},{1,0,2},{1,2,0},{2,0,1},{2,1,0}};
-      for(int p = 0; p < 6; ++p) {
-        const int a = perm[p][0], b = perm[p][1], c = perm[p][2];
-        if(!(ll[a] >= ll[b] && ll[b] >= ll[c])) continue;
-        for(int sgn = 1; sgn >= -1; sgn -= 2) {
-          const std::size_t at = slot(ll[a], ll[b], ll[c], sgn*mm[c], sgn*mm[b]);
-          if(at != NPOS) return signM * coeffs[at];
-        }
-      }
-      return T(0);
+      // Canonicalise: sort the three columns by l descending, then negate all
+      // three m if m3 came out negative. Both operations leave the value
+      // unchanged -- Gaunt coefficients are phase-free under column
+      // permutation and under global m negation, unlike 3j symbols -- so
+      // nothing has to be carried through.
+      //
+      // This always lands in the stored range, so no search is needed. For a
+      // nonzero coefficient |m1| <= l1 with m1 = -m2-m3, which is exactly
+      // m2 <= l1-m3; and |m2| <= l2 likewise. Those are the bounds the layout
+      // uses. The m bound is respected too, since m2 and m3 are drawn from
+      // {-M, m, M-m}, all of which are within 2*mcap = mstore.
+      int ll[3] = {L, l, lp};
+      int mm[3] = {-M, m, mp};
+      // Three elements: a fixed sorting network, descending in l.
+      auto swap_if = [&](int a, int b) {
+        if(ll[a] < ll[b]) { std::swap(ll[a], ll[b]); std::swap(mm[a], mm[b]); }
+      };
+      swap_if(0,1); swap_if(1,2); swap_if(0,1);
+      if(mm[2] < 0) { mm[0] = -mm[0]; mm[1] = -mm[1]; mm[2] = -mm[2]; }
+
+      const std::size_t at = slot(ll[0], ll[1], ll[2], mm[2], mm[1]);
+      return (at == NPOS) ? T(0) : signM * coeffs[at];
     }
 
     template <typename T>
