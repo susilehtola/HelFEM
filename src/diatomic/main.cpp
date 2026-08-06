@@ -340,6 +340,7 @@ int main(int argc, char **argv) {
   std::vector<std::string> block_descriptions;
   helfem::scf_driver::build_ooo_block_metadata<OOO_Real>(
       nsym, nparttype, restricted, Ntot, nela, nelb,
+      basis.get_sym_labels(symm),
       number_of_blocks_per_particle_type, maximum_occupation,
       number_of_particles, block_descriptions);
 
@@ -359,8 +360,13 @@ int main(int argc, char **argv) {
         fock, b, dsym, k, Sinvh, F_full);
   };
 
+  // Per-component wall clock for the Fock build, plus the time spent
+  // outside it in the SCF solver. See helfem::scf_driver::FockTimer.
+  helfem::scf_driver::FockTimer ftimer;
+
   OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> fock_builder =
       [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm) {
+    ftimer.enter();
     const auto & orbitals    = dm.first;
     const auto & occupations = dm.second;
 
@@ -376,16 +382,20 @@ int main(int argc, char **argv) {
 
     // grid.eval_Fxc takes/returns Eigen at its public boundary; densities
     // and XC potentials are Eigen throughout, so no bridging is needed.
+    Timer tcomp;
     if (restricted) {
       for (size_t k = 0; k < nsym; ++k)
         accumulate_density(P, k, orbitals[k], occupations[k]);
+      ftimer.density += tcomp.get();
       if (have_xc) {
+        tcomp.set();
         if (purem_xc)
           pmgrid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa,
                            Exc, nelnum, ekin_grid, dftthr);
         else
           grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa,
                          Exc, nelnum, ekin_grid, dftthr);
+        ftimer.xc += tcomp.get();
       }
       if (have_exx) Pa = 0.5 * P;
     } else {
@@ -396,13 +406,16 @@ int main(int argc, char **argv) {
         accumulate_density(Pb, k, orbitals[nsym + k], occupations[nsym + k]);
       }
       P = Pa + Pb;
+      ftimer.density += tcomp.get();
       if (have_xc) {
+        tcomp.set();
         if (purem_xc)
           pmgrid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb,
                            XCa, XCb, Exc, nelnum, ekin_grid, nelb > 0, dftthr);
         else
           grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb,
                          XCa, XCb, Exc, nelnum, ekin_grid, nelb > 0, dftthr);
+        ftimer.xc += tcomp.get();
       }
     }
 
@@ -414,8 +427,10 @@ int main(int argc, char **argv) {
     const double Emfield = have_bfield
         ? (P * Vmag).trace() - 0.5 * Bz * (nela - nelb) : 0.0;
 
+    tcomp.set();
     const helfem::Matrix J = basis.coulomb(P);
     const double Ecoul = 0.5 * (P * J).trace();
+    ftimer.coulomb += tcomp.get();
 
     // Diatomic exchange kernel: pure Coulomb K (no RS split yet).
     auto exchange_fn = [&](const helfem::Matrix & P) {
@@ -423,8 +438,10 @@ int main(int argc, char **argv) {
     };
     helfem::Matrix Ka, Kb;
     double Exx = 0.0;
+    tcomp.set();
     helfem::scf_driver::assemble_hf_exchange(
         Ka, Kb, Exx, Pa, Pb, restricted, have_exx, exchange_fn);
+    ftimer.exchange += tcomp.get();
 
     const double Etot = Ekin + Enuc + Eefield + Emfield
                        + Ecoul + Exc + Exx + Enucr;
@@ -434,6 +451,7 @@ int main(int argc, char **argv) {
     if (have_bfield) printf(" Emfield %.10f", Emfield);
     printf("  total %.10f  (nel err %.3e)\n",
             Etot, nelnum - static_cast<double>(Ntot));
+    ftimer.print_build(have_xc, have_exx);
     fflush(stdout);
 
     // Fock assembly. Restricted: one AO Fock matrix per block.
@@ -450,6 +468,7 @@ int main(int argc, char **argv) {
         fock, H1, J, XCa, XCb, Ka, Kb, S,
         nsym, restricted, have_xc, have_exx, have_bfield, Bz,
         apply_mavg, orthonormalize_block);
+    ftimer.leave();
     return std::make_pair(Etot, fock);
   };
 
@@ -617,6 +636,7 @@ int main(int argc, char **argv) {
   scfsolver.set("methods", parser.get<std::string>("scfmethods"));
   scfsolver.print_citation();
   scfsolver.run();
+  ftimer.print_summary(have_xc, have_exx);
 
   if (savefile.size()) {
     Checkpoint savechk(savefile, /*writemode=*/true);
