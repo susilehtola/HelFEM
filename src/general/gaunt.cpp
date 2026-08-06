@@ -17,6 +17,7 @@
 #include <cstring>
 
 #include "gaunt.h"
+#include <sstream>
 #include "utils.h"
 #include "wignernj.hpp"
 
@@ -122,13 +123,25 @@ namespace helfem {
     template <typename T> static inline T sqrt_pi_by_3() { return std::sqrt(utils::pi<T>()/T(3)); }
 
     template <typename T>
-    GauntT<T>::GauntT(int Lmax_, int lmax_, int lpmax_)
+    GauntT<T>::GauntT(int Lmax_, int lmax_, int lpmax_, int mcap_)
       : Lmax(Lmax_), lmax(lmax_), lpmax(lpmax_) {
-      // (l, m) packs to l*(l+1) + m; range [0, (lmax+1)^2 - 1]. Same for (L, M).
-      // mp is implicit from the m-sum rule (mp = M - m), so we omit an mp axis.
+      // (L, M) packs to L*(2*mcap+1) + (M+mcap), and likewise (l, m). mp is
+      // implicit from the m-sum rule (mp = M - m), so there is no mp axis.
+      // Capping |M| and |m| is what keeps the table proportional to what a
+      // diatomic basis actually touches -- see the note on mcap in the header.
+      mcap = (mcap_ < 0) ? std::max(Lmax, lmax) : mcap_;
       lm_stride = static_cast<std::size_t>(lpmax) + 1;
-      Lm_stride = static_cast<std::size_t>(lmax + 1) * (lmax + 1) * lm_stride;
-      const std::size_t total = static_cast<std::size_t>(Lmax + 1) * (Lmax + 1) * Lm_stride;
+      Lm_stride = static_cast<std::size_t>(lmax + 1) * (2*mcap + 1) * lm_stride;
+      const std::size_t total = static_cast<std::size_t>(Lmax + 1) * (2*mcap + 1) * Lm_stride;
+      {
+        // Warn before allocating something that may not fit.
+        const double gb = double(total) * sizeof(T) / (1024.0*1024.0*1024.0);
+        if(gb > 1.0) {
+          printf("\nWARNING: Gaunt table for Lmax=%i lmax=%i lpmax=%i (|m|<=%i) "
+                 "needs %.1f GB.\n", Lmax, lmax, lpmax, mcap, gb);
+          fflush(stdout);
+        }
+      }
       table.assign(total, T(0));
 
 #ifdef _OPENMP
@@ -140,10 +153,12 @@ namespace helfem {
           const int lp_hi = std::min(lpmax, L + l);
           for(int lp = lp_lo; lp <= lp_hi; ++lp) {
             if(!gaunt_triple_nonzero(L, l, lp)) continue;
-            for(int M = -L; M <= L; ++M) {
+            // The bounds exclude everything outside the stored window, so no
+            // entry is generated only to be discarded.
+            for(int M = std::max(-L, -mcap); M <= std::min(L, mcap); ++M) {
               const T signM = (M & 1) ? T(-1) : T(1);
-              const int m_lo = std::max(-l, M - lp);
-              const int m_hi = std::min( l, M + lp);
+              const int m_lo = std::max(std::max(-l, M - lp), -mcap);
+              const int m_hi = std::min(std::min( l, M + lp),  mcap);
               for(int m = m_lo; m <= m_hi; ++m) {
                 const int mp = M - m;
                 const T g = wigner_gaunt<T>::eval(2*L, -2*M, 2*l, 2*m,
@@ -162,8 +177,24 @@ namespace helfem {
       if(L < 0 || L > Lmax) return T(0);
       if(l < 0 || l > lmax) return T(0);
       if(lp < 0 || lp > lpmax) return T(0);
+      // |M|>L and |m|>l are zero as a matter of mathematics -- no such
+      // spherical harmonic -- so returning zero is the right answer.
       if(std::abs(M) > L) return T(0);
       if(std::abs(m) > l) return T(0);
+      // Exceeding the stored window is different in kind: the coefficient is
+      // generally NOT zero, we simply did not build it. Returning zero there
+      // would be silently wrong, and wrong in a way no caller can detect, so
+      // throw instead. Reaching this means the table was constructed with a
+      // bound smaller than the caller needs.
+      if(std::abs(M) > mcap || std::abs(m) > mcap) {
+        std::ostringstream oss;
+        oss << "Gaunt coefficient requested outside the stored window: |M|="
+            << std::abs(M) << ", |m|=" << std::abs(m) << ", but the table was "
+            << "built with |M|,|m| <= " << mcap << ". This coefficient is not "
+            << "zero -- it was never computed. Build the table with a bound "
+            << "that covers the caller's range.\n";
+        throw std::logic_error(oss.str());
+      }
       // mp is implicit (= M - m); a stored cell with |M - m| > lp is zero.
       return table[flat_index(L, M, l, m, lp)];
     }
