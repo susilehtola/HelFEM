@@ -15,6 +15,7 @@
 #ifndef ATOMIC_BASIS_TWODBASIS_H
 #define ATOMIC_BASIS_TWODBASIS_H
 
+#include <string>
 #include <limits>
 #include "../general/model_potential.h"
 #include "../general/sap.h"
@@ -253,6 +254,10 @@ namespace helfem {
         std::vector<Eigen::Index> lm_indices(int l, int m) const;
         /// Get indices for wanted symmetry (one index list per block)
         std::vector<std::vector<Eigen::Index>> get_sym_idx(int isym) const;
+        /// Physical labels for the blocks of get_sym_idx, in the same
+        /// order ("m=+1", "l=2 m=-1", ...). Kept alongside get_sym_idx so
+        /// the two cannot drift apart.
+        std::vector<std::string> get_sym_labels(int isym) const;
 
         /// Evaluate basis functions (T = double only)
         Eigen::MatrixXcd eval_bf(size_t iel, double cth, double phi) const;

@@ -362,6 +362,7 @@ int main(int argc, char **argv) {
   std::vector<std::string> block_descriptions;
   helfem::scf_driver::build_ooo_block_metadata<OOO_Real>(
       nsym, nparttype, restricted, Ntot, nela, nelb,
+      basis.get_sym_labels(symm_eff),
       number_of_blocks_per_particle_type, maximum_occupation,
       number_of_particles, block_descriptions);
 

@@ -30,6 +30,8 @@
 #include "../general/timer.h"
 #include "../general/scf_helpers.h"
 #include <algorithm>
+#include <sstream>
+#include <string>
 #include <cassert>
 #include <cfloat>
 #include <cmath>
@@ -892,6 +894,46 @@ namespace helfem {
           throw std::logic_error("Unknown symmetry\n");
 
         return idx;
+      }
+
+      std::vector<std::string> TwoDBasis::get_sym_labels(int symm) const {
+        // Mirrors get_sym_idx block for block: same branches, same
+        // ordering, same unique-m sort. Anything changed there has to be
+        // changed here too.
+        std::vector<std::string> labels;
+        auto mlabel = [](int m) {
+          std::ostringstream oss;
+          // Explicit sign for nonzero m, but plain "m=0" rather than "m=+0".
+          oss << "m=" << (m > 0 ? "+" : "") << m;
+          return oss.str();
+        };
+
+        if(symm==0) {
+          labels.push_back("all");
+        } else if(symm==1 || symm==2) {
+          std::vector<int> mv;
+          for(size_t i=0;i<mval.size();i++)
+            if(std::find(mv.begin(),mv.end(),mval(i))==mv.end())
+              mv.push_back(mval(i));
+          std::sort(mv.begin(),mv.end());
+
+          if(symm==1) {
+            for(size_t i=0;i<mv.size();i++)
+              labels.push_back(mlabel(mv[i]));
+          } else {
+            // symm==2 splits each m by the parity of l, which for a
+            // homonuclear molecule is the inversion parity: even l is
+            // gerade, odd l ungerade. m_indices(m,odd) selects l%2==odd,
+            // so the even (g) block comes first.
+            for(size_t i=0;i<mv.size();i++) {
+              labels.push_back(mlabel(mv[i]) + " g");
+              labels.push_back(mlabel(mv[i]) + " u");
+            }
+          }
+        } else
+          throw std::logic_error("Unknown symmetry\n");
+
+        return labels;
       }
 
       helfem::Matrix TwoDBasis::Sinvh(bool chol, int sym) const {

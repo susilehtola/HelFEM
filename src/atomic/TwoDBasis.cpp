@@ -26,6 +26,8 @@
 #include <cassert>
 #include <cfloat>
 #include <algorithm>
+#include <sstream>
+#include <string>
 #include <limits>
 #include <type_traits>
 #include <helfem.h>
@@ -222,6 +224,42 @@ namespace helfem {
           throw std::logic_error("Unknown symmetry\n");
 
         return idx;
+      }
+
+      template <typename T>
+      std::vector<std::string> TwoDBasisT<T>::get_sym_labels(int symm) const {
+        // Mirrors get_sym_idx block for block: same branches, same
+        // ordering, same unique-m sort. Anything changed there has to be
+        // changed here too.
+        std::vector<std::string> labels;
+        auto mlabel = [](int m) {
+          std::ostringstream oss;
+          // Explicit sign for nonzero m, but plain "m=0" rather than "m=+0".
+          oss << "m=" << (m > 0 ? "+" : "") << m;
+          return oss.str();
+        };
+
+        if(symm==0) {
+          labels.push_back("all");
+        } else if(symm==1) {
+          std::vector<int> mv;
+          for (Eigen::Index i = 0; i < mval.size(); ++i)
+            if (std::find(mv.begin(), mv.end(), mval(i)) == mv.end())
+              mv.push_back(mval(i));
+          std::sort(mv.begin(), mv.end());
+          for(size_t i=0;i<mv.size();i++)
+            labels.push_back(mlabel(mv[i]));
+        } else if(symm==2) {
+          // One block per (l,m) channel of the angular basis.
+          for(size_t i=0;i<(size_t) mval.size();i++) {
+            std::ostringstream oss;
+            oss << "l=" << lval(i) << " " << mlabel(mval(i));
+            labels.push_back(oss.str());
+          }
+        } else
+          throw std::logic_error("Unknown symmetry\n");
+
+        return labels;
       }
 
       template <typename T>

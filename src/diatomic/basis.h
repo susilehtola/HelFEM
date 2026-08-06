@@ -15,6 +15,7 @@
 #ifndef DIATOMIC_BASIS_H
 #define DIATOMIC_BASIS_H
 
+#include <string>
 #include "FiniteElementBasis.h"
 #include "../general/gaunt.h"
 #include "quadrature.h"
@@ -328,6 +329,10 @@ namespace helfem {
         std::vector<Eigen::Index> m_indices(int m) const;
         /// Get indices of basis functions with wanted m quantum number and parity
         std::vector<Eigen::Index> m_indices(int m, bool odd) const;
+        /// Physical labels for the blocks of get_sym_idx, in the same
+        /// order ("m=+1", "m=-2 u", ...). Kept alongside get_sym_idx so
+        /// the two cannot drift apart.
+        std::vector<std::string> get_sym_labels(int symm) const;
         /// Get indices for wanted symmetry (one index list per block)
         std::vector<std::vector<Eigen::Index>> get_sym_idx(int isym) const;
 
