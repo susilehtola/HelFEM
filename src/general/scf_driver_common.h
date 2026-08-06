@@ -30,15 +30,104 @@
 
 #include <Eigen/Eigenvalues>
 #include <algorithm>
+#include <sstream>
+#include <string>
 #include <cstdio>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 #include "scf_helpers.h"
+#include "timer.h"
 #include "openorbitaloptimizer/scfsolver.hpp"
 
 namespace helfem {
   namespace scf_driver {
+
+    /// Wall-clock accounting for the SCF loop, split by Fock component.
+    ///
+    /// The diatomic Fock build is dominated by exchange and, for DFT, by
+    /// the XC quadrature, but which one dominates depends strongly on the
+    /// basis -- so the split is worth printing rather than guessing.
+    ///
+    /// OOO has no timers of its own, so everything it does -- the
+    /// diagonalization, the DIIS/ADIIS extrapolation, the occupation
+    /// search -- is measured indirectly, as the gap between one Fock
+    /// build returning and the next one starting. That bucket ("SCF
+    /// solver" below) therefore also absorbs anything the driver itself
+    /// does between builds; it is the time NOT spent building Fock
+    /// matrices, which is exactly the quantity the old per-component
+    /// timings could not show.
+    struct FockTimer {
+      /// This build.
+      double density = 0.0, xc = 0.0, coulomb = 0.0, exchange = 0.0;
+      /// Cumulative over the whole SCF.
+      double tot_density = 0.0, tot_xc = 0.0, tot_coulomb = 0.0,
+             tot_exchange = 0.0, tot_other = 0.0, tot_outside = 0.0;
+      size_t nbuild = 0;
+
+      /// Call at the top of the Fock builder.
+      void enter() {
+        outside_ = started_ ? between_.get() : 0.0;
+        tot_outside += outside_;
+        ++nbuild;
+        density = xc = coulomb = exchange = 0.0;
+        build_.set();
+      }
+
+      /// Call at the bottom of the Fock builder, after printing.
+      void leave() {
+        const double total = build_.get();
+        tot_density  += density;
+        tot_xc       += xc;
+        tot_coulomb  += coulomb;
+        tot_exchange += exchange;
+        // Whatever is left over: density assembly bookkeeping, the
+        // one-electron traces, the Fock scatter into blocks.
+        tot_other += total - (density + xc + coulomb + exchange);
+        between_.set();
+        started_ = true;
+      }
+
+      /// Seconds spent outside the Fock build since the previous one.
+      double outside() const { return outside_; }
+      /// Seconds spent in the current build so far.
+      double build() const { return build_.get(); }
+
+      /// One line per Fock build, appended after the energy decomposition.
+      void print_build(bool have_xc, bool have_exx) const {
+        const double t = build_.get();
+        printf("  time: Coulomb %.2f s", coulomb);
+        if (have_exx) printf(", exchange %.2f s", exchange);
+        if (have_xc)  printf(", XC %.2f s", xc);
+        printf(", density %.2f s, other %.2f s; Fock %.2f s",
+               density, t - (density + xc + coulomb + exchange), t);
+        if (started_) printf("; SCF solver %.2f s", outside_);
+        printf("\n");
+        fflush(stdout);
+      }
+
+      /// Cumulative summary, printed once the SCF has finished.
+      void print_summary(bool have_xc, bool have_exx) const {
+        const double fock = tot_density + tot_xc + tot_coulomb
+                          + tot_exchange + tot_other;
+        printf("\nSCF wall-clock breakdown over %zu Fock builds:\n", nbuild);
+        printf("  Coulomb      %10.2f s\n", tot_coulomb);
+        if (have_exx) printf("  exchange     %10.2f s\n", tot_exchange);
+        if (have_xc)  printf("  XC           %10.2f s\n", tot_xc);
+        printf("  density      %10.2f s\n", tot_density);
+        printf("  other (Fock) %10.2f s\n", tot_other);
+        printf("  Fock total   %10.2f s\n", fock);
+        printf("  SCF solver   %10.2f s  (diagonalization, DIIS/ADIIS,"
+               " occupations)\n", tot_outside);
+        printf("  SCF total    %10.2f s\n", fock + tot_outside);
+        fflush(stdout);
+      }
+
+    private:
+      Timer build_, between_;
+      double outside_ = 0.0;
+      bool started_ = false;
+    };
 
     /// Per-block symmetric orthonormalisation of the AO overlap S
     /// restricted to each symmetry index set. Both drivers build this
@@ -211,14 +300,27 @@ namespace helfem {
     /// alpha (t=0) and beta (t=1) into two particle types with
     /// max_occ = 1 per block; block descriptions get an "a:" / "b:"
     /// prefix per channel.
+    ///
+    /// sym_labels names the blocks physically ("m=+1", "l=2 m=-1",
+    /// "m=-2 u") and comes from the basis's get_sym_labels, which is the
+    /// same place the block ordering itself is defined. The occupations
+    /// OOO prints are then readable as quantum numbers rather than as
+    /// bare block indices.
     template <typename Real>
     inline void build_ooo_block_metadata(
         size_t nsym, size_t nparttype, bool restricted,
         int Ntot, int nela, int nelb,
+        const std::vector<std::string> & sym_labels,
         OpenOrbitalOptimizer::IndexVector & number_of_blocks_per_particle_type,
         Eigen::Matrix<Real, Eigen::Dynamic, 1> & maximum_occupation,
         Eigen::Matrix<Real, Eigen::Dynamic, 1> & number_of_particles,
         std::vector<std::string> & block_descriptions) {
+      if (sym_labels.size() != nsym) {
+        std::ostringstream oss;
+        oss << "Got " << sym_labels.size() << " symmetry labels for " << nsym
+            << " blocks: get_sym_labels and get_sym_idx are out of sync.\n";
+        throw std::logic_error(oss.str());
+      }
       number_of_blocks_per_particle_type.resize(nparttype);
       maximum_occupation.resize(nsym * nparttype);
       number_of_particles.resize(nparttype);
@@ -230,8 +332,7 @@ namespace helfem {
         for (size_t k = 0; k < nsym; ++k) {
           maximum_occupation(t * nsym + k) = restricted ? 2.0 : 1.0;
           block_descriptions.push_back(
-              (nparttype == 1 ? "" : (t == 0 ? "a:" : "b:"))
-              + std::string("sym") + std::to_string(k));
+              (nparttype == 1 ? "" : (t == 0 ? "a:" : "b:")) + sym_labels[k]);
         }
       }
     }
