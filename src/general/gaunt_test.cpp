@@ -1707,5 +1707,37 @@ int main(void) {
       printf("bounded Gaunt: |m|=%i beyond the window returned silently instead of throwing\n", mcap+1);
   }
 
+  // ---- Oracle: the table must agree with direct evaluation, everywhere. ----
+  //
+  // gaunt_coefficient(L,M,l,m,lp,mp) computes the integral from scratch via
+  // exact rational arithmetic, so it is independent of however the table
+  // chooses to store or index things. Any storage scheme -- dense, bounded,
+  // or symmetry-reduced -- has to reproduce it for every index it claims to
+  // hold. This is the check that makes a change of layout trustworthy: it
+  // cannot be satisfied by a self-consistent but wrong canonicalisation.
+  {
+    const int Lm = 6;
+    helfem::gaunt::Gaunt tab(Lm, Lm, Lm);
+    int bad = 0, checked = 0;
+    double worst = 0.0;
+    for(int L=0; L<=Lm; ++L)
+      for(int M=-L; M<=L; ++M)
+        for(int l=0; l<=Lm; ++l)
+          for(int m=-l; m<=l; ++m)
+            for(int lp=0; lp<=Lm; ++lp) {
+              const int mp = M - m;
+              if(std::abs(mp) > lp) continue;   // no such harmonic
+              const double got = tab.coeff(L,M,l,m,lp);
+              const double ref = helfem::gaunt::gaunt_coefficient(L,M,l,m,lp,mp);
+              const double err = std::abs(got-ref);
+              worst = std::max(worst, err);
+              ++checked;
+              if(err > 1e-12*(1.0+std::abs(ref))) ++bad;
+            }
+    if(bad)
+      printf("Gaunt oracle: %i/%i table entries disagree with direct evaluation "
+             "(worst %e)\n", bad, checked, worst);
+  }
+
 return 0;
 }
