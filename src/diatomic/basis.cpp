@@ -1827,6 +1827,34 @@ namespace helfem {
         // the parallel accumulation into K is race-free.
         helfem::Matrix K(helfem::Matrix::Zero(Ndummy(),Ndummy()));
 
+        const size_t Nang = lval.size();
+
+        // Density blocks, bucketed once by dm = m_i - m_l.
+        //
+        // A (jang,kang) output block can only be fed by a density block
+        // whose M matches: mj-mi == mk-ml, i.e. mi-ml == mj-mk. So the
+        // candidates for an output block depend on nothing but dm, and
+        // the same buckets serve every (jang,kang).
+        //
+        // This used to be an unconditional Nang^2 rescan per output
+        // block, recomputing P.block(...).norm() every time -- O(Nang^4)
+        // norms of an Nrad x Nrad block per Fock build, none of which
+        // depend on (jang,kang). Now each norm is taken once, and an
+        // output block iterates only over density blocks that can
+        // actually reach it.
+        const int mabs = absm_max();
+        const int dmoff = 2*mabs;
+        std::vector<std::vector<std::pair<size_t,size_t>>> pairs_by_dm(4*mabs+1);
+        for(size_t iang=0;iang<Nang;iang++)
+          for(size_t lang=0;lang<Nang;lang++) {
+            if(P.block(iang*Nrad,lang*Nrad,Nrad,Nrad).norm() < 10*DBL_EPSILON)
+              continue;
+            const int dm = mval(iang)-mval(lang);
+            if(std::abs(dm) > 2*mabs)
+              continue;
+            pairs_by_dm[dm+dmoff].emplace_back(iang,lang);
+          }
+
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
@@ -1843,41 +1871,41 @@ namespace helfem {
               int lk(lval(kang));
               int mk(mval(kang));
 
-              // Form radial helpers
+              // Only density blocks with mi-ml == mj-mk can feed this
+              // output block. If there are none, there is nothing to
+              // allocate and nothing to contract: skip before paying for
+              // either.
+              const int dmjk = mj-mk;
+              if(std::abs(dmjk) > 2*mabs)
+                continue;
+              const std::vector<std::pair<size_t,size_t>> & cand = pairs_by_dm[dmjk+dmoff];
+              if(cand.empty())
+                continue;
+
+              // Form radial helpers. Left empty until a channel actually
+              // couples: allocating 4*lm_map.size() Nrad x Nrad zero
+              // matrices per output block is pure churn when, as is
+              // usual, only a handful of L couple.
               std::vector<helfem::Matrix> Rmat00(lm_map.size());
               std::vector<helfem::Matrix> Rmat02(lm_map.size());
               std::vector<helfem::Matrix> Rmat20(lm_map.size());
               std::vector<helfem::Matrix> Rmat22(lm_map.size());
-              for(size_t i=0;i<lm_map.size();i++) {
-                Rmat00[i]=helfem::Matrix::Zero(Nrad,Nrad);
-                Rmat02[i]=helfem::Matrix::Zero(Nrad,Nrad);
-                Rmat20[i]=helfem::Matrix::Zero(Nrad,Nrad);
-                Rmat22[i]=helfem::Matrix::Zero(Nrad,Nrad);
-              }
               // Is there a coupling to the channel?
               std::vector<bool> couple(lm_map.size(),false);
+              bool any_couple = false;
 
               // Perform angular sums
-              for(size_t iang=0;iang<lval.size();iang++) {
+              for(size_t ipair=0;ipair<cand.size();ipair++) {
+                const size_t iang = cand[ipair].first;
+                const size_t lang = cand[ipair].second;
                 int li(lval(iang));
                 int mi(mval(iang));
-
-                for(size_t lang=0;lang<lval.size();lang++) {
-                  int ll(lval(lang));
-                  int ml(mval(lang));
-
-                  // LH m value
+                int ll(lval(lang));
+                int ml(mval(lang));
+                {
+                  // mi-ml == mj-mk by construction of the bucket, hence
+                  // M == Mp; no test needed.
                   int M(mj-mi);
-                  // RH m value
-                  int Mp(mk-ml);
-                  if(M!=Mp)
-                    continue;
-
-                  // Do we have any density in this block?
-                  double bdens(P.block(iang*Nrad,lang*Nrad,Nrad,Nrad).norm());
-                  //printf("(%i %i) (%i %i) density block norm %e\n",li,mi,ll,ml,bdens);
-                  if(bdens<10*DBL_EPSILON)
-                    continue;
 
                   // M values match. Loop over possible couplings
                   int Lmin=std::max(std::max(std::abs(li-lj),std::abs(lk-ll))-2,abs(M));
@@ -1899,16 +1927,27 @@ namespace helfem {
                     const double signM = (M & 1) ? -1.0 : 1.0;
                     const double LMfac(signM * LMfac_abs[ilm]);
 
-                    helfem::Matrix Psub(P.block(iang*Nrad,lang*Nrad,Nrad,Nrad));
+                    const auto Psub = P.block(iang*Nrad,lang*Nrad,Nrad,Nrad);
 
+                    if(!couple[ilm]) {
+                      Rmat00[ilm]=helfem::Matrix::Zero(Nrad,Nrad);
+                      Rmat02[ilm]=helfem::Matrix::Zero(Nrad,Nrad);
+                      Rmat20[ilm]=helfem::Matrix::Zero(Nrad,Nrad);
+                      Rmat22[ilm]=helfem::Matrix::Zero(Nrad,Nrad);
+                      couple[ilm]=true;
+                      any_couple=true;
+                    }
                     Rmat00[ilm]+=(LMfac*cpl00)*Psub;
                     Rmat02[ilm]+=(LMfac*cpl02)*Psub;
                     Rmat20[ilm]+=(LMfac*cpl20)*Psub;
                     Rmat22[ilm]+=(LMfac*cpl22)*Psub;
-                    couple[ilm]=true;
                   }
                 }
               }
+
+              // Nothing coupled: no contribution to this output block.
+              if(!any_couple)
+                continue;
 
               // Loop over elements: output
               for(size_t iel=0;iel<Nel;iel++) {
