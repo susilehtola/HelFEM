@@ -367,6 +367,7 @@ int main(int argc, char **argv) {
   OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> fock_builder =
       [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm) {
     ftimer.enter();
+    helfem::scf_driver::FockTimer::Components tcomps;
     const auto & orbitals    = dm.first;
     const auto & occupations = dm.second;
 
@@ -386,7 +387,7 @@ int main(int argc, char **argv) {
     if (restricted) {
       for (size_t k = 0; k < nsym; ++k)
         accumulate_density(P, k, orbitals[k], occupations[k]);
-      ftimer.density += tcomp.get();
+      tcomps.density += tcomp.get();
       if (have_xc) {
         tcomp.set();
         if (purem_xc)
@@ -395,7 +396,7 @@ int main(int argc, char **argv) {
         else
           grid.eval_Fxc(x_func, x_pars, c_func, c_pars, P, XCa,
                          Exc, nelnum, ekin_grid, dftthr);
-        ftimer.xc += tcomp.get();
+        tcomps.xc += tcomp.get();
       }
       if (have_exx) Pa = 0.5 * P;
     } else {
@@ -406,7 +407,7 @@ int main(int argc, char **argv) {
         accumulate_density(Pb, k, orbitals[nsym + k], occupations[nsym + k]);
       }
       P = Pa + Pb;
-      ftimer.density += tcomp.get();
+      tcomps.density += tcomp.get();
       if (have_xc) {
         tcomp.set();
         if (purem_xc)
@@ -415,7 +416,7 @@ int main(int argc, char **argv) {
         else
           grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Pa, Pb,
                          XCa, XCb, Exc, nelnum, ekin_grid, nelb > 0, dftthr);
-        ftimer.xc += tcomp.get();
+        tcomps.xc += tcomp.get();
       }
     }
 
@@ -430,7 +431,7 @@ int main(int argc, char **argv) {
     tcomp.set();
     const helfem::Matrix J = basis.coulomb(P);
     const double Ecoul = 0.5 * (P * J).trace();
-    ftimer.coulomb += tcomp.get();
+    tcomps.coulomb += tcomp.get();
 
     // Diatomic exchange kernel: pure Coulomb K (no RS split yet).
     auto exchange_fn = [&](const helfem::Matrix & P) {
@@ -441,7 +442,7 @@ int main(int argc, char **argv) {
     tcomp.set();
     helfem::scf_driver::assemble_hf_exchange(
         Ka, Kb, Exx, Pa, Pb, restricted, have_exx, exchange_fn);
-    ftimer.exchange += tcomp.get();
+    tcomps.exchange += tcomp.get();
 
     const double Etot = Ekin + Enuc + Eefield + Emfield
                        + Ecoul + Exc + Exx + Enucr;
@@ -451,6 +452,8 @@ int main(int argc, char **argv) {
     if (have_bfield) printf(" Emfield %.10f", Emfield);
     printf("  total %.10f  (nel err %.3e)\n",
             Etot, nelnum - static_cast<double>(Ntot));
+    tcomps.total = ftimer.build_elapsed();
+    ftimer.add_build(tcomps);
     ftimer.print_build(have_xc, have_exx);
     fflush(stdout);
 

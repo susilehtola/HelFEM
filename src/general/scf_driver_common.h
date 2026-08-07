@@ -57,74 +57,114 @@ namespace helfem {
     /// does between builds; it is the time NOT spent building Fock
     /// matrices, which is exactly the quantity the old per-component
     /// timings could not show.
+    ///
+    /// A builder invocation may evaluate SEVERAL densities, and gensap
+    /// evaluates them concurrently (the ODA polytope vertices). Component
+    /// times are therefore collected per build into a local Components --
+    /// never into shared state -- and folded in afterwards with
+    /// add_build(), the same discipline the batched builder already uses
+    /// for its log lines. When a batch runs n>1 entries at once the
+    /// component sums exceed the batch's wall clock, so wall clock is
+    /// tracked separately rather than derived from them.
     struct FockTimer {
-      /// This build.
-      double density = 0.0, xc = 0.0, coulomb = 0.0, exchange = 0.0;
-      /// Cumulative over the whole SCF.
-      double tot_density = 0.0, tot_xc = 0.0, tot_coulomb = 0.0,
-             tot_exchange = 0.0, tot_other = 0.0, tot_outside = 0.0;
-      size_t nbuild = 0;
+      /// Component times of ONE Fock build. Local to that build.
+      struct Components {
+        double density = 0.0, xc = 0.0, coulomb = 0.0, exchange = 0.0;
+        /// Wall clock of the whole build, including the leftovers.
+        double total = 0.0;
+        /// One-electron traces, Fock assembly, block scatter.
+        double other() const {
+          return total - (density + xc + coulomb + exchange);
+        }
+      };
 
-      /// Call at the top of the Fock builder.
+      /// Cumulative over the whole SCF. Summed over builds, so under a
+      /// concurrent batch these exceed the elapsed wall clock.
+      double tot_density = 0.0, tot_xc = 0.0, tot_coulomb = 0.0,
+             tot_exchange = 0.0, tot_other = 0.0;
+      /// Wall clock actually spent inside the builder, and outside it.
+      double tot_fock_wall = 0.0, tot_outside = 0.0;
+      /// Individual Fock builds, and builder invocations.
+      size_t nbuild = 0, nbatch = 0;
+
+      /// Call at the top of the (possibly batched) Fock builder.
       void enter() {
         outside_ = started_ ? between_.get() : 0.0;
         tot_outside += outside_;
-        ++nbuild;
-        density = xc = coulomb = exchange = 0.0;
-        build_.set();
+        ++nbatch;
+        cur_ = Components();
+        nbatch_builds_ = 0;
+        batch_.set();
       }
 
-      /// Call at the bottom of the Fock builder, after printing.
+      /// Fold in one completed build. Safe to call repeatedly; call it
+      /// from serial code, after any concurrent region has joined.
+      void add_build(const Components & c) {
+        ++nbuild;
+        ++nbatch_builds_;
+        tot_density  += c.density;   cur_.density  += c.density;
+        tot_xc       += c.xc;        cur_.xc       += c.xc;
+        tot_coulomb  += c.coulomb;   cur_.coulomb  += c.coulomb;
+        tot_exchange += c.exchange;  cur_.exchange += c.exchange;
+        tot_other    += c.other();   cur_.total    += c.total;
+      }
+
+      /// Call at the bottom of the builder, after printing.
       void leave() {
-        const double total = build_.get();
-        tot_density  += density;
-        tot_xc       += xc;
-        tot_coulomb  += coulomb;
-        tot_exchange += exchange;
-        // Whatever is left over: density assembly bookkeeping, the
-        // one-electron traces, the Fock scatter into blocks.
-        tot_other += total - (density + xc + coulomb + exchange);
+        tot_fock_wall += batch_.get();
         between_.set();
         started_ = true;
       }
 
-      /// Seconds spent outside the Fock build since the previous one.
+      /// Seconds spent outside the builder since the previous invocation.
       double outside() const { return outside_; }
-      /// Seconds spent in the current build so far.
-      double build() const { return build_.get(); }
+      /// Seconds elapsed in this builder invocation so far. A serial
+      /// builder uses this as its build's total; a batched one times
+      /// each entry itself, since they overlap.
+      double build_elapsed() const { return batch_.get(); }
 
-      /// One line per Fock build, appended after the energy decomposition.
+      /// One line per builder invocation, after the energy decomposition.
       void print_build(bool have_xc, bool have_exx) const {
-        const double t = build_.get();
-        printf("  time: Coulomb %.2f s", coulomb);
-        if (have_exx) printf(", exchange %.2f s", exchange);
-        if (have_xc)  printf(", XC %.2f s", xc);
-        printf(", density %.2f s, other %.2f s; Fock %.2f s",
-               density, t - (density + xc + coulomb + exchange), t);
-        if (started_) printf("; SCF solver %.2f s", outside_);
+        const double wall = batch_.get();
+        printf("  time: Coulomb %.3f s", cur_.coulomb);
+        if (have_exx) printf(", exchange %.3f s", cur_.exchange);
+        if (have_xc)  printf(", XC %.3f s", cur_.xc);
+        printf(", density %.3f s, other %.3f s", cur_.density, cur_.other());
+        if (nbatch_builds_ > 1)
+          printf(" (summed over %zu concurrent builds)", nbatch_builds_);
+        printf("; Fock %.3f s", wall);
+        if (started_) printf("; SCF solver %.3f s", outside_);
         printf("\n");
         fflush(stdout);
       }
 
       /// Cumulative summary, printed once the SCF has finished.
       void print_summary(bool have_xc, bool have_exx) const {
-        const double fock = tot_density + tot_xc + tot_coulomb
+        const double comp = tot_density + tot_xc + tot_coulomb
                           + tot_exchange + tot_other;
-        printf("\nSCF wall-clock breakdown over %zu Fock builds:\n", nbuild);
-        printf("  Coulomb      %10.2f s\n", tot_coulomb);
-        if (have_exx) printf("  exchange     %10.2f s\n", tot_exchange);
-        if (have_xc)  printf("  XC           %10.2f s\n", tot_xc);
-        printf("  density      %10.2f s\n", tot_density);
-        printf("  other (Fock) %10.2f s\n", tot_other);
-        printf("  Fock total   %10.2f s\n", fock);
-        printf("  SCF solver   %10.2f s  (diagonalization, DIIS/ADIIS,"
+        printf("\nSCF wall-clock breakdown over %zu Fock builds", nbuild);
+        if (nbatch != nbuild) printf(" in %zu batches", nbatch);
+        printf(":\n");
+        printf("  Coulomb      %12.3f s\n", tot_coulomb);
+        if (have_exx) printf("  exchange     %12.3f s\n", tot_exchange);
+        if (have_xc)  printf("  XC           %12.3f s\n", tot_xc);
+        printf("  density      %12.3f s\n", tot_density);
+        printf("  other (Fock) %12.3f s\n", tot_other);
+        printf("  Fock total   %12.3f s", comp);
+        // Only when builds ran concurrently do the two differ.
+        if (comp > 1.05 * tot_fock_wall)
+          printf("  (%.3f s elapsed; builds ran concurrently)", tot_fock_wall);
+        printf("\n");
+        printf("  SCF solver   %12.3f s  (diagonalization, DIIS/ADIIS,"
                " occupations)\n", tot_outside);
-        printf("  SCF total    %10.2f s\n", fock + tot_outside);
+        printf("  SCF total    %12.3f s\n", tot_fock_wall + tot_outside);
         fflush(stdout);
       }
 
     private:
-      Timer build_, between_;
+      Timer batch_, between_;
+      Components cur_;
+      size_t nbatch_builds_ = 0;
       double outside_ = 0.0;
       bool started_ = false;
     };
