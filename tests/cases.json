@@ -2934,7 +2934,8 @@
       "tags": [
         "cross-code",
         "diatomic",
-        "hf"
+        "hf",
+        "ci"
       ],
       "_why": "Ne through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
       "args": [
@@ -2955,7 +2956,8 @@
       "tags": [
         "cross-code",
         "diatomic",
-        "lda"
+        "lda",
+        "ci"
       ],
       "_why": "Ne through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
       "args": [
@@ -3521,6 +3523,100 @@
         "--nela=1",
         "--nelb=0",
         "--method=HF"
+      ]
+    },
+    {
+      "name": "diatomic-Ne-dummy-hf-absm",
+      "code": "diatomic",
+      "tags": [
+        "diatomic",
+        "hf",
+        "symmetry",
+        "ci"
+      ],
+      "_why": "Ne (2p^6) through the diatomic code at --symmetry=3. The p shell fills m=-1,0,+1, so the |m| blocks carry a real two-fold degeneracy, but the shell is closed and nothing breaks the symmetry -- so this must reproduce the per-m answer exactly. HF makes it the test of the exchange +-m mirror, which is only armed at --symmetry=3.",
+      "args": [
+        "--Z1=10",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=5",
+        "--nelb=5",
+        "--method=HF",
+        "--symmetry=3"
+      ]
+    },
+    {
+      "name": "diatomic-Ne-dummy-lda-absm",
+      "code": "diatomic",
+      "tags": [
+        "diatomic",
+        "lda",
+        "symmetry",
+        "ci"
+      ],
+      "_why": "As diatomic-Ne-dummy-hf-absm, but LDA: exercises the pure-m XC grid's +-m mirror rather than the exchange one.",
+      "args": [
+        "--Z1=10",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=5",
+        "--nelb=5",
+        "--method=lda_x-lda_c_vwn",
+        "--symmetry=3"
+      ]
+    },
+    {
+      "name": "diatomic-H2-absm-hf",
+      "code": "diatomic",
+      "tags": [
+        "diatomic",
+        "hf",
+        "symmetry",
+        "ci"
+      ],
+      "_why": "H2 has only m=0, so --symmetry=3 collapses to a single block with degeneracy 1 and no mirror at all. Cheap guard on the plumbing -- block metadata, |m| labels, density scatter -- along the path where the degeneracy machinery must be a no-op.",
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=1.4",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=HF",
+        "--restricted=1",
+        "--symmetry=3"
+      ]
+    },
+    {
+      "name": "diatomic-CH-absm-hf",
+      "code": "diatomic",
+      "tags": [
+        "diatomic",
+        "hf",
+        "open-shell",
+        "symmetry",
+        "slow"
+      ],
+      "_why": "CH (2-Pi) at --symmetry=3. The odd pi electron cannot sit wholly in +1 or -1 here: the degeneracy is folded into the block's maximum occupation, so it comes out as 0.5 in each -- the cylindrically averaged state. This is the case the retired --maverage could not converge at all (it constrained the Fock matrix but not the occupations, and stalled with the DIIS error pinned at 1.8e-5). The recorded energy is therefore ABOVE the symmetry-broken CH solutions, and the point of the test is that it converges.",
+      "args": [
+        "--Z1=6",
+        "--Z2=1",
+        "--Rbond=2.116",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,11",
+        "--nela=4",
+        "--nelb=3",
+        "--method=HF",
+        "--symmetry=3"
       ]
     }
   ],
@@ -4197,6 +4293,36 @@
       "cases": [
         "diatomic-CH-piplus-lda",
         "diatomic-CH-piminus-lda"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "absm-equals-perm-Ne-hf",
+      "_why": "A closed p shell is symmetric under m -> -m, so solving one block per |m| with the degeneracy in max_occ must land on the same solution as solving every m separately. Measured 3e-10 apart.",
+      "cases": [
+        "diatomic-Ne-dummy-hf-absm",
+        "diatomic-Ne-dummy-hf"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "absm-equals-perm-Ne-lda",
+      "_why": "As absm-equals-perm-Ne-hf, through the XC grid instead of exchange. Measured identical to all printed digits.",
+      "cases": [
+        "diatomic-Ne-dummy-lda-absm",
+        "diatomic-Ne-dummy-lda"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "absm-equals-perm-H2",
+      "_why": "With only m=0 present the |m| grouping is the identity, so the two must agree exactly; any drift means the degeneracy or the mirrored scatter is firing where it should not.",
+      "cases": [
+        "diatomic-H2-absm-hf",
+        "diatomic-H2-hf-r"
       ],
       "field": "total",
       "tolerance": 1e-09

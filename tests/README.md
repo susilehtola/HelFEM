@@ -143,6 +143,36 @@ unpinned, the SCF selects among these components depending on arbitrarily
 small perturbations (thread count, for instance), which is why unpinned
 open-shell oxygen makes a poor reference and a pinned one makes a good test.
 
+## The +-|m| symmetry level (--symmetry=3)
+
+`--symmetry=3` solves one block per |m| rather than one per m, with the
+two-fold degeneracy folded into the block's maximum occupation. That puts
+the constraint on the *occupations* as well as on the Fock matrix, which is
+what the retired `--maverage` failed to do: it averaged F over +-m but left
+Aufbau free to drop an odd pi electron wholly into one of two exactly
+degenerate blocks, so the density broke the symmetry the Fock was forced to
+have, and the SCF stalled with the DIIS error pinned at 1.8e-5.
+
+Two kinds of test, because there are two things to get wrong.
+
+**It must not change a closed-shell answer.** Ne (2p^6) through the diatomic
+code fills m = -1, 0, +1, so the |m| blocks carry a real degeneracy -- but
+the shell is closed and nothing breaks the symmetry, so grouping the blocks
+must land on the same solution as solving each m separately. HF makes this
+the test of the exchange +-m mirror (only armed at `--symmetry=3`); LDA
+tests the pure-m XC grid's mirror instead. Measured 3e-10 apart at HF and
+identical to all printed digits at LDA, hence the 1e-9 tolerance. H2 covers
+the degenerate case where only m=0 exists, so the machinery must be an exact
+no-op.
+
+**It must converge where the old flag could not.** CH (2-Pi) has one pi
+electron and no way to place it symmetrically unless the occupations are
+constrained; at `--symmetry=3` it comes out as 0.5 in each of +-1. The
+recorded -38.1696015354 is therefore *above* the symmetry-broken CH
+solutions (-38.2817165629 at `--symmetry=1`) and is not comparable to them:
+it is a different, cylindrically averaged state. The point of the test is
+that it converges at all.
+
 ## Cross-code invariants
 
 Every element in this suite is closed-shell, single-s-electron or half-filled,
