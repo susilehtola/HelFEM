@@ -75,6 +75,7 @@ int main(int argc, char **argv) {
   parser.add<double>("Rrms", 0, "finite nuclear rms radius", false, 0.0);
   parser.add<int>("restricted", 0, "spin-restricted: 1 restricted, 0 unrestricted, -1 auto from nela/nelb", false, -1);
   parser.add<int>("symmetry", 0, "orbital symmetry: 0 none, 1 per-m, 2 per-(l,m)", false, 1);
+  parser.add<int>("verbosity", 0, "output detail: 0 silent, 1 setup and energies, 5 also per-iteration Fock timings; also passed to the SCF solver", false, 5);
   // Off-centre point charges on the z-axis at +/- Rmid (parity with the
   // bespoke atomic driver): an atom of charge Z at the origin embedded
   // between two extra nuclei Zl, Zr. Breaks spherical (l) symmetry but
@@ -131,6 +132,11 @@ int main(int argc, char **argv) {
 
   parser.parse_check(argc, argv);
 
+  // Gates every non-warning printout below; see the option help.
+  const int    verbosity  = parser.get<int>("verbosity");
+  // The shared basis/grid/functional code reports through this flag.
+  helfem::set_verbosity(verbosity >= 1);
+
   const int    Z          = get_Z(parser.get<std::string>("Z"));
         int    Q          = parser.get<int>("Q");
         int    M          = parser.get<int>("M");
@@ -160,7 +166,8 @@ int main(int argc, char **argv) {
   const int    Zr         = get_Z(parser.get<std::string>("Zr"));
         double Rhalf      = parser.get<double>("Rmid");
   if (parser.get<bool>("angstrom") && Rhalf != 0.0) {
-    printf("Converting Rmid from %g angstrom to %g bohr.\n", Rhalf, Rhalf * ANGSTROMINBOHR);
+    if (verbosity >= 1)
+      printf("Converting Rmid from %g angstrom to %g bohr.\n", Rhalf, Rhalf * ANGSTROMINBOHR);
     Rhalf *= ANGSTROMINBOHR;
   }
   const std::string xparf = parser.get<std::string>("x_pars");
@@ -250,8 +257,10 @@ int main(int argc, char **argv) {
       ? Z * (Zl + Zr) / Rhalf + Zl * Zr / (2.0 * Rhalf)
       : 0.0;
   if (Zl != 0 || Zr != 0) {
-    printf("Off-centre charges Zl=%i Zr=%i at distance %.6f bohr from the origin.\n", Zl, Zr, Rhalf);
-    printf("Nuclear repulsion energy is %.10e\n", Enucr);
+    if (verbosity >= 1)
+      printf("Off-centre charges Zl=%i Zr=%i at distance %.6f bohr from the origin.\n", Zl, Zr, Rhalf);
+    if (verbosity >= 1)
+      printf("Nuclear repulsion energy is %.10e\n", Enucr);
     if (Rhalf <= 0.0)
       throw std::logic_error("Off-centre charges require --Rmid > 0.\n");
     if (Nelem0 < 1)
@@ -272,9 +281,11 @@ int main(int argc, char **argv) {
                                   mval,
                                   Zl, Zr, Rhalf);
   const size_t Nbf = basis.Nbf();
-  printf("Basis set: %i angular shells x %i radial = %i basis functions\n",
+  if (verbosity >= 1)
+    printf("Basis set: %i angular shells x %i radial = %i basis functions\n",
           (int) basis.Nang(), (int) basis.Nrad(), (int) Nbf);
-  printf("Mode: %s, symmetry=%d, nela=%d nelb=%d\n",
+  if (verbosity >= 1)
+    printf("Mode: %s, symmetry=%d, nela=%d nelb=%d\n",
           restricted ? "restricted" : "unrestricted", symm, nela, nelb);
 
   // --- One-electron + overlap (basis returns helfem::Matrix directly).
@@ -289,7 +300,8 @@ int main(int argc, char **argv) {
   //     coupling is off, so the additions cost nothing but a trace pass.
   helfem::Matrix Vconf = helfem::Matrix::Zero(Nbf, Nbf);
   if (iconf) {
-    printf("Computing confinement potential\n");
+    if (verbosity >= 1)
+      printf("Computing confinement potential\n");
     Vconf = basis.confinement(conf_N, conf_R, iconf, conf_barrier, shift_conf);
   }
   const helfem::Matrix dip  = basis.dipole_z();
@@ -461,14 +473,16 @@ int main(int argc, char **argv) {
 
     const double Etot = Ekin + Enuc + Eefield + Emfield + Econf
                        + Ecoul + Exc + Exx + Enucr;
-    printf("kinetic %.10f nuclear %.10f Coulomb %.10f XC %.10f Exx %.10f",
-            Ekin, Enuc, Ecoul, Exc, Exx);
-    if (have_efield) printf(" Eefield %.10f", Eefield);
-    if (have_bfield) printf(" Emfield %.10f", Emfield);
-    if (have_conf)   printf(" Econf %.10f",   Econf);
-    if (Enucr != 0.0) printf(" Enucr %.10f",  Enucr);
-    printf("  total %.10f  (nel err %.3e)\n",
-            Etot, nelnum - static_cast<double>(Ntot));
+    if (verbosity >= 1) {
+      printf("kinetic %.10f nuclear %.10f Coulomb %.10f XC %.10f Exx %.10f",
+              Ekin, Enuc, Ecoul, Exc, Exx);
+      if (have_efield) printf(" Eefield %.10f", Eefield);
+      if (have_bfield) printf(" Emfield %.10f", Emfield);
+      if (have_conf)   printf(" Econf %.10f",   Econf);
+      if (Enucr != 0.0) printf(" Enucr %.10f",  Enucr);
+      printf("  total %.10f  (nel err %.3e)\n",
+              Etot, nelnum - static_cast<double>(Ntot));
+    }
     fflush(stdout);
 
     // --- Fock assembly. Restricted: one AO Fock, orthonormalize per block.
@@ -499,25 +513,30 @@ int main(int argc, char **argv) {
   //     because it typically converges materially faster than core-H.
   helfem::Matrix Vguess;
   if (iguess == 0) {
-    printf("Guess orbitals from core Hamiltonian\n");
+    if (verbosity >= 1)
+      printf("Guess orbitals from core Hamiltonian\n");
     Vguess = Vnuc;
   } else {
     modelpotential::ModelPotential * model = nullptr;
     switch (iguess) {
     case 1:
-      printf("Guess orbitals from GSZ screened nucleus\n");
+      if (verbosity >= 1)
+        printf("Guess orbitals from GSZ screened nucleus\n");
       model = new modelpotential::GSZAtom(Z);
       break;
     case 2:
-      printf("Guess orbitals from SAP screened nucleus\n");
+      if (verbosity >= 1)
+        printf("Guess orbitals from SAP screened nucleus\n");
       model = new modelpotential::SAPAtom(Z);
       break;
     case 3:
-      printf("Guess orbitals from Thomas-Fermi screened nucleus\n");
+      if (verbosity >= 1)
+        printf("Guess orbitals from Thomas-Fermi screened nucleus\n");
       model = new modelpotential::TFAtom(Z);
       break;
     case 4:
-      printf("Guess orbitals from SAP screened nucleus, evaluated from the tabulated wave function\n");
+      if (verbosity >= 1)
+        printf("Guess orbitals from SAP screened nucleus, evaluated from the tabulated wave function\n");
       model = new modelpotential::SAPFEAtom(Z);
       break;
     default:
@@ -534,6 +553,9 @@ int main(int argc, char **argv) {
   OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(
       number_of_blocks_per_particle_type, maximum_occupation,
       number_of_particles, fock_builder, block_descriptions);
+  // Before any Fock evaluation: initialize_with_fock builds one,
+  // and it would otherwise report at the default level.
+  scfsolver.set("verbosity", verbosity);
 
   // --readocc: parse occs.dat and hand OOO a fixed per-block particle
   // count, bypassing Aufbau for the whole SCF. Bespoke atomic reads
@@ -663,7 +685,7 @@ int main(int argc, char **argv) {
   }
 
   scfsolver.set("methods", parser.get<std::string>("scfmethods"));
-  scfsolver.print_citation();
+  if (verbosity >= 1) scfsolver.print_citation();
   scfsolver.run();
 
   // --save: reconstruct the AO densities from the converged per-block
@@ -683,7 +705,8 @@ int main(int argc, char **argv) {
     savechk.write("Pb", Pb_final);
     savechk.write("nela", nela);
     savechk.write("nelb", nelb);
-    printf("Saved results to %s\n", savefile.c_str());
+    if (verbosity >= 1)
+      printf("Saved results to %s\n", savefile.c_str());
   }
 
   return 0;

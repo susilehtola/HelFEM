@@ -84,6 +84,7 @@ int main(int argc, char **argv) {
   parser.add<double>("Rrms2", 0, "nucleus 2 finite rms radius", false, 0.0);
   parser.add<int>("restricted", 0, "spin-restricted: 1 restricted, 0 unrestricted, -1 auto from nela/nelb", false, -1);
   parser.add<int>("symmetry", 0, "orbital symmetry: 0 none, 1 per-m, 2 per-(m,parity) (homonuclear only)", false, 1);
+  parser.add<int>("verbosity", 0, "output detail: 0 silent, 1 setup and energies, 5 also per-iteration Fock timings; also passed to the SCF solver", false, 5);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
 
@@ -119,11 +120,17 @@ int main(int argc, char **argv) {
 
   parser.parse_check(argc, argv);
 
+  // Gates every non-warning printout below; see the option help.
+  const int    verbosity = parser.get<int>("verbosity");
+  // The shared basis/grid/functional code reports through this flag.
+  helfem::set_verbosity(verbosity >= 1);
+
   const int Z1        = get_Z(parser.get<std::string>("Z1"));
   const int Z2        = get_Z(parser.get<std::string>("Z2"));
         double Rbond  = parser.get<double>("Rbond");
   if (parser.get<bool>("angstrom")) {
-    printf("Converting Rbond from %g angstrom to %g bohr.\n", Rbond, Rbond * ANGSTROMINBOHR);
+    if (verbosity >= 1)
+      printf("Converting Rbond from %g angstrom to %g bohr.\n", Rbond, Rbond * ANGSTROMINBOHR);
     Rbond *= ANGSTROMINBOHR;
   }
         int Q         = parser.get<int>("Q");
@@ -235,9 +242,11 @@ int main(int argc, char **argv) {
 
   diatomic::basis::TwoDBasis basis(Z1, Z2, Rhalf, poly, Nquad, bval, lval, mval);
   const size_t Nbf = basis.Nbf();
-  printf("Basis set: %i angular shells x %i radial = %i basis functions\n",
+  if (verbosity >= 1)
+    printf("Basis set: %i angular shells x %i radial = %i basis functions\n",
           (int) basis.Nang(), (int) basis.Nrad(), (int) Nbf);
-  printf("Mode: %s, symmetry=%d, nela=%d nelb=%d\n",
+  if (verbosity >= 1)
+    printf("Mode: %s, symmetry=%d, nela=%d nelb=%d\n",
           restricted ? "restricted" : "unrestricted", symm, nela, nelb);
 
   // Diatomic chemistry-layer methods now return Eigen (helfem::Matrix).
@@ -262,7 +271,8 @@ int main(int argc, char **argv) {
     Vnuc = qgrid.model_potential(pot1, pot2);
     delete pot1;
     delete pot2;
-    printf("Using finite nuclear model %d (Rrms1=%g, Rrms2=%g)\n", finitenuc, Rrms1, Rrms2);
+    if (verbosity >= 1)
+      printf("Using finite nuclear model %d (Rrms1=%g, Rrms2=%g)\n", finitenuc, Rrms1, Rrms2);
   }
 
   // External static-field one-electron matrices. Diatomic has two
@@ -446,15 +456,19 @@ int main(int argc, char **argv) {
 
     const double Etot = Ekin + Enuc + Eefield + Emfield
                        + Ecoul + Exc + Exx + Enucr;
-    printf("kinetic %.10f nuclear %.10f Enucr %.10f Coulomb %.10f XC %.10f Exx %.10f",
-            Ekin, Enuc, Enucr, Ecoul, Exc, Exx);
-    if (have_efield) printf(" Eefield %.10f", Eefield);
-    if (have_bfield) printf(" Emfield %.10f", Emfield);
-    printf("  total %.10f  (nel err %.3e)\n",
-            Etot, nelnum - static_cast<double>(Ntot));
+    if (verbosity >= 1) {
+      printf("kinetic %.10f nuclear %.10f Enucr %.10f Coulomb %.10f XC %.10f Exx %.10f",
+              Ekin, Enuc, Enucr, Ecoul, Exc, Exx);
+      if (have_efield) printf(" Eefield %.10f", Eefield);
+      if (have_bfield) printf(" Emfield %.10f", Emfield);
+      printf("  total %.10f  (nel err %.3e)\n",
+              Etot, nelnum - static_cast<double>(Ntot));
+    }
     tcomps.total = ftimer.build_elapsed();
     ftimer.add_build(tcomps);
-    ftimer.print_build(have_xc, have_exx);
+    // Timings roughly double the per-iteration volume, so they sit one
+    // rung above the energies rather than alongside them.
+    if (verbosity >= 5) ftimer.print_build(have_xc, have_exx);
     fflush(stdout);
 
     // Fock assembly. Restricted: one AO Fock matrix per block.
@@ -485,28 +499,33 @@ int main(int argc, char **argv) {
   //     faster than core-H.
   helfem::Matrix Vguess;
   if (iguess == 0) {
-    printf("Guess orbitals from core Hamiltonian\n");
+    if (verbosity >= 1)
+      printf("Guess orbitals from core Hamiltonian\n");
     Vguess = Vnuc;
   } else {
     modelpotential::ModelPotential *p1 = nullptr, *p2 = nullptr;
     switch (iguess) {
     case 1:
-      printf("Guess orbitals from GSZ screened nuclei\n");
+      if (verbosity >= 1)
+        printf("Guess orbitals from GSZ screened nuclei\n");
       p1 = new modelpotential::GSZAtom(Z1);
       p2 = new modelpotential::GSZAtom(Z2);
       break;
     case 2:
-      printf("Guess orbitals from SAP screened nuclei\n");
+      if (verbosity >= 1)
+        printf("Guess orbitals from SAP screened nuclei\n");
       p1 = new modelpotential::SAPAtom(Z1);
       p2 = new modelpotential::SAPAtom(Z2);
       break;
     case 3:
-      printf("Guess orbitals from Thomas-Fermi screened nuclei\n");
+      if (verbosity >= 1)
+        printf("Guess orbitals from Thomas-Fermi screened nuclei\n");
       p1 = new modelpotential::TFAtom(Z1);
       p2 = new modelpotential::TFAtom(Z2);
       break;
     case 4:
-      printf("Guess orbitals from SAP screened nuclei, evaluated from the tabulated wave functions\n");
+      if (verbosity >= 1)
+        printf("Guess orbitals from SAP screened nuclei, evaluated from the tabulated wave functions\n");
       p1 = new modelpotential::SAPFEAtom(Z1);
       p2 = new modelpotential::SAPFEAtom(Z2);
       break;
@@ -527,6 +546,9 @@ int main(int argc, char **argv) {
   OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(
       number_of_blocks_per_particle_type, maximum_occupation,
       number_of_particles, fock_builder, block_descriptions);
+  // Before any Fock evaluation: initialize_with_fock builds one,
+  // and it would otherwise report at the default level.
+  scfsolver.set("verbosity", verbosity);
 
   // --readocc: parse occs.dat and hand OOO a fixed per-block particle
   // count. Bespoke diatomic reads (nocca, noccb, m) rows for both
@@ -637,9 +659,9 @@ int main(int argc, char **argv) {
   }
 
   scfsolver.set("methods", parser.get<std::string>("scfmethods"));
-  scfsolver.print_citation();
+  if (verbosity >= 1) scfsolver.print_citation();
   scfsolver.run();
-  ftimer.print_summary(have_xc, have_exx);
+  if (verbosity >= 5) ftimer.print_summary(have_xc, have_exx);
 
   if (savefile.size()) {
     Checkpoint savechk(savefile, /*writemode=*/true);
@@ -658,7 +680,8 @@ int main(int argc, char **argv) {
     savechk.write("Rhalf", Rhalf);
     savechk.write("Z1", Z1);
     savechk.write("Z2", Z2);
-    printf("Saved results to %s\n", savefile.c_str());
+    if (verbosity >= 1)
+      printf("Saved results to %s\n", savefile.c_str());
   }
 
   return 0;
