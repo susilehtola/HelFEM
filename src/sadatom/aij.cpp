@@ -18,6 +18,7 @@
 #include "../general/elements.h"
 #include "../general/scf_helpers.h"
 #include "../general/eigen_io.h"
+#include "../general/scf_driver_common.h"
 
 #include "openorbitaloptimizer/scfsolver.hpp"
 
@@ -356,9 +357,17 @@ int main(int argc, char **argv) {
   };
 
   // Fock builder
+  // Per-component wall clock for the Fock build, plus the time spent
+  // outside it in the SCF solver. Shared by both builders: only one of
+  // them is ever handed to the solver.
+  helfem::scf_driver::FockTimer ftimer;
+
   OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> restricted_builder = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm) {
     const auto & orbitals = dm.first;
     const auto & occupations = dm.second;
+    ftimer.enter();
+    helfem::scf_driver::FockTimer::Components tc;
+    Timer tcomp;
 
     // Kinetic energy
     double Ekin=0.0;
@@ -380,19 +389,25 @@ int main(int argc, char **argv) {
       Ekin += (P*T).trace() + l*(l+1)*(P*Tl).trace();
     }
 
+    tc.density += tcomp.get();
+
     double Enuc=(Prad*Vnuc).trace();
     double Eunif=(Prad*Vunif).trace();
 
     // Coulomb matrix
+    tcomp.set();
     helfem::Matrix J(basis.coulomb(Prad/angfac));
+    tc.coulomb += tcomp.get();
 
     double Exc=0.0;
     helfem::Cube XC;
     double nelnum = 0.0;
     if(x_func > 0 || c_func > 0) {
+      tcomp.set();
       grid.eval_Fxc(x_func, x_pars, c_func, c_pars, divided_cube(Pl,angfac), XC, Exc, nelnum, dftthr);
       // Potential needs to be divided as well
       for(size_t l=0;l<XC.size();l++) XC[l]/=angfac;
+      tc.xc += tcomp.get();
       if(verbose) {
         printf("DFT energy %.10e\n",Exc);
         printf("Error in integrated number of electrons % e\n",nelnum-(Z-Q+njellium));
@@ -421,6 +436,10 @@ int main(int argc, char **argv) {
         fock[l] += XC[l];
       fock[l] = Sinvh.transpose() * fock[l] * Sinvh;
     }
+    tc.total = ftimer.build_elapsed();
+    ftimer.add_build(tc);
+    ftimer.print_build(x_func > 0 || c_func > 0, false);
+    ftimer.leave();
     return std::make_pair(Etot,fock);
   };
 
@@ -428,6 +447,9 @@ int main(int argc, char **argv) {
   OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> unrestricted_builder = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm) {
     const auto & orbitals = dm.first;
     const auto & occupations = dm.second;
+    ftimer.enter();
+    helfem::scf_driver::FockTimer::Components tc;
+    Timer tcomp;
 
     // Kinetic energy
     double Ekin=0.0;
@@ -454,20 +476,26 @@ int main(int argc, char **argv) {
       Ekin += ((Pa+Pb)*T).trace() + l*(l+1)*((Pa+Pb)*Tl).trace();
     }
 
+    tc.density += tcomp.get();
+
     double Enuc=(Prad*Vnuc).trace();
     double Eunif=(Prad*Vunif).trace();
 
     // Coulomb matrix
+    tcomp.set();
     helfem::Matrix J(basis.coulomb(Prad/angfac));
+    tc.coulomb += tcomp.get();
 
     double Exc=0.0;
     helfem::Cube XCa, XCb;
     double nelnum = 0.0;
     if(x_func > 0 || c_func > 0) {
+      tcomp.set();
       grid.eval_Fxc(x_func, x_pars, c_func, c_pars, divided_cube(Pal,angfac), divided_cube(Pbl,angfac), XCa, XCb, Exc, nelnum, true, dftthr);
       // Potential needs to be divided as well
       for(size_t l=0;l<XCa.size();l++) XCa[l]/=angfac;
       for(size_t l=0;l<XCb.size();l++) XCb[l]/=angfac;
+      tc.xc += tcomp.get();
       if(verbose) {
         printf("DFT energy %.10e\n",Exc);
         printf("Error in integrated number of electrons % e\n",nelnum-(Z-Q+njellium));
@@ -501,6 +529,10 @@ int main(int argc, char **argv) {
         fock[l+lmax+1] += XCb[l];
       fock[l+lmax+1] = Sinvh.transpose() * fock[l+lmax+1] * Sinvh;
     }
+    tc.total = ftimer.build_elapsed();
+    ftimer.add_build(tc);
+    ftimer.print_build(x_func > 0 || c_func > 0, false);
+    ftimer.leave();
     return std::make_pair(Etot,fock);
   };
 
@@ -779,6 +811,7 @@ int main(int argc, char **argv) {
     scfsolver.print_citation();
     scfsolver.initialize_with_fock(coreH);
     scfsolver.run();
+    ftimer.print_summary(x_func > 0 || c_func > 0, false);
 
     auto dm = std::make_pair(scfsolver.get_orbitals(), scfsolver.get_orbital_occupations());
     auto fock = scfsolver.get_fock_matrix();
@@ -850,6 +883,7 @@ int main(int argc, char **argv) {
     scfsolver.print_citation();
     scfsolver.initialize_with_fock(coreH);
     scfsolver.run();
+    ftimer.print_summary(x_func > 0 || c_func > 0, false);
 
     auto dm = std::make_pair(scfsolver.get_orbitals(), scfsolver.get_orbital_occupations());
     auto fock = scfsolver.get_fock_matrix();
