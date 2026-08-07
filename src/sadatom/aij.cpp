@@ -824,8 +824,7 @@ int main(int argc, char **argv) {
     scfsolver.set("maximum_iterations", maxiter);
     scfsolver.set("convergence_threshold", convthr);
     scfsolver.set("methods", scfmethods);
-    if(verbosity >= 1)
-      scfsolver.print_citation();
+    scfsolver.print_citation();
     scfsolver.initialize_with_fock(coreH);
     scfsolver.run();
     if(verbosity >= 5) ftimer.print_summary(x_func > 0 || c_func > 0, false);
@@ -900,8 +899,7 @@ int main(int argc, char **argv) {
     scfsolver.set("maximum_iterations", maxiter);
     scfsolver.set("convergence_threshold", convthr);
     scfsolver.set("methods", scfmethods);
-    if(verbosity >= 1)
-      scfsolver.print_citation();
+    scfsolver.print_citation();
     scfsolver.initialize_with_fock(coreH);
     scfsolver.run();
     if(verbosity >= 5) ftimer.print_summary(x_func > 0 || c_func > 0, false);

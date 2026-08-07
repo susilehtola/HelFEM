@@ -659,7 +659,7 @@ int main(int argc, char **argv) {
   }
 
   scfsolver.set("methods", parser.get<std::string>("scfmethods"));
-  if (verbosity >= 1) scfsolver.print_citation();
+  scfsolver.print_citation();
   scfsolver.run();
   if (verbosity >= 5) ftimer.print_summary(have_xc, have_exx);
 
