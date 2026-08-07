@@ -685,7 +685,7 @@ int main(int argc, char **argv) {
   }
 
   scfsolver.set("methods", parser.get<std::string>("scfmethods"));
-  if (verbosity >= 1) scfsolver.print_citation();
+  scfsolver.print_citation();
   scfsolver.run();
 
   // --save: reconstruct the AO densities from the converged per-block

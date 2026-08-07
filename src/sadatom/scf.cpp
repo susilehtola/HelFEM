@@ -535,8 +535,7 @@ namespace helfem {
           scfsolver.initialize_with_fock(CoreH);
         }
         scfsolver.set("methods", opts.scf_methods);
-        if (opts.verbosity > 0)
-          scfsolver.print_citation();
+        scfsolver.print_citation();
         scfsolver.run();
         if (opts.verbosity >= 5) ftimer.print_summary(have_xc, have_exx);
 
