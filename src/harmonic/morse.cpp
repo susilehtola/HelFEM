@@ -14,6 +14,7 @@
  */
 
 #include "../general/cmdline.h"
+#include <helfem.h>
 #include "../general/checkpoint.h"
 #include "PolynomialBasis.h"
 #include "FiniteElementBasis.h"
@@ -39,6 +40,9 @@ helfem::Matrix kinetic(const helfem::polynomial_basis::FiniteElementBasis & fem,
 }
 
 int main(int argc, char **argv) {
+  // Not a --verbosity driver: opt into the library's setup reporting
+  // so this tool prints exactly what it always did.
+  helfem::set_verbosity(true);
   cmdline::parser parser;
 
   // full option name, no short option, description, argument required

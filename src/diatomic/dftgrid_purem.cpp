@@ -13,6 +13,7 @@
  * for the full license text.
  */
 #include "dftgrid_purem.h"
+#include <helfem.h>
 #include "dftgrid.h"     // increment_gga
 #include "chebyshev.h"
 #include "../general/spherical_harmonics.h"
@@ -583,7 +584,8 @@ namespace helfem {
       PureMDFTGrid::PureMDFTGrid(const helfem::diatomic::basis::TwoDBasis * basp_, int lang_) : basp(basp_), lang(lang_) {
         helfem::Vector cth, wang;
         chebyshev::chebyshev(lang, cth, wang);
-        printf("Pure-m DFT grid: nu rule of order l=%i has %i points; the phi integral is analytic (2 pi).\n",
+        if(helfem::verbose)
+          printf("Pure-m DFT grid: nu rule of order l=%i has %i points; the phi integral is analytic (2 pi).\n",
                 lang, (int) wang.size());
       }
 

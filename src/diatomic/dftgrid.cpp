@@ -14,6 +14,7 @@
  */
 
 #include <cfloat>
+#include <helfem.h>
 #include <cmath>
 #include <cstdio>
 // LibXC
@@ -522,7 +523,8 @@ namespace helfem {
       DFTGrid::DFTGrid(const helfem::diatomic::basis::TwoDBasis * basp_, int lang_, int mang_) : basp(basp_), lang(lang_), mang(mang_) {
         helfem::Vector cth, phi, wang;
         helfem::angular::angular_chebyshev(lang,mang,cth,phi,wang);
-        printf("DFT angular grid of order l=%i m=%i has %i points\n",lang,mang,(int) wang.size());
+        if(helfem::verbose)
+          printf("DFT angular grid of order l=%i m=%i has %i points\n",lang,mang,(int) wang.size());
       }
 
       DFTGrid::~DFTGrid() {

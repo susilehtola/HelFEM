@@ -20,10 +20,8 @@ using namespace std;
 bool helfem::verbose = false;
 
 void helfem::set_verbosity(bool new_verbosity) {
-  if (verbose && new_verbosity)
-    printf("HelFEM library already in verbose mode.");
-  else if (!verbose && new_verbosity)
-    printf("HelFEM library set to verbose mode.");
+  // Announcing the change is itself unwanted output -- and every driver
+  // now calls this once at startup, so it would print on every run.
   verbose = new_verbosity;
 }
 

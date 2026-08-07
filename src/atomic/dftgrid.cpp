@@ -14,6 +14,7 @@
  */
 
 #include <cfloat>
+#include <helfem.h>
 #include <cmath>
 #include <cstdio>
 // LibXC
@@ -580,7 +581,8 @@ namespace helfem {
       DFTGrid::DFTGrid(const helfem::atomic::basis::TwoDBasis * basp_, int lang_, int mang_) : basp(basp_), lang(lang_), mang(mang_) {
         helfem::Vector cth, phi, wang;
         helfem::angular::angular_chebyshev(lang,mang,cth,phi,wang);
-        printf("DFT angular grid of order l=%i m=%i has %i points\n",lang,mang,(int) wang.size());
+        if(helfem::verbose)
+          printf("DFT angular grid of order l=%i m=%i has %i points\n",lang,mang,(int) wang.size());
       }
 
       DFTGrid::~DFTGrid() {
@@ -646,7 +648,8 @@ namespace helfem {
         Ekin=ekin;
         Nel=nel;
 
-        printf("Integral over laplacian %e\n",lapl);
+        if(helfem::verbose)
+          printf("Integral over laplacian %e\n",lapl);
       }
 
       void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & Pa, const helfem::Matrix & Pb, helfem::Matrix & Ha, helfem::Matrix & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr) {

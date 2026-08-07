@@ -13,6 +13,7 @@
  * for the full license text.
  */
 #include "quadrature.h"
+#include <helfem.h>
 #include "PolynomialBasis.h"
 #include "LIPBasis.h"
 #include "Matrix.h"
@@ -103,6 +104,9 @@ void run(double R, int n_quad) {
 }
 
 int main(int argc, char **argv) {
+  // Not a --verbosity driver: opt into the library's setup reporting
+  // so this tool prints exactly what it always did.
+  helfem::set_verbosity(true);
   if (argc != 3) {
     printf("Usage: %s nquad R\n", argv[0]);
     return 1;
