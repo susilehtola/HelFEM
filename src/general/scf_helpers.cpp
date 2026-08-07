@@ -102,24 +102,6 @@ namespace helfem {
 
     // Phase 5.13: Eigen-typed.
 
-    helfem::Matrix fock_symmetry_average(const helfem::Matrix & Fin,
-                                          const std::vector< std::vector<std::vector<Eigen::Index>> > & sym_idx) {
-      helfem::Matrix Fout = Fin;
-      for (size_t isym = 0; isym < sym_idx.size(); ++isym) {
-        const Eigen::Index n = static_cast<Eigen::Index>(sym_idx[isym][0].size());
-        helfem::Matrix Fmean = helfem::Matrix::Zero(n, n);
-        for (size_t ic = 0; ic < sym_idx[isym].size(); ++ic) {
-          const std::vector<Eigen::Index> & idx = sym_idx[isym][ic];
-          Fmean += Fin(idx, idx);
-        }
-        Fmean /= static_cast<double>(sym_idx[isym].size());
-        for (size_t ic = 0; ic < sym_idx[isym].size(); ++ic) {
-          const std::vector<Eigen::Index> & idx = sym_idx[isym][ic];
-          Fout(idx, idx) = Fmean;
-        }
-      }
-      return Fout;
-    }
 
     // Phase 5.14: Eigen-typed.
     // (sort_eig covers the work) and elided the dead code.

@@ -346,15 +346,33 @@ namespace helfem {
     /// same place the block ordering itself is defined. The occupations
     /// OOO prints are then readable as quantum numbers rather than as
     /// bare block indices.
+    ///
+    /// block_degeneracy is how many degenerate spatial orbitals each
+    /// block stands for. It is 1 everywhere except under the diatomic
+    /// |m| symmetry, where a block with |m|>0 represents BOTH the +|m|
+    /// and -|m| orbitals, so it holds twice the electrons. Folding the
+    /// degeneracy into max_occ -- rather than carrying the partner as
+    /// its own block -- is what makes the occupations, and not only the
+    /// Fock matrix, respect the symmetry: an odd electron in a Pi shell
+    /// comes out as 0.5 in each of +-1 rather than landing arbitrarily
+    /// in one of two exactly degenerate blocks. (sadatom does the same
+    /// thing for l, with max_occ = 2*(2l+1).)
     template <typename Real>
     inline void build_ooo_block_metadata(
         size_t nsym, size_t nparttype, bool restricted,
         int Ntot, int nela, int nelb,
         const std::vector<std::string> & sym_labels,
+        const std::vector<int> & block_degeneracy,
         OpenOrbitalOptimizer::IndexVector & number_of_blocks_per_particle_type,
         Eigen::Matrix<Real, Eigen::Dynamic, 1> & maximum_occupation,
         Eigen::Matrix<Real, Eigen::Dynamic, 1> & number_of_particles,
         std::vector<std::string> & block_descriptions) {
+      if (block_degeneracy.size() != nsym) {
+        std::ostringstream oss;
+        oss << "Got " << block_degeneracy.size() << " block degeneracies for "
+            << nsym << " blocks.\n";
+        throw std::logic_error(oss.str());
+      }
       if (sym_labels.size() != nsym) {
         std::ostringstream oss;
         oss << "Got " << sym_labels.size() << " symmetry labels for " << nsym
@@ -370,7 +388,8 @@ namespace helfem {
         number_of_blocks_per_particle_type(t) = static_cast<int>(nsym);
         number_of_particles(t) = static_cast<Real>(restricted ? Ntot : (t == 0 ? nela : nelb));
         for (size_t k = 0; k < nsym; ++k) {
-          maximum_occupation(t * nsym + k) = restricted ? 2.0 : 1.0;
+          maximum_occupation(t * nsym + k) =
+              (restricted ? 2.0 : 1.0) * static_cast<Real>(block_degeneracy[k]);
           block_descriptions.push_back(
               (nparttype == 1 ? "" : (t == 0 ? "a:" : "b:")) + sym_labels[k]);
         }
@@ -388,11 +407,21 @@ namespace helfem {
     inline void accumulate_density_block(
         helfem::Matrix & P_full, const std::vector<std::vector<Eigen::Index>> & dsym, size_t k,
         const std::vector<helfem::Matrix> & Sinvh,
-        const helfem::Matrix & orb_e, const helfem::Vector & occ_e) {
+        const helfem::Matrix & orb_e, const helfem::Vector & occ_e,
+        const std::vector<Eigen::Index> * mirror = nullptr) {
       if (dsym[k].empty()) return;
       const std::vector<Eigen::Index> & idx = dsym[k];
       const helfem::Matrix C_k = Sinvh[k] * orb_e;
-      P_full(idx, idx) += C_k * occ_e.asDiagonal() * C_k.transpose();
+      // A mirrored block stands for two degenerate spatial orbitals, so
+      // its occupation is shared equally between them. The -|m| partner
+      // has the same radial coefficients and the same Sinvh, so the
+      // same C_k scatters into both index sets at half weight -- which
+      // is exactly the cylindrically averaged density.
+      const bool paired = (mirror != nullptr && !mirror->empty());
+      const helfem::Vector occ = paired ? helfem::Vector(0.5 * occ_e) : occ_e;
+      const helfem::Matrix Pblock = C_k * occ.asDiagonal() * C_k.transpose();
+      P_full(idx, idx) += Pblock;
+      if (paired) P_full(*mirror, *mirror) += Pblock;
     }
 
     /// Fock-builder helper: extract block k of a full AO Fock matrix,
@@ -451,13 +480,13 @@ namespace helfem {
     ///   * adds up H1 + J (+ XC + K) per spin channel,
     ///   * applies the spin-Zeeman +/- Bz/2 * S split (unrestricted
     ///     only),
-    ///   * runs the driver-supplied apply_mavg / orthonormalize_block
-    ///     callables to symmetrise and orthonormalise per block.
+    ///   * runs the driver-supplied orthonormalize_block callable to
+    ///     orthonormalise per block.
     /// XCa / XCb, Ka / Kb are assumed pre-zeroed (their addends only
     /// fire under the corresponding have_* flag), matching the
     /// convention the driver bodies keep for the XC and HF-exchange
     /// pieces.
-    template <typename Real, typename ApplyMAvg, typename OrthoBlock>
+    template <typename Real, typename OrthoBlock>
     inline void assemble_fock_blocks(
         OpenOrbitalOptimizer::FockMatrix<Real> & fock,
         const helfem::Matrix & H1, const helfem::Matrix & J,
@@ -466,12 +495,11 @@ namespace helfem {
         const helfem::Matrix & S,
         size_t nsym, bool restricted,
         bool have_xc, bool have_exx, bool have_bfield, double Bz,
-        ApplyMAvg apply_mavg, OrthoBlock orthonormalize_block) {
+        OrthoBlock orthonormalize_block) {
       if (restricted) {
         helfem::Matrix F_ao = H1 + J;
         if (have_xc)  F_ao += XCa;
         if (have_exx) F_ao += Ka;
-        apply_mavg(F_ao);
         for (size_t k = 0; k < nsym; ++k)
           orthonormalize_block(fock, k, F_ao, k);
       } else {
@@ -484,8 +512,6 @@ namespace helfem {
           Fa_ao -= 0.5 * Bz * S;
           Fb_ao += 0.5 * Bz * S;
         }
-        apply_mavg(Fa_ao);
-        apply_mavg(Fb_ao);
         for (size_t k = 0; k < nsym; ++k) {
           orthonormalize_block(fock, k,        Fa_ao, k);
           orthonormalize_block(fock, nsym + k, Fb_ao, k);

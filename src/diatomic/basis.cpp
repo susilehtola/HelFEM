@@ -895,10 +895,37 @@ namespace helfem {
             idx[2*i]=m_indices(mv[i],false);
             idx[2*i+1]=m_indices(mv[i],true);
           }
+        } else if(symm==3) {
+          // One block per |m|, holding the +|m| functions only. The -|m|
+          // partner is not a separate block: it is the SAME radial
+          // problem (F(+m,+m) == F(-m,-m), and the two overlaps are
+          // identical), so it is carried as a mirror of this block --
+          // see get_sym_mirror_idx -- with the two-fold degeneracy
+          // folded into the block's maximum occupation instead.
+          for(int m=0;m<=absm_max();m++)
+            idx.push_back(m_indices(m));
         } else
           throw std::logic_error("Unknown symmetry\n");
 
         return idx;
+      }
+
+      int TwoDBasis::absm_max() const {
+        return std::max(std::abs(mval.maxCoeff()), std::abs(mval.minCoeff()));
+      }
+
+      std::vector<std::vector<Eigen::Index>> TwoDBasis::get_sym_mirror_idx(int symm) const {
+        // The -|m| partner of each block of get_sym_idx, or an empty
+        // index list where the block is its own partner (m=0) or the
+        // symmetry does not pair blocks at all.
+        std::vector<std::vector<Eigen::Index>> mirror;
+        if(symm!=3) {
+          mirror.resize(get_sym_idx(symm).size());
+          return mirror;
+        }
+        for(int m=0;m<=absm_max();m++)
+          mirror.push_back(m ? m_indices(-m) : std::vector<Eigen::Index>());
+        return mirror;
       }
 
       std::vector<std::string> TwoDBasis::get_sym_labels(int symm) const {
@@ -934,6 +961,12 @@ namespace helfem {
               labels.push_back(mlabel(mv[i]) + " g");
               labels.push_back(mlabel(mv[i]) + " u");
             }
+          }
+        } else if(symm==3) {
+          for(int m=0;m<=absm_max();m++) {
+            std::ostringstream oss;
+            oss << "|m|=" << m;
+            labels.push_back(oss.str());
           }
         } else
           throw std::logic_error("Unknown symmetry\n");

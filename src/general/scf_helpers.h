@@ -20,7 +20,6 @@
 namespace helfem {
   namespace scf {
     /// Average out the Fock matrix (Eigen index lists).
-    helfem::Matrix fock_symmetry_average(const helfem::Matrix & Fin, const std::vector< std::vector<std::vector<Eigen::Index>> > & sym_idx);
 
     /// Solve generalized eigenvalue problem (Phase 5.11: Eigen-typed).
     void eig_gsym(helfem::Vector & E, helfem::Matrix & C, const helfem::Matrix & F, const helfem::Matrix & Sinvh);
