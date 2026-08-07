@@ -14,7 +14,7 @@
  */
 
 #include "FiniteElementBasis.h"
-#include <helfem.h>
+#include <sstream>
 #include <lobatto.h>
 #include <algorithm>
 #include <cfloat>
@@ -137,11 +137,20 @@ namespace helfem {
       }
       Eigen::Index imax;
       dnorm.maxCoeff(&imax);
-      if(helfem::verbose)
-        printf("Finite element basis set max discontinuity %s between elements %i and %i\n",helfem::io::fmt_sci(dnorm(imax)).c_str(),(int) imax,(int) imax+1);
-      fflush(stdout);
       if(dnorm(imax) > sqrt(DBL_EPSILON)) {
-        throw std::logic_error("Finite element basis set is not continuous\n");
+        // Only worth reporting when it is actually discontinuous, which
+        // is a hard error: a continuous basis is a precondition, not a
+        // result, so announcing "max discontinuity 0.0e+00" on every run
+        // told the user nothing. The offending element pair has already
+        // dumped its lh/rh values above; flush that before unwinding,
+        // and carry the magnitude in the exception so the failure is
+        // self-describing.
+        fflush(stdout);
+        std::ostringstream oss;
+        oss << "Finite element basis set is not continuous: max discontinuity "
+            << helfem::io::fmt_sci(dnorm(imax)) << " between elements "
+            << (int) imax << " and " << (int) imax+1 << " (C indexing).\n";
+        throw std::logic_error(oss.str());
       }
     }
 
