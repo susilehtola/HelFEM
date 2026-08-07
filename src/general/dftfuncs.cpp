@@ -14,6 +14,7 @@
  */
 
 #include <string>
+#include <helfem.h>
 #include <sstream>
 #include <stdexcept>
 #include <cstring>
@@ -142,6 +143,11 @@ void parse_xc_func(int & x_func, int & c_func, const std::string & xc) {
 }
 
 void print_info(int x_func, int c_func) {
+  // The libxc citation goes quiet with the rest of the output: at
+  // --verbosity=0 the caller has asked for no output at all. Every
+  // other level, including the default, still prints it.
+  if(!helfem::verbose)
+    return;
   printf("\nRunning with Libxc version %s\n",xc_version_string());
   printf("%s (doi:%s)\n", xc_reference(), xc_reference_doi());
   printf("Please cite this paper for the use of Libxc in any resulting publications.\n\n");

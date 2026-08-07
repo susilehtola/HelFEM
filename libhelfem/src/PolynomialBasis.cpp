@@ -21,6 +21,7 @@
 // factory that constructs the concrete bases by primitive ID.
 
 #include "PolynomialBasis.h"
+#include <helfem.h>
 #include <cmath>
 
 // (GeneralHIPBasis was removed when its callers were either rerouted to
@@ -43,7 +44,8 @@ namespace helfem {
 
       case(3):
         poly=new polynomial_basis::LegendreBasis(Nnodes,primbas);
-        printf("Basis set composed of %i-node spectral elements.\n",Nnodes);
+        if(helfem::verbose)
+          printf("Basis set composed of %i-node spectral elements.\n",Nnodes);
         break;
 
       case(4):
@@ -51,7 +53,8 @@ namespace helfem {
           helfem::Vec<double> x, w;
           helfem::lobatto::lobatto_compute<double>(Nnodes, x, w);
           poly=new polynomial_basis::LIPBasis(x, primbas);
-          printf("Basis set composed of %i-node LIPs with Gauss-Lobatto nodes.\n",Nnodes);
+          if(helfem::verbose)
+            printf("Basis set composed of %i-node LIPs with Gauss-Lobatto nodes.\n",Nnodes);
           break;
         }
 
@@ -60,7 +63,8 @@ namespace helfem {
           helfem::Vec<double> x, w;
           helfem::lobatto::lobatto_compute<double>(Nnodes, x, w);
           poly=new polynomial_basis::HIPBasis(x, primbas);
-          printf("Basis set composed of %i-node HIPs with Gauss-Lobatto nodes.\n",Nnodes);
+          if(helfem::verbose)
+            printf("Basis set composed of %i-node HIPs with Gauss-Lobatto nodes.\n",Nnodes);
           break;
         }
 
@@ -70,7 +74,8 @@ namespace helfem {
           for(int i=0;i<Nnodes;i++)
             x(i) = std::cos(M_PI*(Nnodes-1-i)/(Nnodes-1));
           poly=new polynomial_basis::LIPBasis(x, 4);
-          printf("Basis set composed of %i-node LIPs with Chebyshev nodes.\n",Nnodes);
+          if(helfem::verbose)
+            printf("Basis set composed of %i-node LIPs with Chebyshev nodes.\n",Nnodes);
           break;
         }
 
@@ -80,7 +85,8 @@ namespace helfem {
           for(int i=0;i<Nnodes;i++)
             x(i) = std::cos(M_PI*(Nnodes-1-i)/(Nnodes-1));
           poly=new polynomial_basis::HIPBasis(x, 5);
-          printf("Basis set composed of %i-node HIPs with Chebyshev nodes.\n",Nnodes);
+          if(helfem::verbose)
+            printf("Basis set composed of %i-node HIPs with Chebyshev nodes.\n",Nnodes);
           break;
         }
 
@@ -91,7 +97,8 @@ namespace helfem {
           helfem::Vec<double> x, w;
           helfem::lobatto::lobatto_compute<double>(Nnodes, x, w);
           poly = new polynomial_basis::HIP2BasisT<double>(x, primbas);
-          printf("Basis set composed of %i-node 2nd order analytic HIPs with Gauss-Lobatto nodes.\n", Nnodes);
+          if(helfem::verbose)
+            printf("Basis set composed of %i-node 2nd order analytic HIPs with Gauss-Lobatto nodes.\n", Nnodes);
           break;
         }
 
@@ -102,7 +109,8 @@ namespace helfem {
           helfem::Vec<double> x, w;
           helfem::lobatto::lobatto_compute<double>(Nnodes, x, w);
           poly = new polynomial_basis::HIP3BasisT<double>(x, primbas);
-          printf("Basis set composed of %i-node 3rd order analytic HIPs with Gauss-Lobatto nodes.\n", Nnodes);
+          if(helfem::verbose)
+            printf("Basis set composed of %i-node 3rd order analytic HIPs with Gauss-Lobatto nodes.\n", Nnodes);
           break;
         }
 

@@ -14,6 +14,7 @@
  */
 
 #include "PolynomialBasis.h"
+#include <helfem.h>
 #include "FiniteElementBasis.h"
 #include "Matrix.h"
 #include "../general/eigen_io.h"
@@ -46,6 +47,9 @@ namespace {
 }
 
 int main(int argc, char **argv) {
+  // Not a --verbosity driver: opt into the library's setup reporting
+  // so this tool prints exactly what it always did.
+  helfem::set_verbosity(true);
   if (argc != 6) {
     printf("Usage: %s xmax Nel Nnode primbas Nquad\n", argv[0]);
     return 1;

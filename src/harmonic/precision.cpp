@@ -39,6 +39,7 @@
 // lobatto_compute<T>) was already generic.
 
 #include "PolynomialBasis.h"
+#include <helfem.h>
 #include "FiniteElementBasis.h"
 #include "Matrix.h"
 #include <chebyshev.h>
@@ -118,6 +119,9 @@ namespace {
 } // namespace
 
 int main(int argc, char **argv) {
+  // Not a --verbosity driver: opt into the library's setup reporting
+  // so this tool prints exactly what it always did.
+  helfem::set_verbosity(true);
   const double xmax = (argc > 1) ? std::atof(argv[1]) : 10.0;
   const int Nelem   = (argc > 2) ? std::atoi(argv[2]) : 10;
   const int Nnodes  = (argc > 3) ? std::atoi(argv[3]) : 15;

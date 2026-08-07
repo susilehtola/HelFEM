@@ -13,6 +13,7 @@
  * for the full license text.
  */
 #include "basis.h"
+#include <helfem.h>
 #include "quadrature.h"
 #include "PolynomialBasis.h"
 #include "chebyshev.h"
@@ -619,11 +620,15 @@ namespace helfem {
           const int mcap = 2*mabs;
 
           Timer t;
-          printf("Computing Gaunt coefficients ... ");
-          fflush(stdout);
+          if(helfem::verbose) {
+            printf("Computing Gaunt coefficients ... ");
+            fflush(stdout);
+          }
           gaunt=gaunt::Gaunt(lrval,midval,lrval,mcap);
-          printf("done (% .3f s)\n",t.get());
-          fflush(stdout);
+          if(helfem::verbose) {
+            printf("done (% .3f s)\n",t.get());
+            fflush(stdout);
+          }
 
         } else {
           // One-electron matrices need gmax,5,gmax

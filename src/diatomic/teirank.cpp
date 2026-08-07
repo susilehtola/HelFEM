@@ -30,6 +30,7 @@
 // A rank r replaces the O(Nprim^4) storage and contraction by O(Nprim^2 * r).
 
 #include "../general/cmdline.h"
+#include <helfem.h>
 #include "basis.h"
 #include "utils.h"
 #include "../atomic/basis.h"
@@ -40,6 +41,9 @@
 using namespace helfem;
 
 int main(int argc, char **argv) {
+  // Not a --verbosity driver: opt into the library's setup reporting
+  // so this tool prints exactly what it always did.
+  helfem::set_verbosity(true);
   cmdline::parser parser;
   parser.add<double>("Rbond", 0, "internuclear distance", false, 2.07);
   parser.add<double>("Rmax", 0, "practical infinity", false, 15.0);

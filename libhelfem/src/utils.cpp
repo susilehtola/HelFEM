@@ -13,6 +13,7 @@
  * for the full license text.
  */
 #include "utils.h"
+#include <helfem.h>
 #include <math.h>
 // Scalar formatter that prints a T value at its own precision (no truncation
 // to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.
@@ -146,7 +147,8 @@ namespace helfem {
         // double). Sval(0) is the smallest eigenvalue of the (SPD) overlap
         // matrix and hence positive, so the leading " " reproduces the old
         // "% e" space flag exactly.
-        printf("Smallest eigenvalue of overlap matrix is %s, condition number %s\n",
+        if(helfem::verbose)
+          printf("Smallest eigenvalue of overlap matrix is %s, condition number %s\n",
                (" " + helfem::io::fmt_sci(Sval(0))).c_str(),
                helfem::io::fmt_sci(Sval(Sval.size() - 1) / Sval(0)).c_str());
         Sinvh = Svec * inv_sqrt<T>(Sval).asDiagonal() * Svec.transpose();

@@ -147,7 +147,8 @@ namespace helfem {
           printf("Off-center grid\n");
           bval=atomic::basis::offcenter_nuclear_grid(Nelem0,Z,std::max(Zl,Zr),Rhalf,Nelem,Rmax,igrid,zexp);
         } else {
-          printf("Normal grid\n");
+          if(helfem::verbose)
+            printf("Normal grid\n");
           bval=atomic::basis::normal_grid(Nelem,Rmax,igrid,zexp);
         }
 
@@ -169,7 +170,8 @@ namespace helfem {
 
 	}
 
-        helfem::io::print_matrix("Grid", helfem::Matrix(bval));
+        if(helfem::verbose)
+          helfem::io::print_matrix("Grid", helfem::Matrix(bval));
 
         return bval;
       }

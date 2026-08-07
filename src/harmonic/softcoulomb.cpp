@@ -14,6 +14,7 @@
  */
 
 #include "../general/cmdline.h"
+#include <helfem.h>
 #include "../general/checkpoint.h"
 #include "PolynomialBasis.h"
 #include "FiniteElementBasis.h"
@@ -54,6 +55,9 @@ namespace {
 }
 
 int main(int argc, char **argv) {
+  // Not a --verbosity driver: opt into the library's setup reporting
+  // so this tool prints exactly what it always did.
+  helfem::set_verbosity(true);
   cmdline::parser parser;
 
   parser.add<double>("xmax",   0, "practical infinity in au",   false, 40.0);
