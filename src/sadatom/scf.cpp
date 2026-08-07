@@ -18,6 +18,7 @@
 #include "../general/dftfuncs.h"
 #include "../general/scf_helpers.h"
 #include "../general/checkpoint.h"
+#include "../general/scf_driver_common.h"
 
 #include "openorbitaloptimizer/scfsolver.hpp"
 
@@ -142,9 +143,13 @@ namespace helfem {
         // either a local or a const capture, so the body is safe to run
         // from several threads at once.
         auto build_fock = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm,
-                              std::string * log_line) {
+                              std::string * log_line,
+                              helfem::scf_driver::FockTimer::Components * tc) {
           const auto & orbitals    = dm.first;
           const auto & occupations = dm.second;
+          // Component timings go into the caller's own Components, never
+          // into shared state: a batched build runs these concurrently.
+          Timer tbuild, tcomp;
 
           OpenOrbitalOptimizer::FockMatrix<OOO_Real> fock(nblock * nparttype);
           helfem::Matrix Prad = helfem::Matrix::Zero(Nrad, Nrad);
@@ -158,10 +163,13 @@ namespace helfem {
           if (restricted) {
             for (size_t l = 0; l < nblock; ++l)
               accumulate_density(Prad, Pal, l, orbitals[l], occupations[l], Ekin);
+            if (tc) tc->density += tcomp.get();
             if (have_xc) {
+              tcomp.set();
               grid.eval_Fxc(opts.x_func, opts.x_pars, opts.c_func, opts.c_pars,
                              divided_cube(Pal, angfac), XCa, Exc, nelnum, opts.dftthr);
               for (size_t l = 0; l < XCa.size(); ++l) XCa[l] /= angfac;
+              if (tc) tc->xc += tcomp.get();
             }
           } else {
             Pbl.assign(nblock, helfem::Matrix::Zero(Nrad, Nrad));
@@ -172,23 +180,29 @@ namespace helfem {
               accumulate_density(Prad_b, Pbl, l, orbitals[nblock + l], occupations[nblock + l], Ekin);
             }
             Prad = Prad_a + Prad_b;
+            if (tc) tc->density += tcomp.get();
             if (have_xc) {
+              tcomp.set();
               grid.eval_Fxc(opts.x_func, opts.x_pars, opts.c_func, opts.c_pars,
                              divided_cube(Pal, angfac), divided_cube(Pbl, angfac), XCa, XCb,
                              Exc, nelnum, opts.nelb > 0, opts.dftthr);
               for (size_t l = 0; l < XCa.size(); ++l) XCa[l] /= angfac;
               if (opts.nelb > 0)
                 for (size_t l = 0; l < XCb.size(); ++l) XCb[l] /= angfac;
+              if (tc) tc->xc += tcomp.get();
             }
           }
 
           const double Enuc = (Prad * Vnuc).trace();
           const double Econf = have_conf ? (Prad * Vconf).trace() : 0.0;
+          tcomp.set();
           const helfem::Matrix J = basis.coulomb(Prad / angfac);
           const double Ecoul = 0.5 * (Prad * J).trace();
+          if (tc) tc->coulomb += tcomp.get();
 
           helfem::Cube Ka, Kb;
           double Exx = 0.0;
+          tcomp.set();
           if (have_exx) {
             helfem::Cube ang_a = Pal;
             for (size_t l = 0; l < nblock; ++l)
@@ -221,6 +235,8 @@ namespace helfem {
                 Exx += 0.5 * (Kb[l] * Pbl[l]).trace();
             }
           }
+
+          if (tc) tc->exchange += tcomp.get();
 
           const double Etot = Ekin + Enuc + Econf + Ecoul + Exc + Exx;
 
@@ -262,12 +278,23 @@ namespace helfem {
                                                    Kb, have_exx && opts.nelb > 0);
             }
           }
+          if (tc) tc->total = tbuild.get();
           return std::make_pair(Etot, fock);
         };
 
+        // Per-component wall clock for the Fock build, plus the time
+        // spent outside it in the SCF solver.
+        helfem::scf_driver::FockTimer ftimer;
+
         OpenOrbitalOptimizer::FockBuilder<OOO_Real, OOO_Real> fock_builder =
             [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm) {
-          return build_fock(dm, nullptr);
+          ftimer.enter();
+          helfem::scf_driver::FockTimer::Components tc;
+          auto ret = build_fock(dm, nullptr, &tc);
+          ftimer.add_build(tc);
+          if (opts.verbosity > 0) ftimer.print_build(have_xc, have_exx);
+          ftimer.leave();
+          return ret;
         };
 
         // Batched Fock build. The solver hands us every density it wants
@@ -285,9 +312,14 @@ namespace helfem {
         // oversubscription results.
         OpenOrbitalOptimizer::BatchedFockBuilder<OOO_Real, OOO_Real> batched_fock_builder =
             [&](const std::vector<OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real>> & dms) {
+          ftimer.enter();
           const size_t n = dms.size();
           std::vector<OpenOrbitalOptimizer::FockBuilderReturn<OOO_Real, OOO_Real>> out(n);
           std::vector<std::string> lines(n);
+          // One Components per entry, exactly as for the log lines: the
+          // entries below run concurrently, so nothing shared may be
+          // written from inside the loop.
+          std::vector<helfem::scf_driver::FockTimer::Components> comps(n);
 
           // Fill any lazily-built caches while still serial: the builds
           // below only read them, but filling concurrently would race.
@@ -299,17 +331,21 @@ namespace helfem {
 #pragma omp parallel for schedule(dynamic)
 #endif
             for (long i = 0; i < (long) n; ++i)
-              out[i] = build_fock(dms[i], &lines[i]);
+              out[i] = build_fock(dms[i], &lines[i], &comps[i]);
           } else {
             for (size_t i = 0; i < n; ++i)
-              out[i] = build_fock(dms[i], &lines[i]);
+              out[i] = build_fock(dms[i], &lines[i], &comps[i]);
           }
+          // Serial again: safe to fold the per-entry timings in.
+          for (const auto & c : comps) ftimer.add_build(c);
 
           // Report in batch order, so the log reads the same whether or
           // not the entries were evaluated concurrently.
           for (const auto & line : lines)
             if (line.size()) fputs(line.c_str(), stdout);
+          if (opts.verbosity > 0) ftimer.print_build(have_xc, have_exx);
           fflush(stdout);
+          ftimer.leave();
           return out;
         };
 
@@ -502,6 +538,7 @@ namespace helfem {
         if (opts.verbosity > 0)
           scfsolver.print_citation();
         scfsolver.run();
+        if (opts.verbosity > 0) ftimer.print_summary(have_xc, have_exx);
 
         // Extract results. Convert OOO's per-block orbital matrices
         // (in the Sinvh-orthonormal basis) back to AO coefficients
