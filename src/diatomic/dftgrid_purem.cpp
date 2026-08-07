@@ -513,6 +513,12 @@ namespace helfem {
         for (size_t im = 0; im < mlist.size(); im++) {
           const std::vector<Eigen::Index> & idx = bf_ind_m[im];
           if (idx.empty()) continue;
+          // Same argument as the restricted path: V_xc is one field
+          // shared by every m block, and both spin channels depend on m
+          // only through m^2 and |m|-dependent basis values. Build +|m|
+          // and mirror onto -|m|.
+          const size_t imirror = mirror_block(im);
+          if (mlist[im] < 0 && imirror != mlist.size()) continue;
           const Eigen::Index nbf = (Eigen::Index) idx.size();
           const double m2 = (double) (mlist[im] * mlist[im]);
 
@@ -597,6 +603,14 @@ namespace helfem {
               Ha(idx[i], idx[j]) += Hma(i, j);
               if (beta) Hb(idx[i], idx[j]) += Hmb(i, j);
             }
+          if (mlist[im] > 0 && imirror != mlist.size()) {
+            const std::vector<Eigen::Index> & jdx = bf_ind_m[imirror];
+            for (Eigen::Index i = 0; i < nbf; i++)
+              for (Eigen::Index j = 0; j < nbf; j++) {
+                Ha(jdx[i], jdx[j]) += Hma(i, j);
+                if (beta) Hb(jdx[i], jdx[j]) += Hmb(i, j);
+              }
+          }
         }
       }
 
