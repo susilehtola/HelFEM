@@ -328,6 +328,9 @@ int main(int argc, char **argv) {
     throw std::logic_error("The pure-m XC path requires --symmetry >= 1: with symmetry=0 the orbitals may mix m and the density is no longer phi-independent.\n");
   auto grid   = helfem::diatomic::dftgrid::DFTGrid(&basis, lang, mang);
   auto pmgrid = helfem::diatomic::dftgrid_purem::PureMDFTGrid(&basis, lang);
+  // --symmetry=3 makes every density +-m symmetric by construction, so
+  // exchange() may build only the m >= 0 output blocks and mirror.
+  basis.set_absm_symmetric(symm == 3);
   basis.compute_tei(have_exx);
 
   const double Enucr = Z1 * Z2 / Rbond;

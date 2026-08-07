@@ -136,6 +136,8 @@ namespace helfem {
         Eigen::VectorXi lval;
         /// Angular basis set: function m values
         Eigen::VectorXi mval;
+        /// Density is symmetric under m -> -m (see set_absm_symmetric).
+        bool absm_symmetric = false;
 
         /// Gaunt coefficient table
         gaunt::Gaunt gaunt;
@@ -335,6 +337,11 @@ namespace helfem {
         std::vector<std::string> get_sym_labels(int symm) const;
         /// Largest |m| present in the basis.
         int absm_max() const;
+        /// Declare that every density handed to exchange() will be
+        /// symmetric under m -> -m, which --symmetry=3 guarantees by
+        /// construction. Lets exchange() build only the m >= 0 output
+        /// blocks and mirror the rest.
+        void set_absm_symmetric(bool sym);
         /// For each block of get_sym_idx, the index set of its -|m|
         /// partner, or an empty list when the block has none. Only
         /// symm==3 pairs blocks; other symmetries return empties.
