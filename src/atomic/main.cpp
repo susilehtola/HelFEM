@@ -101,8 +101,6 @@ int main(int argc, char **argv) {
   parser.add<double>("shift_conf",   0, "Where does confinement start?",       false, 0.0);
   parser.add<bool>  ("add_conf",     0, "Add element boundary at shifted confinement radius?", false, true);
 
-  // Fock symmetry averaging over m values (parity with bespoke atomic).
-  parser.add<bool>("maverage", 0, "average Fock matrix over m values", false, false);
 
   // Frozen per-block occupations read from occs.dat (parity with bespoke
   // atomic's --readocc, but as a bool since OOO's fixed-per-block
@@ -183,7 +181,6 @@ int main(int argc, char **argv) {
   const double conf_barrier = parser.get<double>("conf_barrier");
   const double shift_conf   = parser.get<double>("shift_conf");
   const bool   add_conf     = parser.get<bool>("add_conf");
-  const bool   maverage     = parser.get<bool>("maverage");
   const bool   readocc      = parser.get<bool>("readocc");
   const int    iguess       = parser.get<int>("iguess");
   const std::string loadfile = parser.get<std::string>("load");
@@ -312,32 +309,6 @@ int main(int argc, char **argv) {
   const bool have_bfield = (Bz != 0.0);
   const bool have_conf   = (iconf != 0);
 
-  // l_idx groups AO basis-function index sets by (l, m): the l-th outer
-  // entry contains the BF-index arrays for the m values that are
-  // actually present in the basis (|m| <= min(l, mmax)). The Fock
-  // symmetry-average step below averages each l-block's Fock over that
-  // m subset, enforcing degenerate orbital energies for orbitals of the
-  // same l but different m (a physical symmetry of the atomic
-  // Hamiltonian that finite-precision SCF can drift out of).
-  //
-  // Note: the bespoke atomic driver builds an m = -l..+l range
-  // unconditionally, which crashes fock_symmetry_average when the basis
-  // has mmax < lmax (empty index arrays hit a 0x0 = NxN assignment).
-  // Filtering by lm_indices(l, m).n_elem > 0 keeps parity when
-  // mmax == lmax and degrades gracefully when mmax < lmax (partial
-  // m-average over the represented m subset -- a no-op when only m=0
-  // is present, which is what you want).
-  std::vector<std::vector<std::vector<Eigen::Index>>> l_idx;
-  if (maverage) {
-    const Eigen::VectorXi l_all = basis.get_lval();
-    const int lmax_bf = l_all.maxCoeff();
-    l_idx.assign(lmax_bf + 1, {});
-    for (int l = 0; l <= lmax_bf; ++l)
-      for (int m = -l; m <= l; ++m) {
-        std::vector<Eigen::Index> idx = basis.lm_indices(l, m);
-        if (!idx.empty()) l_idx[l].push_back(idx);
-      }
-  }
 
   // --- Symmetry decomposition. symm==0 collapses to one block containing
   //     all basis functions.
@@ -374,7 +345,7 @@ int main(int argc, char **argv) {
   std::vector<std::string> block_descriptions;
   helfem::scf_driver::build_ooo_block_metadata<OOO_Real>(
       nsym, nparttype, restricted, Ntot, nela, nelb,
-      basis.get_sym_labels(symm_eff),
+      basis.get_sym_labels(symm_eff), std::vector<int>(nsym, 1),
       number_of_blocks_per_particle_type, maximum_occupation,
       number_of_particles, block_descriptions);
 
@@ -491,15 +462,10 @@ int main(int argc, char **argv) {
     // their coupling is off so this is unchanged from H0 = T + Vnuc in
     // the no-field case.
     const helfem::Matrix H1 = T + Vnuc + Vel + Vmag + Vconf;
-    // Apply the maverage post-processor once per channel; noop otherwise.
-    auto apply_mavg = [&](helfem::Matrix & F) {
-      if (maverage)
-        F = scf::fock_symmetry_average(F, l_idx);
-    };
     helfem::scf_driver::assemble_fock_blocks<OOO_Real>(
         fock, H1, J, XCa, XCb, Ka, Kb, S,
         nsym, restricted, have_xc, have_exx, have_bfield, Bz,
-        apply_mavg, orthonormalize_block);
+        orthonormalize_block);
     return std::make_pair(Etot, fock);
   };
 

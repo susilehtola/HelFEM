@@ -333,6 +333,12 @@ namespace helfem {
         /// order ("m=+1", "m=-2 u", ...). Kept alongside get_sym_idx so
         /// the two cannot drift apart.
         std::vector<std::string> get_sym_labels(int symm) const;
+        /// Largest |m| present in the basis.
+        int absm_max() const;
+        /// For each block of get_sym_idx, the index set of its -|m|
+        /// partner, or an empty list when the block has none. Only
+        /// symm==3 pairs blocks; other symmetries return empties.
+        std::vector<std::vector<Eigen::Index>> get_sym_mirror_idx(int symm) const;
         /// Get indices for wanted symmetry (one index list per block)
         std::vector<std::vector<Eigen::Index>> get_sym_idx(int isym) const;
 

@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
   parser.add<double>("Rrms1", 0, "nucleus 1 finite rms radius", false, 0.0);
   parser.add<double>("Rrms2", 0, "nucleus 2 finite rms radius", false, 0.0);
   parser.add<int>("restricted", 0, "spin-restricted: 1 restricted, 0 unrestricted, -1 auto from nela/nelb", false, -1);
-  parser.add<int>("symmetry", 0, "orbital symmetry: 0 none, 1 per-m, 2 per-(m,parity) (homonuclear only)", false, 1);
+  parser.add<int>("symmetry", 0, "orbital symmetry: 0 none, 1 per-m, 2 per-(m,parity) (homonuclear only), 3 per-|m| (imposes the +|m|/-|m| degeneracy on the occupations too)", false, 1);
   parser.add<int>("verbosity", 0, "output detail: 0 silent, 1 setup and energies, 5 also per-iteration Fock timings; also passed to the SCF solver", false, 5);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
@@ -94,7 +94,6 @@ int main(int argc, char **argv) {
   parser.add<double>("Bz",  0, "magnetic dipole field",     false, 0.0);
 
   // Fock symmetry averaging over m values (parity with bespoke diatomic).
-  parser.add<bool>("maverage", 0, "average Fock matrix over m values", false, false);
 
   // Frozen per-block occupations from occs.dat (parity with bespoke
   // diatomic's --readocc, but a bool since OOO's fixed-per-block
@@ -161,7 +160,6 @@ int main(int argc, char **argv) {
   const double Ez     = parser.get<double>("Ez");
   const double Qzz    = parser.get<double>("Qzz");
   const double Bz     = parser.get<double>("Bz");
-  const bool   maverage = parser.get<bool>("maverage");
   const bool   readocc  = parser.get<bool>("readocc");
   const int    iguess       = parser.get<int>("iguess");
   const std::string loadfile = parser.get<std::string>("load");
@@ -292,21 +290,6 @@ int main(int argc, char **argv) {
   const bool have_efield = (Ez != 0.0 || Qzz != 0.0);
   const bool have_bfield = (Bz != 0.0);
 
-  // For diatomic m-averaging: each outer entry groups the (+m, -m) pair
-  // of BF-index sets so scf::fock_symmetry_average enforces
-  // f(+m) == f(-m). At m == 0 there is no partner so the group has a
-  // single member and the "average" is a no-op on that block. Matches
-  // src/diatomic/main.cpp lines 318..328.
-  std::vector<std::vector<std::vector<Eigen::Index>>> mavg_idx;
-  if (maverage) {
-    const int mmax_bf = basis.get_mval().cwiseAbs().maxCoeff();
-    for (int m = 0; m <= mmax_bf; ++m) {
-      std::vector<std::vector<Eigen::Index>> entry;
-      entry.push_back(basis.m_indices(m));
-      if (m > 0) entry.push_back(basis.m_indices(-m));
-      mavg_idx.push_back(entry);
-    }
-  }
 
   // Symmetry decomposition.
   std::vector<std::vector<Eigen::Index>> dsym;
@@ -318,6 +301,13 @@ int main(int argc, char **argv) {
     dsym = basis.get_sym_idx(symm);
   }
   const size_t nsym = dsym.size();
+  // Under --symmetry=3 each |m|>0 block also carries its -|m| partner:
+  // same radial problem, so it is mirrored rather than solved twice.
+  const std::vector<std::vector<Eigen::Index>> dmirror =
+      basis.get_sym_mirror_idx(symm);
+  std::vector<int> block_degeneracy(nsym, 1);
+  for (size_t k = 0; k < nsym; ++k)
+    if (!dmirror[k].empty()) block_degeneracy[k] = 2;
 
   // Per-block Sinvh_k.
   const std::vector<helfem::Matrix> Sinvh =
@@ -350,7 +340,7 @@ int main(int argc, char **argv) {
   std::vector<std::string> block_descriptions;
   helfem::scf_driver::build_ooo_block_metadata<OOO_Real>(
       nsym, nparttype, restricted, Ntot, nela, nelb,
-      basis.get_sym_labels(symm),
+      basis.get_sym_labels(symm), block_degeneracy,
       number_of_blocks_per_particle_type, maximum_occupation,
       number_of_particles, block_descriptions);
 
@@ -360,7 +350,7 @@ int main(int argc, char **argv) {
                                  const helfem::Matrix & orb_e,
                                  const helfem::Vector & occ_e) {
     helfem::scf_driver::accumulate_density_block<OOO_Real>(
-        P_full, dsym, k, Sinvh, orb_e, occ_e);
+        P_full, dsym, k, Sinvh, orb_e, occ_e, &dmirror[k]);
   };
 
   auto orthonormalize_block =
@@ -477,14 +467,10 @@ int main(int argc, char **argv) {
     // their coupling is off so this matches T + Vnuc + J exactly in the
     // no-field case.
     const helfem::Matrix H1 = T + Vnuc + Vel + Vmag;
-    auto apply_mavg = [&](helfem::Matrix & F) {
-      if (maverage)
-        F = scf::fock_symmetry_average(F, mavg_idx);
-    };
     helfem::scf_driver::assemble_fock_blocks<OOO_Real>(
         fock, H1, J, XCa, XCb, Ka, Kb, S,
         nsym, restricted, have_xc, have_exx, have_bfield, Bz,
-        apply_mavg, orthonormalize_block);
+        orthonormalize_block);
     ftimer.leave();
     return std::make_pair(Etot, fock);
   };
