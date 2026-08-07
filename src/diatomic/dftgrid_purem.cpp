@@ -414,6 +414,21 @@ namespace helfem {
       /// Accumulate one m block's XC contribution into the AO matrix H.
       /// `spin` selects the vxc / vsigma rows (0 = restricted or alpha,
       /// 1 = beta); `gr_rows` gives the (mu, nu) gradient rows for this spin.
+      // Index of the block holding -mlist[im], or mlist.size() if there
+      // is none. In the pure-m path the density is phi-independent, so
+      // V_xc is the SAME field for every m block: the only m dependence
+      // in the matrix elements is through m^2 and through basis values
+      // that depend on |m|. H(-m) is therefore equal to H(+m), and the
+      // negative half can be mirrored rather than rebuilt. This holds
+      // whatever the density symmetry -- it is a property of the pure-m
+      // quadrature, not of the state.
+      size_t PureMDFTGridWorker::mirror_block(size_t im) const {
+        for (size_t jm = 0; jm < mlist.size(); jm++)
+          if (mlist[jm] == -mlist[im] && bf_ind_m[jm].size() == bf_ind_m[im].size())
+            return jm;
+        return mlist.size();
+      }
+
       void PureMDFTGridWorker::eval_Fxc(helfem::Matrix & H) const {
         if (polarized)
           throw std::runtime_error("Refusing to compute restricted Fock matrix with unrestricted density.\n");
@@ -422,6 +437,9 @@ namespace helfem {
         for (size_t im = 0; im < mlist.size(); im++) {
           const std::vector<Eigen::Index> & idx = bf_ind_m[im];
           if (idx.empty()) continue;
+          // Built once for +|m| and mirrored onto -|m| below.
+          const size_t imirror = mirror_block(im);
+          if (mlist[im] < 0 && imirror != mlist.size()) continue;
           const Eigen::Index nbf = (Eigen::Index) idx.size();
           helfem::Matrix Hm = helfem::Matrix::Zero(nbf, nbf);
 
@@ -478,6 +496,12 @@ namespace helfem {
           for (Eigen::Index i = 0; i < nbf; i++)
             for (Eigen::Index j = 0; j < nbf; j++)
               H(idx[i], idx[j]) += Hm(i, j);
+          if (mlist[im] > 0 && imirror != mlist.size()) {
+            const std::vector<Eigen::Index> & jdx = bf_ind_m[imirror];
+            for (Eigen::Index i = 0; i < nbf; i++)
+              for (Eigen::Index j = 0; j < nbf; j++)
+                H(jdx[i], jdx[j]) += Hm(i, j);
+          }
         }
       }
 

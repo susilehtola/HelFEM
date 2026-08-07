@@ -129,6 +129,8 @@ namespace helfem {
         /// Accumulate the XC Fock contribution, restricted. Only the
         /// m-diagonal blocks are built -- the off-diagonal blocks vanish by
         /// the analytic phi integration.
+        /// Index of the block holding -m, or mlist.size() if none.
+        size_t mirror_block(size_t im) const;
         void eval_Fxc(helfem::Matrix & H) const;
         /// Accumulate the XC Fock contribution, unrestricted
         void eval_Fxc(helfem::Matrix & Ha, helfem::Matrix & Hb, bool beta=true) const;
