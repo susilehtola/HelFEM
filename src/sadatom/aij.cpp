@@ -83,6 +83,7 @@ int main(int argc, char **argv) {
   parser.add<std::string>("loadfock", 0, "file to load guess fock matrix from", false, "");
   parser.add<std::string>("savefock", 0, "file to save fock matrix to", false, "");
   parser.add<bool>("saveorb", 0, "save radial orbitals to disk?", false, false);
+  parser.add<int>("verbosity", 0, "output detail: 0 silent, 1 setup and energies, 5 also per-iteration diagnostics and Fock timings; also passed to the SCF solver", false, 5);
   parser.parse_check(argc, argv);
 
   // Get parameters
@@ -97,6 +98,9 @@ int main(int argc, char **argv) {
 
   int Nnodes(parser.get<int>("nnodes"));
   int Nquad(parser.get<int>("nquad"));
+  const int verbosity(parser.get<int>("verbosity"));
+  // The shared basis/grid/functional code reports through this flag.
+  helfem::set_verbosity(verbosity >= 1);
   std::string method(parser.get<std::string>("method"));
   double dftthr(parser.get<double>("dftthr"));
 
@@ -141,7 +145,8 @@ int main(int argc, char **argv) {
   else if(Nquad<2*poly->get_nbf())
     throw std::logic_error("Insufficient radial quadrature.\n");
   // Order of quadrature rule
-  printf("Using %i point quadrature rule.\n",Nquad);
+  if(verbosity >= 1)
+    printf("Using %i point quadrature rule.\n",Nquad);
 
   // Functional
   int x_func, c_func;
@@ -179,19 +184,23 @@ int main(int argc, char **argv) {
   int Nuelem = (rs>0) ? std::ceil(R/friedel_period*Nufreq) : 0;
 
   if(vacancy) {
-    printf("%i jellium electrons with rs = % .3f and vacancy model leads to r_inner = % .10f r_outer = % .10f lmax = %i\n",njellium,rs,r_inner,r_outer,lmax);
+    if(verbosity >= 1)
+      printf("%i jellium electrons with rs = % .3f and vacancy model leads to r_inner = % .10f r_outer = % .10f lmax = %i\n",njellium,rs,r_inner,r_outer,lmax);
   } else {
-    printf("%i jellium electrons with rs = % .3f leads to R = % .10f lmax = %i\n",njellium,rs,R,lmax);
+    if(verbosity >= 1)
+      printf("%i jellium electrons with rs = % .3f leads to R = % .10f lmax = %i\n",njellium,rs,R,lmax);
   }
   // The background charge follows from the shell geometry; report it so
   // a mismatch with njellium is visible rather than silent.
   if(rs > 0) {
     const double bgcharge = std::pow(r_outer/rs,3) - std::pow(r_inner/rs,3);
-    printf("Background charge is % .10f, should be %i\n", bgcharge, njellium);
+    if(verbosity >= 1)
+      printf("Background charge is % .10f, should be %i\n", bgcharge, njellium);
     if(std::abs(bgcharge - njellium) > 1e-8*std::max(1,njellium))
       throw std::logic_error("Background charge does not match the number of jellium electrons!\n");
   }
-  printf("Friedel period is % .3f, using %i uniform elements.\n", friedel_period, Nuelem);
+  if(verbosity >= 1)
+    printf("Friedel period is % .3f, using %i uniform elements.\n", friedel_period, Nuelem);
   // Self-repulsion of the positive background. The background is the
   // shell [r_inner, r_outer], i.e. ball(r_outer) minus ball(r_inner) at
   // the same density, so its self-energy is E_out + E_in - W with
@@ -262,11 +271,13 @@ int main(int argc, char **argv) {
     }
     bval=bval_new;
   }
-  helfem::io::print_matrix("Final grid for calculation", helfem::Matrix(bval));
+  if(verbosity >= 1)
+    helfem::io::print_matrix("Final grid for calculation", helfem::Matrix(bval));
 
   bool zeroder = false;
   auto basis = sadatom::basis::TwoDBasis(Z, modelpotential::POINT_NUCLEUS, 0.0, poly, zeroder, Nquad, bval, lmax, zeroright);
-  printf("Basis set has %i radial functions\n",(int) basis.Nbf());
+  if(verbosity >= 1)
+    printf("Basis set has %i radial functions\n",(int) basis.Nbf());
 
   std::function<double(double, double)> sphere_pot = [&](double r, double R) {
     const double prefac = std::pow(R/rs,3);
@@ -297,7 +308,8 @@ int main(int argc, char **argv) {
 
   // Energy of nucleus in external field
   double Enucfield = -Z*potfunc(0);
-  printf("potfunc(0) = %e Enucfield = %e\n",potfunc(0),Enucfield);
+  if(verbosity >= 1)
+    printf("potfunc(0) = %e Enucfield = %e\n",potfunc(0),Enucfield);
   fflush(stdout);
 
   // Form overlap matrix
@@ -335,8 +347,10 @@ int main(int argc, char **argv) {
     // Convert to non-orthogonal basis
     Cjellium[l] = Sinvh*es.eigenvectors();
 
-    printf("l = %i eigenvalues\n",l);
-    helfem::io::print_matrix("", helfem::Matrix(Ejellium[l].transpose()));
+    if(verbosity >= 1)
+      printf("l = %i eigenvalues\n",l);
+    if(verbosity >= 1)
+      helfem::io::print_matrix("", helfem::Matrix(Ejellium[l].transpose()));
 
     for(Eigen::Index io=0;io<Ejellium[l].size();io++)
       jellium_energies.push_back(std::make_tuple(Ejellium[l](io),l,(int) io));
@@ -408,7 +422,7 @@ int main(int argc, char **argv) {
       // Potential needs to be divided as well
       for(size_t l=0;l<XC.size();l++) XC[l]/=angfac;
       tc.xc += tcomp.get();
-      if(verbose) {
+      if(verbosity >= 5) {
         printf("DFT energy %.10e\n",Exc);
         printf("Error in integrated number of electrons % e\n",nelnum-(Z-Q+njellium));
         fflush(stdout);
@@ -418,7 +432,7 @@ int main(int argc, char **argv) {
     double Ecoul = 0.5*(Prad*J).trace();
     double Etot = Ekin + Enuc + Enucfield + Eunif + Erep + Ecoul + Exc;
 
-    if(true) {
+    if(verbosity >= 1) {
       printf("kinetic energy         % .10f\n",Ekin);
       printf("nuclear attraction     % .10f\n",Enuc);
       printf("nucleus-field term     % .10f\n",Enucfield);
@@ -438,7 +452,7 @@ int main(int argc, char **argv) {
     }
     tc.total = ftimer.build_elapsed();
     ftimer.add_build(tc);
-    ftimer.print_build(x_func > 0 || c_func > 0, false);
+    if(verbosity >= 5) ftimer.print_build(x_func > 0 || c_func > 0, false);
     ftimer.leave();
     return std::make_pair(Etot,fock);
   };
@@ -496,7 +510,7 @@ int main(int argc, char **argv) {
       for(size_t l=0;l<XCa.size();l++) XCa[l]/=angfac;
       for(size_t l=0;l<XCb.size();l++) XCb[l]/=angfac;
       tc.xc += tcomp.get();
-      if(verbose) {
+      if(verbosity >= 5) {
         printf("DFT energy %.10e\n",Exc);
         printf("Error in integrated number of electrons % e\n",nelnum-(Z-Q+njellium));
         fflush(stdout);
@@ -506,7 +520,7 @@ int main(int argc, char **argv) {
     double Ecoul = 0.5*(Prad*J).trace();
     double Etot = Ekin + Enuc + Enucfield + Eunif + Erep + Ecoul + Exc;
 
-    if(true) {
+    if(verbosity >= 1) {
       printf("kinetic energy         % .10f\n",Ekin);
       printf("nuclear attraction     % .10f\n",Enuc);
       printf("nucleus-field term     % .10f\n",Enucfield);
@@ -531,7 +545,7 @@ int main(int argc, char **argv) {
     }
     tc.total = ftimer.build_elapsed();
     ftimer.add_build(tc);
-    ftimer.print_build(x_func > 0 || c_func > 0, false);
+    if(verbosity >= 5) ftimer.print_build(x_func > 0 || c_func > 0, false);
     ftimer.leave();
     return std::make_pair(Etot,fock);
   };
@@ -785,7 +799,8 @@ int main(int argc, char **argv) {
       oss << "l=" << l;
       block_descriptions[l] = oss.str();
     }
-    helfem::io::print_matrix("Max occ", helfem::Matrix(maximum_occupation.transpose()));
+    if(verbosity >= 1)
+      helfem::io::print_matrix("Max occ", helfem::Matrix(maximum_occupation.transpose()));
 
     Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> number_of_particles(1);
     number_of_particles(0) = nelec;
@@ -805,13 +820,15 @@ int main(int argc, char **argv) {
     }
 
     OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles, restricted_builder, block_descriptions);
+    scfsolver.set("verbosity", verbosity);
     scfsolver.set("maximum_iterations", maxiter);
     scfsolver.set("convergence_threshold", convthr);
     scfsolver.set("methods", scfmethods);
-    scfsolver.print_citation();
+    if(verbosity >= 1)
+      scfsolver.print_citation();
     scfsolver.initialize_with_fock(coreH);
     scfsolver.run();
-    ftimer.print_summary(x_func > 0 || c_func > 0, false);
+    if(verbosity >= 5) ftimer.print_summary(x_func > 0 || c_func > 0, false);
 
     auto dm = std::make_pair(scfsolver.get_orbitals(), scfsolver.get_orbital_occupations());
     auto fock = scfsolver.get_fock_matrix();
@@ -824,7 +841,8 @@ int main(int argc, char **argv) {
       std::vector<helfem::Vector> Eblock;
       std::vector<helfem::Matrix> Cblock;
       diagonalize_blocks(fock, Eblock, Cblock);
-      print_orbitals(dm, Eblock, Cblock, block_descriptions, 0, fock.size());
+      if(verbosity >= 1)
+        print_orbitals(dm, Eblock, Cblock, block_descriptions, 0, fock.size());
       if(saveorb)
         save_orbitals(dm, Eblock, Cblock, 0, fock.size(), orb_prefix);
     }
@@ -849,7 +867,8 @@ int main(int argc, char **argv) {
       block_descriptions[l] = oss.str() + " alpha";
       block_descriptions[l+lmax+1] = oss.str() + " beta";
     }
-    helfem::io::print_matrix("Max occ", helfem::Matrix(maximum_occupation.transpose()));
+    if(verbosity >= 1)
+      helfem::io::print_matrix("Max occ", helfem::Matrix(maximum_occupation.transpose()));
 
     Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> number_of_particles(2);
     number_of_particles(0) = nela;
@@ -877,13 +896,15 @@ int main(int argc, char **argv) {
     }
 
     OpenOrbitalOptimizer::SCFSolver<OOO_Real, OOO_Real> scfsolver(number_of_blocks_per_particle_type, maximum_occupation, number_of_particles, unrestricted_builder, block_descriptions);
+    scfsolver.set("verbosity", verbosity);
     scfsolver.set("maximum_iterations", maxiter);
     scfsolver.set("convergence_threshold", convthr);
     scfsolver.set("methods", scfmethods);
-    scfsolver.print_citation();
+    if(verbosity >= 1)
+      scfsolver.print_citation();
     scfsolver.initialize_with_fock(coreH);
     scfsolver.run();
-    ftimer.print_summary(x_func > 0 || c_func > 0, false);
+    if(verbosity >= 5) ftimer.print_summary(x_func > 0 || c_func > 0, false);
 
     auto dm = std::make_pair(scfsolver.get_orbitals(), scfsolver.get_orbital_occupations());
     auto fock = scfsolver.get_fock_matrix();
@@ -896,10 +917,14 @@ int main(int argc, char **argv) {
       std::vector<helfem::Vector> Eblock;
       std::vector<helfem::Matrix> Cblock;
       diagonalize_blocks(fock, Eblock, Cblock);
-      printf("\nAlpha orbitals\n");
-      print_orbitals(dm, Eblock, Cblock, block_descriptions, 0, lmax+1);
-      printf("\nBeta orbitals\n");
-      print_orbitals(dm, Eblock, Cblock, block_descriptions, lmax+1, 2*lmax+2);
+      if(verbosity >= 1)
+        printf("\nAlpha orbitals\n");
+      if(verbosity >= 1)
+        print_orbitals(dm, Eblock, Cblock, block_descriptions, 0, lmax+1);
+      if(verbosity >= 1)
+        printf("\nBeta orbitals\n");
+      if(verbosity >= 1)
+        print_orbitals(dm, Eblock, Cblock, block_descriptions, lmax+1, 2*lmax+2);
       if(saveorb) {
         save_orbitals(dm, Eblock, Cblock, 0,        lmax+1,   orb_prefix + "_alpha");
         save_orbitals(dm, Eblock, Cblock, lmax+1,   2*lmax+2, orb_prefix + "_beta");

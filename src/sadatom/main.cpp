@@ -237,6 +237,7 @@ int main(int argc, char **argv) {
   // SCF convergence algorithms handed to OOO's state machine: a '+'
   // separated subset of DIIS, ODA, CG and LBFGS.
   parser.add<std::string>("scfmethods", 0, "SCF convergence methods: '+' separated subset of DIIS, ODA, CG, LBFGS", false, "DIIS + ODA + CG");
+  parser.add<int>("verbosity", 0, "output detail: 0 silent, 1 setup and energies, 5 also per-iteration Fock timings; also passed to the SCF solver", false, 5);
   parser.add<int>("maxiter", 0, "maximum number of SCF iterations", false, 128);
   parser.add<double>("convthr", 0, "SCF convergence threshold", false, 1e-7);
 
@@ -256,6 +257,11 @@ int main(int argc, char **argv) {
   parser.add<double>("eps_el", 0, "density threshold for the electron-count atomic radius", false, 0.073416683704840394115); // H analytic radius matches the vdW routine at 1e-3 (Rahm 2016)
 
   parser.parse_check(argc, argv);
+
+  // Gates every non-warning printout below; see the option help.
+  const int verbosity = parser.get<int>("verbosity");
+  // The shared basis/grid/functional code reports through this flag.
+  helfem::set_verbosity(verbosity >= 1);
 
   const int igrid   = parser.get<int>("grid");
   const double zexp = parser.get<double>("zexp");
@@ -299,10 +305,12 @@ int main(int argc, char **argv) {
     std::cout << "Correlation functional parameters\n" << c_pars.transpose() << std::endl;
   }
 
-  printf("Running %s %s calculation with Rmax=%e and %i elements.\n",
+  if (verbosity >= 1)
+    printf("Running %s %s calculation with Rmax=%e and %i elements.\n",
           restricted ? "restricted" : "unrestricted",
           method.c_str(), Rmax, Nelem);
-  printf("nela=%d nelb=%d\n", nela, nelb);
+  if (verbosity >= 1)
+    printf("nela=%d nelb=%d\n", nela, nelb);
 
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
       polynomial_basis::get_basis(primbas, Nnodes));
@@ -311,7 +319,8 @@ int main(int argc, char **argv) {
     Nquad = 5 * poly->get_nbf();
   else if (Nquad < 2 * poly->get_nbf())
     throw std::logic_error("Insufficient radial quadrature.\n");
-  printf("Using %i point quadrature rule.\n", Nquad);
+  if (verbosity >= 1)
+    printf("Using %i point quadrature rule.\n", Nquad);
 
   int x_func, c_func;
   ::parse_xc_func(x_func, c_func, method);
@@ -345,7 +354,7 @@ int main(int argc, char **argv) {
   opts.conf_R       = conf_R;
   opts.conf_barrier = conf_barrier;
   opts.shift_conf   = shift_conf;
-  opts.verbosity    = 5;
+  opts.verbosity    = verbosity;
   opts.scf_methods  = parser.get<std::string>("scfmethods");
   opts.maxiter      = parser.get<int>("maxiter");
   opts.convthr      = parser.get<double>("convthr");
@@ -406,7 +415,8 @@ int main(int argc, char **argv) {
       } else {
         throw std::logic_error("Unrestricted --occs needs lmax+1 totals or 2*(lmax+1) alpha/beta counts.\n");
       }
-      printf("Using explicit occupations from --occs.\n");
+      if (verbosity >= 1)
+        printf("Using explicit occupations from --occs.\n");
     }
   }
 
@@ -421,19 +431,25 @@ int main(int argc, char **argv) {
     const helfem::Matrix & Pdiag = result.Prad;
     const double nucd  = result.basis.nuclear_density(Pdiag);
     const double gnucd = result.basis.nuclear_density_gradient(Pdiag);
-    printf("\nElectron density          at the nucleus is % e\n", nucd);
-    printf("Electron density gradient at the nucleus is % e\n", gnucd);
+    if (verbosity >= 1)
+      printf("\nElectron density          at the nucleus is % e\n", nucd);
+    if (verbosity >= 1)
+      printf("Electron density gradient at the nucleus is % e\n", gnucd);
     if (nucd != 0.0)
-      printf("Cusp condition is %.10f\n", -1.0 / (2 * Z) * gnucd / nucd);
+      if (verbosity >= 1)
+        printf("Cusp condition is %.10f\n", -1.0 / (2 * Z) * gnucd / nucd);
 
     const double vdwthr = parser.get<double>("vdwthr");
     const double eps_el = parser.get<double>("eps_el");
     const double rvdw = result.basis.vdw_radius(Pdiag, vdwthr);
-    printf("\nEstimated vdW radius with density threshold %e is %.6f bohr = %.6f A\n",
+    if (verbosity >= 1)
+      printf("\nEstimated vdW radius with density threshold %e is %.6f bohr = %.6f A\n",
            vdwthr, rvdw, rvdw * BOHRINANGSTROM);
-    printf("Note that this criterion is sensitive to numerical noise.\n");
+    if (verbosity >= 1)
+      printf("Note that this criterion is sensitive to numerical noise.\n");
     const double rincl = result.basis.electron_count_radius(Pdiag, eps_el);
-    printf("Estimated radius with electron count threshold %e is %.6f bohr = %.6f A\n",
+    if (verbosity >= 1)
+      printf("Estimated radius with electron count threshold %e is %.6f bohr = %.6f A\n",
            eps_el, rincl, rincl * BOHRINANGSTROM);
   }
 
@@ -455,7 +471,8 @@ int main(int argc, char **argv) {
     dump(result.orbs_a, restricted ? "r" : "a");
     if (!restricted)
       dump(result.orbs_b, "b");
-    printf("Saved radial orbitals to orbs_%s_*.dat\n", element_symbols[Z].c_str());
+    if (verbosity >= 1)
+      printf("Saved radial orbitals to orbs_%s_*.dat\n", element_symbols[Z].c_str());
   }
 
   // Effective-potential / SAP-table output. The potential functional is
@@ -502,7 +519,8 @@ int main(int argc, char **argv) {
     std::ostringstream oss;
     oss << "result_" << element_symbols[Z] << ".dat";
     io::write_raw_ascii(oss.str(), pot);
-    printf("Saved effective potential (SAP table) to %s\n", oss.str().c_str());
+    if (verbosity >= 1)
+      printf("Saved effective potential (SAP table) to %s\n", oss.str().c_str());
 
     if (savepot) {
       // xc screening potential: [r, v_xc]
@@ -510,7 +528,8 @@ int main(int argc, char **argv) {
       xcpot.col(0) = pot.col(0);
       xcpot.col(1) = pot.col(6);
       io::write_raw_ascii("xcpot.dat", xcpot);
-      printf("Saved xc screening potential to xcpot.dat\n");
+      if (verbosity >= 1)
+        printf("Saved xc screening potential to xcpot.dat\n");
     }
     if (saveing) {
       // density ingredients: [r, rho, grad, lapl, tau]
@@ -521,10 +540,12 @@ int main(int argc, char **argv) {
       ing.col(3) = pot.col(3);
       ing.col(4) = pot.col(4);
       io::write_raw_ascii("xcing.dat", ing);
-      printf("Saved density ingredients to xcing.dat\n");
+      if (verbosity >= 1)
+        printf("Saved density ingredients to xcing.dat\n");
     }
   } else if (savepot || saveing) {
-    printf("No functional active (HF) -- no xc potential/ingredients to save.\n");
+    if (verbosity >= 1)
+      printf("No functional active (HF) -- no xc potential/ingredients to save.\n");
   }
 
   return 0;

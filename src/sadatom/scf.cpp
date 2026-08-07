@@ -292,7 +292,7 @@ namespace helfem {
           helfem::scf_driver::FockTimer::Components tc;
           auto ret = build_fock(dm, nullptr, &tc);
           ftimer.add_build(tc);
-          if (opts.verbosity > 0) ftimer.print_build(have_xc, have_exx);
+          if (opts.verbosity >= 5) ftimer.print_build(have_xc, have_exx);
           ftimer.leave();
           return ret;
         };
@@ -343,7 +343,7 @@ namespace helfem {
           // not the entries were evaluated concurrently.
           for (const auto & line : lines)
             if (line.size()) fputs(line.c_str(), stdout);
-          if (opts.verbosity > 0) ftimer.print_build(have_xc, have_exx);
+          if (opts.verbosity >= 5) ftimer.print_build(have_xc, have_exx);
           fflush(stdout);
           ftimer.leave();
           return out;
@@ -538,7 +538,7 @@ namespace helfem {
         if (opts.verbosity > 0)
           scfsolver.print_citation();
         scfsolver.run();
-        if (opts.verbosity > 0) ftimer.print_summary(have_xc, have_exx);
+        if (opts.verbosity >= 5) ftimer.print_summary(have_xc, have_exx);
 
         // Extract results. Convert OOO's per-block orbital matrices
         // (in the Sinvh-orthonormal basis) back to AO coefficients
