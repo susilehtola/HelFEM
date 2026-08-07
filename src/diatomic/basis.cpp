@@ -910,6 +910,10 @@ namespace helfem {
         return idx;
       }
 
+      void TwoDBasis::set_absm_symmetric(bool sym) {
+        absm_symmetric = sym;
+      }
+
       int TwoDBasis::absm_max() const {
         return std::max(std::abs(mval.maxCoeff()), std::abs(mval.minCoeff()));
       }
@@ -1875,6 +1879,13 @@ namespace helfem {
               // output block. If there are none, there is nothing to
               // allocate and nothing to contract: skip before paying for
               // either.
+              // With a +-m symmetric density, K(-m,-m) is the mirror
+              // image of K(+m,+m): the same radial problem with every m
+              // negated, and the Gaunt couplings are invariant under a
+              // global m negation. Build the m >= 0 half and copy.
+              if(absm_symmetric && (mj < 0 || mk < 0))
+                continue;
+
               const int dmjk = mj-mk;
               if(std::abs(dmjk) > 2*mabs)
                 continue;
@@ -2045,6 +2056,27 @@ namespace helfem {
                   }
                 }
               }
+            }
+          }
+        }
+
+        // Mirror the m >= 0 half onto the negative-m output blocks.
+        // Channel (l,m) pairs with (l,-m); K(-mj,-mk) = K(mj,mk).
+        if(absm_symmetric) {
+          std::vector<size_t> mirror_ang(Nang, Nang);
+          for(size_t a1=0;a1<Nang;a1++)
+            for(size_t b1=0;b1<Nang;b1++)
+              if(lval(b1)==lval(a1) && mval(b1)==-mval(a1)) { mirror_ang[a1]=b1; break; }
+          for(size_t jang=0;jang<Nang;jang++) {
+            if(mval(jang) >= 0) continue;
+            const size_t jm = mirror_ang[jang];
+            if(jm==Nang) continue;
+            for(size_t kang=0;kang<Nang;kang++) {
+              if(mval(kang) >= 0) continue;
+              const size_t km = mirror_ang[kang];
+              if(km==Nang) continue;
+              K.block(jang*Nrad,kang*Nrad,Nrad,Nrad) =
+                  K.block(jm*Nrad,km*Nrad,Nrad,Nrad);
             }
           }
         }
