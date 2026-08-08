@@ -227,14 +227,36 @@ namespace helfem {
         rho = helfem::Matrix::Zero(1, nang);
         rho_m.assign(nm, helfem::Vector::Zero(nang));
         Pv_m.assign(nm, helfem::Matrix());
+        const bool share = basp->is_absm_symmetric();
 
+        // A -m block and its +m partner carry the same density sub-block
+        // and the same basis values, so Pv_m and rho_m come out identical.
+        // The product Pblk * bf_m is the dominant cost here (nbf x nbf
+        // times nbf x nang), so it is done once per pair and the result
+        // shared -- the partner's slots are filled by copy so anything
+        // reading them downstream still sees a consistent state.
         for (size_t im = 0; im < nm; im++) {
           if (bf_ind_m[im].empty()) continue;
+          // Sharing the density between partners needs P(+m) == P(-m),
+          // which ONLY --symmetry=3 guarantees -- it occupies m and -m
+          // equally by construction. At --symmetry=0/1/2 a Pi state can
+          // put its odd electron wholly in one component, and sharing
+          // would silently symmetrise a density that is not symmetric.
+          // (The eval_Fxc mirror below is different: it depends on V_xc
+          // and the basis values, not on the density blocks, so it needs
+          // no such guard.)
+          const size_t imirror = share ? mirror_block(im) : nm;
+          if (mlist[im] < 0 && imirror != nm) continue;
           const helfem::Matrix Pblk = gather_block(P, bf_ind_m[im]);
           Pv_m[im] = Pblk * bf_m[im];
           // rho_m(ia) = sum_i (P bf)(i,ia) bf(i,ia)
           rho_m[im] = (Pv_m[im].array() * bf_m[im].array()).colwise().sum().transpose();
           rho.row(0) += rho_m[im].transpose();
+          if (mlist[im] > 0 && imirror != nm) {
+            Pv_m[imirror]  = Pv_m[im];
+            rho_m[imirror] = rho_m[im];
+            rho.row(0) += rho_m[im].transpose();
+          }
         }
 
         if (do_grad) {
