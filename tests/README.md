@@ -173,6 +173,30 @@ solutions (-38.2817165629 at `--symmetry=1`) and is not comparable to them:
 it is a different, cylindrically averaged state. The point of the test is
 that it converges at all.
 
+## Running the suite
+
+`ctest` registers one test per case, so a failure names the case and the
+timings show where the run went:
+
+    ctest -j6              # quick tier: 49 cases + the unit binaries
+    ctest -L unit          # the self-checking binaries alone, ~2 s
+    ctest -R Ne-dummy      # one family
+    ctest -N               # list everything, including what is disabled
+
+Cases outside the quick tier are registered but DISABLED, so they appear
+in `ctest -N` and are skipped by a plain run. Enable them with
+
+    cmake -DHELFEM_SLOW_TESTS=ON <builddir> && ctest -j6
+
+The case list is read from `cases.json` at configure time, so a new case
+registers itself -- but you have to re-run cmake after editing the file.
+
+Invariants compare cases against each other and therefore cannot live in
+a per-case test; `integration.invariants` covers them for the quick tier.
+The harness can still be driven directly, which is what CI does:
+
+    python3 run_tests.py --check refs/ci.json --tag ci --bindir <builddir>/src -j4
+
 ## Cross-code invariants
 
 Every element in this suite is closed-shell, single-s-electron or half-filled,

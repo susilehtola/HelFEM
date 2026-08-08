@@ -55,46 +55,91 @@ endif()
 set(HELFEM_TEST_DRIVER "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py")
 set(HELFEM_TEST_REFS   "${CMAKE_CURRENT_SOURCE_DIR}/refs/ci.json")
 
-# One test per tag rather than one giant test, so a failure names the area
-# and `ctest -R` can select it.
+set(HELFEM_TEST_JOBS 4 CACHE STRING "Parallel cases for the aggregate test")
+set(HELFEM_TEST_TIMEOUT 5400 CACHE STRING "Per-test timeout in seconds")
+option(HELFEM_SLOW_TESTS "Enable the slow integration cases (hours)" OFF)
+
+
+# ONE CTEST TEST PER CASE.
 #
-# --skip-slow is not optional here. Tags are orthogonal to cost: the
-# symmetry tag covers both the seconds-long Ne/H2 cases and the CH/NH ones
-# that run minutes each, so without it `ctest` would quietly inherit the
-# slow tier through a tag that says nothing about runtime.
-function(helfem_add_integration_test name tag)
-  add_test(NAME ${name}
+# This used to be one test per tag, which meant `integration.full` was a
+# single opaque entry: 6412 s, "***Failed", and no indication of which of
+# ~180 cases failed or where the time went. CTest can only report what it
+# is given, so it is given each case separately -- a failure now names the
+# case, and `ctest` prints a per-case time.
+#
+# The case list comes from cases.json at configure time rather than being
+# duplicated here, so adding a case to the suite registers it
+# automatically. Re-run cmake after editing cases.json.
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} -c
+    "import json,sys; s=json.load(open(sys.argv[1]));\
+print('\\n'.join(c['name']+'|'+','.join(c.get('tags',[])) for c in s['cases']))"
+    ${CMAKE_CURRENT_SOURCE_DIR}/cases.json
+  OUTPUT_VARIABLE HELFEM_CASE_LIST
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  RESULT_VARIABLE HELFEM_CASE_LIST_RC)
+
+if(NOT HELFEM_CASE_LIST_RC EQUAL 0)
+  message(WARNING "Could not read tests/cases.json; integration cases not registered")
+  return()
+endif()
+
+string(REPLACE "\n" ";" HELFEM_CASE_LINES "${HELFEM_CASE_LIST}")
+set(_n_fast 0)
+set(_n_slow 0)
+foreach(line ${HELFEM_CASE_LINES})
+  string(REPLACE "|" ";" parts "${line}")
+  list(GET parts 0 case_name)
+  list(LENGTH parts nparts)
+  set(case_tags "")
+  if(nparts GREATER 1)
+    list(GET parts 1 case_tags_csv)
+    string(REPLACE "," ";" case_tags "${case_tags_csv}")
+  endif()
+
+  # A case is registered under its own name; --filter anchors on it so no
+  # other case is dragged in by a shared prefix.
+  add_test(NAME case.${case_name}
            COMMAND ${Python3_EXECUTABLE} ${HELFEM_TEST_DRIVER}
                    --check ${HELFEM_TEST_REFS}
-                   --tag ${tag} --skip-slow
+                   --filter "^${case_name}$"
                    --bindir $<TARGET_FILE_DIR:diatomic>
-                   --jobs ${HELFEM_TEST_JOBS})
-  # The harness runs each case with OMP_NUM_THREADS=1 and parallelises
-  # across cases, so converged energies do not depend on the job count --
-  # see tests/README.md on thread-count reproducibility.
-  set_tests_properties(${name} PROPERTIES
-    LABELS "${ARGN}"
+                   --jobs 1)
+  set_tests_properties(case.${case_name} PROPERTIES
+    LABELS "integration;${case_tags}"
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     TIMEOUT ${HELFEM_TEST_TIMEOUT})
-endfunction()
 
-set(HELFEM_TEST_JOBS 4 CACHE STRING "Parallel cases for the integration tests")
-set(HELFEM_TEST_TIMEOUT 5400 CACHE STRING "Per-tier timeout in seconds")
+  # A plain `ctest` runs the quick tier and nothing else. CTest offers no
+  # "default subset", so everything outside it is registered-but-disabled:
+  # visible in `ctest -N`, skipped unless asked for. Gating on the ci tag
+  # rather than on "not slow" matters -- only ~49 of the ~180 cases carry
+  # ci, while ~130 are merely not-slow, and a default run of those would
+  # be hours.
+  if(NOT "ci" IN_LIST case_tags AND NOT HELFEM_SLOW_TESTS)
+    set_tests_properties(case.${case_name} PROPERTIES DISABLED TRUE)
+    math(EXPR _n_slow "${_n_slow}+1")
+  else()
+    math(EXPR _n_fast "${_n_fast}+1")
+  endif()
+endforeach()
 
-helfem_add_integration_test(integration.quick    ci       "integration;quick")
-helfem_add_integration_test(integration.symmetry symmetry "integration;symmetry")
+# Invariants compare cases against EACH OTHER, so they cannot live in a
+# per-case test -- each of those runs a single case in its own process.
+# One extra test covers them for the quick tier; --smoke needs no
+# reference file and fails on a crash or a violated invariant.
+add_test(NAME integration.invariants
+         COMMAND ${Python3_EXECUTABLE} ${HELFEM_TEST_DRIVER}
+                 --smoke --tag ci --skip-slow
+                 --bindir $<TARGET_FILE_DIR:diatomic>
+                 --jobs ${HELFEM_TEST_JOBS})
+set_tests_properties(integration.invariants PROPERTIES
+  LABELS "integration;invariants"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  TIMEOUT ${HELFEM_TEST_TIMEOUT})
 
-option(HELFEM_SLOW_TESTS "Register the slow integration tier (hours)" OFF)
-if(HELFEM_SLOW_TESTS)
-  # Everything, including the cases that run minutes to hours each. This is
-  # what the weekly workflow covers.
-  add_test(NAME integration.full
-           COMMAND ${Python3_EXECUTABLE} ${HELFEM_TEST_DRIVER}
-                   --check ${HELFEM_TEST_REFS}
-                   --bindir $<TARGET_FILE_DIR:diatomic>
-                   --jobs ${HELFEM_TEST_JOBS} --timeout 7200)
-  set_tests_properties(integration.full PROPERTIES
-    LABELS "integration;slow"
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    TIMEOUT 0)
-endif()
+message(STATUS "HelFEM tests: ${_n_fast} quick case(s) enabled, ${_n_slow} "
+               "other case(s) registered but disabled "
+               "(-DHELFEM_SLOW_TESTS=ON enables all). Run them in parallel "
+               "with e.g. ctest -j6.")
