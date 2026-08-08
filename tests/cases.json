@@ -3618,6 +3618,80 @@
         "--method=HF",
         "--symmetry=3"
       ]
+    },
+    {
+      "name": "diatomic-NH-hf-absm",
+      "code": "diatomic",
+      "tags": [
+        "diatomic",
+        "hf",
+        "open-shell",
+        "symmetry",
+        "slow"
+      ],
+      "_why": "NH (3-Sigma-) puts one pi electron in each of +-1, so its density IS symmetric under m -> -m and --symmetry=3 must reproduce the per-m answer exactly. Unlike Ne this is spin-polarised and open-shell, so it exercises the unrestricted path.",
+      "args": [
+        "--Z1=7",
+        "--Z2=1",
+        "--Rbond=1.958",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,11",
+        "--nela=5",
+        "--nelb=3",
+        "--restricted=0",
+        "--method=HF",
+        "--symmetry=3"
+      ]
+    },
+    {
+      "name": "diatomic-NH-lda-absm",
+      "code": "diatomic",
+      "tags": [
+        "diatomic",
+        "lda",
+        "open-shell",
+        "symmetry",
+        "slow"
+      ],
+      "_why": "As diatomic-NH-hf-absm through the XC grid: the unrestricted pure-m density evaluation with an occupied pi shell.",
+      "args": [
+        "--Z1=7",
+        "--Z2=1",
+        "--Rbond=1.958",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,11",
+        "--nela=5",
+        "--nelb=3",
+        "--restricted=0",
+        "--method=lda_x-lda_c_vwn",
+        "--symmetry=3"
+      ]
+    },
+    {
+      "name": "diatomic-CH-lda-absm",
+      "code": "diatomic",
+      "tags": [
+        "diatomic",
+        "lda",
+        "open-shell",
+        "symmetry",
+        "slow"
+      ],
+      "_why": "CH (2-Pi) at --symmetry=3 through the XC grid. Companion to diatomic-CH-absm-hf; the recorded energy is the cylindrically averaged state and is NOT comparable to the pinned pi+/pi- ones.",
+      "args": [
+        "--Z1=6",
+        "--Z2=1",
+        "--Rbond=2.116",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,11",
+        "--nela=4",
+        "--nelb=3",
+        "--method=lda_x-lda_c_vwn",
+        "--symmetry=3"
+      ]
     }
   ],
   "_invariants_comment": [
@@ -4326,6 +4400,26 @@
       ],
       "field": "total",
       "tolerance": 1e-09
+    },
+    {
+      "name": "absm-equals-perm-NH-hf",
+      "_why": "NH's pi shell is singly occupied in EACH of +-1, so the density is already m -> -m symmetric and constraining it changes nothing. The energies must agree; if they do not, the |m| solver is not reproducing the state it claims to.",
+      "cases": [
+        "diatomic-NH-hf-absm",
+        "diatomic-NH-hf-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "absm-equals-perm-NH-lda",
+      "_why": "As absm-equals-perm-NH-hf, through the XC grid.",
+      "cases": [
+        "diatomic-NH-lda-absm",
+        "diatomic-NH-lda-u"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
     }
   ]
 }

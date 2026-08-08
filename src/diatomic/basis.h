@@ -342,6 +342,8 @@ namespace helfem {
         /// construction. Lets exchange() build only the m >= 0 output
         /// blocks and mirror the rest.
         void set_absm_symmetric(bool sym);
+        /// Is the density guaranteed symmetric under m -> -m?
+        bool is_absm_symmetric() const;
         /// For each block of get_sym_idx, the index set of its -|m|
         /// partner, or an empty list when the block has none. Only
         /// symm==3 pairs blocks; other symmetries return empties.

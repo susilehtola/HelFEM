@@ -914,6 +914,10 @@ namespace helfem {
         absm_symmetric = sym;
       }
 
+      bool TwoDBasis::is_absm_symmetric() const {
+        return absm_symmetric;
+      }
+
       int TwoDBasis::absm_max() const {
         return std::max(std::abs(mval.maxCoeff()), std::abs(mval.minCoeff()));
       }
