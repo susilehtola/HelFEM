@@ -2978,7 +2978,8 @@
       "tags": [
         "cross-code",
         "diatomic",
-        "gga"
+        "gga",
+        "ci"
       ],
       "_why": "Ne through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
       "args": [
@@ -2999,7 +3000,8 @@
       "tags": [
         "cross-code",
         "diatomic",
-        "mgga"
+        "mgga",
+        "ci"
       ],
       "_why": "Ne through the diatomic code with a zero-charge dummy centre at 1 bohr; must reproduce the atomic solver",
       "args": [
@@ -3690,6 +3692,52 @@
         "--nela=4",
         "--nelb=3",
         "--method=lda_x-lda_c_vwn",
+        "--symmetry=3"
+      ]
+    },
+    {
+      "name": "diatomic-Ne-dummy-gga-absm",
+      "code": "diatomic",
+      "tags": [
+        "diatomic",
+        "gga",
+        "symmetry",
+        "ci"
+      ],
+      "_why": "The LDA symmetry=3 cases exercise none of the gradient machinery. This one covers the shared gradient pass in the pure-m density evaluation, where a mirrored pair's contribution is taken once and weighted instead of walking both blocks.",
+      "args": [
+        "--Z1=10",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=5",
+        "--nelb=5",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--symmetry=3"
+      ]
+    },
+    {
+      "name": "diatomic-Ne-dummy-mgga-absm",
+      "code": "diatomic",
+      "tags": [
+        "diatomic",
+        "mgga",
+        "symmetry",
+        "ci"
+      ],
+      "_why": "Covers the tau and Laplacian passes, which build two further (nbf x nbf) x (nbf x nang) products per block (Pblk * dr_m and Pblk * dth_m) and are the dominant meta-GGA cost. Those are shared between mirrored partners, so an error there would show up here and nowhere else in the quick tier.",
+      "args": [
+        "--Z1=10",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--nnodes=15",
+        "--lmax=13,9",
+        "--nela=5",
+        "--nelb=5",
+        "--method=mgga_x_tpss-mgga_c_tpss",
         "--symmetry=3"
       ]
     }
@@ -4420,6 +4468,26 @@
       ],
       "field": "total",
       "tolerance": 1e-08
+    },
+    {
+      "name": "absm-equals-perm-Ne-gga",
+      "_why": "Closed p shell: grouping the m blocks must not change the answer. Measured identical to all printed digits.",
+      "cases": [
+        "diatomic-Ne-dummy-gga-absm",
+        "diatomic-Ne-dummy-gga"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
+    },
+    {
+      "name": "absm-equals-perm-Ne-mgga",
+      "_why": "As absm-equals-perm-Ne-gga, through the tau/Laplacian passes.",
+      "cases": [
+        "diatomic-Ne-dummy-mgga-absm",
+        "diatomic-Ne-dummy-mgga"
+      ],
+      "field": "total",
+      "tolerance": 1e-09
     }
   ]
 }

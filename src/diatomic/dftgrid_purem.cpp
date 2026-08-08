@@ -266,8 +266,13 @@ namespace helfem {
           sigma = helfem::Matrix::Zero(1, nang);
           for (size_t im = 0; im < nm; im++) {
             if (bf_ind_m[im].empty()) continue;
-            grho.row(0) += 2.0 * (Pv_m[im].array() * dr_m[im].array()).colwise().sum().matrix();
-            grho.row(1) += 2.0 * (Pv_m[im].array() * dth_m[im].array()).colwise().sum().matrix();
+            const size_t imirror = share ? mirror_block(im) : nm;
+            if (mlist[im] < 0 && imirror != nm) continue;
+            // A mirrored pair contributes identically, so take it once
+            // and weight it rather than walking both blocks.
+            const double w = (mlist[im] > 0 && imirror != nm) ? 2.0 : 1.0;
+            grho.row(0) += (2.0 * w) * (Pv_m[im].array() * dr_m[im].array()).colwise().sum().matrix();
+            grho.row(1) += (2.0 * w) * (Pv_m[im].array() * dth_m[im].array()).colwise().sum().matrix();
           }
           for (Eigen::Index ia = 0; ia < nang; ia++) {
             // h_mu == h_nu == scale_r
@@ -285,9 +290,21 @@ namespace helfem {
           Pv_dth_m.assign(nm, helfem::Matrix());
           for (size_t im = 0; im < nm; im++) {
             if (bf_ind_m[im].empty()) continue;
+            // Pblk * dr_m and Pblk * dth_m are two more (nbf x nbf) x
+            // (nbf x nang) products per block -- together the dominant
+            // cost of the meta-GGA path, and identical between mirrored
+            // partners since Pblk, dr_m, dth_m and m^2 all are. Build
+            // them once, share the result, and weight kin.
+            const size_t imirror = share ? mirror_block(im) : nm;
+            if (mlist[im] < 0 && imirror != nm) continue;
+            const double wpair = (mlist[im] > 0 && imirror != nm) ? 2.0 : 1.0;
             const helfem::Matrix Pblk = gather_block(P, bf_ind_m[im]);
             Pv_dr_m[im]  = Pblk * dr_m[im];
             Pv_dth_m[im] = Pblk * dth_m[im];
+            if (imirror != nm && mlist[im] > 0) {
+              Pv_dr_m[imirror]  = Pv_dr_m[im];
+              Pv_dth_m[imirror] = Pv_dth_m[im];
+            }
             const double m2 = (double) (mlist[im] * mlist[im]);
             for (Eigen::Index ia = 0; ia < nang; ia++) {
               const double kr = (Pv_dr_m[im].col(ia).array()  * dr_m[im].col(ia).array()).sum()  * inv_scale_r2(ia);
@@ -295,7 +312,7 @@ namespace helfem {
               // Analytic phi contribution: d psi / d phi = i m psi, so
               // |d psi / d phi|^2 = m^2 |psi|^2 -> m^2 rho_m / h_phi^2.
               const double kp = m2 * rho_m[im](ia) * inv_scale_phi2(ia);
-              kin(ia) += kr + kt + kp;
+              kin(ia) += wpair * (kr + kt + kp);
             }
           }
 
@@ -313,7 +330,10 @@ namespace helfem {
             lapl = helfem::Matrix::Zero(1, nang);
             for (size_t im = 0; im < nm; im++) {
               if (bf_ind_m[im].empty()) continue;
-              lapl.row(0) += 2.0 * (Pv_m[im].array() * bf_lapl_m[im].array()).colwise().sum().matrix();
+              const size_t imirror = share ? mirror_block(im) : nm;
+              if (mlist[im] < 0 && imirror != nm) continue;
+              const double w = (mlist[im] > 0 && imirror != nm) ? 2.0 : 1.0;
+              lapl.row(0) += (2.0 * w) * (Pv_m[im].array() * bf_lapl_m[im].array()).colwise().sum().matrix();
             }
             lapl.row(0) += 2.0 * kin.transpose();
           }

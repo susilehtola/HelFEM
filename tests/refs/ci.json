@@ -780,6 +780,62 @@
       "nel_err": 4.796e-14,
       "nuclear": -136.0439884514,
       "total": -54.7674295848
+    },
+    "diatomic-Ne-dummy-gga": {
+      "Coulomb": 65.8431102189,
+      "Enucr": 0.0,
+      "Exx": 0.0,
+      "XC": -12.3745235069,
+      "_converged": true,
+      "_iterations": 6,
+      "_seconds": 67.7,
+      "err": 4.796,
+      "kinetic": 128.5626504546,
+      "nel_err": 4.796e-14,
+      "nuclear": -310.8976634256,
+      "total": -128.866426259
+    },
+    "diatomic-Ne-dummy-gga-absm": {
+      "Coulomb": 65.8430908473,
+      "Enucr": 0.0,
+      "Exx": 0.0,
+      "XC": -12.3745211257,
+      "_converged": true,
+      "_iterations": 6,
+      "_seconds": 73.0,
+      "err": 4.086,
+      "kinetic": 128.5626339641,
+      "nel_err": 4.086e-14,
+      "nuclear": -310.8976299448,
+      "total": -128.866426259
+    },
+    "diatomic-Ne-dummy-mgga": {
+      "Coulomb": 65.9281594454,
+      "Enucr": 0.0,
+      "Exx": 0.0,
+      "XC": -12.5034147616,
+      "_converged": true,
+      "_iterations": 6,
+      "_seconds": 83.6,
+      "err": 6.928,
+      "kinetic": 128.675543347,
+      "nel_err": 6.928e-14,
+      "nuclear": -311.0813910368,
+      "total": -128.981103006
+    },
+    "diatomic-Ne-dummy-mgga-absm": {
+      "Coulomb": 65.9281582423,
+      "Enucr": 0.0,
+      "Exx": 0.0,
+      "XC": -12.503414604,
+      "_converged": true,
+      "_iterations": 6,
+      "_seconds": 77.4,
+      "err": 2.132,
+      "kinetic": 128.6755414405,
+      "nel_err": 2.132e-14,
+      "nuclear": -311.0813880849,
+      "total": -128.981103006
     }
   },
   "metadata": {
