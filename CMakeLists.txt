@@ -410,6 +410,17 @@ if(HELFEM_BINARIES)
 endif()
 
 # ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+# enable_testing() has to be called from the top level for `ctest` and
+# `make test` to find anything. Registration itself lives in tests/, which
+# adds both the self-checking unit binaries and the Python integration
+# harness. Plain `ctest` stays in the minutes range; the slow tier is
+# opt-in via -DHELFEM_SLOW_TESTS=ON.
+enable_testing()
+add_subdirectory(tests)
+
+# ---------------------------------------------------------------------------
 # Export an installed CMake package
 # ---------------------------------------------------------------------------
 # Consumers then do
