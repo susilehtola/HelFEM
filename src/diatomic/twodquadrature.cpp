@@ -14,6 +14,7 @@
  */
 
 #include "twodquadrature.h"
+#include "../general/atomdb.h"
 #include "chebyshev.h"
 #include "../general/lcao.h"
 #include "../general/model_potential.h"
@@ -394,6 +395,50 @@ namespace helfem {
         // Use the Eigen-native boundary removal (same cached pure index list
         // as the Fock path); no arma round trip.
         return basp->remove_boundaries(H);
+      }
+
+      helfem::Matrix TwoDGrid::atomdb_projection(int Z, int l, int m, probe_t p) {
+        const helfem::atomdb::Atom at(Z);
+        // The radial functions the database stores; ao_projection takes
+        // any callable of r, so nothing else has to change.
+        auto compute_ao = [&at, l](double r) { return at.orbitals(l, r); };
+
+        const int norb = helfem::atomdb::norb(Z, l);
+        helfem::Matrix S = helfem::Matrix::Zero(std::max(norb, 0), basp->Ndummy());
+        if (norb <= 0)
+          return S(Eigen::all, basp->pure_indices());
+
+        TwoDGridWorker grid(basp, lang);
+        for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+          for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
+            grid.compute_bf(iel,irad,m);
+            grid.ao_projection(compute_ao, p);
+            grid.multiply_Plm(l, m, p);
+            grid.eval_proj(S);
+          }
+        }
+        return S(Eigen::all,basp->pure_indices());
+      }
+
+      helfem::Matrix TwoDGrid::atomdb_overlap(int Z, int l, int m, probe_t p) {
+        const helfem::atomdb::Atom at(Z);
+        auto compute_ao = [&at, l](double r) { return at.orbitals(l, r); };
+
+        const int norb = helfem::atomdb::norb(Z, l);
+        helfem::Matrix S = helfem::Matrix::Zero(std::max(norb, 0), std::max(norb, 0));
+        if (norb <= 0)
+          return S;
+
+        TwoDGridWorker grid(basp, lang);
+        for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+          for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
+            grid.compute_bf(iel,irad,m);
+            grid.ao_projection(compute_ao, p);
+            grid.multiply_Plm(l, m, p);
+            grid.eval_proj_overlap(S);
+          }
+        }
+        return S;
       }
 
       helfem::Matrix TwoDGrid::gto_projection(int l, int m, const helfem::Vector & expn, probe_t p) {
