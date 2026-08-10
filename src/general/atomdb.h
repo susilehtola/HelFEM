@@ -121,6 +121,21 @@ namespace helfem {
       /// are only piecewise smooth. Feed these to the quadrature.
       helfem::Vector element_boundaries() const;
 
+      /// Radial functions R_nl(r) of the stored orbitals of this l, one
+      /// entry per stored orbital, evaluated at radius r.
+      ///
+      /// The database stores the ORBITALS rather than the density (see
+      /// [[sap-ship-wave-functions-not-potential]]: the density is twice
+      /// their polynomial degree and the potential worse still), so this
+      /// is the primitive a projected guess needs -- everything else here
+      /// is derived from it. The identity that fixes the convention is
+      ///
+      ///     rho(r) = sum_l sum_n occupations(Z,l)(n) * R_nl(r)^2 / (4 pi)
+      ///
+      /// which atomdb_test checks against density() rather than leaving
+      /// the normalization to be rediscovered by each caller.
+      helfem::Vector orbitals(int l, double r) const;
+
       /// Electron density rho(r).
       double density(double r) const;
       /// Radial derivative of the density, d rho / dr. The density is

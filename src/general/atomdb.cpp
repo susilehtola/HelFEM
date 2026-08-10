@@ -145,6 +145,25 @@ namespace helfem {
       return iel;
     }
 
+    helfem::Vector Atom::orbitals(int l, double r) const {
+      const int n = (l >= 0 && l <= data::lmax) ? norb(Z_, l) : 0;
+      helfem::Vector out = helfem::Vector::Zero(std::max(n, 0));
+      if (n <= 0 || r <= 0.0 || r > Rmax_)
+        return out;
+      double xprim;
+      const size_t iel = locate(radial_.get_fem(), r, xprim);
+      helfem::Vector x(1);
+      x(0) = xprim;
+      // get_bf returns B(r)/r, so contracting it with the stored
+      // coefficients gives the radial function R(r) itself, not r*R(r).
+      const helfem::Matrix bf = radial_.get_bf(x, iel);
+      size_t ifirst, ilast;
+      radial_.get_idx(iel, ifirst, ilast);
+      const helfem::Matrix C = coefficients(Z_, l);
+      out = (bf * C.block(ifirst, 0, ilast - ifirst + 1, n)).transpose();
+      return out;
+    }
+
     double Atom::radial_density(double r) const {
       if (r <= 0.0 || r > Rmax_)
         return 0.0;

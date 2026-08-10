@@ -178,6 +178,42 @@ int main(void) {
     }
   }
 
+  // The stored orbitals must reproduce the stored density:
+  //   rho(r) = sum_l sum_n occ_nl R_nl(r)^2 / (4 pi)
+  // This pins the normalization convention of Atom::orbitals -- get_bf
+  // returns B(r)/r, so the contraction is R(r) and not r*R(r) -- so that
+  // a projected guess does not have to rediscover it, and gets it wrong
+  // by a factor of r if it does.
+  {
+    double worst_orb = 0.0;
+    int worst_orb_Z = 0;
+    for (int Z = 1; Z <= helfem::atomdb::max_Z(); Z++) {
+      const helfem::atomdb::Atom at(Z);
+      for (double r : {0.05, 0.2, 0.7, 1.5, 3.0, 8.0, 20.0}) {
+        double rho = 0.0;
+        for (int l = 0; l <= helfem::atomdb::lmax(); l++) {
+          const int n = helfem::atomdb::norb(Z, l);
+          if (n <= 0)
+            continue;
+          const helfem::Vector occ = helfem::atomdb::occupations(Z, l);
+          const helfem::Vector R = at.orbitals(l, r);
+          for (int i = 0; i < n; i++)
+            rho += occ(i) * R(i) * R(i);
+        }
+        rho /= 4.0 * M_PI;
+        const double ref = at.density(r);
+        const double dev = std::abs(rho - ref) / std::max(std::abs(ref), 1e-12);
+        if (dev > worst_orb) { worst_orb = dev; worst_orb_Z = Z; }
+      }
+    }
+    printf("\nWorst orbital-vs-density reconstruction (relative): %.3e (Z = %i)\n",
+           worst_orb, worst_orb_Z);
+    if (worst_orb > 1e-12) {
+      printf("** Atom::orbitals does not reproduce Atom::density.\n");
+      nfail++;
+    }
+  }
+
   printf("\nWorst enclosed-charge deviation from quadrature: %.3e\n", worst_q);
   printf("Worst Hartree-screening deviation from quadrature: %.3e\n", worst_v);
   printf("Worst deviation from the exact r -> 0 / r -> inf limits: %.3e\n", worst_lim);

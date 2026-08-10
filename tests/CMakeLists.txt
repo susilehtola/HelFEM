@@ -22,20 +22,22 @@ find_package(Python3 COMPONENTS Interpreter)
 # Self-contained checks with no reference data, exercising layers the
 # integration suite reaches only indirectly.
 #
-# ONLY binaries that can actually fail are listed. Deliberately excluded:
+# ONLY binaries that can actually fail are listed. atomdb_test was
+# excluded here originally on a faulty grep -- it ends in
+# `return nfail ? 1 : 0;`, an idiom the pattern missed -- and is now
+# registered. Still excluded, verified by reading them:
 #
 #   atomic_itest          takes "nquad R" arguments and, whatever it
 #                         measures, ends in `return 0` -- it prints
 #                         "Error in inner integral is %e" and exits
 #                         successfully no matter how large that error is.
-#   atomdb_test           print-only, no failure path.
 #   diatomic_purem_test   print-only, no failure path -- and 149 s of it.
 #
 # Registering those would report a pass that means nothing, which is
 # worse than not testing them; turning them into real checks is a
 # separate job (they need a tolerance and a non-zero exit).
 foreach(t legendre_test legendre_unit_test gaunt_test sphtest over_r_test
-          checkpoint_precision_test)
+          atomdb_test checkpoint_precision_test)
   if(TARGET ${t})
     add_test(NAME unit.${t} COMMAND ${t})
     set_tests_properties(unit.${t} PROPERTIES LABELS "unit")
