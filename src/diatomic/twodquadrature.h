@@ -116,6 +116,20 @@ namespace helfem {
         helfem::Matrix model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2);
 
         /// Compute GTO projection
+        /// Project the tabulated atomic orbitals of (Z, l) onto the
+        /// diatomic basis, for the atom sitting at probe p. Rows are the
+        /// stored orbitals of that l, columns the diatomic basis
+        /// functions -- the same layout gto_projection returns.
+        ///
+        /// This is the GTO/STO projection with the trial function
+        /// replaced by the database's radial orbitals, which is all a
+        /// projected initial guess needs: ao_projection already takes an
+        /// arbitrary radial function.
+        helfem::Matrix atomdb_projection(int Z, int l, int m, probe_t p);
+        /// Overlap of those same tabulated orbitals with each other on
+        /// this grid, for normalizing the projection.
+        helfem::Matrix atomdb_overlap(int Z, int l, int m, probe_t p);
+
         helfem::Matrix gto_projection(int l, int m, const helfem::Vector & expn, probe_t p);
         /// Compute GTO projection
         helfem::Matrix gto_overlap(int l, int m, const helfem::Vector & expn, probe_t p);
