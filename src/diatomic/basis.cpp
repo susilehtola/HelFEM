@@ -185,11 +185,35 @@ namespace helfem {
                 if(nconv) *nconv = std::max(nstart, 2);
                 return seed;
               }
+              // Report the MAGNITUDE, not just the fact. The failure mode
+              // here is P_L(cosh mu) ~ (cosh mu)^L reaching 1e60 and more
+              // at high L, which no relative convergence test can resolve;
+              // the resulting Fock matrix can carry elements many orders
+              // of magnitude too large, and the SCF then stops early
+              // because the noise floor it infers from that spectrum
+              // swamps the convergence threshold. Printing the scale makes
+              // that visible instead of leaving it to be inferred.
+              // Deliberately no failure counter: converge_block runs inside
+              // the OpenMP exchange loop, and a shared counter would be a
+              // data race for a cosmetic number. The magnitude below is
+              // what identifies the problem anyway.
               if(!twoe_cap_warned) {
                 twoe_cap_warned = true;
+                const double scale = cur.cwiseAbs().maxCoeff();
+                const double rel = (scale > 0.0)
+                    ? (cur - prev).cwiseAbs().maxCoeff() / scale : 0.0;
                 printf("Warning: diatomic %s hit the quadrature order cap"
-                       " (n=%d) without converging to eps(double); using best"
-                       " estimate.\n", what, twoe_nmax);
+                       " (n=%d) without converging to eps(double).\n"
+                       "  block magnitude %.3e, relative change still %.3e\n",
+                       what, twoe_nmax, scale, rel);
+                if(scale > 1e12)
+                  printf("  ** The integrand spans too many orders of magnitude for\n"
+                         "     double precision. Results from this run are NOT\n"
+                         "     trustworthy: the Fock matrix built from these\n"
+                         "     integrals can be wrong by orders of magnitude, and\n"
+                         "     the SCF may stop early because the noise floor it\n"
+                         "     infers from that spectrum exceeds the convergence\n"
+                         "     threshold. Reduce lmax, or reduce Rmax/Rbond.\n");
                 fflush(stdout);
               }
               if(nconv) *nconv = n;
