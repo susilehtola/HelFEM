@@ -30,6 +30,7 @@
 // HF (x_func == 0 && c_func == 0) is deferred; picking any HF method throws.
 
 #include "../general/cmdline.h"
+#include "../general/atomdb.h"
 #include "../general/constants.h"
 #include "../general/dftfuncs.h"
 #include "../general/elements.h"
@@ -104,7 +105,7 @@ int main(int argc, char **argv) {
   // is the default because it typically converges materially faster
   // than the bare core-Hamiltonian guess. Ignored when --load supplies
   // orbitals from a checkpoint.
-  parser.add<int>("iguess", 0, "initial guess: 0 core Hamiltonian, 1 GSZ, 2 SAP (tabulated), 3 Thomas-Fermi, 4 SAP (from the tabulated wave function)", false, 2);
+  parser.add<int>("iguess", 0, "initial guess: 0 core Hamiltonian, 1 GSZ, 2 SAP (tabulated), 3 Thomas-Fermi, 4 SAP (from the tabulated wave function), 5 SAD (tabulated wave functions projected onto the diatomic basis)", false, 2);
 
   // Load orbital guess from a checkpoint written by an earlier run.
   parser.add<std::string>("load", 0, "load orbital guess from checkpoint file", false, "");
@@ -487,7 +488,72 @@ int main(int argc, char **argv) {
   //     is the default because it typically converges materially
   //     faster than core-H.
   helfem::Matrix Vguess;
-  if (iguess == 0) {
+  if (iguess == 5) {
+    // SAD: superpose the tabulated ATOMIC DENSITIES, obtained by
+    // projecting the database's orbitals onto this basis, and use the
+    // mean field they generate. The SAP options above approximate that
+    // mean field by a fitted local potential; here it is built from the
+    // density itself, so no fit is involved.
+    if (verbosity >= 1)
+      printf("Guess orbitals from the tabulated atomic wave functions, "
+             "projected onto the diatomic basis\n");
+    const int lquad = 4 * lmmax.maxCoeff() + 12;
+    helfem::diatomic::twodquad::TwoDGrid qgrid(&basis, lquad);
+    // Whole-basis orthonormalization: the guess density is assembled in
+    // the AO basis and only afterwards split into symmetry blocks.
+    const helfem::Matrix Sinvh_full = basis.Sinvh(false, 0);
+    const Eigen::VectorXi basis_m = basis.get_mval();
+    const int mlo = basis_m.minCoeff(), mhi = basis_m.maxCoeff();
+
+    helfem::Matrix Psad = helfem::Matrix::Zero(Nbf, Nbf);
+    auto add_centre = [&](int Z, helfem::diatomic::twodquad::probe_t probe) {
+      if (Z <= 0)
+        return;   // a dummy centre carries no electrons
+      for (int l = 0; l <= helfem::atomdb::lmax(); l++) {
+        const int norb = helfem::atomdb::norb(Z, l);
+        if (norb <= 0)
+          continue;
+        const helfem::Vector occ = helfem::atomdb::occupations(Z, l);
+        for (int m = -l; m <= l; m++) {
+          if (m < mlo || m > mhi)
+            continue;   // this m is not in the basis at all
+          const helfem::Matrix proj = qgrid.atomdb_projection(Z, l, m, probe);
+          // proj holds <psi_a|chi_i>, so the AO coefficients are
+          // C = S^-1 proj^T, which Sinvh gives as Sinvh (proj Sinvh)^T.
+          const helfem::Matrix C = Sinvh_full * (proj * Sinvh_full).transpose();
+          for (int a = 0; a < norb; a++) {
+            // The stored occupation is summed over the 2l+1 components,
+            // and the atom is spherical, so each m carries its share.
+            const double w = occ(a) / (2.0 * l + 1.0);
+            if (w <= 0.0)
+              continue;
+            Psad += w * (C.col(a) * C.col(a).transpose());
+          }
+        }
+      }
+    };
+    add_centre(Z1, helfem::diatomic::twodquad::PROBE_LEFT);
+    add_centre(Z2, helfem::diatomic::twodquad::PROBE_RIGHT);
+
+    // The mean field of that density, in the same channels the SCF uses.
+    Vguess = Vnuc + basis.coulomb(Psad);
+    if (have_xc) {
+      helfem::Matrix XCg;
+      double Excg = 0.0, nelg = 0.0, eking = 0.0;
+      if (purem_xc)
+        pmgrid.eval_Fxc(x_func, x_pars, c_func, c_pars, Psad, XCg,
+                        Excg, nelg, eking, dftthr);
+      else
+        grid.eval_Fxc(x_func, x_pars, c_func, c_pars, Psad, XCg,
+                      Excg, nelg, eking, dftthr);
+      Vguess += XCg;
+      if (verbosity >= 1)
+        printf("SAD guess density carries %.6f electrons (nuclear total %i)\n",
+               nelg, Z1 + Z2);
+    }
+    if (have_exx)
+      Vguess += kfrac * basis.exchange(0.5 * Psad);
+  } else if (iguess == 0) {
     if (verbosity >= 1)
       printf("Guess orbitals from core Hamiltonian\n");
     Vguess = Vnuc;
@@ -519,7 +585,7 @@ int main(int argc, char **argv) {
       p2 = new modelpotential::SAPFEAtom(Z2);
       break;
     default:
-      throw std::logic_error("Unsupported iguess value (expected 0..4).\n");
+      throw std::logic_error("Unsupported iguess value (expected 0..5).\n");
     }
     const int lquad = 4 * lmmax.maxCoeff() + 12;
     helfem::diatomic::twodquad::TwoDGrid qgrid(&basis, lquad);
