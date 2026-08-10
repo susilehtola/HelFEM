@@ -37,7 +37,7 @@ find_package(Python3 COMPONENTS Interpreter)
 # worse than not testing them; turning them into real checks is a
 # separate job (they need a tolerance and a non-zero exit).
 foreach(t legendre_test legendre_unit_test gaunt_test sphtest over_r_test
-          atomdb_test checkpoint_precision_test)
+          atomdb_test diatomic_projection_test checkpoint_precision_test)
   if(TARGET ${t})
     add_test(NAME unit.${t} COMMAND ${t})
     set_tests_properties(unit.${t} PROPERTIES LABELS "unit")

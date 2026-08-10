@@ -77,6 +77,11 @@ target_link_libraries(1e_atom helfem-common legendre)
 add_executable(diatomic_purem_test diatomic/purem_test.cpp)
 target_link_libraries(diatomic_purem_test helfem-common legendre)
 
+# Checks the projection of the tabulated atomic orbitals onto the diatomic
+# basis, which the projected initial guess is built from.
+add_executable(diatomic_projection_test diatomic/projection_test.cpp)
+target_link_libraries(diatomic_projection_test helfem-common legendre)
+
 # Arbitrary-precision demonstration: the same FEM code at several scalar types.
 add_executable(precision harmonic/precision.cpp)
 target_link_libraries(precision helfem-common legendre)
