@@ -48,9 +48,9 @@ int main(int argc, char **argv) {
   parser.add<int>("grid", 0, "type of grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 1.0);
   parser.add<int>("nelem", 0, "number of elements", true);
-  parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
+  parser.add<int>("nnodes", 0, "number of nodes per element", false, 8);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
-  parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
+  parser.add<int>("primbas", 0, "primitive radial basis", false, 5);
   parser.add<std::string>("save", 0, "save calculation to checkpoint", false, "helfem.chk");
   parser.parse_check(argc, argv);
 

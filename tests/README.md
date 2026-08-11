@@ -197,6 +197,26 @@ The harness can still be driven directly, which is what CI does:
 
     python3 run_tests.py --check refs/ci.json --tag ci --bindir <builddir>/src -j4
 
+## The default radial basis
+
+The binaries default to 8-node first-order Hermite interpolating
+polynomials (`--primbas=5 --nnodes=8`), replacing 15-node LIPs of the
+same polynomial degree. LIPs are only C0 -- the first derivative jumps
+at element boundaries -- which corrupts the density Laplacian and with
+it every tau/Laplacian-dependent (meta-GGA) functional: the corruption
+grows with the element count, produced Fock matrices wrong by orders of
+magnitude at large grids, and was the actual cause of the mGGA
+cross-code failures first attributed to under-converged grids. HIP1 is
+C1, so the Laplacian is well defined everywhere.
+
+Suite cases deliberately do NOT pin `--nnodes` or `--primbas`: they run
+whatever the binaries default to, so the default path is what is
+tested. Measured at the switchover: HF, LDA, hybrid, RSH, gensap and
+aij references survived unchanged (drift <= 1e-10); GGA moved ~2e-8 and
+mGGA ~1e-7 (the C0 contamination leaving), and those references were
+regenerated. The +-|m| invariant pairs became bit-identical on the new
+basis where they previously agreed to 3e-10.
+
 ## Cross-code invariants
 
 Every element in this suite is closed-shell, single-s-electron or half-filled,

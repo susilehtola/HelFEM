@@ -43,7 +43,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--restricted=0"
       ]
@@ -62,7 +61,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ]
@@ -81,7 +79,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe-gga_c_pbe",
         "--restricted=0"
       ]
@@ -100,7 +97,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=mgga_x_tpss-mgga_c_tpss",
         "--restricted=0"
       ]
@@ -119,7 +115,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_b3lyp",
         "--restricted=0"
       ]
@@ -138,7 +133,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--restricted=1"
       ]
@@ -157,7 +151,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--restricted=0"
       ]
@@ -176,7 +169,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=1"
       ]
@@ -195,7 +187,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ]
@@ -214,7 +205,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe-gga_c_pbe",
         "--restricted=1"
       ]
@@ -233,7 +223,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe-gga_c_pbe",
         "--restricted=0"
       ]
@@ -252,7 +241,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=mgga_x_tpss-mgga_c_tpss",
         "--restricted=1"
       ]
@@ -271,7 +259,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=mgga_x_tpss-mgga_c_tpss",
         "--restricted=0"
       ]
@@ -290,7 +277,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_b3lyp",
         "--restricted=1"
       ]
@@ -309,7 +295,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_b3lyp",
         "--restricted=0"
       ]
@@ -329,7 +314,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_cam_b3lyp",
         "--restricted=1"
       ]
@@ -349,7 +333,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_cam_b3lyp",
         "--restricted=0"
       ]
@@ -369,7 +352,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_camy_b3lyp",
         "--restricted=1"
       ]
@@ -389,7 +371,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_camy_b3lyp",
         "--restricted=0"
       ]
@@ -408,7 +389,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--restricted=1"
       ],
@@ -428,7 +408,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--restricted=0"
       ],
@@ -448,7 +427,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=1"
       ],
@@ -468,7 +446,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ],
@@ -487,7 +464,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe-gga_c_pbe",
         "--restricted=1"
       ],
@@ -506,7 +482,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe-gga_c_pbe",
         "--restricted=0"
       ],
@@ -525,7 +500,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=mgga_x_tpss-mgga_c_tpss",
         "--restricted=1"
       ],
@@ -544,7 +518,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=mgga_x_tpss-mgga_c_tpss",
         "--restricted=0"
       ],
@@ -563,7 +536,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_b3lyp",
         "--restricted=1"
       ],
@@ -582,7 +554,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_b3lyp",
         "--restricted=0"
       ],
@@ -603,7 +574,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_cam_b3lyp",
         "--restricted=1"
       ],
@@ -624,7 +594,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_cam_b3lyp",
         "--restricted=0"
       ],
@@ -645,7 +614,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_camy_b3lyp",
         "--restricted=1"
       ],
@@ -666,7 +634,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_camy_b3lyp",
         "--restricted=0"
       ],
@@ -686,7 +653,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--restricted=1"
       ]
@@ -705,7 +671,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--restricted=0"
       ]
@@ -724,7 +689,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=1"
       ]
@@ -743,7 +707,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ]
@@ -762,7 +725,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe-gga_c_pbe",
         "--restricted=1"
       ]
@@ -781,7 +743,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe-gga_c_pbe",
         "--restricted=0"
       ]
@@ -800,7 +761,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=mgga_x_tpss-mgga_c_tpss",
         "--restricted=1"
       ]
@@ -819,7 +779,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=mgga_x_tpss-mgga_c_tpss",
         "--restricted=0"
       ]
@@ -838,7 +797,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_b3lyp",
         "--restricted=1"
       ]
@@ -857,7 +815,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_b3lyp",
         "--restricted=0"
       ]
@@ -878,7 +835,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_cam_b3lyp",
         "--restricted=1"
       ]
@@ -899,7 +855,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_cam_b3lyp",
         "--restricted=0"
       ]
@@ -920,7 +875,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_camy_b3lyp",
         "--restricted=1"
       ]
@@ -941,7 +895,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_camy_b3lyp",
         "--restricted=0"
       ]
@@ -959,7 +912,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--restricted=1"
       ]
@@ -977,7 +929,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--restricted=0"
       ]
@@ -995,7 +946,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=1"
       ]
@@ -1013,7 +963,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ]
@@ -1031,7 +980,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe-gga_c_pbe",
         "--restricted=1"
       ]
@@ -1049,7 +997,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe-gga_c_pbe",
         "--restricted=0"
       ]
@@ -1067,7 +1014,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=mgga_x_tpss-mgga_c_tpss",
         "--restricted=1"
       ]
@@ -1085,7 +1031,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=mgga_x_tpss-mgga_c_tpss",
         "--restricted=0"
       ]
@@ -1103,7 +1048,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_b3lyp",
         "--restricted=1"
       ]
@@ -1121,7 +1065,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_b3lyp",
         "--restricted=0"
       ]
@@ -1141,7 +1084,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_cam_b3lyp",
         "--restricted=1"
       ]
@@ -1161,7 +1103,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_cam_b3lyp",
         "--restricted=0"
       ]
@@ -1181,7 +1122,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_camy_b3lyp",
         "--restricted=1"
       ]
@@ -1201,7 +1141,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_camy_b3lyp",
         "--restricted=0"
       ]
@@ -1220,7 +1159,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=1"
       ]
@@ -1239,7 +1177,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ]
@@ -1257,7 +1194,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=1"
       ]
@@ -1275,7 +1211,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ]
@@ -1294,7 +1229,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=1"
       ]
@@ -1313,7 +1247,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ]
@@ -1331,7 +1264,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=1"
       ]
@@ -1349,7 +1281,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ]
@@ -1368,7 +1299,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=1"
       ]
@@ -1387,7 +1317,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ]
@@ -1405,7 +1334,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=1"
       ]
@@ -1423,7 +1351,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ]
@@ -1444,7 +1371,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=1"
       ],
@@ -1465,7 +1391,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ]
@@ -1484,7 +1409,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=1"
       ]
@@ -1503,7 +1427,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ]
@@ -1522,7 +1445,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=1"
       ]
@@ -1541,7 +1463,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn",
         "--restricted=0"
       ]
@@ -1562,7 +1483,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--symmetry=1",
         "--readocc=1"
@@ -1587,7 +1507,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--symmetry=1",
         "--readocc=1"
@@ -1612,7 +1531,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--symmetry=1",
         "--readocc=1"
@@ -1636,7 +1554,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe-gga_c_pbe",
         "--symmetry=1",
         "--readocc=1"
@@ -1660,7 +1577,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe-gga_c_pbe",
         "--symmetry=1",
         "--readocc=1"
@@ -1684,7 +1600,6 @@
         "--lmax=1",
         "--mmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe-gga_c_pbe",
         "--symmetry=1",
         "--readocc=1"
@@ -1708,7 +1623,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--symmetry=1",
         "--readocc=1",
@@ -1733,7 +1647,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--symmetry=1",
         "--readocc=1",
@@ -1758,7 +1671,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--symmetry=1",
         "--readocc=1",
@@ -1783,7 +1695,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF",
         "--symmetry=1",
         "--readocc=1",
@@ -1807,7 +1718,6 @@
         "--Z2=1",
         "--Rbond=1.4",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=1",
@@ -1829,7 +1739,6 @@
         "--Z2=1",
         "--Rbond=1.4",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=1",
@@ -1850,7 +1759,6 @@
         "--Z2=1",
         "--Rbond=1.4",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=1",
@@ -1871,7 +1779,6 @@
         "--Z2=1",
         "--Rbond=1.4",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=1",
@@ -1893,7 +1800,6 @@
         "--Z2=1",
         "--Rbond=2.538",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=12",
         "--nela=3",
         "--nelb=2",
@@ -1915,7 +1821,6 @@
         "--Z2=1",
         "--Rbond=2.538",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=12",
         "--nela=3",
         "--nelb=2",
@@ -1938,7 +1843,6 @@
         "--Z2=1",
         "--Rbond=1.958",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,11",
         "--nela=5",
         "--nelb=3",
@@ -1961,7 +1865,6 @@
         "--Z2=1",
         "--Rbond=1.958",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,11",
         "--nela=5",
         "--nelb=3",
@@ -1983,7 +1886,6 @@
         "--Z2=7",
         "--Rbond=2.07",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,9",
         "--nela=7",
         "--nelb=7",
@@ -2005,7 +1907,6 @@
         "--Z2=7",
         "--Rbond=2.07",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,9",
         "--nela=7",
         "--nelb=7",
@@ -2027,7 +1928,6 @@
         "--Z2=7",
         "--Rbond=2.07",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,9",
         "--nela=7",
         "--nelb=7",
@@ -2049,7 +1949,6 @@
         "--Z2=7",
         "--Rbond=2.07",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,9",
         "--nela=7",
         "--nelb=7",
@@ -2073,7 +1972,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe"
       ]
     },
@@ -2094,7 +1992,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--method=gga_x_pbe",
         "--symmetry=2",
         "--readocc=1"
@@ -2119,7 +2016,6 @@
         "--Z2=1",
         "--Rbond=1.4",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=1",
@@ -2143,7 +2039,6 @@
         "--Z2=1",
         "--Rbond=1.4",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=1",
@@ -2167,7 +2062,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_cam_b3lyp",
         "--restricted=0"
       ]
@@ -2188,7 +2082,6 @@
         "--lmax=0",
         "--mmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=hyb_gga_xc_camy_b3lyp",
         "--restricted=0"
       ]
@@ -2206,7 +2099,6 @@
         "--M=2",
         "--lmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF"
       ]
     },
@@ -2223,7 +2115,6 @@
         "--M=1",
         "--lmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF"
       ]
     },
@@ -2240,7 +2131,6 @@
         "--M=1",
         "--lmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn"
       ]
     },
@@ -2256,7 +2146,6 @@
         "--M=1",
         "--lmax=0",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn"
       ]
     },
@@ -2272,7 +2161,6 @@
         "--M=4",
         "--lmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=HF"
       ]
     },
@@ -2288,7 +2176,6 @@
         "--M=1",
         "--lmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn"
       ]
     },
@@ -2304,7 +2191,6 @@
         "--M=4",
         "--lmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn"
       ]
     },
@@ -2320,7 +2206,6 @@
         "--M=1",
         "--lmax=1",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn"
       ]
     },
@@ -2337,7 +2222,6 @@
         "--M=7",
         "--lmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn"
       ]
     },
@@ -2354,7 +2238,6 @@
         "--M=1",
         "--lmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--method=lda_x-lda_c_vwn"
       ]
     },
@@ -2369,7 +2252,6 @@
         "--Z=Al",
         "--M=2",
         "--nelem=5",
-        "--nnodes=10",
         "--method=lda_x",
         "--njellium=6",
         "--rs=2.07"
@@ -2388,7 +2270,6 @@
         "--Z=Al",
         "--M=2",
         "--nelem=5",
-        "--nnodes=10",
         "--njellium=0",
         "--rs=2.07",
         "--method=lda_x"
@@ -2408,7 +2289,6 @@
         "--M=2",
         "--lmax=2",
         "--nelem=5",
-        "--nnodes=10",
         "--method=lda_x"
       ]
     },
@@ -2428,7 +2308,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=6",
         "--nela=1",
         "--nelb=1",
@@ -2450,7 +2329,6 @@
         "--Z2=1",
         "--Rbond=1.4",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=1",
@@ -2474,7 +2352,6 @@
         "--Z2=1",
         "--Rbond=1.4",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=1",
@@ -2497,7 +2374,6 @@
         "--Z2=1",
         "--Rbond=1.4",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=1",
@@ -2521,7 +2397,6 @@
         "--Z2=1",
         "--Rbond=1.4",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=1",
@@ -2543,7 +2418,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=0",
@@ -2564,7 +2438,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=0",
@@ -2585,7 +2458,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=0",
@@ -2606,7 +2478,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=0",
@@ -2627,7 +2498,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=0",
@@ -2648,7 +2518,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=6",
         "--nela=1",
         "--nelb=1",
@@ -2669,7 +2538,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=6",
         "--nela=1",
         "--nelb=1",
@@ -2690,7 +2558,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=6",
         "--nela=1",
         "--nelb=1",
@@ -2711,7 +2578,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=6",
         "--nela=1",
         "--nelb=1",
@@ -2732,7 +2598,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=8",
         "--nela=2",
         "--nelb=2",
@@ -2753,7 +2618,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=8",
         "--nela=2",
         "--nelb=2",
@@ -2774,7 +2638,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=8",
         "--nela=2",
         "--nelb=2",
@@ -2795,7 +2658,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=8",
         "--nela=2",
         "--nelb=2",
@@ -2816,7 +2678,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=8",
         "--nela=2",
         "--nelb=2",
@@ -2837,7 +2698,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=11,9",
         "--nela=5",
         "--nelb=2",
@@ -2858,7 +2718,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=11,9",
         "--nela=5",
         "--nelb=2",
@@ -2879,7 +2738,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=11,9",
         "--nela=5",
         "--nelb=2",
@@ -2900,7 +2758,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=11,9",
         "--nela=5",
         "--nelb=2",
@@ -2921,7 +2778,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=11,9",
         "--nela=5",
         "--nelb=2",
@@ -2943,7 +2799,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,9",
         "--nela=5",
         "--nelb=5",
@@ -2965,7 +2820,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,9",
         "--nela=5",
         "--nelb=5",
@@ -2987,7 +2841,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,9",
         "--nela=5",
         "--nelb=5",
@@ -3009,7 +2862,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,9",
         "--nela=5",
         "--nelb=5",
@@ -3030,7 +2882,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,9",
         "--nela=5",
         "--nelb=5",
@@ -3052,7 +2903,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,11",
         "--nela=6",
         "--nelb=5",
@@ -3074,7 +2924,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,11",
         "--nela=6",
         "--nelb=6",
@@ -3096,7 +2945,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=15,11",
         "--nela=9",
         "--nelb=6",
@@ -3118,7 +2966,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=17,13",
         "--nela=9",
         "--nelb=9",
@@ -3140,7 +2987,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=17,13",
         "--nela=10",
         "--nelb=9",
@@ -3162,7 +3008,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=17,13",
         "--nela=10",
         "--nelb=10",
@@ -3184,7 +3029,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--symmetry=1",
         "--readocc=1",
         "--method=lda_x-lda_c_vwn",
@@ -3209,7 +3053,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--symmetry=1",
         "--readocc=1",
         "--method=lda_x-lda_c_vwn",
@@ -3234,7 +3077,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--symmetry=1",
         "--readocc=1",
         "--method=lda_x-lda_c_vwn",
@@ -3259,7 +3101,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--symmetry=1",
         "--readocc=1",
         "--method=lda_x-lda_c_vwn",
@@ -3283,7 +3124,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--symmetry=1",
         "--readocc=1",
         "--method=gga_x_pbe-gga_c_pbe",
@@ -3307,7 +3147,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--symmetry=1",
         "--readocc=1",
         "--method=gga_x_pbe-gga_c_pbe",
@@ -3331,7 +3170,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--symmetry=1",
         "--readocc=1",
         "--method=gga_x_pbe-gga_c_pbe",
@@ -3355,7 +3193,6 @@
         "--lmax=2",
         "--mmax=2",
         "--nelem=5",
-        "--nnodes=15",
         "--symmetry=1",
         "--readocc=1",
         "--method=gga_x_pbe-gga_c_pbe",
@@ -3382,7 +3219,6 @@
         "--Z2=1",
         "--Rbond=2.116",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,11",
         "--nela=4",
         "--nelb=3",
@@ -3411,7 +3247,6 @@
         "--Z2=1",
         "--Rbond=2.116",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,11",
         "--nela=4",
         "--nelb=3",
@@ -3440,7 +3275,6 @@
         "--Z2=1",
         "--Rbond=2.116",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,11",
         "--nela=4",
         "--nelb=3",
@@ -3469,7 +3303,6 @@
         "--Z2=1",
         "--Rbond=2.116",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,11",
         "--nela=4",
         "--nelb=3",
@@ -3497,7 +3330,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=0",
@@ -3520,7 +3352,6 @@
         "--Z2=1",
         "--Rbond=2.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=0",
@@ -3542,7 +3373,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,9",
         "--nela=5",
         "--nelb=5",
@@ -3565,7 +3395,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,9",
         "--nela=5",
         "--nelb=5",
@@ -3588,7 +3417,6 @@
         "--Z2=1",
         "--Rbond=1.4",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=4",
         "--nela=1",
         "--nelb=1",
@@ -3613,7 +3441,6 @@
         "--Z2=1",
         "--Rbond=2.116",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,11",
         "--nela=4",
         "--nelb=3",
@@ -3637,7 +3464,6 @@
         "--Z2=1",
         "--Rbond=1.958",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,11",
         "--nela=5",
         "--nelb=3",
@@ -3662,7 +3488,6 @@
         "--Z2=1",
         "--Rbond=1.958",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,11",
         "--nela=5",
         "--nelb=3",
@@ -3687,7 +3512,6 @@
         "--Z2=1",
         "--Rbond=2.116",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,11",
         "--nela=4",
         "--nelb=3",
@@ -3710,7 +3534,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,9",
         "--nela=5",
         "--nelb=5",
@@ -3733,7 +3556,6 @@
         "--Z2=0",
         "--Rbond=1.0",
         "--nelem=3",
-        "--nnodes=15",
         "--lmax=13,9",
         "--nela=5",
         "--nelb=5",

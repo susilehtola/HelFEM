@@ -62,8 +62,8 @@ int main(int argc, char **argv) {
 
   parser.add<double>("xmax",   0, "practical infinity in au",   false, 40.0);
   parser.add<int>("nelem",     0, "number of elements",         false, 5);
-  parser.add<int>("nnodes",    0, "number of elements",         false, 15);
-  parser.add<int>("primbas",   0, "primitive basis",            false, 4);
+  parser.add<int>("nnodes",    0, "number of elements",         false, 8);
+  parser.add<int>("primbas",   0, "primitive basis",            false, 5);
   parser.add<int>("nquad",     0, "primitive basis",            false, -1);
   parser.add<int>("Z1",        0, "primitive basis",            true);
   parser.add<int>("Z2",        0, "primitive basis",            true);

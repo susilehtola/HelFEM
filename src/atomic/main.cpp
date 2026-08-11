@@ -64,13 +64,13 @@ int main(int argc, char **argv) {
   parser.add<double>("zexp0", 0, "parameter in radial grid", false, 2.0);
   parser.add<int>("nelem", 0, "number of elements", true);
   parser.add<int>("nelem0", 0, "number of elements between center and off-center nuclei", false, 0);
-  parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
+  parser.add<int>("nnodes", 0, "number of nodes per element", false, 8);
   parser.add<int>("nquad", 0, "radial quadrature points: DFT grid + auto-convergence seed (no longer sets HF/2e integral accuracy, which now converges automatically; still sets the erfc/range-separated rule)", false, 0);
   parser.add<std::string>("method", 0, "DFT method to use", false, "lda_x");
   parser.add<int>("ldft", 0, "theta rule for dft quadrature (0 for auto)", false, 0);
   parser.add<int>("mdft", 0, "phi rule for dft quadrature (0 for auto)", false, 0);
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
-  parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
+  parser.add<int>("primbas", 0, "primitive radial basis", false, 5);
   parser.add<int>("finitenuc", 0, "finite nuclear model", false, 0);
   parser.add<double>("Rrms", 0, "finite nuclear rms radius", false, 0.0);
   parser.add<int>("restricted", 0, "spin-restricted: 1 restricted, 0 unrestricted, -1 auto from nela/nelb", false, -1);
