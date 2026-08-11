@@ -197,6 +197,37 @@ The harness can still be driven directly, which is what CI does:
 
     python3 run_tests.py --check refs/ci.json --tag ci --bindir <builddir>/src -j4
 
+## Grid requirements, measured on the HIP1 default (2026-08-11)
+
+Radial elements needed for 1e-8 absolute convergence of the total energy
+(nnodes=8 HIP1, open shells unrestricted, certified against nelem=16):
+
+|      | HF | LDA | PBE | TPSS | B3LYP |
+|------|----|-----|-----|------|-------|
+| H    | 3  | 3   | 3   | 3    | 3     |
+| He   | 4  | 3   | 3   | 3    | 3     |
+| Be   | 4  | 4   | 8   | 12   | 4     |
+| N    | 4  | 3   | 5   | 12   | 5     |
+| Ne   | 5  | 5   | 5   | 8    | 5     |
+
+The meta-GGA hunger is genuine physics of the tau ingredient, not a
+basis defect: it survives on the C1 basis, is unchanged by dropping the
+TPSS correlation, is *worse* under r2SCAN, and is untouched by raising
+the DFT quadrature from 80 to 400 points (bit-identical). There is no
+cheap knob; the mGGA cases simply carry the elements they need.
+
+Heavy elements (Zn, Kr) do not reach 1e-8 ABSOLUTE at any measured grid
+-- at -2750 Eh that would be 4e-12 relative, which is not a meaningful
+criterion. Their cases are regression pins at stated grids; their
+convergence claim is relative (~1e-9).
+
+The dummy-centre GGA/mGGA cross-checks run at their measured sweet spots
+(Be lmax=12, N 13,11, Ne 15,11, all nelem=5), where the diatomic side
+agrees with the converged atomic value to ~1e-7 (GGA) and ~2e-6 (mGGA);
+the invariant tolerances (1e-6 / 5e-6) encode exactly that. Molecular
+grids (H2, N2) are regression pins; N2's lmax=13,9 sits ~2e-6 from
+angular convergence, which is documented rather than chased.
+
 ## The default radial basis
 
 The binaries default to 8-node first-order Hermite interpolating
