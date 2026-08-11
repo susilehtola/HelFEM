@@ -11,8 +11,8 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-#ifndef HELFEM_FEM_HIPBASIS_OVER_R_H
-#define HELFEM_FEM_HIPBASIS_OVER_R_H
+#ifndef LIB1DFEM_HIPBASIS_OVER_R_H
+#define LIB1DFEM_HIPBASIS_OVER_R_H
 
 #include <types.h>
 #include <LIPBasis_eval.h>
@@ -119,8 +119,7 @@ void eval_hip_prim_over_r(const Vec<T> & x, const Vec<T> & x0,
         case 0:
           switch (kind) {
           case 0: {
-            const T cse0 = T(2)*dLxi_v;
-            R = (pr)*(pr)*(xv + T(1))*(cse0*xi - cse0*xv + T(1))/std::pow(xi + T(1), T(2));
+            R = (pr)*(pr)*(xv + T(1))*(-T(2)*dLxi_v*(-xi + xv) + T(1))/std::pow(xi + T(1), T(2));
           } break;
           case 1: {
             R = (pr)*(pr)*(-xi + xv)*(xv + T(1))/std::pow(xi + T(1), T(2));
@@ -133,7 +132,7 @@ void eval_hip_prim_over_r(const Vec<T> & x, const Vec<T> & x0,
             const T cse0 = (pr)*(pr);
             const T cse1 = xv + T(1);
             const T cse2 = T(2)*dLxi_v;
-            const T cse3 = cse2*xi - cse2*xv + T(1);
+            const T cse3 = -cse2*(-xi + xv) + T(1);
             R = (-cse0*cse1*cse2 + cse0*cse3 + T(2)*cse1*cse3*dpr*pr)/std::pow(xi + T(1), T(2));
           } break;
           case 1: {
@@ -148,9 +147,8 @@ void eval_hip_prim_over_r(const Vec<T> & x, const Vec<T> & x0,
           switch (kind) {
           case 0: {
             const T cse0 = T(4)*dLxi_v;
-            const T cse1 = T(2)*xv;
-            const T cse2 = -cse1*dLxi_v + T(2)*dLxi_v*xi + T(1);
-            R = (-cse0*dpr*pr*(cse1 + T(2)) - cse0*(pr)*(pr) + T(4)*cse2*dpr*pr + cse2*(xv + T(1))*(T(2)*ddpr*pr + T(2)*(dpr)*(dpr)))/std::pow(xi + T(1), T(2));
+            const T cse1 = -T(2)*dLxi_v*(-xi + xv) + T(1);
+            R = (-cse0*dpr*pr*(T(2)*xv + T(2)) - cse0*(pr)*(pr) + T(4)*cse1*dpr*pr + cse1*(xv + T(1))*(T(2)*ddpr*pr + T(2)*(dpr)*(dpr)))/std::pow(xi + T(1), T(2));
           } break;
           case 1: {
             const T cse0 = -xi + xv;

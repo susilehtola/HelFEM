@@ -153,7 +153,18 @@ def P_deriv_at_node(r):
 # ---------------------------------------------------------------------
 Pn = [P_deriv_at_node(r) for r in range(NDER + 1)]   # P^{(r)}(0)
 
-q = []
+# q_j is kept as a COEFFICIENT LIST in t = xv - xi, never as an expanded
+# polynomial. sp.expand(qj) here was the accuracy bug of the whole family:
+# expanding q into monomials of xv and xi separately hands the evaluator
+# sums of large terms cancelling to O(1), and the interpolation conditions
+# then hold only to the size of those terms times eps. Measured on the
+# reference element (scaling 1), the residual of the 3rd-derivative
+# condition was 9.7e-10 at 5 nodes and 7.0e-08 at 7 nodes -- against
+# ~1e-12 for the better-conditioned HIP2 -- and the FE derivative scaling
+# (1/s)^j then amplified that into continuity-check failures on any
+# graded grid. Same lesson as the over_r deflation below, which already
+# says so in its comment; the plain evaluator just never got the memo.
+qc = []                            # qc[j][a] = coefficient of t^a in q_j
 for j in range(NSHAPE):
     c = sp.symbols(f"c0:{NDER+1}")
     eqs = []
@@ -161,8 +172,22 @@ for j in range(NSHAPE):
         lhs = sum(sp.binomial(k, a) * Pn[k - a] * sp.factorial(a) * c[a] for a in range(k + 1))
         eqs.append(sp.Eq(sp.expand(lhs), 1 if k == j else 0))
     sol = sp.solve(eqs, c, dict=True)[0]
-    qj = sum(sp.simplify(sol[c[a]]) * t**a for a in range(NDER + 1))
-    q.append(sp.expand(qj))
+    qc.append([sp.simplify(sol[c[a]]) for a in range(NDER + 1)])
+
+def _horner_t(coeffs):
+    """sum_a coeffs[a] * t^a as a Horner nest in t, unexpanded. cse then
+    pulls xv - xi out once and every intermediate stays O(coefficient)."""
+    expr = sp.Integer(0)
+    for ca in reversed(coeffs):
+        expr = ca + t * expr
+    return expr
+
+def q_deriv(j, r):
+    """r-th xv-derivative of q_j (dt/dxv = 1), coefficient-wise."""
+    if r >= len(qc[j]):
+        return sp.Integer(0)
+    return _horner_t([sp.factorial(a + r) / sp.factorial(a) * qc[j][a + r]
+                      for a in range(len(qc[j]) - r)])
 
 # ---------------------------------------------------------------------
 # h_{i,j}^{(n)} = sum_a C(n,a) * (L^m)^{(a)} * q_j^{(n-a)}   (Leibniz)
@@ -177,7 +202,7 @@ def shape_deriv(j, n):
     keeps every intermediate small."""
     total = 0
     for a in range(n + 1):
-        total += sp.binomial(n, a) * deriv_of_L_power_factored(M, a) * sp.diff(q[j], xv, n - a)
+        total += sp.binomial(n, a) * deriv_of_L_power_factored(M, a) * q_deriv(j, n - a)
     return total
 
 # =====================================================================
@@ -236,20 +261,34 @@ def leibniz(factors_derivs, n):
         total += term
     return total
 
-# qtil_j = q_j / t   for the node-0 shapes that survive (j >= 1)
-qtil = [None] + [sp.simplify(sp.cancel(q[j] / t)) for j in range(1, NSHAPE)]
+# qtil_j = q_j / t for the node-0 shapes that survive (j >= 1). In
+# coefficients the division is a shift -- q_j(0) = c_0 = 0 exactly for
+# j >= 1 (the k = 0 interpolation condition with P(0) = 1), which is
+# asserted rather than assumed. sp.cancel(q/t) on the old expanded q
+# returned an EXPANDED quotient, quietly reintroducing into the over_r
+# path the very cancellation its emitter is documented to avoid.
+for _j in range(1, NSHAPE):
+    assert sp.simplify(qc[_j][0]) == 0, f"q_{_j}(0) != 0"
+
+def qtil_deriv(j, r):
+    """r-th xv-derivative of q_j / t, coefficient-wise, Horner in t."""
+    coeffs = qc[j][1:]
+    if r >= len(coeffs):
+        return sp.Integer(0)
+    return _horner_t([sp.factorial(a + r) / sp.factorial(a) * coeffs[a + r]
+                      for a in range(len(coeffs) - r)])
 
 def over_r_node0(j, n):
     """d^n/dx^n [ L_0^m * qtil_j ]  -- node 0, surviving shapes j >= 1."""
     return leibniz([lambda k: deriv_of_sym_power(LX, M, k),
-                    lambda k: sp.diff(qtil[j], xv, k)], n)
+                    lambda k: qtil_deriv(j, k)], n)
 
 def over_r_nodei(j, n):
     """d^n/dx^n [ (x+1)^(m-1) * (p_red/(xi+1))^m * q_j ]  -- nodes i >= 1."""
     inv = 1 / (xi + 1)**M
     return inv * leibniz([lambda k: sp.diff(xp1**(M - 1), xv, k),
                           lambda k: deriv_of_sym_power(PR, M, k),
-                          lambda k: sp.diff(q[j], xv, k)], n)
+                          lambda k: q_deriv(j, k)], n)
 
 # ---------------------------------------------------------------------
 # C++ emission

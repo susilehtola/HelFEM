@@ -11,12 +11,11 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-#ifndef HELFEM_FEM_HIP3BASIS_EVAL_H
-#define HELFEM_FEM_HIP3BASIS_EVAL_H
+#ifndef LIB1DFEM_HIP3BASIS_EVAL_H
+#define LIB1DFEM_HIP3BASIS_EVAL_H
 
 #include <types.h>
 #include <LIPBasis_eval.h>
-#include <cmath>
 #include <sstream>
 #include <stdexcept>
 
@@ -62,45 +61,19 @@ case (0): {
       const T ddLxi_v = lipxi2(fi);
       const T d3Lxi_v = lipxi3(fi);
       {
-        const T cse0 = T(4)*dLxi_v;
-        const T cse1 = xi*xv;
-        const T cse2 = (xi)*(xi)*(xi);
-        const T cse3 = (T(2)/T(3))*d3Lxi_v;
-        const T cse4 = (xv)*(xv)*(xv);
-        const T cse5 = (xi)*(xi);
-        const T cse6 = T(2)*ddLxi_v;
-        const T cse7 = (xv)*(xv);
-        const T cse8 = T(2)*d3Lxi_v;
-        const T cse9 = cse7*xi;
-        const T cse10 = cse5*xv;
-        const T cse11 = dLxi_v*ddLxi_v;
-        const T cse12 = T(10)*cse11;
-        const T cse13 = (dLxi_v)*(dLxi_v);
-        const T cse14 = T(10)*cse13;
-        const T cse15 = (dLxi_v)*(dLxi_v)*(dLxi_v);
-        const T cse16 = T(20)*cse15;
-        const T cse17 = T(30)*cse11;
-        const T cse18 = T(60)*cse15;
-        dnf(ix, 4*fi + 0) = (Lx)*(Lx)*(Lx)*(Lx)*(cse0*xi - cse0*xv - T(20)*cse1*cse13 + T(4)*cse1*ddLxi_v + cse10*cse17 - cse10*cse18 - cse10*cse8 - cse12*cse2 + cse12*cse4 + cse14*cse5 + cse14*cse7 + cse16*cse2 - cse16*cse4 - cse17*cse9 + cse18*cse9 + cse2*cse3 - cse3*cse4 - cse5*cse6 - cse6*cse7 + cse8*cse9 + T(1));
+        const T cse0 = -xi + xv;
+        dnf(ix, 4*fi + 0) = (Lx)*(Lx)*(Lx)*(Lx)*(cse0*(cse0*(cse0*(-T(2)/T(3)*d3Lxi_v - T(20)*(dLxi_v)*(dLxi_v)*(dLxi_v) + T(10)*dLxi_v*ddLxi_v) + T(10)*(dLxi_v)*(dLxi_v) - T(2)*ddLxi_v) - T(4)*dLxi_v) + T(1));
       }
       {
-        const T cse0 = (xi)*(xi);
-        const T cse1 = T(4)*dLxi_v;
-        const T cse2 = (xv)*(xv);
-        const T cse3 = (xi)*(xi)*(xi);
-        const T cse4 = (xv)*(xv)*(xv);
-        const T cse5 = (dLxi_v)*(dLxi_v);
-        dnf(ix, 4*fi + 1) = (Lx)*(Lx)*(Lx)*(Lx)*(-cse0*cse1 + T(30)*cse0*cse5*xv - T(6)*cse0*ddLxi_v*xv - cse1*cse2 - T(30)*cse2*cse5*xi + T(6)*cse2*ddLxi_v*xi - T(10)*cse3*cse5 + T(2)*cse3*ddLxi_v + T(10)*cse4*cse5 - T(2)*cse4*ddLxi_v + T(8)*dLxi_v*xi*xv - xi + xv);
+        const T cse0 = -xi + xv;
+        dnf(ix, 4*fi + 1) = (Lx)*(Lx)*(Lx)*(Lx)*cse0*(cse0*(cse0*(T(10)*(dLxi_v)*(dLxi_v) - T(2)*ddLxi_v) - T(4)*dLxi_v) + T(1));
       }
       {
-        const T cse0 = (xi)*(xi);
-        const T cse1 = (xv)*(xv);
-        const T cse2 = T(2)*dLxi_v;
-        const T cse3 = T(6)*dLxi_v;
-        dnf(ix, 4*fi + 2) = (Lx)*(Lx)*(Lx)*(Lx)*(-cse0*cse3*xv + (T(1)/T(2))*cse0 + cse1*cse3*xi + (T(1)/T(2))*cse1 + cse2*(xi)*(xi)*(xi) - cse2*(xv)*(xv)*(xv) - xi*xv);
+        const T cse0 = -xi + xv;
+        dnf(ix, 4*fi + 2) = (Lx)*(Lx)*(Lx)*(Lx)*(cse0)*(cse0)*(-T(2)*cse0*dLxi_v + T(1)/T(2));
       }
       {
-        dnf(ix, 4*fi + 3) = (Lx)*(Lx)*(Lx)*(Lx)*(-T(1)/T(6)*(xi)*(xi)*(xi) + (T(1)/T(2))*(xi)*(xi)*xv - T(1)/T(2)*xi*(xv)*(xv) + (T(1)/T(6))*(xv)*(xv)*(xv));
+        dnf(ix, 4*fi + 3) = (Lx)*(Lx)*(Lx)*(Lx)*std::pow(-xi + xv, T(2))*(-T(1)/T(6)*xi + (T(1)/T(6))*xv);
       }
       dnf(ix, 4*fi + 1) *= element_length;
       dnf(ix, 4*fi + 2) *= element_length * element_length;
@@ -125,57 +98,24 @@ case (1): {
       const T d3Lxi_v = lipxi3(fi);
       {
         const T cse0 = T(4)*dLxi_v;
-        const T cse1 = T(4)*ddLxi_v*xv;
-        const T cse2 = (xi)*(xi);
-        const T cse3 = T(2)*d3Lxi_v;
-        const T cse4 = cse2*cse3;
-        const T cse5 = (xv)*(xv);
-        const T cse6 = cse3*cse5;
-        const T cse7 = (dLxi_v)*(dLxi_v);
-        const T cse8 = T(20)*cse7*xi;
-        const T cse9 = dLxi_v*ddLxi_v;
-        const T cse10 = (dLxi_v)*(dLxi_v)*(dLxi_v);
-        const T cse11 = T(60)*cse10;
-        const T cse12 = cse11*cse2;
-        const T cse13 = cse11*cse5;
-        const T cse14 = (xi)*(xi)*(xi);
-        const T cse15 = (T(2)/T(3))*d3Lxi_v;
-        const T cse16 = (xv)*(xv)*(xv);
-        const T cse17 = T(2)*ddLxi_v;
-        const T cse18 = T(10)*cse9;
-        const T cse19 = T(10)*cse7;
-        const T cse20 = T(20)*cse10;
-        const T cse21 = T(30)*cse9;
-        dnf(ix, 4*fi + 0) = (Lx)*(Lx)*(Lx)*(Lx)*(-cse0 - cse1 + T(120)*cse10*xi*xv - cse12 - cse13 + T(30)*cse2*dLxi_v*ddLxi_v - cse4 + T(30)*cse5*dLxi_v*ddLxi_v - cse6 + T(20)*cse7*xv - cse8 - T(60)*cse9*xi*xv + T(4)*d3Lxi_v*xi*xv + T(4)*ddLxi_v*xi) + T(4)*(Lx)*(Lx)*(Lx)*dLx*(cse0*xi - cse0*xv + cse1*xi - cse12*xv + cse13*xi + cse14*cse15 - cse14*cse18 + cse14*cse20 - cse15*cse16 + cse16*cse18 - cse16*cse20 - cse17*cse2 - cse17*cse5 + cse19*cse2 + cse19*cse5 + cse2*cse21*xv - cse21*cse5*xi - cse4*xv + cse6*xi - cse8*xv + T(1));
+        const T cse1 = -xi + xv;
+        const T cse2 = (dLxi_v)*(dLxi_v);
+        const T cse3 = (dLxi_v)*(dLxi_v)*(dLxi_v);
+        dnf(ix, 4*fi + 0) = (Lx)*(Lx)*(Lx)*(Lx)*(-cse0 + cse1*(cse1*(-T(60)*cse3 - T(2)*d3Lxi_v + T(30)*dLxi_v*ddLxi_v) + T(20)*cse2 - T(4)*ddLxi_v)) + T(4)*(Lx)*(Lx)*(Lx)*dLx*(cse1*(-cse0 + cse1*(cse1*(-T(20)*cse3 - T(2)/T(3)*d3Lxi_v + T(10)*dLxi_v*ddLxi_v) + T(10)*cse2 - T(2)*ddLxi_v)) + T(1));
       }
       {
-        const T cse0 = T(8)*dLxi_v;
-        const T cse1 = xi*xv;
-        const T cse2 = (xi)*(xi);
-        const T cse3 = T(6)*ddLxi_v;
-        const T cse4 = cse2*cse3;
-        const T cse5 = (xv)*(xv);
-        const T cse6 = (dLxi_v)*(dLxi_v);
-        const T cse7 = T(30)*cse6;
-        const T cse8 = cse5*cse7;
-        const T cse9 = T(4)*dLxi_v;
-        const T cse10 = (xi)*(xi)*(xi);
-        const T cse11 = (xv)*(xv)*(xv);
-        dnf(ix, 4*fi + 1) = (Lx)*(Lx)*(Lx)*(Lx)*(cse0*xi - cse0*xv - T(60)*cse1*cse6 + T(12)*cse1*ddLxi_v + cse2*cse7 - cse3*cse5 - cse4 + cse8 + T(1)) + T(4)*(Lx)*(Lx)*(Lx)*dLx*(-T(10)*cse10*cse6 + T(2)*cse10*ddLxi_v + T(10)*cse11*cse6 - T(2)*cse11*ddLxi_v + T(30)*cse2*cse6*xv - cse2*cse9 - cse4*xv - cse5*cse9 + T(6)*cse5*ddLxi_v*xi - cse8*xi + T(8)*dLxi_v*xi*xv - xi + xv);
+        const T cse0 = -xi + xv;
+        const T cse1 = (dLxi_v)*(dLxi_v);
+        dnf(ix, 4*fi + 1) = (Lx)*(Lx)*(Lx)*(Lx)*(cse0*(cse0*(T(30)*cse1 - T(6)*ddLxi_v) - T(8)*dLxi_v) + T(1)) + T(4)*(Lx)*(Lx)*(Lx)*cse0*dLx*(cse0*(cse0*(T(10)*cse1 - T(2)*ddLxi_v) - T(4)*dLxi_v) + T(1));
       }
       {
-        const T cse0 = (xi)*(xi);
-        const T cse1 = T(6)*dLxi_v;
-        const T cse2 = cse0*cse1;
-        const T cse3 = (xv)*(xv);
-        const T cse4 = cse1*cse3;
-        const T cse5 = T(2)*dLxi_v;
-        dnf(ix, 4*fi + 2) = (Lx)*(Lx)*(Lx)*(Lx)*(-cse2 - cse4 + T(12)*dLxi_v*xi*xv - xi + xv) + T(4)*(Lx)*(Lx)*(Lx)*dLx*((T(1)/T(2))*cse0 - cse2*xv + (T(1)/T(2))*cse3 + cse4*xi + cse5*(xi)*(xi)*(xi) - cse5*(xv)*(xv)*(xv) - xi*xv);
+        const T cse0 = -xi + xv;
+        const T cse1 = cse0*dLxi_v;
+        dnf(ix, 4*fi + 2) = (Lx)*(Lx)*(Lx)*(Lx)*cse0*(T(1) - T(6)*cse1) + T(4)*(Lx)*(Lx)*(Lx)*(cse0)*(cse0)*dLx*(T(1)/T(2) - T(2)*cse1);
       }
       {
-        const T cse0 = (xi)*(xi);
-        const T cse1 = (T(1)/T(2))*(xv)*(xv);
-        dnf(ix, 4*fi + 3) = (Lx)*(Lx)*(Lx)*(Lx)*((T(1)/T(2))*cse0 + cse1 - xi*xv) + T(4)*(Lx)*(Lx)*(Lx)*dLx*((T(1)/T(2))*cse0*xv - cse1*xi - T(1)/T(6)*(xi)*(xi)*(xi) + (T(1)/T(6))*(xv)*(xv)*(xv));
+        const T cse0 = -xi + xv;
+        dnf(ix, 4*fi + 3) = (Lx)*(Lx)*(Lx)*(Lx)*cse0*(-T(1)/T(2)*xi + (T(1)/T(2))*xv) + T(4)*(Lx)*(Lx)*(Lx)*(cse0)*(cse0)*dLx*(-T(1)/T(6)*xi + (T(1)/T(6))*xv);
       }
       dnf(ix, 4*fi + 1) *= element_length;
       dnf(ix, 4*fi + 2) *= element_length * element_length;
@@ -202,61 +142,27 @@ case (2): {
       const T ddLxi_v = lipxi2(fi);
       const T d3Lxi_v = lipxi3(fi);
       {
-        const T cse0 = d3Lxi_v*xi;
-        const T cse1 = d3Lxi_v*xv;
+        const T cse0 = -xi + xv;
+        const T cse1 = (dLxi_v)*(dLxi_v)*(dLxi_v);
         const T cse2 = (dLxi_v)*(dLxi_v);
-        const T cse3 = dLxi_v*ddLxi_v;
-        const T cse4 = T(15)*cse3;
-        const T cse5 = (dLxi_v)*(dLxi_v)*(dLxi_v);
-        const T cse6 = T(30)*cse5;
-        const T cse7 = T(4)*dLxi_v;
-        const T cse8 = T(4)*ddLxi_v*xv;
-        const T cse9 = (xi)*(xi);
-        const T cse10 = T(2)*d3Lxi_v;
-        const T cse11 = (xv)*(xv);
-        const T cse12 = T(20)*cse2*xi;
-        const T cse13 = T(60)*cse5;
-        const T cse14 = cse13*cse9;
-        const T cse15 = cse11*cse13;
-        const T cse16 = (xi)*(xi)*(xi);
-        const T cse17 = (T(2)/T(3))*d3Lxi_v;
-        const T cse18 = (xv)*(xv)*(xv);
-        const T cse19 = T(2)*ddLxi_v;
-        const T cse20 = T(10)*cse3;
-        const T cse21 = T(10)*cse2;
-        const T cse22 = T(20)*cse5;
-        const T cse23 = T(30)*cse3;
-        dnf(ix, 4*fi + 0) = T(4)*(Lx)*(Lx)*(Lx)*(Lx)*(cse0 - cse1 + T(5)*cse2 - cse4*xi + cse4*xv + cse6*xi - cse6*xv - ddLxi_v) + T(8)*(Lx)*(Lx)*(Lx)*dLx*(-cse10*cse11 - cse10*cse9 + T(30)*cse11*dLxi_v*ddLxi_v - cse12 - cse14 - cse15 + T(20)*cse2*xv - T(60)*cse3*xi*xv + T(120)*cse5*xi*xv - cse7 - cse8 + T(30)*cse9*dLxi_v*ddLxi_v + T(4)*d3Lxi_v*xi*xv + T(4)*ddLxi_v*xi) + T(4)*(Lx)*(Lx)*(Lx*ddLx + T(3)*(dLx)*(dLx))*(T(2)*cse0*cse11 - T(2)*cse1*cse9 - cse11*cse19 + cse11*cse21 - cse11*cse23*xi - cse12*xv - cse14*xv + cse15*xi + cse16*cse17 - cse16*cse20 + cse16*cse22 - cse17*cse18 + cse18*cse20 - cse18*cse22 - cse19*cse9 + cse21*cse9 + cse23*cse9*xv + cse7*xi - cse7*xv + cse8*xi + T(1));
+        const T cse3 = T(20)*cse2 - T(4)*ddLxi_v;
+        const T cse4 = T(4)*dLxi_v;
+        dnf(ix, 4*fi + 0) = (Lx)*(Lx)*(Lx)*(Lx)*(cse0*(-T(120)*cse1 - T(4)*d3Lxi_v + T(60)*dLxi_v*ddLxi_v) + cse3) + T(8)*(Lx)*(Lx)*(Lx)*dLx*(cse0*(cse0*(-T(60)*cse1 - T(2)*d3Lxi_v + T(30)*dLxi_v*ddLxi_v) + cse3) - cse4) + T(4)*(Lx)*(Lx)*(Lx*ddLx + T(3)*(dLx)*(dLx))*(cse0*(cse0*(cse0*(-T(20)*cse1 - T(2)/T(3)*d3Lxi_v + T(10)*dLxi_v*ddLxi_v) + T(10)*cse2 - T(2)*ddLxi_v) - cse4) + T(1));
       }
       {
-        const T cse0 = (dLxi_v)*(dLxi_v);
-        const T cse1 = T(8)*dLxi_v;
-        const T cse2 = xi*xv;
-        const T cse3 = (xi)*(xi);
-        const T cse4 = T(6)*ddLxi_v;
-        const T cse5 = cse3*cse4;
-        const T cse6 = (xv)*(xv);
-        const T cse7 = T(30)*cse0;
-        const T cse8 = cse6*cse7;
-        const T cse9 = T(4)*dLxi_v;
-        const T cse10 = (xi)*(xi)*(xi);
-        const T cse11 = (xv)*(xv)*(xv);
-        dnf(ix, 4*fi + 1) = T(4)*(Lx)*(Lx)*(Lx)*(Lx)*(-T(15)*cse0*xi + T(15)*cse0*xv - T(2)*dLxi_v + T(3)*ddLxi_v*xi - T(3)*ddLxi_v*xv) + T(8)*(Lx)*(Lx)*(Lx)*dLx*(-T(60)*cse0*cse2 + cse1*xi - cse1*xv + T(12)*cse2*ddLxi_v + cse3*cse7 - cse4*cse6 - cse5 + cse8 + T(1)) + T(4)*(Lx)*(Lx)*(Lx*ddLx + T(3)*(dLx)*(dLx))*(-T(10)*cse0*cse10 + T(10)*cse0*cse11 + T(30)*cse0*cse3*xv + T(2)*cse10*ddLxi_v - T(2)*cse11*ddLxi_v - cse3*cse9 - cse5*xv - cse6*cse9 + T(6)*cse6*ddLxi_v*xi - cse8*xi + T(8)*dLxi_v*xi*xv - xi + xv);
+        const T cse0 = T(8)*dLxi_v;
+        const T cse1 = -xi + xv;
+        const T cse2 = (dLxi_v)*(dLxi_v);
+        dnf(ix, 4*fi + 1) = (Lx)*(Lx)*(Lx)*(Lx)*(-cse0 + cse1*(T(60)*cse2 - T(12)*ddLxi_v)) + T(8)*(Lx)*(Lx)*(Lx)*dLx*(cse1*(-cse0 + cse1*(T(30)*cse2 - T(6)*ddLxi_v)) + T(1)) + T(4)*(Lx)*(Lx)*cse1*(Lx*ddLx + T(3)*(dLx)*(dLx))*(cse1*(cse1*(T(10)*cse2 - T(2)*ddLxi_v) - T(4)*dLxi_v) + T(1));
       }
       {
-        const T cse0 = T(12)*dLxi_v;
-        const T cse1 = (xi)*(xi);
-        const T cse2 = T(6)*dLxi_v;
-        const T cse3 = cse1*cse2;
-        const T cse4 = (xv)*(xv);
-        const T cse5 = cse2*cse4;
-        const T cse6 = T(2)*dLxi_v;
-        dnf(ix, 4*fi + 2) = (Lx)*(Lx)*(Lx)*(Lx)*(cse0*xi - cse0*xv + T(1)) + T(8)*(Lx)*(Lx)*(Lx)*dLx*(-cse3 - cse5 + T(12)*dLxi_v*xi*xv - xi + xv) + T(4)*(Lx)*(Lx)*(Lx*ddLx + T(3)*(dLx)*(dLx))*((T(1)/T(2))*cse1 - cse3*xv + (T(1)/T(2))*cse4 + cse5*xi + cse6*(xi)*(xi)*(xi) - cse6*(xv)*(xv)*(xv) - xi*xv);
+        const T cse0 = -xi + xv;
+        const T cse1 = cse0*dLxi_v;
+        dnf(ix, 4*fi + 2) = (Lx)*(Lx)*(Lx)*(Lx)*(T(1) - T(12)*cse1) + T(8)*(Lx)*(Lx)*(Lx)*cse0*dLx*(T(1) - T(6)*cse1) + T(4)*(Lx)*(Lx)*(cse0)*(cse0)*(T(1)/T(2) - T(2)*cse1)*(Lx*ddLx + T(3)*(dLx)*(dLx));
       }
       {
-        const T cse0 = (xi)*(xi);
-        const T cse1 = (T(1)/T(2))*(xv)*(xv);
-        dnf(ix, 4*fi + 3) = (Lx)*(Lx)*(Lx)*(Lx)*(-xi + xv) + T(8)*(Lx)*(Lx)*(Lx)*dLx*((T(1)/T(2))*cse0 + cse1 - xi*xv) + T(4)*(Lx)*(Lx)*(Lx*ddLx + T(3)*(dLx)*(dLx))*((T(1)/T(2))*cse0*xv - cse1*xi - T(1)/T(6)*(xi)*(xi)*(xi) + (T(1)/T(6))*(xv)*(xv)*(xv));
+        const T cse0 = -xi + xv;
+        dnf(ix, 4*fi + 3) = (Lx)*(Lx)*(Lx)*(Lx)*cse0 + T(8)*(Lx)*(Lx)*(Lx)*cse0*dLx*(-T(1)/T(2)*xi + (T(1)/T(2))*xv) + T(4)*(Lx)*(Lx)*(cse0)*(cse0)*(-T(1)/T(6)*xi + (T(1)/T(6))*xv)*(Lx*ddLx + T(3)*(dLx)*(dLx));
       }
       dnf(ix, 4*fi + 1) *= element_length;
       dnf(ix, 4*fi + 2) *= element_length * element_length;
@@ -287,68 +193,38 @@ case (3): {
       const T d3Lxi_v = lipxi3(fi);
       {
         const T cse0 = (dLxi_v)*(dLxi_v)*(dLxi_v);
-        const T cse1 = T(30)*cse0;
-        const T cse2 = d3Lxi_v*xi;
-        const T cse3 = d3Lxi_v*xv;
-        const T cse4 = (dLxi_v)*(dLxi_v);
-        const T cse5 = dLxi_v*ddLxi_v;
-        const T cse6 = T(15)*cse5;
-        const T cse7 = (Lx)*(Lx);
-        const T cse8 = Lx*ddLx;
-        const T cse9 = T(4)*dLxi_v;
-        const T cse10 = T(4)*ddLxi_v*xv;
-        const T cse11 = (xi)*(xi);
-        const T cse12 = T(2)*d3Lxi_v;
-        const T cse13 = (xv)*(xv);
-        const T cse14 = T(20)*cse4*xi;
-        const T cse15 = T(60)*cse0;
-        const T cse16 = cse11*cse15;
-        const T cse17 = cse13*cse15;
-        const T cse18 = (xi)*(xi)*(xi);
-        const T cse19 = (T(2)/T(3))*d3Lxi_v;
-        const T cse20 = (xv)*(xv)*(xv);
-        const T cse21 = T(2)*ddLxi_v;
-        const T cse22 = T(10)*cse5;
-        const T cse23 = T(10)*cse4;
-        const T cse24 = T(20)*cse0;
-        const T cse25 = T(30)*cse5;
-        dnf(ix, 4*fi + 0) = T(4)*(Lx)*(Lx)*(Lx)*(Lx)*(-cse1 - d3Lxi_v + T(15)*dLxi_v*ddLxi_v) + T(48)*(Lx)*(Lx)*(Lx)*dLx*(cse1*xi - cse1*xv + cse2 - cse3 + T(5)*cse4 - cse6*xi + cse6*xv - ddLxi_v) + T(4)*Lx*(cse7*d3Lx + T(9)*cse8*dLx + T(6)*(dLx)*(dLx)*(dLx))*(cse10*xi - cse11*cse21 + cse11*cse23 + cse11*cse25*xv - T(2)*cse11*cse3 + T(2)*cse13*cse2 - cse13*cse21 + cse13*cse23 - cse13*cse25*xi - cse14*xv - cse16*xv + cse17*xi + cse18*cse19 - cse18*cse22 + cse18*cse24 - cse19*cse20 + cse20*cse22 - cse20*cse24 + cse9*xi - cse9*xv + T(1)) + T(12)*cse7*(cse8 + T(3)*(dLx)*(dLx))*(T(120)*cse0*xi*xv - cse10 - cse11*cse12 + T(30)*cse11*dLxi_v*ddLxi_v - cse12*cse13 + T(30)*cse13*dLxi_v*ddLxi_v - cse14 - cse16 - cse17 + T(20)*cse4*xv - T(60)*cse5*xi*xv - cse9 + T(4)*d3Lxi_v*xi*xv + T(4)*ddLxi_v*xi);
+        const T cse1 = -T(120)*cse0 - T(4)*d3Lxi_v + T(60)*dLxi_v*ddLxi_v;
+        const T cse2 = -xi + xv;
+        const T cse3 = (dLxi_v)*(dLxi_v);
+        const T cse4 = T(20)*cse3 - T(4)*ddLxi_v;
+        const T cse5 = (Lx)*(Lx);
+        const T cse6 = Lx*ddLx;
+        const T cse7 = T(4)*dLxi_v;
+        dnf(ix, 4*fi + 0) = (Lx)*(Lx)*(Lx)*(Lx)*cse1 + T(12)*(Lx)*(Lx)*(Lx)*dLx*(cse1*cse2 + cse4) + T(4)*Lx*(cse2*(cse2*(cse2*(-T(20)*cse0 - T(2)/T(3)*d3Lxi_v + T(10)*dLxi_v*ddLxi_v) + T(10)*cse3 - T(2)*ddLxi_v) - cse7) + T(1))*(cse5*d3Lx + T(9)*cse6*dLx + T(6)*(dLx)*(dLx)*(dLx)) + T(12)*cse5*(cse6 + T(3)*(dLx)*(dLx))*(cse2*(cse2*(-T(60)*cse0 - T(2)*d3Lxi_v + T(30)*dLxi_v*ddLxi_v) + cse4) - cse7);
       }
       {
         const T cse0 = (dLxi_v)*(dLxi_v);
-        const T cse1 = (Lx)*(Lx);
-        const T cse2 = Lx*ddLx;
-        const T cse3 = T(8)*dLxi_v;
-        const T cse4 = xi*xv;
-        const T cse5 = (xi)*(xi);
-        const T cse6 = T(6)*ddLxi_v;
-        const T cse7 = cse5*cse6;
-        const T cse8 = (xv)*(xv);
-        const T cse9 = T(30)*cse0;
-        const T cse10 = cse8*cse9;
-        const T cse11 = T(4)*dLxi_v;
-        const T cse12 = (xi)*(xi)*(xi);
-        const T cse13 = (xv)*(xv)*(xv);
-        dnf(ix, 4*fi + 1) = T(12)*(Lx)*(Lx)*(Lx)*(Lx)*(T(5)*cse0 - ddLxi_v) + T(48)*(Lx)*(Lx)*(Lx)*dLx*(-T(15)*cse0*xi + T(15)*cse0*xv - T(2)*dLxi_v + T(3)*ddLxi_v*xi - T(3)*ddLxi_v*xv) + T(4)*Lx*(cse1*d3Lx + T(9)*cse2*dLx + T(6)*(dLx)*(dLx)*(dLx))*(-T(10)*cse0*cse12 + T(10)*cse0*cse13 + T(30)*cse0*cse5*xv - cse10*xi - cse11*cse5 - cse11*cse8 + T(2)*cse12*ddLxi_v - T(2)*cse13*ddLxi_v - cse7*xv + T(6)*cse8*ddLxi_v*xi + T(8)*dLxi_v*xi*xv - xi + xv) + T(12)*cse1*(cse2 + T(3)*(dLx)*(dLx))*(-T(60)*cse0*cse4 + cse10 + cse3*xi - cse3*xv + T(12)*cse4*ddLxi_v + cse5*cse9 - cse6*cse8 - cse7 + T(1));
+        const T cse1 = T(60)*cse0 - T(12)*ddLxi_v;
+        const T cse2 = T(8)*dLxi_v;
+        const T cse3 = -xi + xv;
+        const T cse4 = (Lx)*(Lx);
+        const T cse5 = Lx*ddLx;
+        dnf(ix, 4*fi + 1) = (Lx)*(Lx)*(Lx)*(Lx)*cse1 + T(12)*(Lx)*(Lx)*(Lx)*dLx*(cse1*cse3 - cse2) + T(4)*Lx*cse3*(cse3*(cse3*(T(10)*cse0 - T(2)*ddLxi_v) - T(4)*dLxi_v) + T(1))*(cse4*d3Lx + T(9)*cse5*dLx + T(6)*(dLx)*(dLx)*(dLx)) + T(12)*cse4*(cse5 + T(3)*(dLx)*(dLx))*(cse3*(-cse2 + cse3*(T(30)*cse0 - T(6)*ddLxi_v)) + T(1));
       }
       {
         const T cse0 = T(12)*dLxi_v;
-        const T cse1 = (Lx)*(Lx);
-        const T cse2 = Lx*ddLx;
-        const T cse3 = (xi)*(xi);
-        const T cse4 = T(6)*dLxi_v;
-        const T cse5 = cse3*cse4;
-        const T cse6 = (xv)*(xv);
-        const T cse7 = cse4*cse6;
-        const T cse8 = T(2)*dLxi_v;
-        dnf(ix, 4*fi + 2) = -(Lx)*(Lx)*(Lx)*(Lx)*cse0 + T(12)*(Lx)*(Lx)*(Lx)*dLx*(cse0*xi - cse0*xv + T(1)) + T(4)*Lx*(cse1*d3Lx + T(9)*cse2*dLx + T(6)*(dLx)*(dLx)*(dLx))*((T(1)/T(2))*cse3 - cse5*xv + (T(1)/T(2))*cse6 + cse7*xi + cse8*(xi)*(xi)*(xi) - cse8*(xv)*(xv)*(xv) - xi*xv) + T(12)*cse1*(cse2 + T(3)*(dLx)*(dLx))*(-cse5 - cse7 + T(12)*dLxi_v*xi*xv - xi + xv);
+        const T cse1 = -xi + xv;
+        const T cse2 = (Lx)*(Lx);
+        const T cse3 = Lx*ddLx;
+        const T cse4 = cse1*dLxi_v;
+        dnf(ix, 4*fi + 2) = -(Lx)*(Lx)*(Lx)*(Lx)*cse0 + T(12)*(Lx)*(Lx)*(Lx)*dLx*(-cse0*cse1 + T(1)) + T(4)*Lx*(cse1)*(cse1)*(T(1)/T(2) - T(2)*cse4)*(cse2*d3Lx + T(9)*cse3*dLx + T(6)*(dLx)*(dLx)*(dLx)) + T(12)*cse1*cse2*(T(1) - T(6)*cse4)*(cse3 + T(3)*(dLx)*(dLx));
       }
       {
-        const T cse0 = (Lx)*(Lx);
-        const T cse1 = Lx*ddLx;
-        const T cse2 = (xi)*(xi);
-        const T cse3 = (T(1)/T(2))*(xv)*(xv);
-        dnf(ix, 4*fi + 3) = (Lx)*(Lx)*(Lx)*(Lx) + T(12)*(Lx)*(Lx)*(Lx)*dLx*(-xi + xv) + T(4)*Lx*(cse0*d3Lx + T(9)*cse1*dLx + T(6)*(dLx)*(dLx)*(dLx))*((T(1)/T(2))*cse2*xv - cse3*xi - T(1)/T(6)*(xi)*(xi)*(xi) + (T(1)/T(6))*(xv)*(xv)*(xv)) + T(12)*cse0*(cse1 + T(3)*(dLx)*(dLx))*((T(1)/T(2))*cse2 + cse3 - xi*xv);
+        const T cse0 = -xi + xv;
+        const T cse1 = T(12)*cse0;
+        const T cse2 = (Lx)*(Lx);
+        const T cse3 = Lx*ddLx;
+        dnf(ix, 4*fi + 3) = (Lx)*(Lx)*(Lx)*(Lx) + (Lx)*(Lx)*(Lx)*cse1*dLx + T(4)*Lx*(cse0)*(cse0)*(-T(1)/T(6)*xi + (T(1)/T(6))*xv)*(cse2*d3Lx + T(9)*cse3*dLx + T(6)*(dLx)*(dLx)*(dLx)) + cse1*cse2*(cse3 + T(3)*(dLx)*(dLx))*(-T(1)/T(2)*xi + (T(1)/T(2))*xv);
       }
       dnf(ix, 4*fi + 1) *= element_length;
       dnf(ix, 4*fi + 2) *= element_length * element_length;
@@ -383,79 +259,47 @@ case (4): {
       {
         const T cse0 = (Lx)*(Lx)*(Lx);
         const T cse1 = (dLxi_v)*(dLxi_v)*(dLxi_v);
-        const T cse2 = T(30)*cse1;
+        const T cse2 = -T(120)*cse1 - T(4)*d3Lxi_v + T(60)*dLxi_v*ddLxi_v;
         const T cse3 = (Lx)*(Lx);
         const T cse4 = Lx*ddLx;
         const T cse5 = (dLx)*(dLx);
-        const T cse6 = d3Lxi_v*xi;
-        const T cse7 = d3Lxi_v*xv;
-        const T cse8 = (dLxi_v)*(dLxi_v);
-        const T cse9 = dLxi_v*ddLxi_v;
-        const T cse10 = T(15)*cse9;
-        const T cse11 = cse3*d3Lx;
-        const T cse12 = T(4)*dLxi_v;
-        const T cse13 = T(4)*ddLxi_v*xv;
-        const T cse14 = (xi)*(xi);
-        const T cse15 = T(2)*d3Lxi_v;
-        const T cse16 = (xv)*(xv);
-        const T cse17 = T(20)*cse8*xi;
-        const T cse18 = T(60)*cse1;
-        const T cse19 = cse14*cse18;
-        const T cse20 = cse16*cse18;
-        const T cse21 = (xi)*(xi)*(xi);
-        const T cse22 = (T(2)/T(3))*d3Lxi_v;
-        const T cse23 = (xv)*(xv)*(xv);
-        const T cse24 = T(2)*ddLxi_v;
-        const T cse25 = T(10)*cse9;
-        const T cse26 = T(10)*cse8;
-        const T cse27 = T(20)*cse1;
-        const T cse28 = T(30)*cse9;
-        dnf(ix, 4*fi + 0) = T(16)*Lx*(cse11 + T(9)*cse4*dLx + T(6)*(dLx)*(dLx)*(dLx))*(T(120)*cse1*xi*xv - cse12 - cse13 - cse14*cse15 + T(30)*cse14*dLxi_v*ddLxi_v - cse15*cse16 + T(30)*cse16*dLxi_v*ddLxi_v - cse17 - cse19 - cse20 + T(20)*cse8*xv - T(60)*cse9*xi*xv + T(4)*d3Lxi_v*xi*xv + T(4)*ddLxi_v*xi) + T(64)*cse0*dLx*(-cse2 - d3Lxi_v + T(15)*dLxi_v*ddLxi_v) + T(96)*cse3*(cse4 + T(3)*cse5)*(-cse10*xi + cse10*xv + cse2*xi - cse2*xv + cse6 - cse7 + T(5)*cse8 - ddLxi_v) + (T(4)*cse0*d4Lx + T(48)*cse11*dLx + T(36)*cse3*(ddLx)*(ddLx) + T(144)*cse4*cse5 + T(24)*(dLx)*(dLx)*(dLx)*(dLx))*(cse12*xi - cse12*xv + cse13*xi - cse14*cse24 + cse14*cse26 + cse14*cse28*xv - T(2)*cse14*cse7 - cse16*cse24 + cse16*cse26 - cse16*cse28*xi + T(2)*cse16*cse6 - cse17*xv - cse19*xv + cse20*xi + cse21*cse22 - cse21*cse25 + cse21*cse27 - cse22*cse23 + cse23*cse25 - cse23*cse27 + T(1));
+        const T cse6 = -xi + xv;
+        const T cse7 = (dLxi_v)*(dLxi_v);
+        const T cse8 = T(20)*cse7 - T(4)*ddLxi_v;
+        const T cse9 = cse3*d3Lx;
+        const T cse10 = T(4)*dLxi_v;
+        dnf(ix, 4*fi + 0) = T(16)*Lx*(-cse10 + cse6*(cse6*(-T(60)*cse1 - T(2)*d3Lxi_v + T(30)*dLxi_v*ddLxi_v) + cse8))*(T(9)*cse4*dLx + cse9 + T(6)*(dLx)*(dLx)*(dLx)) + T(16)*cse0*cse2*dLx + T(24)*cse3*(cse4 + T(3)*cse5)*(cse2*cse6 + cse8) + (cse6*(-cse10 + cse6*(cse6*(-T(20)*cse1 - T(2)/T(3)*d3Lxi_v + T(10)*dLxi_v*ddLxi_v) + T(10)*cse7 - T(2)*ddLxi_v)) + T(1))*(T(4)*cse0*d4Lx + T(36)*cse3*(ddLx)*(ddLx) + T(144)*cse4*cse5 + T(48)*cse9*dLx + T(24)*(dLx)*(dLx)*(dLx)*(dLx));
       }
       {
         const T cse0 = (Lx)*(Lx)*(Lx);
         const T cse1 = (dLxi_v)*(dLxi_v);
-        const T cse2 = (Lx)*(Lx);
+        const T cse2 = T(60)*cse1 - T(12)*ddLxi_v;
+        const T cse3 = (Lx)*(Lx);
+        const T cse4 = Lx*ddLx;
+        const T cse5 = (dLx)*(dLx);
+        const T cse6 = T(8)*dLxi_v;
+        const T cse7 = -xi + xv;
+        const T cse8 = cse3*d3Lx;
+        dnf(ix, 4*fi + 1) = T(16)*Lx*(cse7*(-cse6 + cse7*(T(30)*cse1 - T(6)*ddLxi_v)) + T(1))*(T(9)*cse4*dLx + cse8 + T(6)*(dLx)*(dLx)*(dLx)) + T(16)*cse0*cse2*dLx + T(24)*cse3*(cse4 + T(3)*cse5)*(cse2*cse7 - cse6) + cse7*(cse7*(cse7*(T(10)*cse1 - T(2)*ddLxi_v) - T(4)*dLxi_v) + T(1))*(T(4)*cse0*d4Lx + T(36)*cse3*(ddLx)*(ddLx) + T(144)*cse4*cse5 + T(48)*cse8*dLx + T(24)*(dLx)*(dLx)*(dLx)*(dLx));
+      }
+      {
+        const T cse0 = (Lx)*(Lx)*(Lx);
+        const T cse1 = (Lx)*(Lx);
+        const T cse2 = Lx*ddLx;
+        const T cse3 = (dLx)*(dLx);
+        const T cse4 = -xi + xv;
+        const T cse5 = cse4*dLxi_v;
+        const T cse6 = cse1*d3Lx;
+        dnf(ix, 4*fi + 2) = T(16)*Lx*cse4*(T(1) - T(6)*cse5)*(T(9)*cse2*dLx + cse6 + T(6)*(dLx)*(dLx)*(dLx)) - T(192)*cse0*dLx*dLxi_v + T(24)*cse1*(T(1) - T(12)*cse5)*(cse2 + T(3)*cse3) + (cse4)*(cse4)*(T(1)/T(2) - T(2)*cse5)*(T(4)*cse0*d4Lx + T(36)*cse1*(ddLx)*(ddLx) + T(144)*cse2*cse3 + T(48)*cse6*dLx + T(24)*(dLx)*(dLx)*(dLx)*(dLx));
+      }
+      {
+        const T cse0 = (Lx)*(Lx)*(Lx);
+        const T cse1 = (Lx)*(Lx);
+        const T cse2 = -xi + xv;
         const T cse3 = Lx*ddLx;
         const T cse4 = (dLx)*(dLx);
-        const T cse5 = cse2*d3Lx;
-        const T cse6 = T(8)*dLxi_v;
-        const T cse7 = xi*xv;
-        const T cse8 = (xi)*(xi);
-        const T cse9 = T(6)*ddLxi_v;
-        const T cse10 = cse8*cse9;
-        const T cse11 = (xv)*(xv);
-        const T cse12 = T(30)*cse1;
-        const T cse13 = cse11*cse12;
-        const T cse14 = T(4)*dLxi_v;
-        const T cse15 = (xi)*(xi)*(xi);
-        const T cse16 = (xv)*(xv)*(xv);
-        dnf(ix, 4*fi + 1) = T(16)*Lx*(T(9)*cse3*dLx + cse5 + T(6)*(dLx)*(dLx)*(dLx))*(-T(60)*cse1*cse7 - cse10 - cse11*cse9 + cse12*cse8 + cse13 + cse6*xi - cse6*xv + T(12)*cse7*ddLxi_v + T(1)) + T(192)*cse0*dLx*(T(5)*cse1 - ddLxi_v) + T(96)*cse2*(cse3 + T(3)*cse4)*(-T(15)*cse1*xi + T(15)*cse1*xv - T(2)*dLxi_v + T(3)*ddLxi_v*xi - T(3)*ddLxi_v*xv) + (T(4)*cse0*d4Lx + T(36)*cse2*(ddLx)*(ddLx) + T(144)*cse3*cse4 + T(48)*cse5*dLx + T(24)*(dLx)*(dLx)*(dLx)*(dLx))*(-T(10)*cse1*cse15 + T(10)*cse1*cse16 + T(30)*cse1*cse8*xv - cse10*xv - cse11*cse14 + T(6)*cse11*ddLxi_v*xi - cse13*xi - cse14*cse8 + T(2)*cse15*ddLxi_v - T(2)*cse16*ddLxi_v + T(8)*dLxi_v*xi*xv - xi + xv);
-      }
-      {
-        const T cse0 = (Lx)*(Lx)*(Lx);
-        const T cse1 = (Lx)*(Lx);
-        const T cse2 = Lx*ddLx;
-        const T cse3 = (dLx)*(dLx);
-        const T cse4 = T(12)*dLxi_v;
         const T cse5 = cse1*d3Lx;
-        const T cse6 = (xi)*(xi);
-        const T cse7 = T(6)*dLxi_v;
-        const T cse8 = cse6*cse7;
-        const T cse9 = (xv)*(xv);
-        const T cse10 = cse7*cse9;
-        const T cse11 = T(2)*dLxi_v;
-        dnf(ix, 4*fi + 2) = T(16)*Lx*(T(9)*cse2*dLx + cse5 + T(6)*(dLx)*(dLx)*(dLx))*(-cse10 - cse8 + T(12)*dLxi_v*xi*xv - xi + xv) - T(192)*cse0*dLx*dLxi_v + T(24)*cse1*(cse2 + T(3)*cse3)*(cse4*xi - cse4*xv + T(1)) + (T(4)*cse0*d4Lx + T(36)*cse1*(ddLx)*(ddLx) + T(144)*cse2*cse3 + T(48)*cse5*dLx + T(24)*(dLx)*(dLx)*(dLx)*(dLx))*(cse10*xi + cse11*(xi)*(xi)*(xi) - cse11*(xv)*(xv)*(xv) + (T(1)/T(2))*cse6 - cse8*xv + (T(1)/T(2))*cse9 - xi*xv);
-      }
-      {
-        const T cse0 = (Lx)*(Lx)*(Lx);
-        const T cse1 = (Lx)*(Lx);
-        const T cse2 = Lx*ddLx;
-        const T cse3 = (dLx)*(dLx);
-        const T cse4 = (xi)*(xi);
-        const T cse5 = (T(1)/T(2))*(xv)*(xv);
-        const T cse6 = cse1*d3Lx;
-        dnf(ix, 4*fi + 3) = T(16)*Lx*((T(1)/T(2))*cse4 + cse5 - xi*xv)*(T(9)*cse2*dLx + cse6 + T(6)*(dLx)*(dLx)*(dLx)) + T(16)*cse0*dLx + T(24)*cse1*(cse2 + T(3)*cse3)*(-xi + xv) + ((T(1)/T(2))*cse4*xv - cse5*xi - T(1)/T(6)*(xi)*(xi)*(xi) + (T(1)/T(6))*(xv)*(xv)*(xv))*(T(4)*cse0*d4Lx + T(36)*cse1*(ddLx)*(ddLx) + T(144)*cse2*cse3 + T(48)*cse6*dLx + T(24)*(dLx)*(dLx)*(dLx)*(dLx));
+        dnf(ix, 4*fi + 3) = T(16)*Lx*cse2*(-T(1)/T(2)*xi + (T(1)/T(2))*xv)*(T(9)*cse3*dLx + cse5 + T(6)*(dLx)*(dLx)*(dLx)) + T(16)*cse0*dLx + T(24)*cse1*cse2*(cse3 + T(3)*cse4) + (cse2)*(cse2)*(-T(1)/T(6)*xi + (T(1)/T(6))*xv)*(T(4)*cse0*d4Lx + T(36)*cse1*(ddLx)*(ddLx) + T(144)*cse3*cse4 + T(48)*cse5*dLx + T(24)*(dLx)*(dLx)*(dLx)*(dLx));
       }
       dnf(ix, 4*fi + 1) *= element_length;
       dnf(ix, 4*fi + 2) *= element_length * element_length;
@@ -495,85 +339,53 @@ case (5): {
         const T cse1 = Lx*ddLx;
         const T cse2 = (dLx)*(dLx);
         const T cse3 = (dLxi_v)*(dLxi_v)*(dLxi_v);
-        const T cse4 = T(30)*cse3;
+        const T cse4 = -T(120)*cse3 - T(4)*d3Lxi_v + T(60)*dLxi_v*ddLxi_v;
         const T cse5 = (dLx)*(dLx)*(dLx);
         const T cse6 = cse0*d3Lx;
-        const T cse7 = d3Lxi_v*xi;
-        const T cse8 = d3Lxi_v*xv;
-        const T cse9 = (dLxi_v)*(dLxi_v);
-        const T cse10 = dLxi_v*ddLxi_v;
-        const T cse11 = T(15)*cse10;
-        const T cse12 = (Lx)*(Lx)*(Lx);
-        const T cse13 = (ddLx)*(ddLx);
-        const T cse14 = T(4)*dLxi_v;
-        const T cse15 = T(4)*ddLxi_v*xv;
-        const T cse16 = (xi)*(xi);
-        const T cse17 = T(2)*d3Lxi_v;
-        const T cse18 = (xv)*(xv);
-        const T cse19 = T(20)*cse9*xi;
-        const T cse20 = T(60)*cse3;
-        const T cse21 = cse16*cse20;
-        const T cse22 = cse18*cse20;
-        const T cse23 = (xi)*(xi)*(xi);
-        const T cse24 = (T(2)/T(3))*d3Lxi_v;
-        const T cse25 = (xv)*(xv)*(xv);
-        const T cse26 = T(2)*ddLxi_v;
-        const T cse27 = T(10)*cse10;
-        const T cse28 = T(10)*cse9;
-        const T cse29 = T(20)*cse3;
-        const T cse30 = T(30)*cse10;
-        dnf(ix, 4*fi + 0) = T(160)*Lx*(T(9)*cse1*dLx + T(6)*cse5 + cse6)*(-cse11*xi + cse11*xv + cse4*xi - cse4*xv + cse7 - cse8 + T(5)*cse9 - ddLxi_v) + T(160)*cse0*(cse1 + T(3)*cse2)*(-cse4 - d3Lxi_v + T(15)*dLxi_v*ddLxi_v) + (T(180)*cse0*cse13 + T(720)*cse1*cse2 + T(20)*cse12*d4Lx + T(240)*cse6*dLx + T(120)*(dLx)*(dLx)*(dLx)*(dLx))*(-T(60)*cse10*xi*xv - cse14 - cse15 - cse16*cse17 + T(30)*cse16*dLxi_v*ddLxi_v - cse17*cse18 + T(30)*cse18*dLxi_v*ddLxi_v - cse19 - cse21 - cse22 + T(120)*cse3*xi*xv + T(20)*cse9*xv + T(4)*d3Lxi_v*xi*xv + T(4)*ddLxi_v*xi) + (T(360)*Lx*cse13*dLx + T(240)*Lx*cse2*d3Lx + T(60)*cse0*d4Lx*dLx + T(4)*cse12*d5Lx + T(240)*cse5*ddLx + T(120)*cse6*ddLx)*(cse14*xi - cse14*xv + cse15*xi - cse16*cse26 + cse16*cse28 + cse16*cse30*xv - T(2)*cse16*cse8 - cse18*cse26 + cse18*cse28 - cse18*cse30*xi + T(2)*cse18*cse7 - cse19*xv - cse21*xv + cse22*xi + cse23*cse24 - cse23*cse27 + cse23*cse29 - cse24*cse25 + cse25*cse27 - cse25*cse29 + T(1));
+        const T cse7 = -xi + xv;
+        const T cse8 = (dLxi_v)*(dLxi_v);
+        const T cse9 = T(20)*cse8 - T(4)*ddLxi_v;
+        const T cse10 = (Lx)*(Lx)*(Lx);
+        const T cse11 = (ddLx)*(ddLx);
+        const T cse12 = T(4)*dLxi_v;
+        dnf(ix, 4*fi + 0) = T(40)*Lx*(cse4*cse7 + cse9)*(T(9)*cse1*dLx + T(6)*cse5 + cse6) + T(40)*cse0*cse4*(cse1 + T(3)*cse2) + (-cse12 + cse7*(cse7*(-T(60)*cse3 - T(2)*d3Lxi_v + T(30)*dLxi_v*ddLxi_v) + cse9))*(T(180)*cse0*cse11 + T(720)*cse1*cse2 + T(20)*cse10*d4Lx + T(240)*cse6*dLx + T(120)*(dLx)*(dLx)*(dLx)*(dLx)) + (cse7*(-cse12 + cse7*(cse7*(-T(20)*cse3 - T(2)/T(3)*d3Lxi_v + T(10)*dLxi_v*ddLxi_v) + T(10)*cse8 - T(2)*ddLxi_v)) + T(1))*(T(360)*Lx*cse11*dLx + T(240)*Lx*cse2*d3Lx + T(60)*cse0*d4Lx*dLx + T(4)*cse10*d5Lx + T(240)*cse5*ddLx + T(120)*cse6*ddLx);
       }
       {
         const T cse0 = (Lx)*(Lx);
         const T cse1 = (dLxi_v)*(dLxi_v);
-        const T cse2 = Lx*ddLx;
-        const T cse3 = (dLx)*(dLx);
+        const T cse2 = T(60)*cse1 - T(12)*ddLxi_v;
+        const T cse3 = Lx*ddLx;
+        const T cse4 = (dLx)*(dLx);
+        const T cse5 = (dLx)*(dLx)*(dLx);
+        const T cse6 = cse0*d3Lx;
+        const T cse7 = T(8)*dLxi_v;
+        const T cse8 = -xi + xv;
+        const T cse9 = (Lx)*(Lx)*(Lx);
+        const T cse10 = (ddLx)*(ddLx);
+        dnf(ix, 4*fi + 1) = T(40)*Lx*(cse2*cse8 - cse7)*(T(9)*cse3*dLx + T(6)*cse5 + cse6) + T(40)*cse0*cse2*(cse3 + T(3)*cse4) + cse8*(cse8*(cse8*(T(10)*cse1 - T(2)*ddLxi_v) - T(4)*dLxi_v) + T(1))*(T(360)*Lx*cse10*dLx + T(240)*Lx*cse4*d3Lx + T(60)*cse0*d4Lx*dLx + T(240)*cse5*ddLx + T(120)*cse6*ddLx + T(4)*cse9*d5Lx) + (cse8*(-cse7 + cse8*(T(30)*cse1 - T(6)*ddLxi_v)) + T(1))*(T(180)*cse0*cse10 + T(720)*cse3*cse4 + T(240)*cse6*dLx + T(20)*cse9*d4Lx + T(120)*(dLx)*(dLx)*(dLx)*(dLx));
+      }
+      {
+        const T cse0 = (Lx)*(Lx);
+        const T cse1 = Lx*ddLx;
+        const T cse2 = (dLx)*(dLx);
+        const T cse3 = -xi + xv;
+        const T cse4 = cse3*dLxi_v;
+        const T cse5 = (dLx)*(dLx)*(dLx);
+        const T cse6 = cse0*d3Lx;
+        const T cse7 = (Lx)*(Lx)*(Lx);
+        const T cse8 = (ddLx)*(ddLx);
+        dnf(ix, 4*fi + 2) = T(40)*Lx*(T(1) - T(12)*cse4)*(T(9)*cse1*dLx + T(6)*cse5 + cse6) - T(480)*cse0*dLxi_v*(cse1 + T(3)*cse2) + (cse3)*(cse3)*(T(1)/T(2) - T(2)*cse4)*(T(240)*Lx*cse2*d3Lx + T(360)*Lx*cse8*dLx + T(60)*cse0*d4Lx*dLx + T(240)*cse5*ddLx + T(120)*cse6*ddLx + T(4)*cse7*d5Lx) + cse3*(T(1) - T(6)*cse4)*(T(180)*cse0*cse8 + T(720)*cse1*cse2 + T(240)*cse6*dLx + T(20)*cse7*d4Lx + T(120)*(dLx)*(dLx)*(dLx)*(dLx));
+      }
+      {
+        const T cse0 = (Lx)*(Lx);
+        const T cse1 = Lx*ddLx;
+        const T cse2 = (dLx)*(dLx);
+        const T cse3 = -xi + xv;
         const T cse4 = (dLx)*(dLx)*(dLx);
         const T cse5 = cse0*d3Lx;
         const T cse6 = (Lx)*(Lx)*(Lx);
         const T cse7 = (ddLx)*(ddLx);
-        const T cse8 = T(8)*dLxi_v;
-        const T cse9 = xi*xv;
-        const T cse10 = (xi)*(xi);
-        const T cse11 = T(6)*ddLxi_v;
-        const T cse12 = cse10*cse11;
-        const T cse13 = (xv)*(xv);
-        const T cse14 = T(30)*cse1;
-        const T cse15 = cse13*cse14;
-        const T cse16 = T(4)*dLxi_v;
-        const T cse17 = (xi)*(xi)*(xi);
-        const T cse18 = (xv)*(xv)*(xv);
-        dnf(ix, 4*fi + 1) = T(160)*Lx*(T(9)*cse2*dLx + T(6)*cse4 + cse5)*(-T(15)*cse1*xi + T(15)*cse1*xv - T(2)*dLxi_v + T(3)*ddLxi_v*xi - T(3)*ddLxi_v*xv) + T(480)*cse0*(T(5)*cse1 - ddLxi_v)*(cse2 + T(3)*cse3) + (T(180)*cse0*cse7 + T(720)*cse2*cse3 + T(240)*cse5*dLx + T(20)*cse6*d4Lx + T(120)*(dLx)*(dLx)*(dLx)*(dLx))*(-T(60)*cse1*cse9 + cse10*cse14 - cse11*cse13 - cse12 + cse15 + cse8*xi - cse8*xv + T(12)*cse9*ddLxi_v + T(1)) + (T(240)*Lx*cse3*d3Lx + T(360)*Lx*cse7*dLx + T(60)*cse0*d4Lx*dLx + T(240)*cse4*ddLx + T(120)*cse5*ddLx + T(4)*cse6*d5Lx)*(T(30)*cse1*cse10*xv - T(10)*cse1*cse17 + T(10)*cse1*cse18 - cse10*cse16 - cse12*xv - cse13*cse16 + T(6)*cse13*ddLxi_v*xi - cse15*xi + T(2)*cse17*ddLxi_v - T(2)*cse18*ddLxi_v + T(8)*dLxi_v*xi*xv - xi + xv);
-      }
-      {
-        const T cse0 = (Lx)*(Lx);
-        const T cse1 = Lx*ddLx;
-        const T cse2 = (dLx)*(dLx);
-        const T cse3 = T(12)*dLxi_v;
-        const T cse4 = (dLx)*(dLx)*(dLx);
-        const T cse5 = cse0*d3Lx;
-        const T cse6 = (xi)*(xi);
-        const T cse7 = T(6)*dLxi_v;
-        const T cse8 = cse6*cse7;
-        const T cse9 = (xv)*(xv);
-        const T cse10 = cse7*cse9;
-        const T cse11 = (Lx)*(Lx)*(Lx);
-        const T cse12 = (ddLx)*(ddLx);
-        const T cse13 = T(2)*dLxi_v;
-        dnf(ix, 4*fi + 2) = T(40)*Lx*(T(9)*cse1*dLx + T(6)*cse4 + cse5)*(cse3*xi - cse3*xv + T(1)) - T(480)*cse0*dLxi_v*(cse1 + T(3)*cse2) + (-cse10 - cse8 + T(12)*dLxi_v*xi*xv - xi + xv)*(T(180)*cse0*cse12 + T(720)*cse1*cse2 + T(20)*cse11*d4Lx + T(240)*cse5*dLx + T(120)*(dLx)*(dLx)*(dLx)*(dLx)) + (T(360)*Lx*cse12*dLx + T(240)*Lx*cse2*d3Lx + T(60)*cse0*d4Lx*dLx + T(4)*cse11*d5Lx + T(240)*cse4*ddLx + T(120)*cse5*ddLx)*(cse10*xi + cse13*(xi)*(xi)*(xi) - cse13*(xv)*(xv)*(xv) + (T(1)/T(2))*cse6 - cse8*xv + (T(1)/T(2))*cse9 - xi*xv);
-      }
-      {
-        const T cse0 = (Lx)*(Lx);
-        const T cse1 = Lx*ddLx;
-        const T cse2 = (dLx)*(dLx);
-        const T cse3 = (dLx)*(dLx)*(dLx);
-        const T cse4 = cse0*d3Lx;
-        const T cse5 = (xi)*(xi);
-        const T cse6 = (T(1)/T(2))*(xv)*(xv);
-        const T cse7 = (Lx)*(Lx)*(Lx);
-        const T cse8 = (ddLx)*(ddLx);
-        dnf(ix, 4*fi + 3) = T(40)*Lx*(-xi + xv)*(T(9)*cse1*dLx + T(6)*cse3 + cse4) + T(40)*cse0*(cse1 + T(3)*cse2) + ((T(1)/T(2))*cse5 + cse6 - xi*xv)*(T(180)*cse0*cse8 + T(720)*cse1*cse2 + T(240)*cse4*dLx + T(20)*cse7*d4Lx + T(120)*(dLx)*(dLx)*(dLx)*(dLx)) + ((T(1)/T(2))*cse5*xv - cse6*xi - T(1)/T(6)*(xi)*(xi)*(xi) + (T(1)/T(6))*(xv)*(xv)*(xv))*(T(240)*Lx*cse2*d3Lx + T(360)*Lx*cse8*dLx + T(60)*cse0*d4Lx*dLx + T(240)*cse3*ddLx + T(120)*cse4*ddLx + T(4)*cse7*d5Lx);
+        dnf(ix, 4*fi + 3) = T(40)*Lx*cse3*(T(9)*cse1*dLx + T(6)*cse4 + cse5) + T(40)*cse0*(cse1 + T(3)*cse2) + (cse3)*(cse3)*(-T(1)/T(6)*xi + (T(1)/T(6))*xv)*(T(240)*Lx*cse2*d3Lx + T(360)*Lx*cse7*dLx + T(60)*cse0*d4Lx*dLx + T(240)*cse4*ddLx + T(120)*cse5*ddLx + T(4)*cse6*d5Lx) + cse3*(-T(1)/T(2)*xi + (T(1)/T(2))*xv)*(T(180)*cse0*cse7 + T(720)*cse1*cse2 + T(240)*cse5*dLx + T(20)*cse6*d4Lx + T(120)*(dLx)*(dLx)*(dLx)*(dLx));
       }
       dnf(ix, 4*fi + 1) *= element_length;
       dnf(ix, 4*fi + 2) *= element_length * element_length;

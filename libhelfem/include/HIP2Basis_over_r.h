@@ -11,8 +11,8 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-#ifndef HELFEM_FEM_HIP2BASIS_OVER_R_H
-#define HELFEM_FEM_HIP2BASIS_OVER_R_H
+#ifndef LIB1DFEM_HIP2BASIS_OVER_R_H
+#define LIB1DFEM_HIP2BASIS_OVER_R_H
 
 #include <types.h>
 #include <LIPBasis_eval.h>
@@ -92,8 +92,7 @@ void eval_hip2_prim_over_r(const Vec<T> & x, const Vec<T> & x0,
         case 0:
           switch (kind) {
           case 1: {
-            const T cse0 = T(3)*dLxi_v;
-            R = (Lx)*(Lx)*(Lx)*(cse0*xi - cse0*xv + T(1));
+            R = (Lx)*(Lx)*(Lx)*(-T(3)*dLxi_v*(-xi + xv) + T(1));
           } break;
           case 2: {
             R = (Lx)*(Lx)*(Lx)*(-T(1)/T(2)*xi + (T(1)/T(2))*xv);
@@ -104,7 +103,7 @@ void eval_hip2_prim_over_r(const Vec<T> & x, const Vec<T> & x0,
           switch (kind) {
           case 1: {
             const T cse0 = T(3)*dLxi_v;
-            R = -(Lx)*(Lx)*(Lx)*cse0 + T(3)*(Lx)*(Lx)*dLx*(cse0*xi - cse0*xv + T(1));
+            R = -(Lx)*(Lx)*(Lx)*cse0 + T(3)*(Lx)*(Lx)*dLx*(-cse0*(-xi + xv) + T(1));
           } break;
           case 2: {
             R = (T(1)/T(2))*(Lx)*(Lx)*(Lx) + T(3)*(Lx)*(Lx)*dLx*(-T(1)/T(2)*xi + (T(1)/T(2))*xv);
@@ -114,8 +113,7 @@ void eval_hip2_prim_over_r(const Vec<T> & x, const Vec<T> & x0,
         case 2:
           switch (kind) {
           case 1: {
-            const T cse0 = T(3)*dLxi_v;
-            R = -T(18)*(Lx)*(Lx)*dLx*dLxi_v + T(3)*Lx*(Lx*ddLx + T(2)*(dLx)*(dLx))*(cse0*xi - cse0*xv + T(1));
+            R = -T(18)*(Lx)*(Lx)*dLx*dLxi_v + T(3)*Lx*(Lx*ddLx + T(2)*(dLx)*(dLx))*(-T(3)*dLxi_v*(-xi + xv) + T(1));
           } break;
           case 2: {
             R = T(3)*(Lx)*(Lx)*dLx + T(3)*Lx*(-T(1)/T(2)*xi + (T(1)/T(2))*xv)*(Lx*ddLx + T(2)*(dLx)*(dLx));
@@ -133,21 +131,15 @@ void eval_hip2_prim_over_r(const Vec<T> & x, const Vec<T> & x0,
         case 0:
           switch (kind) {
           case 0: {
-            const T cse0 = T(3)*dLxi_v;
-            const T cse1 = xi*xv;
-            const T cse2 = (xi)*(xi);
-            const T cse3 = (T(3)/T(2))*ddLxi_v;
-            const T cse4 = (xv)*(xv);
-            const T cse5 = (dLxi_v)*(dLxi_v);
-            const T cse6 = T(6)*cse5;
-            R = (pr)*(pr)*(pr)*std::pow(xv + T(1), T(2))*(cse0*xi - cse0*xv - T(12)*cse1*cse5 + T(3)*cse1*ddLxi_v - cse2*cse3 + cse2*cse6 - cse3*cse4 + cse4*cse6 + T(1))/std::pow(xi + T(1), T(3));
+            const T cse0 = -xi + xv;
+            R = (pr)*(pr)*(pr)*std::pow(xv + T(1), T(2))*(cse0*(cse0*(T(6)*(dLxi_v)*(dLxi_v) - T(3)/T(2)*ddLxi_v) - T(3)*dLxi_v) + T(1))/std::pow(xi + T(1), T(3));
           } break;
           case 1: {
-            const T cse0 = T(3)*dLxi_v;
-            R = (pr)*(pr)*(pr)*std::pow(xv + T(1), T(2))*(-cse0*(xi)*(xi) - cse0*(xv)*(xv) + T(6)*dLxi_v*xi*xv - xi + xv)/std::pow(xi + T(1), T(3));
+            const T cse0 = -xi + xv;
+            R = cse0*(pr)*(pr)*(pr)*std::pow(xv + T(1), T(2))*(-T(3)*cse0*dLxi_v + T(1))/std::pow(xi + T(1), T(3));
           } break;
           case 2: {
-            R = (pr)*(pr)*(pr)*std::pow(xv + T(1), T(2))*((T(1)/T(2))*(xi)*(xi) - xi*xv + (T(1)/T(2))*(xv)*(xv))/std::pow(xi + T(1), T(3));
+            R = (pr)*(pr)*(pr)*(-xi + xv)*(-T(1)/T(2)*xi + (T(1)/T(2))*xv)*std::pow(xv + T(1), T(2))/std::pow(xi + T(1), T(3));
           } break;
           }
           break;
@@ -157,29 +149,25 @@ void eval_hip2_prim_over_r(const Vec<T> & x, const Vec<T> & x0,
             const T cse0 = (pr)*(pr)*(pr);
             const T cse1 = std::pow(xv + T(1), T(2));
             const T cse2 = T(3)*dLxi_v;
-            const T cse3 = T(3)*ddLxi_v*xv;
+            const T cse3 = -xi + xv;
             const T cse4 = (dLxi_v)*(dLxi_v);
-            const T cse5 = T(12)*cse4*xi;
-            const T cse6 = (xi)*(xi);
-            const T cse7 = (T(3)/T(2))*ddLxi_v;
-            const T cse8 = (xv)*(xv);
-            const T cse9 = T(6)*cse4;
-            const T cse10 = cse2*xi - cse2*xv + cse3*xi - cse5*xv - cse6*cse7 + cse6*cse9 - cse7*cse8 + cse8*cse9 + T(1);
-            R = (cse0*cse1*(-cse2 - cse3 + T(12)*cse4*xv - cse5 + T(3)*ddLxi_v*xi) + cse0*cse10*(T(2)*xv + T(2)) + T(3)*cse1*cse10*dpr*(pr)*(pr))/std::pow(xi + T(1), T(3));
+            const T cse5 = cse3*(-cse2 + cse3*(T(6)*cse4 - T(3)/T(2)*ddLxi_v)) + T(1);
+            R = (cse0*cse1*(-cse2 + cse3*(T(12)*cse4 - T(3)*ddLxi_v)) + cse0*cse5*(T(2)*xv + T(2)) + T(3)*cse1*cse5*dpr*(pr)*(pr))/std::pow(xi + T(1), T(3));
           } break;
           case 1: {
             const T cse0 = (pr)*(pr)*(pr);
             const T cse1 = std::pow(xv + T(1), T(2));
-            const T cse2 = T(6)*dLxi_v;
-            const T cse3 = T(3)*dLxi_v;
-            const T cse4 = -cse3*(xi)*(xi) - cse3*(xv)*(xv) + T(6)*dLxi_v*xi*xv - xi + xv;
-            R = (cse0*cse1*(cse2*xi - cse2*xv + T(1)) + cse0*cse4*(T(2)*xv + T(2)) + T(3)*cse1*cse4*dpr*(pr)*(pr))/std::pow(xi + T(1), T(3));
+            const T cse2 = -xi + xv;
+            const T cse3 = cse2*dLxi_v;
+            const T cse4 = cse2*(T(1) - T(3)*cse3);
+            R = (cse0*cse1*(T(1) - T(6)*cse3) + cse0*cse4*(T(2)*xv + T(2)) + T(3)*cse1*cse4*dpr*(pr)*(pr))/std::pow(xi + T(1), T(3));
           } break;
           case 2: {
-            const T cse0 = (pr)*(pr)*(pr);
-            const T cse1 = std::pow(xv + T(1), T(2));
-            const T cse2 = (T(1)/T(2))*(xi)*(xi) - xi*xv + (T(1)/T(2))*(xv)*(xv);
-            R = (cse0*cse1*(-xi + xv) + cse0*cse2*(T(2)*xv + T(2)) + T(3)*cse1*cse2*dpr*(pr)*(pr))/std::pow(xi + T(1), T(3));
+            const T cse0 = std::pow(xv + T(1), T(2));
+            const T cse1 = -xi + xv;
+            const T cse2 = cse1*(pr)*(pr)*(pr);
+            const T cse3 = -T(1)/T(2)*xi + (T(1)/T(2))*xv;
+            R = (T(3)*cse0*cse1*cse3*dpr*(pr)*(pr) + cse0*cse2 + cse2*cse3*(T(2)*xv + T(2)))/std::pow(xi + T(1), T(3));
           } break;
           }
           break;
@@ -187,43 +175,42 @@ void eval_hip2_prim_over_r(const Vec<T> & x, const Vec<T> & x0,
           switch (kind) {
           case 0: {
             const T cse0 = (pr)*(pr)*(pr);
-            const T cse1 = (dLxi_v)*(dLxi_v);
-            const T cse2 = std::pow(xv + T(1), T(2));
-            const T cse3 = T(3)*cse2;
+            const T cse1 = std::pow(xv + T(1), T(2));
+            const T cse2 = (dLxi_v)*(dLxi_v);
+            const T cse3 = T(12)*cse2 - T(3)*ddLxi_v;
             const T cse4 = T(4)*xv + T(4);
             const T cse5 = T(3)*dLxi_v;
-            const T cse6 = T(3)*ddLxi_v*xv;
-            const T cse7 = T(12)*cse1*xi;
-            const T cse8 = T(12)*cse1*xv - cse5 - cse6 - cse7 + T(3)*ddLxi_v*xi;
-            const T cse9 = dpr*(pr)*(pr);
-            const T cse10 = (xi)*(xi);
-            const T cse11 = (T(3)/T(2))*ddLxi_v;
-            const T cse12 = (xv)*(xv);
-            const T cse13 = T(6)*cse1;
-            const T cse14 = -cse10*cse11 + cse10*cse13 - cse11*cse12 + cse12*cse13 + cse5*xi - cse5*xv + cse6*xi - cse7*xv + T(1);
-            R = (T(2)*cse0*cse14 + cse0*cse3*(T(4)*cse1 - ddLxi_v) + cse0*cse4*cse8 + cse14*cse3*pr*(ddpr*pr + T(2)*(dpr)*(dpr)) + T(3)*cse14*cse4*cse9 + T(6)*cse2*cse8*cse9)/std::pow(xi + T(1), T(3));
+            const T cse6 = -xi + xv;
+            const T cse7 = cse3*cse6 - cse5;
+            const T cse8 = dpr*(pr)*(pr);
+            const T cse9 = cse6*(-cse5 + cse6*(T(6)*cse2 - T(3)/T(2)*ddLxi_v)) + T(1);
+            const T cse10 = T(3)*cse9;
+            R = (cse0*cse1*cse3 + cse0*cse4*cse7 + T(2)*cse0*cse9 + cse1*cse10*pr*(ddpr*pr + T(2)*(dpr)*(dpr)) + T(6)*cse1*cse7*cse8 + cse10*cse4*cse8)/std::pow(xi + T(1), T(3));
           } break;
           case 1: {
             const T cse0 = (pr)*(pr)*(pr);
             const T cse1 = std::pow(xv + T(1), T(2));
-            const T cse2 = T(6)*dLxi_v;
+            const T cse2 = T(6)*cse1;
             const T cse3 = T(4)*xv + T(4);
-            const T cse4 = cse2*xi - cse2*xv + T(1);
-            const T cse5 = dpr*(pr)*(pr);
-            const T cse6 = T(3)*dLxi_v;
-            const T cse7 = -cse6*(xi)*(xi) - cse6*(xv)*(xv) + T(6)*dLxi_v*xi*xv - xi + xv;
-            const T cse8 = T(3)*cse7;
-            R = (-cse0*cse1*cse2 + cse0*cse3*cse4 + T(2)*cse0*cse7 + T(6)*cse1*cse4*cse5 + cse1*cse8*pr*(ddpr*pr + T(2)*(dpr)*(dpr)) + cse3*cse5*cse8)/std::pow(xi + T(1), T(3));
+            const T cse4 = -xi + xv;
+            const T cse5 = cse4*dLxi_v;
+            const T cse6 = T(1) - T(6)*cse5;
+            const T cse7 = cse4*(T(1) - T(3)*cse5);
+            const T cse8 = dpr*(pr)*(pr);
+            const T cse9 = T(3)*cse7;
+            R = (-cse0*cse2*dLxi_v + cse0*cse3*cse6 + T(2)*cse0*cse7 + cse1*cse9*pr*(ddpr*pr + T(2)*(dpr)*(dpr)) + cse2*cse6*cse8 + cse3*cse8*cse9)/std::pow(xi + T(1), T(3));
           } break;
           case 2: {
             const T cse0 = (pr)*(pr)*(pr);
             const T cse1 = std::pow(xv + T(1), T(2));
-            const T cse2 = -xi + xv;
-            const T cse3 = T(4)*xv + T(4);
-            const T cse4 = dpr*(pr)*(pr);
-            const T cse5 = (T(1)/T(2))*(xi)*(xi) - xi*xv + (T(1)/T(2))*(xv)*(xv);
-            const T cse6 = T(3)*cse5;
-            R = (cse0*cse1 + cse0*cse2*cse3 + T(2)*cse0*cse5 + T(6)*cse1*cse2*cse4 + cse1*cse6*pr*(ddpr*pr + T(2)*(dpr)*(dpr)) + cse3*cse4*cse6)/std::pow(xi + T(1), T(3));
+            const T cse2 = T(4)*xv + T(4);
+            const T cse3 = -xi + xv;
+            const T cse4 = cse0*cse3;
+            const T cse5 = cse1*cse3;
+            const T cse6 = dpr*(pr)*(pr);
+            const T cse7 = -T(1)/T(2)*xi + (T(1)/T(2))*xv;
+            const T cse8 = T(3)*cse7;
+            R = (cse0*cse1 + cse2*cse3*cse6*cse8 + cse2*cse4 + T(2)*cse4*cse7 + T(6)*cse5*cse6 + cse5*cse8*pr*(ddpr*pr + T(2)*(dpr)*(dpr)))/std::pow(xi + T(1), T(3));
           } break;
           }
           break;

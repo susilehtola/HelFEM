@@ -11,12 +11,11 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-#ifndef HELFEM_FEM_HIPBASIS_EVAL_H
-#define HELFEM_FEM_HIPBASIS_EVAL_H
+#ifndef LIB1DFEM_HIPBASIS_EVAL_H
+#define LIB1DFEM_HIPBASIS_EVAL_H
 
 #include <types.h>
 #include <LIPBasis_eval.h>
-#include <cmath>
 #include <sstream>
 #include <stdexcept>
 
@@ -56,8 +55,7 @@ case (0): {
       const T Lx = Lx_all(ix, fi);
       const T dLxi_v = lipxi(fi);
       {
-        const T cse0 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = (Lx)*(Lx)*(cse0*xi - cse0*xv + T(1));
+        dnf(ix, 2*fi + 0) = (Lx)*(Lx)*(-T(2)*dLxi_v*(-xi + xv) + T(1));
       }
       {
         dnf(ix, 2*fi + 1) = (Lx)*(Lx)*(-xi + xv);
@@ -81,7 +79,7 @@ case (1): {
       const T dLxi_v = lipxi(fi);
       {
         const T cse0 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -(Lx)*(Lx)*cse0 + T(2)*Lx*dLx*(cse0*xi - cse0*xv + T(1));
+        dnf(ix, 2*fi + 0) = -(Lx)*(Lx)*cse0 + T(2)*Lx*dLx*(-cse0*(-xi + xv) + T(1));
       }
       {
         dnf(ix, 2*fi + 1) = (Lx)*(Lx) + T(2)*Lx*dLx*(-xi + xv);
@@ -107,8 +105,7 @@ case (2): {
       const T ddLx = ddLx_all(ix, fi);
       const T dLxi_v = lipxi(fi);
       {
-        const T cse0 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -T(8)*Lx*dLx*dLxi_v + (T(2)*Lx*ddLx + T(2)*(dLx)*(dLx))*(cse0*xi - cse0*xv + T(1));
+        dnf(ix, 2*fi + 0) = -T(8)*Lx*dLx*dLxi_v + (T(2)*Lx*ddLx + T(2)*(dLx)*(dLx))*(-T(2)*dLxi_v*(-xi + xv) + T(1));
       }
       {
         dnf(ix, 2*fi + 1) = T(4)*Lx*dLx + (-xi + xv)*(T(2)*Lx*ddLx + T(2)*(dLx)*(dLx));
@@ -139,7 +136,7 @@ case (3): {
       {
         const T cse0 = T(6)*ddLx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(6)*(dLx)*(dLx)) + (T(2)*Lx*d3Lx + cse0*dLx)*(cse1*xi - cse1*xv + T(1));
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(6)*(dLx)*(dLx)) + (T(2)*Lx*d3Lx + cse0*dLx)*(-cse1*(-xi + xv) + T(1));
       }
       {
         const T cse0 = T(6)*ddLx;
@@ -174,7 +171,7 @@ case (4): {
       {
         const T cse0 = T(8)*d3Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(24)*dLx*ddLx) + (T(2)*Lx*d4Lx + cse0*dLx + T(6)*(ddLx)*(ddLx))*(cse1*xi - cse1*xv + T(1));
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(24)*dLx*ddLx) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d4Lx + cse0*dLx + T(6)*(ddLx)*(ddLx));
       }
       {
         const T cse0 = T(8)*d3Lx;
@@ -212,7 +209,7 @@ case (5): {
       {
         const T cse0 = T(10)*d4Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(40)*d3Lx*dLx + T(30)*(ddLx)*(ddLx)) + (T(2)*Lx*d5Lx + cse0*dLx + T(20)*d3Lx*ddLx)*(cse1*xi - cse1*xv + T(1));
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(40)*d3Lx*dLx + T(30)*(ddLx)*(ddLx)) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d5Lx + cse0*dLx + T(20)*d3Lx*ddLx);
       }
       {
         const T cse0 = T(10)*d4Lx;
@@ -253,7 +250,7 @@ case (6): {
       {
         const T cse0 = T(12)*d5Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(120)*d3Lx*ddLx + T(60)*d4Lx*dLx) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d6Lx + cse0*dLx + T(20)*(d3Lx)*(d3Lx) + T(30)*d4Lx*ddLx);
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(120)*d3Lx*ddLx + T(60)*d4Lx*dLx) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d6Lx + cse0*dLx + T(20)*(d3Lx)*(d3Lx) + T(30)*d4Lx*ddLx);
       }
       {
         const T cse0 = T(12)*d5Lx;
@@ -297,7 +294,7 @@ case (7): {
       {
         const T cse0 = T(14)*d6Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(140)*(d3Lx)*(d3Lx) + T(210)*d4Lx*ddLx + T(84)*d5Lx*dLx) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d7Lx + cse0*dLx + T(70)*d3Lx*d4Lx + T(42)*d5Lx*ddLx);
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(140)*(d3Lx)*(d3Lx) + T(210)*d4Lx*ddLx + T(84)*d5Lx*dLx) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d7Lx + cse0*dLx + T(70)*d3Lx*d4Lx + T(42)*d5Lx*ddLx);
       }
       {
         const T cse0 = T(14)*d6Lx;
@@ -344,7 +341,7 @@ case (8): {
       {
         const T cse0 = T(16)*d7Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(560)*d3Lx*d4Lx + T(336)*d5Lx*ddLx + T(112)*d6Lx*dLx) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d8Lx + cse0*dLx + T(112)*d3Lx*d5Lx + T(70)*(d4Lx)*(d4Lx) + T(56)*d6Lx*ddLx);
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(560)*d3Lx*d4Lx + T(336)*d5Lx*ddLx + T(112)*d6Lx*dLx) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d8Lx + cse0*dLx + T(112)*d3Lx*d5Lx + T(70)*(d4Lx)*(d4Lx) + T(56)*d6Lx*ddLx);
       }
       {
         const T cse0 = T(16)*d7Lx;
@@ -394,7 +391,7 @@ case (9): {
       {
         const T cse0 = T(18)*d8Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(1008)*d3Lx*d5Lx + T(630)*(d4Lx)*(d4Lx) + T(504)*d6Lx*ddLx + T(144)*d7Lx*dLx) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d9Lx + cse0*dLx + T(168)*d3Lx*d6Lx + T(252)*d4Lx*d5Lx + T(72)*d7Lx*ddLx);
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(1008)*d3Lx*d5Lx + T(630)*(d4Lx)*(d4Lx) + T(504)*d6Lx*ddLx + T(144)*d7Lx*dLx) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d9Lx + cse0*dLx + T(168)*d3Lx*d6Lx + T(252)*d4Lx*d5Lx + T(72)*d7Lx*ddLx);
       }
       {
         const T cse0 = T(18)*d8Lx;
@@ -447,7 +444,7 @@ case (10): {
       {
         const T cse0 = T(20)*d9Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(1680)*d3Lx*d6Lx + T(2520)*d4Lx*d5Lx + T(720)*d7Lx*ddLx + T(180)*d8Lx*dLx) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d10Lx + cse0*dLx + T(240)*d3Lx*d7Lx + T(420)*d4Lx*d6Lx + T(252)*(d5Lx)*(d5Lx) + T(90)*d8Lx*ddLx);
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(1680)*d3Lx*d6Lx + T(2520)*d4Lx*d5Lx + T(720)*d7Lx*ddLx + T(180)*d8Lx*dLx) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d10Lx + cse0*dLx + T(240)*d3Lx*d7Lx + T(420)*d4Lx*d6Lx + T(252)*(d5Lx)*(d5Lx) + T(90)*d8Lx*ddLx);
       }
       {
         const T cse0 = T(20)*d9Lx;
@@ -503,7 +500,7 @@ case (11): {
       {
         const T cse0 = T(22)*d10Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(2640)*d3Lx*d7Lx + T(4620)*d4Lx*d6Lx + T(2772)*(d5Lx)*(d5Lx) + T(990)*d8Lx*ddLx + T(220)*d9Lx*dLx) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d11Lx + cse0*dLx + T(330)*d3Lx*d8Lx + T(660)*d4Lx*d7Lx + T(924)*d5Lx*d6Lx + T(110)*d9Lx*ddLx);
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(2640)*d3Lx*d7Lx + T(4620)*d4Lx*d6Lx + T(2772)*(d5Lx)*(d5Lx) + T(990)*d8Lx*ddLx + T(220)*d9Lx*dLx) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d11Lx + cse0*dLx + T(330)*d3Lx*d8Lx + T(660)*d4Lx*d7Lx + T(924)*d5Lx*d6Lx + T(110)*d9Lx*ddLx);
       }
       {
         const T cse0 = T(22)*d10Lx;
@@ -562,7 +559,7 @@ case (12): {
       {
         const T cse0 = T(24)*d11Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(264)*d10Lx*dLx + T(3960)*d3Lx*d8Lx + T(7920)*d4Lx*d7Lx + T(11088)*d5Lx*d6Lx + T(1320)*d9Lx*ddLx) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d12Lx + cse0*dLx + T(132)*d10Lx*ddLx + T(440)*d3Lx*d9Lx + T(990)*d4Lx*d8Lx + T(1584)*d5Lx*d7Lx + T(924)*(d6Lx)*(d6Lx));
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(264)*d10Lx*dLx + T(3960)*d3Lx*d8Lx + T(7920)*d4Lx*d7Lx + T(11088)*d5Lx*d6Lx + T(1320)*d9Lx*ddLx) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d12Lx + cse0*dLx + T(132)*d10Lx*ddLx + T(440)*d3Lx*d9Lx + T(990)*d4Lx*d8Lx + T(1584)*d5Lx*d7Lx + T(924)*(d6Lx)*(d6Lx));
       }
       {
         const T cse0 = T(24)*d11Lx;
@@ -624,7 +621,7 @@ case (13): {
       {
         const T cse0 = T(26)*d12Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(1716)*d10Lx*ddLx + T(312)*d11Lx*dLx + T(5720)*d3Lx*d9Lx + T(12870)*d4Lx*d8Lx + T(20592)*d5Lx*d7Lx + T(12012)*(d6Lx)*(d6Lx)) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d13Lx + cse0*dLx + T(572)*d10Lx*d3Lx + T(156)*d11Lx*ddLx + T(1430)*d4Lx*d9Lx + T(2574)*d5Lx*d8Lx + T(3432)*d6Lx*d7Lx);
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(1716)*d10Lx*ddLx + T(312)*d11Lx*dLx + T(5720)*d3Lx*d9Lx + T(12870)*d4Lx*d8Lx + T(20592)*d5Lx*d7Lx + T(12012)*(d6Lx)*(d6Lx)) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d13Lx + cse0*dLx + T(572)*d10Lx*d3Lx + T(156)*d11Lx*ddLx + T(1430)*d4Lx*d9Lx + T(2574)*d5Lx*d8Lx + T(3432)*d6Lx*d7Lx);
       }
       {
         const T cse0 = T(26)*d12Lx;
@@ -689,7 +686,7 @@ case (14): {
       {
         const T cse0 = T(28)*d13Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(8008)*d10Lx*d3Lx + T(2184)*d11Lx*ddLx + T(364)*d12Lx*dLx + T(20020)*d4Lx*d9Lx + T(36036)*d5Lx*d8Lx + T(48048)*d6Lx*d7Lx) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d14Lx + cse0*dLx + T(2002)*d10Lx*d4Lx + T(728)*d11Lx*d3Lx + T(182)*d12Lx*ddLx + T(4004)*d5Lx*d9Lx + T(6006)*d6Lx*d8Lx + T(3432)*(d7Lx)*(d7Lx));
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(8008)*d10Lx*d3Lx + T(2184)*d11Lx*ddLx + T(364)*d12Lx*dLx + T(20020)*d4Lx*d9Lx + T(36036)*d5Lx*d8Lx + T(48048)*d6Lx*d7Lx) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d14Lx + cse0*dLx + T(2002)*d10Lx*d4Lx + T(728)*d11Lx*d3Lx + T(182)*d12Lx*ddLx + T(4004)*d5Lx*d9Lx + T(6006)*d6Lx*d8Lx + T(3432)*(d7Lx)*(d7Lx));
       }
       {
         const T cse0 = T(28)*d13Lx;
@@ -757,7 +754,7 @@ case (15): {
       {
         const T cse0 = T(30)*d14Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(30030)*d10Lx*d4Lx + T(10920)*d11Lx*d3Lx + T(2730)*d12Lx*ddLx + T(420)*d13Lx*dLx + T(60060)*d5Lx*d9Lx + T(90090)*d6Lx*d8Lx + T(51480)*(d7Lx)*(d7Lx)) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d15Lx + cse0*dLx + T(6006)*d10Lx*d5Lx + T(2730)*d11Lx*d4Lx + T(910)*d12Lx*d3Lx + T(210)*d13Lx*ddLx + T(10010)*d6Lx*d9Lx + T(12870)*d7Lx*d8Lx);
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(30030)*d10Lx*d4Lx + T(10920)*d11Lx*d3Lx + T(2730)*d12Lx*ddLx + T(420)*d13Lx*dLx + T(60060)*d5Lx*d9Lx + T(90090)*d6Lx*d8Lx + T(51480)*(d7Lx)*(d7Lx)) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d15Lx + cse0*dLx + T(6006)*d10Lx*d5Lx + T(2730)*d11Lx*d4Lx + T(910)*d12Lx*d3Lx + T(210)*d13Lx*ddLx + T(10010)*d6Lx*d9Lx + T(12870)*d7Lx*d8Lx);
       }
       {
         const T cse0 = T(30)*d14Lx;
@@ -828,7 +825,7 @@ case (16): {
       {
         const T cse0 = T(32)*d15Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(96096)*d10Lx*d5Lx + T(43680)*d11Lx*d4Lx + T(14560)*d12Lx*d3Lx + T(3360)*d13Lx*ddLx + T(480)*d14Lx*dLx + T(160160)*d6Lx*d9Lx + T(205920)*d7Lx*d8Lx) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d16Lx + cse0*dLx + T(16016)*d10Lx*d6Lx + T(8736)*d11Lx*d5Lx + T(3640)*d12Lx*d4Lx + T(1120)*d13Lx*d3Lx + T(240)*d14Lx*ddLx + T(22880)*d7Lx*d9Lx + T(12870)*(d8Lx)*(d8Lx));
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(96096)*d10Lx*d5Lx + T(43680)*d11Lx*d4Lx + T(14560)*d12Lx*d3Lx + T(3360)*d13Lx*ddLx + T(480)*d14Lx*dLx + T(160160)*d6Lx*d9Lx + T(205920)*d7Lx*d8Lx) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d16Lx + cse0*dLx + T(16016)*d10Lx*d6Lx + T(8736)*d11Lx*d5Lx + T(3640)*d12Lx*d4Lx + T(1120)*d13Lx*d3Lx + T(240)*d14Lx*ddLx + T(22880)*d7Lx*d9Lx + T(12870)*(d8Lx)*(d8Lx));
       }
       {
         const T cse0 = T(32)*d15Lx;
@@ -902,7 +899,7 @@ case (17): {
       {
         const T cse0 = T(34)*d16Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(272272)*d10Lx*d6Lx + T(148512)*d11Lx*d5Lx + T(61880)*d12Lx*d4Lx + T(19040)*d13Lx*d3Lx + T(4080)*d14Lx*ddLx + T(544)*d15Lx*dLx + T(388960)*d7Lx*d9Lx + T(218790)*(d8Lx)*(d8Lx)) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d17Lx + cse0*dLx + T(38896)*d10Lx*d7Lx + T(24752)*d11Lx*d6Lx + T(12376)*d12Lx*d5Lx + T(4760)*d13Lx*d4Lx + T(1360)*d14Lx*d3Lx + T(272)*d15Lx*ddLx + T(48620)*d8Lx*d9Lx);
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(272272)*d10Lx*d6Lx + T(148512)*d11Lx*d5Lx + T(61880)*d12Lx*d4Lx + T(19040)*d13Lx*d3Lx + T(4080)*d14Lx*ddLx + T(544)*d15Lx*dLx + T(388960)*d7Lx*d9Lx + T(218790)*(d8Lx)*(d8Lx)) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d17Lx + cse0*dLx + T(38896)*d10Lx*d7Lx + T(24752)*d11Lx*d6Lx + T(12376)*d12Lx*d5Lx + T(4760)*d13Lx*d4Lx + T(1360)*d14Lx*d3Lx + T(272)*d15Lx*ddLx + T(48620)*d8Lx*d9Lx);
       }
       {
         const T cse0 = T(34)*d16Lx;
@@ -979,7 +976,7 @@ case (18): {
       {
         const T cse0 = T(36)*d17Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(700128)*d10Lx*d7Lx + T(445536)*d11Lx*d6Lx + T(222768)*d12Lx*d5Lx + T(85680)*d13Lx*d4Lx + T(24480)*d14Lx*d3Lx + T(4896)*d15Lx*ddLx + T(612)*d16Lx*dLx + T(875160)*d8Lx*d9Lx) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d18Lx + cse0*dLx + T(87516)*d10Lx*d8Lx + T(63648)*d11Lx*d7Lx + T(37128)*d12Lx*d6Lx + T(17136)*d13Lx*d5Lx + T(6120)*d14Lx*d4Lx + T(1632)*d15Lx*d3Lx + T(306)*d16Lx*ddLx + T(48620)*(d9Lx)*(d9Lx));
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(700128)*d10Lx*d7Lx + T(445536)*d11Lx*d6Lx + T(222768)*d12Lx*d5Lx + T(85680)*d13Lx*d4Lx + T(24480)*d14Lx*d3Lx + T(4896)*d15Lx*ddLx + T(612)*d16Lx*dLx + T(875160)*d8Lx*d9Lx) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d18Lx + cse0*dLx + T(87516)*d10Lx*d8Lx + T(63648)*d11Lx*d7Lx + T(37128)*d12Lx*d6Lx + T(17136)*d13Lx*d5Lx + T(6120)*d14Lx*d4Lx + T(1632)*d15Lx*d3Lx + T(306)*d16Lx*ddLx + T(48620)*(d9Lx)*(d9Lx));
       }
       {
         const T cse0 = T(36)*d17Lx;
@@ -1059,7 +1056,7 @@ case (19): {
       {
         const T cse0 = T(38)*d18Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(1662804)*d10Lx*d8Lx + T(1209312)*d11Lx*d7Lx + T(705432)*d12Lx*d6Lx + T(325584)*d13Lx*d5Lx + T(116280)*d14Lx*d4Lx + T(31008)*d15Lx*d3Lx + T(5814)*d16Lx*ddLx + T(684)*d17Lx*dLx + T(923780)*(d9Lx)*(d9Lx)) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d19Lx + cse0*dLx + T(184756)*d10Lx*d9Lx + T(151164)*d11Lx*d8Lx + T(100776)*d12Lx*d7Lx + T(54264)*d13Lx*d6Lx + T(23256)*d14Lx*d5Lx + T(7752)*d15Lx*d4Lx + T(1938)*d16Lx*d3Lx + T(342)*d17Lx*ddLx);
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(1662804)*d10Lx*d8Lx + T(1209312)*d11Lx*d7Lx + T(705432)*d12Lx*d6Lx + T(325584)*d13Lx*d5Lx + T(116280)*d14Lx*d4Lx + T(31008)*d15Lx*d3Lx + T(5814)*d16Lx*ddLx + T(684)*d17Lx*dLx + T(923780)*(d9Lx)*(d9Lx)) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d19Lx + cse0*dLx + T(184756)*d10Lx*d9Lx + T(151164)*d11Lx*d8Lx + T(100776)*d12Lx*d7Lx + T(54264)*d13Lx*d6Lx + T(23256)*d14Lx*d5Lx + T(7752)*d15Lx*d4Lx + T(1938)*d16Lx*d3Lx + T(342)*d17Lx*ddLx);
       }
       {
         const T cse0 = T(38)*d18Lx;
@@ -1142,7 +1139,7 @@ case (20): {
       {
         const T cse0 = T(40)*d19Lx;
         const T cse1 = T(2)*dLxi_v;
-        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(3695120)*d10Lx*d9Lx + T(3023280)*d11Lx*d8Lx + T(2015520)*d12Lx*d7Lx + T(1085280)*d13Lx*d6Lx + T(465120)*d14Lx*d5Lx + T(155040)*d15Lx*d4Lx + T(38760)*d16Lx*d3Lx + T(6840)*d17Lx*ddLx + T(760)*d18Lx*dLx) + (cse1*xi - cse1*xv + T(1))*(T(2)*Lx*d20Lx + cse0*dLx + T(184756)*(d10Lx)*(d10Lx) + T(335920)*d11Lx*d9Lx + T(251940)*d12Lx*d8Lx + T(155040)*d13Lx*d7Lx + T(77520)*d14Lx*d6Lx + T(31008)*d15Lx*d5Lx + T(9690)*d16Lx*d4Lx + T(2280)*d17Lx*d3Lx + T(380)*d18Lx*ddLx);
+        dnf(ix, 2*fi + 0) = -cse1*(Lx*cse0 + T(3695120)*d10Lx*d9Lx + T(3023280)*d11Lx*d8Lx + T(2015520)*d12Lx*d7Lx + T(1085280)*d13Lx*d6Lx + T(465120)*d14Lx*d5Lx + T(155040)*d15Lx*d4Lx + T(38760)*d16Lx*d3Lx + T(6840)*d17Lx*ddLx + T(760)*d18Lx*dLx) + (-cse1*(-xi + xv) + T(1))*(T(2)*Lx*d20Lx + cse0*dLx + T(184756)*(d10Lx)*(d10Lx) + T(335920)*d11Lx*d9Lx + T(251940)*d12Lx*d8Lx + T(155040)*d13Lx*d7Lx + T(77520)*d14Lx*d6Lx + T(31008)*d15Lx*d5Lx + T(9690)*d16Lx*d4Lx + T(2280)*d17Lx*d3Lx + T(380)*d18Lx*ddLx);
       }
       {
         const T cse0 = T(40)*d19Lx;
