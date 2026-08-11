@@ -71,14 +71,14 @@ int main(int argc, char **argv) {
   parser.add<int>("grid", 0, "type of grid: 1 linear, 2 quadratic, 3 polynomial, 4 exponential", false, 4);
   parser.add<double>("zexp", 0, "parameter in radial grid", false, 1.0);
   parser.add<int>("nelem", 0, "number of elements", true);
-  parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
+  parser.add<int>("nnodes", 0, "number of nodes per element", false, 8);
   parser.add<int>("nquad", 0, "radial quadrature points: DFT grid + auto-convergence seed (no longer sets integral accuracy, which now converges automatically)", false, 0);
   parser.add<std::string>("method", 0, "DFT method to use", false, "lda_x");
   parser.add<int>("ldft", 0, "theta rule for dft quadrature (0 for auto)", false, 0);
   parser.add<int>("mdft", 0, "phi rule for dft quadrature (0 for auto; unused by the pure-m path)", false, 0);
   parser.add<int>("purem", 0, "pure-m XC fast path (analytic phi): -1 auto (on when symmetry>=1), 0 off, 1 force on", false, -1);
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
-  parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
+  parser.add<int>("primbas", 0, "primitive radial basis", false, 5);
   parser.add<int>("finitenuc", 0, "finite nuclear model: 0 point, 1 Gaussian, 2 spherical, 3 hollow, 4 regularized", false, 0);
   parser.add<double>("Rrms1", 0, "nucleus 1 finite rms radius", false, 0.0);
   parser.add<double>("Rrms2", 0, "nucleus 2 finite rms radius", false, 0.0);

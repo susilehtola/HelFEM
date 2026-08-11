@@ -44,9 +44,9 @@ int main(int argc, char **argv) {
   parser.add<int>("nelem", 0, "number of elements", true);
   parser.add<int>("nelem0", 0, "number of elements", false, 0);
   parser.add<int>("lmax", 0, "maximum angular momentum to include", false, 3);
-  parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
+  parser.add<int>("nnodes", 0, "number of nodes per element", false, 8);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
-  parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
+  parser.add<int>("primbas", 0, "primitive radial basis", false, 5);
   parser.add<int>("finitenuc", 0, "finite nuclear model", false, 0);
   parser.add<double>("Rrms", 0, "nuclear rms radius", false, 0.0);
   parser.add<std::string>("save", 0, "checkpoint to save results in", false, "1e.chk");

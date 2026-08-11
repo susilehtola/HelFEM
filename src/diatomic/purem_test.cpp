@@ -88,8 +88,8 @@ int main(int argc, char **argv) {
   parser.add<int>("mmax", 0, "maximum m", false, 2);
   parser.add<double>("Rmax", 0, "practical infinity", false, 20.0);
   parser.add<int>("nelem", 0, "number of elements", false, 3);
-  parser.add<int>("nnodes", 0, "nodes per element", false, 15);
-  parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
+  parser.add<int>("nnodes", 0, "nodes per element", false, 8);
+  parser.add<int>("primbas", 0, "primitive radial basis", false, 5);
   parser.add<int>("ldft", 0, "theta rule (0 auto)", false, 0);
   parser.add<int>("mdft", 0, "phi rule (0 auto)", false, 0);
   parser.add<double>("dftthr", 0, "density screening threshold", false, 1e-12);

@@ -48,8 +48,8 @@ int main(int argc, char **argv) {
   parser.add<double>("Rbond", 0, "internuclear distance", false, 2.07);
   parser.add<double>("Rmax", 0, "practical infinity", false, 15.0);
   parser.add<int>("nelem", 0, "number of elements", false, 4);
-  parser.add<int>("nnodes", 0, "nodes per element", false, 15);
-  parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
+  parser.add<int>("nnodes", 0, "nodes per element", false, 8);
+  parser.add<int>("primbas", 0, "primitive radial basis", false, 5);
   parser.add<int>("lmax", 0, "maximum l", false, 3);
   parser.add<int>("mmax", 0, "maximum m", false, 2);
   parser.parse_check(argc, argv);

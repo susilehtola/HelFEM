@@ -50,8 +50,8 @@ int main(int argc, char **argv) {
   cmdline::parser parser;
   parser.add<double>("Rmax", 0, "practical infinity", false, 40.0);
   parser.add<int>("nelem", 0, "number of elements", false, 5);
-  parser.add<int>("nnodes", 0, "nodes per element", false, 15);
-  parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
+  parser.add<int>("nnodes", 0, "nodes per element", false, 8);
+  parser.add<int>("primbas", 0, "primitive radial basis", false, 5);
   parser.add<int>("Lmax", 0, "largest multipole to probe", false, 6);
   parser.add<double>("tol", 0, "Cholesky tolerance", false, 1e-12);
   parser.parse_check(argc, argv);

@@ -62,11 +62,11 @@ int main(int argc, char **argv) {
   parser.add<double>("nufreq", 0, "frequency of uniform elements", false, 0.5);
   parser.add<std::string>("Z", 0, "nuclear charge", true);
   parser.add<int>("Q", 0, "charge of system", false, 0);
-  parser.add<int>("nnodes", 0, "number of nodes per element", false, 15);
+  parser.add<int>("nnodes", 0, "number of nodes per element", false, 8);
   parser.add<int>("nquad", 0, "number of quadrature points", false, 0);
   parser.add<std::string>("method", 0, "method to use", false, "lda_x");
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
-  parser.add<int>("primbas", 0, "primitive radial basis", false, 4);
+  parser.add<int>("primbas", 0, "primitive radial basis", false, 5);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
   parser.add<int>("njellium", 0,"number of jellium electrons", true);
