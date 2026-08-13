@@ -64,8 +64,8 @@ int main(int argc, char **argv) {
   const double tol = parser.get<double>("tol");
 
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
-      polynomial_basis::get_basis(primbas, Nnodes));
-  const int Nquad = 5 * poly->get_nbf();
+      polynomial_basis::make_basis(primbas, Nnodes));
+  const int Nquad = 5 * poly->nbf();
 
   const helfem::Vector bval = atomic::basis::normal_grid(Nelem, Rmax, 4, 1.0);
   polynomial_basis::FiniteElementBasis fem(poly, bval,

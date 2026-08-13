@@ -26,11 +26,11 @@ namespace helfem {
       /// Radial basis set
       class RadialBasis {
         /// Quadrature points
-        helfem::Vector xq;
+        helfem::Vector xq_;
         /// Quadrature weights
-        helfem::Vector wq;
+        helfem::Vector wq_;
         /// Finite element basis
-        polynomial_basis::FiniteElementBasis fem;
+        polynomial_basis::FiniteElementBasis fem_;
 
       public:
         /// Dummy constructor
@@ -41,16 +41,16 @@ namespace helfem {
         ~RadialBasis();
 
         /// Get number of quadrature points
-        int get_nquad() const;
+        int nquad() const;
         /// Get boundary values
-        helfem::Vector get_bval() const;
+        helfem::Vector bval() const;
         /// Get polynomial basis identifier
-        int get_poly_id() const;
+        int poly_id() const;
         /// Get number of nodes in polynomial
-        int get_poly_nnodes() const;
+        int poly_nnodes() const;
 
         /// Get number of overlapping functions
-        size_t get_noverlap() const;
+        size_t noverlap() const;
         /// Number of basis functions
         size_t Nbf() const;
         /// Number of primitive functions in element
@@ -61,7 +61,7 @@ namespace helfem {
         /// Number of elements
         size_t Nel() const;
         /// Get function indices
-        void get_idx(size_t iel, size_t & ifirst, size_t & ilast) const;
+        void idx(size_t iel, size_t & ifirst, size_t & ilast) const;
 
         /// Compute radial matrix elements
         helfem::Matrix radial_integral(int m, int n) const;
@@ -89,7 +89,7 @@ namespace helfem {
         quadrature::TwoElectronElement twoe_element(size_t iel) const;
         /// Build the element-only two-electron data at a SPECIFIED
         /// Gauss-Chebyshev order n, using a fresh n-point rule instead of the
-        /// stored (xq, wq). Used by compute_tei's auto-convergence refinement,
+        /// stored (xq_, wq_). Used by compute_tei's auto-convergence refinement,
         /// which rebuilds the element at rising n until the in-element kernel
         /// stops changing to eps(double).
         quadrature::TwoElectronElement twoe_element(size_t iel, int n) const;
@@ -99,17 +99,17 @@ namespace helfem {
         /// Get quadrature points
         helfem::Vector get_chmu_quad() const;
         /// Evaluate basis functions at quadrature points
-        helfem::Matrix get_bf(size_t iel) const;
+        helfem::Matrix bf(size_t iel) const;
         /// Evaluate basis functions at wanted point in [-1,1]
-        helfem::Matrix get_bf(size_t iel, const helfem::Vector & x) const;
+        helfem::Matrix bf(size_t iel, const helfem::Vector & x) const;
         /// Evaluate derivatives of basis functions at quadrature points
-        helfem::Matrix get_df(size_t iel) const;
+        helfem::Matrix df(size_t iel) const;
         /// Evaluate second derivatives of basis functions at quadrature points
         helfem::Matrix get_d2f(size_t iel) const;
         /// Get quadrature weights
-        helfem::Vector get_wrad(size_t iel) const;
+        helfem::Vector wrad(size_t iel) const;
         /// Get r values
-        helfem::Vector get_r(size_t iel) const;
+        helfem::Vector r(size_t iel) const;
       };
 
       /// L, |M| index type
@@ -236,15 +236,15 @@ namespace helfem {
         Eigen::VectorXi get_mval() const;
 
         /// Get number of quadrature points
-        int get_nquad() const;
+        int nquad() const;
         /// Get boundary values
-        helfem::Vector get_bval() const;
+        helfem::Vector bval() const;
 	/// Get maximum mu value
 	double get_mumax() const;
         /// Get polynomial basis identifier
-        int get_poly_id() const;
+        int poly_id() const;
         /// Get polynomial basis order
-        int get_poly_nnodes() const;
+        int poly_nnodes() const;
 
         /// Get indices of real basis functions
         std::vector<Eigen::Index> pure_indices() const;
@@ -417,9 +417,9 @@ namespace helfem {
         /// Get number of radial elements
         size_t get_rad_Nel() const;
         /// Get radial quadrature weights
-        helfem::Vector get_wrad(size_t iel) const;
+        helfem::Vector wrad(size_t iel) const;
         /// Get r values
-        helfem::Vector get_r(size_t iel) const;
+        helfem::Vector r(size_t iel) const;
         /// Get radial basis functions at the quadrature points of element iel
         /// (rows = radial points, cols = element primitives)
         helfem::Matrix get_rad_bf(size_t iel) const;

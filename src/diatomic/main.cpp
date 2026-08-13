@@ -191,9 +191,9 @@ int main(int argc, char **argv) {
     throw std::logic_error("Range-separated hybrids not yet supported in diatomic_ooo (needs omega wiring).\n");
 
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
-      polynomial_basis::get_basis(primbas, Nnodes));
-  if (Nquad == 0) Nquad = 5 * poly->get_nbf();
-  else if (Nquad < 2 * poly->get_nbf())
+      polynomial_basis::make_basis(primbas, Nnodes));
+  if (Nquad == 0) Nquad = 5 * poly->nbf();
+  else if (Nquad < 2 * poly->nbf())
     throw std::logic_error("Insufficient radial quadrature.\n");
 
   Eigen::VectorXi lmmax;

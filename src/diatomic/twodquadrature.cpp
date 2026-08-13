@@ -168,9 +168,9 @@ namespace helfem {
         // Get radial weights. Only do one radial quadrature point at a
         // time, since this is an easy way to save a lot of memory.
         r=helfem::Vector::Zero(1);
-        r(0)=basp->get_r(iel)(irad);
+        r(0)=basp->r(iel)(irad);
         wrad=helfem::Vector::Zero(1);
-        wrad(0)=basp->get_wrad(iel)(irad);
+        wrad(0)=basp->wrad(iel)(irad);
 
         double Rhalf(basp->get_Rhalf());
 
@@ -383,7 +383,7 @@ namespace helfem {
 
           for(size_t im=0;im<muni.size();im++) {
             for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-              for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
+              for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
                 grid.compute_bf(iel,irad,muni[im]);
                 grid.model_potential(p1, p2);
                 grid.eval_pot(H);
@@ -410,7 +410,7 @@ namespace helfem {
 
         TwoDGridWorker grid(basp, lang);
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-          for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
+          for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.ao_projection(compute_ao, p);
             grid.multiply_Plm(l, m, p);
@@ -431,7 +431,7 @@ namespace helfem {
 
         TwoDGridWorker grid(basp, lang);
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-          for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
+          for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.ao_projection(compute_ao, p);
             grid.multiply_Plm(l, m, p);
@@ -446,7 +446,7 @@ namespace helfem {
         TwoDGridWorker grid(basp,lang);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-          for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
+          for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.gto(l, expn, p);
             grid.multiply_Plm(l, m, p);
@@ -462,7 +462,7 @@ namespace helfem {
         TwoDGridWorker grid(basp,lang);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-          for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
+          for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.gto(l, expn, p);
             grid.multiply_Plm(l, m, p);
@@ -478,7 +478,7 @@ namespace helfem {
         TwoDGridWorker grid(basp,lang);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-          for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
+          for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.sto(l, expn, p);
             grid.multiply_Plm(l, m, p);
@@ -494,7 +494,7 @@ namespace helfem {
         TwoDGridWorker grid(basp,lang);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-          for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
+          for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.sto(l, expn, p);
             grid.multiply_Plm(l, m, p);
@@ -538,7 +538,7 @@ namespace helfem {
         TwoDGridWorker grid(basp,lang);
 
         for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-          for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
+          for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.ao_projection(eval_ao, p);
             grid.multiply_Plm(l, m, p);
@@ -568,8 +568,8 @@ namespace helfem {
         constexpr double dftthr = 1e-12;
 
         auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
-            polynomial_basis::get_basis(primbas, Nnodes));
-        const int Nquad = 5 * poly->get_nbf();
+            polynomial_basis::make_basis(primbas, Nnodes));
+        const int Nquad = 5 * poly->nbf();
 
         auto lmax_for_Z = [](int Z){
           for (int l = 3; l >= 0; --l)

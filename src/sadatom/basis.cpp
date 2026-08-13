@@ -434,21 +434,21 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDBasis::eval_bf(size_t iel) const {
-        return radial.get_bf(iel);
+        return radial.bf(iel);
       }
 
       helfem::Matrix TwoDBasis::eval_df(size_t iel) const {
-        return radial.get_df(iel);
+        return radial.df(iel);
       }
 
       helfem::Matrix TwoDBasis::eval_lf(size_t iel) const {
-        return radial.get_lf(iel);
+        return radial.lf(iel);
       }
 
       std::vector<Eigen::Index> TwoDBasis::bf_list(size_t iel) const {
         // Radial functions in element
         size_t ifirst, ilast;
-        radial.get_idx(iel,ifirst,ilast);
+        radial.idx(iel,ifirst,ilast);
         // Number of radial functions in element
         size_t Nr(ilast-ifirst+1);
 
@@ -468,12 +468,12 @@ namespace helfem {
         return radial.Nel();
       }
 
-      helfem::Vector TwoDBasis::get_wrad(size_t iel) const {
-        return radial.get_wrad(iel);
+      helfem::Vector TwoDBasis::wrad(size_t iel) const {
+        return radial.wrad(iel);
       }
 
-      helfem::Vector TwoDBasis::get_r(size_t iel) const {
-        return radial.get_r(iel);
+      helfem::Vector TwoDBasis::r(size_t iel) const {
+        return radial.r(iel);
       }
 
       double TwoDBasis::nuclear_density(const helfem::Matrix & P) const {
@@ -487,7 +487,7 @@ namespace helfem {
         std::vector<helfem::Vector> w(radial.Nel());
         size_t ntot=1;
         for(size_t iel=0;iel<radial.Nel();iel++) {
-          w[iel]=radial.get_wrad(iel);
+          w[iel]=radial.wrad(iel);
           ntot+=w[iel].size();
         }
         helfem::Vector wt = helfem::Vector::Zero(ntot);
@@ -508,7 +508,7 @@ namespace helfem {
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Radial functions in element
           size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
+          radial.idx(iel,ifirst,ilast);
           // Density matrix
           helfem::Matrix Psub(Prad.block(ifirst,ifirst,ilast-ifirst+1,ilast-ifirst+1));
           helfem::Matrix zm(radial.radial_integral(0,iel));
@@ -526,12 +526,12 @@ namespace helfem {
         // Form potential
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Initialize potential
-          r[iel]=radial.get_r(iel);
+          r[iel]=radial.r(iel);
           V[iel]=helfem::Vector::Zero(r[iel].size());
 
           // Get the density in the element
           size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
+          radial.idx(iel,ifirst,ilast);
           const helfem::Matrix Psub(Prad.block(ifirst,ifirst,ilast-ifirst+1,ilast-ifirst+1));
           const helfem::Vector Pv(Eigen::Map<const helfem::Vector>(Psub.data(), Psub.size()));
 
@@ -564,7 +564,7 @@ namespace helfem {
       helfem::Vector TwoDBasis::radii() const {
         std::vector<helfem::Vector> r(radial.Nel());
         for(size_t iel=0;iel<radial.Nel();iel++) {
-          r[iel]=radial.get_r(iel);
+          r[iel]=radial.r(iel);
         }
 
         size_t Npts=r[0].size();
@@ -601,10 +601,10 @@ namespace helfem {
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Radial functions in element
           size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
+          radial.idx(iel,ifirst,ilast);
           // Density matrix
           helfem::Matrix Csub(C.middleRows(ifirst,ilast-ifirst+1));
-          helfem::Matrix bf(radial.get_bf(iel));
+          helfem::Matrix bf(radial.bf(iel));
 
           c[iel]=bf*Csub;
         }
@@ -632,10 +632,10 @@ namespace helfem {
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Radial functions in element
           size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
+          radial.idx(iel,ifirst,ilast);
           // Density matrix
           helfem::Matrix Csub(C.middleRows(ifirst,ilast-ifirst+1));
-          helfem::Matrix bf(radial.get_df(iel));
+          helfem::Matrix bf(radial.df(iel));
 
           c[iel]=bf*Csub;
         }
@@ -659,10 +659,10 @@ namespace helfem {
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Radial functions in element
           size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
+          radial.idx(iel,ifirst,ilast);
           // Density matrix
           helfem::Matrix Csub(C.middleRows(ifirst,ilast-ifirst+1));
-          helfem::Matrix bf(radial.get_lf(iel));
+          helfem::Matrix bf(radial.lf(iel));
 
           c[iel]=bf*Csub;
         }
@@ -684,21 +684,21 @@ namespace helfem {
       helfem::Vector TwoDBasis::electron_density(const helfem::Vector & x, size_t iel, const helfem::Matrix & Prad, bool rsqweight) const {
         // Radial functions in element
         size_t ifirst, ilast;
-        radial.get_idx(iel,ifirst,ilast);
+        radial.idx(iel,ifirst,ilast);
         // Density matrix
         helfem::Matrix Psub(Prad.block(ifirst,ifirst,ilast-ifirst+1,ilast-ifirst+1));
-        helfem::Matrix bf(radial.get_bf(x, iel));
+        helfem::Matrix bf(radial.bf(x, iel));
 
         helfem::Vector density = (bf*Psub*bf.transpose()).diagonal();
         if(rsqweight) {
-          const helfem::Vector rr = radial.get_r(x, iel);
+          const helfem::Vector rr = radial.r(x, iel);
           density.array() *= rr.array().square();
         }
         return density;
       }
 
       helfem::Vector TwoDBasis::electron_density(size_t iel, const helfem::Matrix & Prad, bool rsqweight) const {
-        return electron_density(radial.get_xq(), iel, Prad, rsqweight);
+        return electron_density(radial.xq(), iel, Prad, rsqweight);
       }
 
       helfem::Vector TwoDBasis::electron_density(const helfem::Matrix & Prad, bool rsqweight) const {
@@ -727,7 +727,7 @@ namespace helfem {
         }
 
         // Quadrature points
-        helfem::Vector xq = radial.get_xq();
+        helfem::Vector xq = radial.xq();
 
         // Find the element with the maximum density
         Eigen::Index iel;
@@ -778,7 +778,7 @@ namespace helfem {
             throw std::logic_error(oss.str());
           }
           // Position of maximum is
-          rmax = radial.get_r(cen, iel)(0);
+          rmax = radial.r(cen, iel)(0);
         }
 
         return rmax;
@@ -807,7 +807,7 @@ namespace helfem {
         // Now find the position in the element where the density is = vdw_threshold.
         // Evaluate the difference in density from the threshold value.
         // Quadrature points
-        helfem::Vector xq = radial.get_xq();
+        helfem::Vector xq = radial.xq();
         helfem::Vector diff = angfac*electron_density(xq, iel, Prad, rsqweight);
         diff-=vdw_threshold*helfem::Vector::Ones(diff.size());
         diff=diff.cwiseAbs();
@@ -854,7 +854,7 @@ namespace helfem {
           // Coordinate is
           helfem::Vector cen=((a+b)/2);
           // Position of maximum is
-          rvdw = radial.get_r(cen, iel)(0);
+          rvdw = radial.r(cen, iel)(0);
         }
 
         return rvdw;
@@ -866,7 +866,7 @@ namespace helfem {
 	for(size_t iel=0;iel<radial.Nel();iel++) {
 	  // Radial functions in element
 	  size_t ifirst, ilast;
-	  radial.get_idx(iel,ifirst,ilast);
+	  radial.idx(iel,ifirst,ilast);
 	  // Density matrix
 	  helfem::Matrix Psub(Prad.block(ifirst,ifirst,ilast-ifirst+1,ilast-ifirst+1));
 	  // Overlap matrix (Phase 2a: overlap(iel) returns helfem::Matrix).
@@ -886,7 +886,7 @@ namespace helfem {
 
 	// Radial functions in element
 	size_t ifirst, ilast;
-	radial.get_idx(ielement,ifirst,ilast);
+	radial.idx(ielement,ifirst,ilast);
 	// Density matrix within the element
 	helfem::Matrix Psub(Prad.block(ifirst,ifirst,ilast-ifirst+1,ilast-ifirst+1));
 
@@ -906,7 +906,7 @@ namespace helfem {
 	    break;
 	}
 
-	return radial.get_r(m, ielement);
+	return radial.r(m, ielement);
       }
 
       helfem::Vector TwoDBasis::electron_density_gradient(const helfem::Matrix & Prad) const {
@@ -914,11 +914,11 @@ namespace helfem {
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Radial functions in element
           size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
+          radial.idx(iel,ifirst,ilast);
           // Density matrix
           helfem::Matrix Psub(Prad.block(ifirst,ifirst,ilast-ifirst+1,ilast-ifirst+1));
-          helfem::Matrix bf(radial.get_bf(iel));
-          helfem::Matrix df(radial.get_df(iel));
+          helfem::Matrix bf(radial.bf(iel));
+          helfem::Matrix df(radial.df(iel));
 
           d[iel]=2.0*(bf*Psub*df.transpose()).diagonal();
         }
@@ -942,13 +942,13 @@ namespace helfem {
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Radial functions in element
           size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
+          radial.idx(iel,ifirst,ilast);
           // Density matrix
           helfem::Matrix Psub(Prad.block(ifirst,ifirst,ilast-ifirst+1,ilast-ifirst+1));
-          helfem::Matrix bf(radial.get_bf(iel));
-          helfem::Matrix df(radial.get_df(iel));
-          helfem::Matrix lf(radial.get_lf(iel));
-          helfem::Vector r(radial.get_r(iel));
+          helfem::Matrix bf(radial.bf(iel));
+          helfem::Matrix df(radial.df(iel));
+          helfem::Matrix lf(radial.lf(iel));
+          helfem::Vector r(radial.r(iel));
 
           // Laplacian is df^2/dr^2 + 2/r df/dr
           helfem::Vector lap = 2.0*((df*Psub*df.transpose()).diagonal() + (bf*Psub*lf.transpose()).diagonal());
@@ -980,19 +980,19 @@ namespace helfem {
         for(size_t iel=0;iel<radial.Nel();iel++) {
           // Radial functions in element
           size_t ifirst, ilast;
-          radial.get_idx(iel,ifirst,ilast);
+          radial.idx(iel,ifirst,ilast);
 
           // Radii
-          helfem::Vector r(radial.get_r(iel));
+          helfem::Vector r(radial.r(iel));
 
           // Density matrix
           helfem::Matrix Psub(P.block(ifirst,ifirst,ilast-ifirst+1,ilast-ifirst+1));
           helfem::Matrix Psubl(Pl.block(ifirst,ifirst,ilast-ifirst+1,ilast-ifirst+1));
 
           // Basis function
-          helfem::Matrix bf(radial.get_bf(iel));
+          helfem::Matrix bf(radial.bf(iel));
           // Basis function derivative
-          helfem::Matrix bf_rho(radial.get_df(iel));
+          helfem::Matrix bf_rho(radial.df(iel));
 
           helfem::Vector term1((bf_rho * Psub * bf_rho.transpose()).diagonal());
           helfem::Vector term2((bf * Psubl * bf.transpose()).diagonal());

@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
   printf("Using %i point quadrature rule.\n", Nquad);
 
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
-      polynomial_basis::get_basis(primbas, Nnodes));
+      polynomial_basis::make_basis(primbas, Nnodes));
 
   // Radial grid: linspace(-xmax, xmax, Nelem+1) on helfem::Vector.
   const helfem::Vector r = helfem::Vector::LinSpaced(Nelem + 1, -xmax, xmax);
@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
   io::write_raw_ascii("bf.dat", bf);
   io::write_raw_ascii("dbf.dat", dbf);
 
-  const size_t Nbf = fem.get_nbf();
+  const size_t Nbf = fem.nbf();
   printf("Basis set contains %i functions\n", (int) Nbf);
 
   const helfem::Matrix S = overlap  (fem, xq, wq);

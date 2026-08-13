@@ -45,14 +45,14 @@ namespace helfem {
     using LegendreBasis   = LegendreBasisT<double>;
 
     /// Factory: construct a primitive polynomial basis by ID.
-    PolynomialBasis * get_basis(int primbas, int Nnodes);
+    PolynomialBasis * make_basis(int primbas, int Nnodes);
 
     /// Same factory, templated on the scalar type. The concrete bases
     /// (LegendreBasisT<T>, LIPBasisT<T>, HIPBasisT<T>) and lobatto_compute<T>
     /// were already generic; this just stops the factory from pinning double.
     template<typename T>
     helfem::polynomial_basis::PolynomialBasisT<T> *
-    get_basis_T(int primbas, int Nnodes) {
+    make_basis_T(int primbas, int Nnodes) {
       namespace pb = helfem::polynomial_basis;
       if(Nnodes < 2)
         throw std::logic_error("Can't have finite element basis with less than two nodes per element.\n");

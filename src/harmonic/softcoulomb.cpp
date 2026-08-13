@@ -91,8 +91,8 @@ int main(int argc, char **argv) {
     printf("Using potential V(x) = -Z / sqrt( (x-x0)^2 + alpha^2 )\n");
 
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
-      polynomial_basis::get_basis(primbas, Nnodes));
-  if (Nquad < 0) Nquad = 5 * poly->get_nbf();
+      polynomial_basis::make_basis(primbas, Nnodes));
+  if (Nquad < 0) Nquad = 5 * poly->nbf();
 
   const helfem::Vector x = helfem::Vector::LinSpaced(Nelem + 1, -xmax, xmax);
 
@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
   helfem::Vector xq, wq;
   helfem::chebyshev::chebyshev<double>(Nquad, xq, wq);
 
-  const size_t Nbf = fem.get_nbf();
+  const size_t Nbf = fem.nbf();
   printf("Basis set contains %i functions\n", (int) Nbf);
 
   const helfem::Matrix S = overlap(fem, xq, wq);

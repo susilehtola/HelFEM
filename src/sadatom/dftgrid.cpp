@@ -466,9 +466,9 @@ namespace helfem {
         bf_ind = basp->bf_list(iel);
 
         // Get radii
-        r = basp->get_r(iel);
+        r = basp->r(iel);
         // Get radial weights
-        wrad = basp->get_wrad(iel);
+        wrad = basp->wrad(iel);
 
         // Update total weights
         wtot = 4.0*M_PI * wrad.array() * r.array().square();

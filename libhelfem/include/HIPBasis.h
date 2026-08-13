@@ -33,16 +33,16 @@ class HIPBasisT : public LIPBasisT<T> {
   Vec<T> lipxi;
 
  public:
-  HIPBasisT(const Vec<T> & x, int id_ = 5) : LIPBasisT<T>(x, id_) {
+  HIPBasisT(const Vec<T> & x, int id = 5) : LIPBasisT<T>(x, id) {
     // Two overlapping functions: function + derivative
-    this->noverlap = 2;
-    this->nprim    = 2 * static_cast<int>(this->x0.size());
-    this->enabled  = IVec::LinSpaced(this->nprim, 0, this->nprim - 1);
-    this->nnodes   = static_cast<int>(this->x0.size());
+    this->noverlap_ = 2;
+    this->nprim_    = 2 * static_cast<int>(this->x0_.size());
+    this->enabled_  = IVec::LinSpaced(this->nprim_, 0, this->nprim_ - 1);
+    this->nnodes_   = static_cast<int>(this->x0_.size());
 
     // L'_i(x_i): use the LIP-derivative evaluator at the node positions.
     Mat<T> dlip;
-    detail::eval_lip_prim_dnf<T>(this->x0, this->x0, dlip, 1);
+    detail::eval_lip_prim_dnf<T>(this->x0_, this->x0_, dlip, 1);
     lipxi = dlip.diagonal();
   }
 
@@ -54,35 +54,35 @@ class HIPBasisT : public LIPBasisT<T> {
 
   void drop_first(bool func, bool deriv) override {
     if (func && deriv) {
-      this->enabled = this->enabled.segment(2, this->enabled.size() - 2).eval();
+      this->enabled_ = this->enabled_.segment(2, this->enabled_.size() - 2).eval();
     } else if (func) {
-      this->enabled = this->enabled.segment(1, this->enabled.size() - 1).eval();
+      this->enabled_ = this->enabled_.segment(1, this->enabled_.size() - 1).eval();
     } else if (deriv) {
-      IVec new_enabled(this->enabled.size() - 1);
-      new_enabled(0) = this->enabled(0);
+      IVec new_enabled(this->enabled_.size() - 1);
+      new_enabled(0) = this->enabled_(0);
       new_enabled.segment(1, new_enabled.size() - 1)
-          = this->enabled.segment(2, this->enabled.size() - 2);
-      this->enabled = new_enabled;
+          = this->enabled_.segment(2, this->enabled_.size() - 2);
+      this->enabled_ = new_enabled;
     }
   }
 
   void drop_last(bool func, bool deriv) override {
     if (func && deriv) {
-      this->enabled = this->enabled.segment(0, this->enabled.size() - 2).eval();
+      this->enabled_ = this->enabled_.segment(0, this->enabled_.size() - 2).eval();
     } else if (deriv) {
-      this->enabled = this->enabled.segment(0, this->enabled.size() - 1).eval();
+      this->enabled_ = this->enabled_.segment(0, this->enabled_.size() - 1).eval();
     } else {
-      IVec new_enabled(this->enabled.size() - 1);
-      new_enabled.segment(0, this->enabled.size() - 2)
-          = this->enabled.segment(0, this->enabled.size() - 2);
-      new_enabled(this->enabled.size() - 2) = this->enabled(this->enabled.size() - 1);
-      this->enabled = new_enabled;
+      IVec new_enabled(this->enabled_.size() - 1);
+      new_enabled.segment(0, this->enabled_.size() - 2)
+          = this->enabled_.segment(0, this->enabled_.size() - 2);
+      new_enabled(this->enabled_.size() - 2) = this->enabled_(this->enabled_.size() - 1);
+      this->enabled_ = new_enabled;
     }
   }
 
   void eval_prim_dnf(const Vec<T> & x, Mat<T> & dnf, int n,
                      T element_length) const override {
-    detail::eval_hip_prim_dnf<T>(x, this->x0, lipxi, dnf, n, element_length);
+    detail::eval_hip_prim_dnf<T>(x, this->x0_, lipxi, dnf, n, element_length);
   }
 
   // Pull the base's 3-arg matrix-returning eval_over_r overload back into
@@ -96,7 +96,7 @@ class HIPBasisT : public LIPBasisT<T> {
                    T element_length) const override {
     // All of the deflation maths is generated -- see
     // libhelfem/src/generate_hip_family_code.py --order 1 --over-r
-    detail::eval_hip_prim_over_r<T>(x, this->x0, lipxi, this->enabled,
+    detail::eval_hip_prim_over_r<T>(x, this->x0_, lipxi, this->enabled_,
                                       dnf_over_r, n, element_length);
   }
 };

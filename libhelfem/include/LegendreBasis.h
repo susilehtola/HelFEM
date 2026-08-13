@@ -44,7 +44,7 @@ class LegendreBasisT : public PolynomialBasisT<T> {
   }
 
  public:
-  LegendreBasisT(int n_nodes, int id_ = 3) {
+  LegendreBasisT(int n_nodes, int id = 3) {
     lmax = n_nodes - 1;
     Tmat = Mat<T>::Zero(lmax + 1, lmax + 1);
     // First shape function: (P_0 - P_1) / 2
@@ -59,11 +59,11 @@ class LegendreBasisT : public PolynomialBasisT<T> {
       Tmat(j + 1, j) = sqfac;
       Tmat(j - 1, j) = -sqfac;
     }
-    this->noverlap = 1;
-    this->nprim    = static_cast<int>(Tmat.cols());
-    this->nnodes   = static_cast<int>(Tmat.cols());
-    this->enabled  = IVec::LinSpaced(Tmat.cols(), 0, Tmat.cols() - 1);
-    this->id       = id_;
+    this->noverlap_ = 1;
+    this->nprim_    = static_cast<int>(Tmat.cols());
+    this->nnodes_   = static_cast<int>(Tmat.cols());
+    this->enabled_  = IVec::LinSpaced(Tmat.cols(), 0, Tmat.cols() - 1);
+    this->id_       = id;
   }
 
   ~LegendreBasisT() override = default;
@@ -75,12 +75,12 @@ class LegendreBasisT : public PolynomialBasisT<T> {
   void drop_first(bool func, bool deriv) override {
     (void)deriv;
     if (func)
-      this->enabled = this->enabled.segment(1, this->enabled.size() - 1).eval();
+      this->enabled_ = this->enabled_.segment(1, this->enabled_.size() - 1).eval();
   }
   void drop_last(bool func, bool deriv) override {
     (void)deriv;
     if (func)
-      this->enabled = this->enabled.segment(0, this->enabled.size() - 1).eval();
+      this->enabled_ = this->enabled_.segment(0, this->enabled_.size() - 1).eval();
   }
 
   void eval_prim_dnf(const Vec<T> & x, Mat<T> & dnf, int n,
@@ -112,9 +112,9 @@ class LegendreBasisT : public PolynomialBasisT<T> {
           << " not implemented (only 0, 1, 2 supported).\n";
       throw std::logic_error(oss.str());
     }
-    if (this->enabled.size() == 0)
+    if (this->enabled_.size() == 0)
       throw std::logic_error("LegendreBasisT::eval_over_r: no surviving basis functions.\n");
-    if (this->enabled(0) == 0)
+    if (this->enabled_(0) == 0)
       throw std::logic_error(
           "LegendreBasisT::eval_over_r requires drop_first(zero_func=true): "
           "the value-shape (1-x)/2 has B(-1)=1 and B/r is singular at the origin.\n");
@@ -145,9 +145,9 @@ class LegendreBasisT : public PolynomialBasisT<T> {
     const T inv_e   = T(1) / element_length;
     const T chain_n = std::pow(inv_e, n);
 
-    dnf_over_r.resize(x.size(), this->enabled.size());
-    for (Eigen::Index k = 0; k < this->enabled.size(); ++k) {
-      const Eigen::Index j = this->enabled(k);
+    dnf_over_r.resize(x.size(), this->enabled_.size());
+    for (Eigen::Index k = 0; k < this->enabled_.size(); ++k) {
+      const Eigen::Index j = this->enabled_(k);
       if (j == static_cast<Eigen::Index>(lmax)) {
         // Last shape: R(r) = 1/(2 e); derivatives vanish.
         const T val0 = T(1) / (T(2) * element_length);

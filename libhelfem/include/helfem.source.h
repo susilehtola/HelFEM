@@ -70,7 +70,7 @@ namespace helfem {
 namespace helfem {
   namespace polynomial_basis {
     /// Get the wanted basis
-    PolynomialBasis *get_basis(int primbas, int Nnodes);
+    PolynomialBasis *basis(int primbas, int Nnodes);
   } // namespace polynomial_basis
 } // namespace helfem
 

@@ -152,16 +152,16 @@ namespace helfem {
         // u(0) = u(r_max) = 0 for STOs (vanishes at origin since u = r * R
         // with R(0) finite; vanishes at r_max by construction).
         auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
-            polynomial_basis::get_basis(/*primbas=*/4, nnodes));
+            polynomial_basis::make_basis(/*primbas=*/4, nnodes));
         polynomial_basis::FiniteElementBasis fem(poly, bval,
             /*zero_func_left*/true,  /*zero_deriv_left*/false,
             /*zero_func_right*/true, /*zero_deriv_right*/false);
-        atomic::basis::FEMRadialBasis radial(fem, 5 * poly->get_nbf());
+        atomic::basis::FEMRadialBasis radial(fem, 5 * poly->nbf());
         const helfem::Matrix S = radial.overlap();
         // Quadrature points + weights for the projection integrals.
         helfem::Vector xq, wq;
         helfem::chebyshev::chebyshev<double>(
-            5 * poly->get_nbf(), xq, wq);
+            5 * poly->nbf(), xq, wq);
         // Project each STO onto the FE basis: c = S^{-1} <u_i, u_STO>.
         helfem::Matrix C = helfem::Matrix::Zero(S.rows(), basis.size());
         // Overlap is symmetric positive definite; a single LDLT solves

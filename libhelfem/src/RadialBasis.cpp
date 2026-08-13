@@ -166,7 +166,7 @@ namespace helfem {
       int FEMRadialBasisT<T>::twoe_nstart() const {
         // Seed from the requested --nquad so the common case converges in
         // 1-2 refinement steps; the loop is what guarantees the accuracy.
-        int n = (int) xq.size();
+        int n = (int) xq_.size();
         if (n < 5) n = 5;
         if (n > twoe_nmax) n = twoe_nmax;
         return n;
@@ -176,14 +176,14 @@ namespace helfem {
       FEMRadialBasisT<T>::FEMRadialBasisT() {}
 
       template <typename T>
-      FEMRadialBasisT<T>::FEMRadialBasisT(const polynomial_basis::FiniteElementBasisT<T> & fem_, int n_quad) : fem(fem_) {
-        helfem::chebyshev::chebyshev<T>(n_quad, xq, wq);
-        for (Eigen::Index i = 0; i < xq.size(); ++i) {
+      FEMRadialBasisT<T>::FEMRadialBasisT(const polynomial_basis::FiniteElementBasisT<T> & fem, int n_quad) : fem_(fem) {
+        helfem::chebyshev::chebyshev<T>(n_quad, xq_, wq_);
+        for (Eigen::Index i = 0; i < xq_.size(); ++i) {
           // Format the T value at its own precision (no truncation to double).
-          if (!std::isfinite(xq(i)))
-            printf("xq[%lld]=%s\n", (long long) i, helfem::io::fmt_sci(xq(i)).c_str());
-          if (!std::isfinite(wq(i)))
-            printf("wq[%lld]=%s\n", (long long) i, helfem::io::fmt_sci(wq(i)).c_str());
+          if (!std::isfinite(xq_(i)))
+            printf("xq_[%lld]=%s\n", (long long) i, helfem::io::fmt_sci(xq_(i)).c_str());
+          if (!std::isfinite(wq_(i)))
+            printf("wq_[%lld]=%s\n", (long long) i, helfem::io::fmt_sci(wq_(i)).c_str());
         }
       }
 
@@ -191,55 +191,55 @@ namespace helfem {
       FEMRadialBasisT<T>::~FEMRadialBasisT() {}
 
       template <typename T>
-      int FEMRadialBasisT<T>::get_nquad() const {
-        return (int) xq.size();
+      int FEMRadialBasisT<T>::nquad() const {
+        return (int) xq_.size();
       }
 
       template <typename T>
-      helfem::Vec<T> FEMRadialBasisT<T>::get_xq() const {
-        // Phase 5.20: xq storage is Eigen; return it directly at the public boundary.
-        return xq;
+      helfem::Vec<T> FEMRadialBasisT<T>::xq() const {
+        // Phase 5.20: xq_ storage is Eigen; return it directly at the public boundary.
+        return xq_;
       }
 
       template <typename T>
       size_t FEMRadialBasisT<T>::Nbf() const {
-        return fem.get_nbf();
+        return fem_.nbf();
       }
 
       template <typename T>
       size_t FEMRadialBasisT<T>::Nel() const {
-        return fem.get_nelem();
+        return fem_.nelem();
       }
 
       template <typename T>
       size_t FEMRadialBasisT<T>::Nprim(size_t iel) const {
-        return fem.get_nprim(iel);
+        return fem_.nprim(iel);
       }
 
       template <typename T>
       size_t FEMRadialBasisT<T>::max_Nprim() const {
-        return fem.get_max_nprim();
+        return fem_.max_nprim();
       }
 
       template <typename T>
-      void FEMRadialBasisT<T>::get_idx(size_t iel, size_t &ifirst, size_t &ilast) const {
-        fem.get_idx(iel, ifirst, ilast);
+      void FEMRadialBasisT<T>::idx(size_t iel, size_t &ifirst, size_t &ilast) const {
+        fem_.idx(iel, ifirst, ilast);
       }
 
       template <typename T>
-      helfem::Vec<T> FEMRadialBasisT<T>::get_bval() const {
-        // Phase 5.20: fem.get_bval() is Eigen; return directly.
-        return fem.get_bval();
+      helfem::Vec<T> FEMRadialBasisT<T>::bval() const {
+        // Phase 5.20: fem_.bval() is Eigen; return directly.
+        return fem_.bval();
       }
 
       template <typename T>
-      int FEMRadialBasisT<T>::get_poly_id() const {
-        return fem.get_poly_id();
+      int FEMRadialBasisT<T>::poly_id() const {
+        return fem_.poly_id();
       }
 
       template <typename T>
-      int FEMRadialBasisT<T>::get_poly_nnodes() const {
-        return fem.get_poly_nnodes();
+      int FEMRadialBasisT<T>::poly_nnodes() const {
+        return fem_.poly_nnodes();
       }
 
       template <typename T>
@@ -262,22 +262,22 @@ namespace helfem {
         using BK = typename FEMRadialBasisT<T>::BasisKind;
         switch (k) {
           case BK::B0: return [rb](helfem::Vec<T> x, size_t iel) {
-            return rb->get_fem().eval_dnf(x, 0, iel);
+            return rb->fem().eval_dnf(x, 0, iel);
           };
           case BK::B1: return [rb](helfem::Vec<T> x, size_t iel) {
-            return rb->get_fem().eval_dnf(x, 1, iel);
+            return rb->fem().eval_dnf(x, 1, iel);
           };
           case BK::B2: return [rb](helfem::Vec<T> x, size_t iel) {
-            return rb->get_fem().eval_dnf(x, 2, iel);
+            return rb->fem().eval_dnf(x, 2, iel);
           };
           case BK::R0: return [rb](helfem::Vec<T> x, size_t iel) {
-            return rb->get_bf(x, iel);
+            return rb->bf(x, iel);
           };
           case BK::R1: return [rb](helfem::Vec<T> x, size_t iel) {
-            return rb->get_df(x, iel);
+            return rb->df(x, iel);
           };
           case BK::R2: return [rb](helfem::Vec<T> x, size_t iel) {
-            return rb->get_lf(x, iel);
+            return rb->lf(x, iel);
           };
         }
         throw std::logic_error("FEMRadialBasisT::matrix_element: unknown BasisKind\n");
@@ -291,7 +291,7 @@ namespace helfem {
         auto lhs = make_evaluator<T>(this, bra);
         auto rhs = make_evaluator<T>(this, ket);
         // Phase 2: FE basis auto-converges its own quadrature to eps(T).
-        return fem.matrix_element_auto(iel, lhs, rhs, weight, breakpoints, poly_degree_f);
+        return fem_.matrix_element_auto(iel, lhs, rhs, weight, breakpoints, poly_degree_f);
       }
 
       template <typename T>
@@ -302,7 +302,7 @@ namespace helfem {
         auto lhs = make_evaluator<T>(this, bra);
         auto rhs = make_evaluator<T>(this, ket);
         // Phase 2: FE basis auto-converges its own quadrature to eps(T).
-        return fem.matrix_element_auto(lhs, rhs, weight, breakpoints, poly_degree_f);
+        return fem_.matrix_element_auto(lhs, rhs, weight, breakpoints, poly_degree_f);
       }
 
       template <typename T>
@@ -313,7 +313,7 @@ namespace helfem {
         auto lhs = make_evaluator<T>(this, bra);
         auto rhs = make_evaluator<T>(this, ket);
         // Phase 2: auto-converge over the reference sub-range [x_left,x_right].
-        return fem.matrix_element_auto(iel, lhs, rhs, weight,
+        return fem_.matrix_element_auto(iel, lhs, rhs, weight,
                                        std::vector<T>(), -1, x_left, x_right);
       }
 
@@ -357,13 +357,13 @@ namespace helfem {
           BasisKind bra, BasisKind ket,
           const std::function<T(T)> & weight) const {
         // List overlapping (iel, jel) element pairs.
-        std::vector<std::vector<size_t>> overlap(fem.get_nelem());
-        for (size_t iel = 0; iel < fem.get_nelem(); ++iel) {
-          const T istart = fem.element_begin(iel);
-          const T iend   = fem.element_end(iel);
-          for (size_t jel = 0; jel < rh.fem.get_nelem(); ++jel) {
-            const T jstart = rh.fem.element_begin(jel);
-            const T jend   = rh.fem.element_end(jel);
+        std::vector<std::vector<size_t>> overlap(fem_.nelem());
+        for (size_t iel = 0; iel < fem_.nelem(); ++iel) {
+          const T istart = fem_.element_begin(iel);
+          const T iend   = fem_.element_end(iel);
+          for (size_t jel = 0; jel < rh.fem_.nelem(); ++jel) {
+            const T jstart = rh.fem_.element_begin(jel);
+            const T jend   = rh.fem_.element_end(jel);
             if ((jstart >= istart && jstart < iend) ||
                 (istart >= jstart && istart < jend))
               overlap[iel].push_back(jel);
@@ -374,19 +374,19 @@ namespace helfem {
         // whole (Nbf x rh.Nbf) matrix is stable to 8*eps(T). The shape does
         // not depend on the order, so the comparison is well defined. Seeded
         // from a rule sized for the finer of the two bases.
-        const int nstart = std::max({(int) xq.size(), (int) rh.xq.size(), 5});
+        const int nstart = std::max({(int) xq_.size(), (int) rh.xq_.size(), 5});
         return converge_rule<T>(
             [&](int n) {
               helfem::Vec<T> xproj, wproj;
               helfem::lobatto::lobatto_compute<T>(n, xproj, wproj);
 
               helfem::Mat<T> S = helfem::Mat<T>::Zero(Nbf(), rh.Nbf());
-              for (size_t iel = 0; iel < fem.get_nelem(); ++iel) {
+              for (size_t iel = 0; iel < fem_.nelem(); ++iel) {
                 for (size_t jel : overlap[iel]) {
-                  const T intstart = std::max(fem.element_begin(iel),
-                                              rh.fem.element_begin(jel));
-                  const T intend   = std::min(fem.element_end(iel),
-                                              rh.fem.element_end(jel));
+                  const T intstart = std::max(fem_.element_begin(iel),
+                                              rh.fem_.element_begin(jel));
+                  const T intend   = std::min(fem_.element_end(iel),
+                                              rh.fem_.element_end(jel));
                   const T intmid   = T(0.5) * (intend + intstart);
                   const T intlen   = T(0.5) * (intend - intstart);
 
@@ -399,19 +399,19 @@ namespace helfem {
                       (helfem::Vec<T>::Constant(xproj.size(), intmid) + intlen * xproj)
                           .cwiseMax(intstart).cwiseMin(intend);
 
-                  const helfem::Vec<T> xi = fem.eval_prim(r, iel);
-                  const helfem::Vec<T> xj = rh.fem.eval_prim(r, jel);
+                  const helfem::Vec<T> xi = fem_.eval_prim(r, iel);
+                  const helfem::Vec<T> xj = rh.fem_.eval_prim(r, jel);
 
                   helfem::Vec<T> wtot = wproj * intlen;
                   if (weight)
                     for (Eigen::Index i = 0; i < r.size(); ++i)
                       wtot(i) *= weight(r(i));
 
-                  const helfem::Mat<T> ifunc = eval_B_at<T>(fem,    xi, iel, bra);
-                  const helfem::Mat<T> jfunc = eval_B_at<T>(rh.fem, xj, jel, ket);
+                  const helfem::Mat<T> ifunc = eval_B_at<T>(fem_,    xi, iel, bra);
+                  const helfem::Mat<T> jfunc = eval_B_at<T>(rh.fem_, xj, jel, ket);
 
-                  size_t ifirst, ilast; get_idx(iel, ifirst, ilast);
-                  size_t jfirst, jlast; rh.get_idx(jel, jfirst, jlast);
+                  size_t ifirst, ilast; idx(iel, ifirst, ilast);
+                  size_t jfirst, jlast; rh.idx(jel, jfirst, jlast);
                   const Eigen::Index Ni = ilast - ifirst + 1;
                   const Eigen::Index Nj = jlast - jfirst + 1;
                   // ifunc^T * diag(wtot) * jfunc = (ifunc^T * wtot.asDiagonal()) * jfunc.
@@ -595,7 +595,7 @@ namespace helfem {
 	    throw std::logic_error("Junquera confinement potential requires N >= 1!");
 	  if(V<=0)
 	    throw std::logic_error("Cannot have attractive Junquera potential!\n");
-	  return junq_confinement(iel, N, V, get_bval().maxCoeff(), shift_pot);
+	  return junq_confinement(iel, N, V, bval().maxCoeff(), shift_pot);
 	} else
 	  throw std::logic_error("Case not implemented!\n");
       }
@@ -614,8 +614,8 @@ namespace helfem {
         // algebraically and grinds to the order cap.
         return matrix_element(iel, BasisKind::B0, BasisKind::B0,
                               [model](T r){ return model->V(r); },
-                              model->breakpoints(fem.element_begin(iel),
-                                                 fem.element_end(iel)));
+                              model->breakpoints(fem_.element_begin(iel),
+                                                 fem_.element_end(iel)));
       }
 
       template <typename T>
@@ -627,11 +627,11 @@ namespace helfem {
         // <r^L> * Rhalf^{-L-1}. The comparison operators were inverted in
         // an earlier migration, which for r>Rhalf elements evaluated
         // <r^L> out to Rmax (~40^L) and blew up the SCF; restored here.
-        if (fem.element_begin(iel) >= Rhalf) {
+        if (fem_.element_begin(iel) >= Rhalf) {
           return -std::sqrt(T(4) * utils::pi<T>() / T(2 * L + 1)) *
                   radial_integral(-L - 1, iel) *
                   std::pow(Rhalf, L);
-        } else if (fem.element_end(iel) <= Rhalf) {
+        } else if (fem_.element_end(iel) <= Rhalf) {
           return -std::sqrt(T(4) * utils::pi<T>() / T(2 * L + 1)) *
                   radial_integral(L, iel) *
                   std::pow(Rhalf, -L - 1);
@@ -642,13 +642,13 @@ namespace helfem {
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::twoe_integral(int L, size_t iel) const {
-        T Rmin(fem.element_begin(iel));
-        T Rmax(fem.element_end(iel));
+        T Rmin(fem_.element_begin(iel));
+        T Rmax(fem_.element_end(iel));
 
         // Integral by auto-converging quadrature: the rule order is refined
         // internally until the block is stable to 8*eps(T), so the accuracy
         // follows T and not the caller's --nquad.
-        std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> p(fem.get_basis(iel));
+        std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> p(fem_.basis(iel));
         helfem::Mat<T> tei = converge_rule<T>(
             [&](int n) {
               helfem::Vec<T> x, w;
@@ -725,11 +725,11 @@ namespace helfem {
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::yukawa_integral(int L, T lambda, size_t iel) const {
-        T Rmin(fem.element_begin(iel));
-        T Rmax(fem.element_end(iel));
+        T Rmin(fem_.element_begin(iel));
+        T Rmax(fem_.element_end(iel));
 
         // Integral by auto-converging quadrature (see converge_rule above).
-        std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> p(fem.get_basis(iel));
+        std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> p(fem_.basis(iel));
         return converge_rule<T>(
             [&](int n) {
               helfem::Vec<T> x, w;
@@ -762,7 +762,7 @@ namespace helfem {
         // rule so a single erfc call uses one consistent order.
         //
         // Number of quadrature points
-        size_t Nq = (size_t) xq.size();
+        size_t Nq = (size_t) xq_.size();
         // Number of subintervals
         size_t Nint;
 
@@ -781,9 +781,9 @@ namespace helfem {
         // Phase 5.8: local scratch is now native Eigen.
         helfem::Vec<T> xi, wi;
         helfem::chebyshev::chebyshev<T>((int) Nq, xi, wi);
-        helfem::Mat<T> ibf = fem.eval_dnf(xi, 0, iel);
-        const T Rmini = fem.element_begin(iel);
-        const T Rmaxi = fem.element_end(iel);
+        helfem::Mat<T> ibf = fem_.eval_dnf(xi, 0, iel);
+        const T Rmini = fem_.element_begin(iel);
+        const T Rmaxi = fem_.element_end(iel);
 
         // Rh quadrature points: Nint copies of xi, mapped to subintervals.
         helfem::Vec<T> xk(Nq * Nint), wk(Nq * Nint);
@@ -796,9 +796,9 @@ namespace helfem {
               = helfem::Vec<T>::Constant((Eigen::Index) Nq, imid) + xi * ilen;
           wk.segment((Eigen::Index)(ii * Nq), (Eigen::Index) Nq) = wi * ilen;
         }
-        const helfem::Mat<T> kbf = fem.eval_dnf(xk, 0, kel);
-        const T Rmink = fem.element_begin(kel);
-        const T Rmaxk = fem.element_end(kel);
+        const helfem::Mat<T> kbf = fem_.eval_dnf(xk, 0, kel);
+        const T Rmink = fem_.element_begin(kel);
+        const T Rmaxk = fem_.element_end(kel);
 
         helfem::Mat<T> tei = quadrature::erfc_integral<T>(
             Rmini, Rmaxi, ibf, xi, wi,
@@ -812,54 +812,54 @@ namespace helfem {
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::spherical_potential(size_t iel) const {
-        T Rmin(fem.element_begin(iel));
-        T Rmax(fem.element_end(iel));
+        T Rmin(fem_.element_begin(iel));
+        T Rmax(fem_.element_end(iel));
 
         // Integral by quadrature
-        std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(fem.get_basis(iel));
-        return quadrature::spherical_potential<T>(Rmin, Rmax, xq, wq, p);
+        std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(fem_.basis(iel));
+        return quadrature::spherical_potential<T>(Rmin, Rmax, xq_, wq_, p);
       }
 
       template <typename T>
       void FEMRadialBasisT<T>::fill_quadrature_cache(bool need_df, bool need_lf) const {
-        const size_t Nel = fem.get_nelem();
-        if (bfq_cache.size() != Nel) bfq_cache.assign(Nel, helfem::Mat<T>());
-        if (dfq_cache.size() != Nel) dfq_cache.assign(Nel, helfem::Mat<T>());
-        if (lfq_cache.size() != Nel) lfq_cache.assign(Nel, helfem::Mat<T>());
+        const size_t Nel = fem_.nelem();
+        if (bfq_cache_.size() != Nel) bfq_cache_.assign(Nel, helfem::Mat<T>());
+        if (dfq_cache_.size() != Nel) dfq_cache_.assign(Nel, helfem::Mat<T>());
+        if (lfq_cache_.size() != Nel) lfq_cache_.assign(Nel, helfem::Mat<T>());
         for (size_t iel = 0; iel < Nel; ++iel) {
-          if (!bfq_cache[iel].size()) bfq_cache[iel] = get_bf(xq, iel);
-          if (need_df && !dfq_cache[iel].size()) dfq_cache[iel] = get_df(xq, iel);
-          if (need_lf && !lfq_cache[iel].size()) lfq_cache[iel] = get_lf(xq, iel);
+          if (!bfq_cache_[iel].size()) bfq_cache_[iel] = bf(xq_, iel);
+          if (need_df && !dfq_cache_[iel].size()) dfq_cache_[iel] = df(xq_, iel);
+          if (need_lf && !lfq_cache_[iel].size()) lfq_cache_[iel] = lf(xq_, iel);
         }
       }
 
       template <typename T>
-      helfem::Mat<T> FEMRadialBasisT<T>::get_bf(size_t iel) const {
-        if (iel < bfq_cache.size() && bfq_cache[iel].size())
-          return bfq_cache[iel];
-        return get_bf(xq, iel);
+      helfem::Mat<T> FEMRadialBasisT<T>::bf(size_t iel) const {
+        if (iel < bfq_cache_.size() && bfq_cache_[iel].size())
+          return bfq_cache_[iel];
+        return bf(xq_, iel);
       }
 
-      // get_taylor() has been removed in favour of fem.eval_over_r().
+      // get_taylor() has been removed in favour of fem_.eval_over_r().
 
       template <typename T>
       helfem::Vec<T> FEMRadialBasisT<T>::eval_orbs(const helfem::Mat<T> & C, T r) const {
-        if(r > fem.element_end(fem.get_nelem()-1)) {
+        if(r > fem_.element_end(fem_.nelem()-1)) {
           // Wave function is zero beyond the practical infinity.
           return helfem::Vec<T>::Zero(C.cols());
         }
         // Find the element and evaluate the primitive coordinate.
-        const size_t iel = fem.find_element(r);
+        const size_t iel = fem_.find_element(r);
         helfem::Vec<T> r_e(1); r_e(0) = r;
-        const helfem::Vec<T> xe = fem.eval_prim(r_e, iel);
+        const helfem::Vec<T> xe = fem_.eval_prim(r_e, iel);
 
         // Basis functions in the element -- Eigen throughout after Phase 5.24.
-        const helfem::Mat<T> val = get_bf(xe, iel);
+        const helfem::Mat<T> val = bf(xe, iel);
 
         // Slice C over the element's basis-function index range and
         // return the row-vector product transposed to a column.
         size_t ifirst, ilast;
-        get_idx(iel, ifirst, ilast);
+        idx(iel, ifirst, ilast);
         const Eigen::Index n = static_cast<Eigen::Index>(ilast - ifirst + 1);
         const helfem::Mat<T> Csub = C.block(ifirst, 0, n, C.cols());
         return (val * Csub).transpose();
@@ -868,11 +868,11 @@ namespace helfem {
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::eval_psi_dnf(const helfem::Vec<T> & x, int n, size_t iel) const {
         if (iel == 0)
-          return fem.eval_over_r(x, n, iel);
+          return fem_.eval_over_r(x, n, iel);
         if (n == 0) {
-          // Plain division, matching the historical get_bf exactly.
-          helfem::Mat<T> val = fem.eval_dnf(x, 0, iel);
-          const helfem::Vec<T> r = fem.eval_coord(x, iel);
+          // Plain division, matching the historical bf exactly.
+          helfem::Mat<T> val = fem_.eval_dnf(x, 0, iel);
+          const helfem::Vec<T> r = fem_.eval_coord(x, iel);
           for (Eigen::Index ifun = 0; ifun < val.cols(); ++ifun)
             for (Eigen::Index ir = 0; ir < val.rows(); ++ir)
               val(ir, ifun) /= r(ir);
@@ -885,7 +885,7 @@ namespace helfem {
         //   n=2: ((2 f invr - 2 d) invr + l) invr
         std::vector<helfem::Mat<T>> B(n + 1);
         for (int k = 0; k <= n; k++)
-          B[k] = fem.eval_dnf(x, k, iel);
+          B[k] = fem_.eval_dnf(x, k, iel);
         std::vector<T> c(n + 1);
         {
           T nfac = T(1);
@@ -897,7 +897,7 @@ namespace helfem {
             if ((n - k) % 2) c[k] = -c[k];
           }
         }
-        const helfem::Vec<T> r = fem.eval_coord(x, iel);
+        const helfem::Vec<T> r = fem_.eval_coord(x, iel);
         helfem::Mat<T> out(B[0].rows(), B[0].cols());
         for (Eigen::Index ifun = 0; ifun < out.cols(); ++ifun)
           for (Eigen::Index ir = 0; ir < out.rows(); ++ir) {
@@ -911,57 +911,57 @@ namespace helfem {
       }
 
       template <typename T>
-      helfem::Mat<T> FEMRadialBasisT<T>::get_bf(const helfem::Vec<T> & x, size_t iel) const {
+      helfem::Mat<T> FEMRadialBasisT<T>::bf(const helfem::Vec<T> & x, size_t iel) const {
         return eval_psi_dnf(x, 0, iel);
       }
 
       template <typename T>
-      helfem::Mat<T> FEMRadialBasisT<T>::get_df(size_t iel) const {
-        if (iel < dfq_cache.size() && dfq_cache[iel].size())
-          return dfq_cache[iel];
-        return get_df(xq, iel);
+      helfem::Mat<T> FEMRadialBasisT<T>::df(size_t iel) const {
+        if (iel < dfq_cache_.size() && dfq_cache_[iel].size())
+          return dfq_cache_[iel];
+        return df(xq_, iel);
       }
 
       template <typename T>
-      helfem::Mat<T> FEMRadialBasisT<T>::get_df(const helfem::Vec<T> & x, size_t iel) const {
+      helfem::Mat<T> FEMRadialBasisT<T>::df(const helfem::Vec<T> & x, size_t iel) const {
         return eval_psi_dnf(x, 1, iel);
       }
 
       template <typename T>
-      helfem::Mat<T> FEMRadialBasisT<T>::get_lf(size_t iel) const {
-        if (iel < lfq_cache.size() && lfq_cache[iel].size())
-          return lfq_cache[iel];
-        return get_lf(xq, iel);
+      helfem::Mat<T> FEMRadialBasisT<T>::lf(size_t iel) const {
+        if (iel < lfq_cache_.size() && lfq_cache_[iel].size())
+          return lfq_cache_[iel];
+        return lf(xq_, iel);
       }
 
       template <typename T>
-      helfem::Mat<T> FEMRadialBasisT<T>::get_lf(const helfem::Vec<T> & x, size_t iel) const {
+      helfem::Mat<T> FEMRadialBasisT<T>::lf(const helfem::Vec<T> & x, size_t iel) const {
         return eval_psi_dnf(x, 2, iel);
       }
 
       template <typename T>
-      helfem::Vec<T> FEMRadialBasisT<T>::get_wrad(size_t iel) const {
-        return get_wrad(wq, iel);
+      helfem::Vec<T> FEMRadialBasisT<T>::wrad(size_t iel) const {
+        return wrad(wq_, iel);
       }
 
       template <typename T>
-      helfem::Vec<T> FEMRadialBasisT<T>::get_wrad(const helfem::Vec<T> & w, size_t iel) const {
-        return fem.scaling_factor(iel) * w;
+      helfem::Vec<T> FEMRadialBasisT<T>::wrad(const helfem::Vec<T> & w, size_t iel) const {
+        return fem_.scaling_factor(iel) * w;
       }
 
       template <typename T>
-      helfem::Vec<T> FEMRadialBasisT<T>::get_r(size_t iel) const {
-        return get_r(xq, iel);
+      helfem::Vec<T> FEMRadialBasisT<T>::r(size_t iel) const {
+        return r(xq_, iel);
       }
 
       template <typename T>
-      helfem::Vec<T> FEMRadialBasisT<T>::get_r(const helfem::Vec<T> & x, size_t iel) const {
-        return fem.eval_coord(x, iel);
+      helfem::Vec<T> FEMRadialBasisT<T>::r(const helfem::Vec<T> & x, size_t iel) const {
+        return fem_.eval_coord(x, iel);
       }
 
       template <typename T>
-      T FEMRadialBasisT<T>::get_r(T x, size_t iel) const {
-        return fem.eval_coord(x, iel);
+      T FEMRadialBasisT<T>::r(T x, size_t iel) const {
+        return fem_.eval_coord(x, iel);
       }
 
       // Nuclear coordinate: primitive basis polynomials belong to [-1,1],
@@ -979,10 +979,10 @@ namespace helfem {
           throw std::logic_error("nuclear_density expects a radial density matrix\n");
 
         // Derivative at nucleus.
-        const helfem::Mat<T> der = fem.eval_dnf(nuclear_x<T>(), 1, (size_t) 0);
+        const helfem::Mat<T> der = fem_.eval_dnf(nuclear_x<T>(), 1, (size_t) 0);
         // First-element radial index range.
         size_t ifirst, ilast;
-        get_idx(0, ifirst, ilast);
+        idx(0, ifirst, ilast);
         const Eigen::Index n = static_cast<Eigen::Index>(ilast - ifirst + 1);
         // Density submatrix.
         const helfem::Mat<T> Psub = Prad.block(ifirst, ifirst, n, n);
@@ -997,10 +997,10 @@ namespace helfem {
           throw std::logic_error("nuclear_density_gradient expects a radial density matrix\n");
 
         const helfem::Vec<T> xn = nuclear_x<T>();
-        const helfem::Mat<T> der  = fem.eval_dnf(xn, 1, (size_t) 0);
-        const helfem::Mat<T> lapl = fem.eval_dnf(xn, 2, (size_t) 0);
+        const helfem::Mat<T> der  = fem_.eval_dnf(xn, 1, (size_t) 0);
+        const helfem::Mat<T> lapl = fem_.eval_dnf(xn, 2, (size_t) 0);
         size_t ifirst, ilast;
-        get_idx(0, ifirst, ilast);
+        idx(0, ifirst, ilast);
         const Eigen::Index n = static_cast<Eigen::Index>(ilast - ifirst + 1);
         const helfem::Mat<T> Psub = Prad.block(ifirst, ifirst, n, n);
         // P_uv B_u'(0) B_v''(0) -- one number.
@@ -1009,9 +1009,9 @@ namespace helfem {
 
       template <typename T>
       helfem::RowVec<T> FEMRadialBasisT<T>::nuclear_orbital(const helfem::Mat<T> &C) const {
-        const helfem::Mat<T> der = fem.eval_dnf(nuclear_x<T>(), 1, (size_t) 0);
+        const helfem::Mat<T> der = fem_.eval_dnf(nuclear_x<T>(), 1, (size_t) 0);
         size_t ifirst, ilast;
-        get_idx(0, ifirst, ilast);
+        idx(0, ifirst, ilast);
         const Eigen::Index n = static_cast<Eigen::Index>(ilast - ifirst + 1);
         const helfem::Mat<T> Csub = C.block(ifirst, 0, n, C.cols());
         // C_ui B_u'(0) -- row vector of length C.cols().

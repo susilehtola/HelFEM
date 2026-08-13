@@ -71,9 +71,9 @@ int main(int argc, char **argv) {
   std::string save = parser.get<std::string>("save");
 
   // Get polynomial basis
-  auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(primbas, Nnodes)));
+  auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::make_basis(primbas, Nnodes)));
   if(Nquad<0)
-    Nquad=5*poly->get_nbf();
+    Nquad=5*poly->nbf();
 
   // Radial grid
   helfem::Vector r(helfem::Vector::LinSpaced(Nelem+1,0.0,rmax));
@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
   helfem::Vector xq, wq;
   chebyshev::chebyshev<double>(Nquad,xq,wq);
 
-  size_t Nbf(fem.get_nbf());
+  size_t Nbf(fem.nbf());
   printf("Basis set contains %i functions\n",(int) Nbf);
 
   // Form overlap matrix

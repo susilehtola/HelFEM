@@ -47,8 +47,8 @@ namespace helfem {
       // is a double-only C library), and none is on the Fock path. Rather than
       // split the class they are compiled for every T and guarded: at
       // T = double they are exactly the code they always were, and at any
-      // other T they throw. (The quadrature-point accessors get_bval /
-      // get_wrad / get_r are now precision-generic helfem::Vec<T> and need no
+      // other T they throw. (The quadrature-point accessors bval /
+      // wrad / r are now precision-generic helfem::Vec<T> and need no
       // guard.)
       namespace {
         [[noreturn]] void double_only(const char *what) {
@@ -138,23 +138,23 @@ namespace helfem {
       }
 
       template <typename T>
-      int TwoDBasisT<T>::get_nquad() const {
-        return radial_.get_nquad();
+      int TwoDBasisT<T>::nquad() const {
+        return radial_.nquad();
       }
 
       template <typename T>
-      helfem::Vec<T> TwoDBasisT<T>::get_bval() const {
-        return radial_.get_bval();
+      helfem::Vec<T> TwoDBasisT<T>::bval() const {
+        return radial_.bval();
       }
 
       template <typename T>
-      int TwoDBasisT<T>::get_poly_id() const {
-        return radial_.get_poly_id();
+      int TwoDBasisT<T>::poly_id() const {
+        return radial_.poly_id();
       }
 
       template <typename T>
-      int TwoDBasisT<T>::get_poly_nnodes() const {
-        return radial_.get_poly_nnodes();
+      int TwoDBasisT<T>::poly_nnodes() const {
+        return radial_.poly_nnodes();
       }
 
       template <typename T>
@@ -626,7 +626,7 @@ namespace helfem {
           helfem::Mat<T> D = helfem::Mat<T>::Zero(Nrad_e, Nrad_e);
           for (size_t iel = 0; iel < Nel; ++iel) {
             size_t ifirst, ilast;
-            radial_.get_idx(iel, ifirst, ilast);
+            radial_.idx(iel, ifirst, ilast);
             const size_t Ni = ilast - ifirst + 1;
             for (size_t j_loc = 0; j_loc < Ni; ++j_loc) {
               for (size_t i_loc = 0; i_loc <= j_loc; ++i_loc) {
@@ -1139,7 +1139,7 @@ namespace helfem {
             sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
           // Evaluate radial functions
-          helfem::Matrix rad(radial_.get_bf(iel));
+          helfem::Matrix rad(radial_.bf(iel));
 
           // Form supermatrix
           Eigen::MatrixXcd bf(rad.rows(),lval.size()*rad.cols());
@@ -1162,8 +1162,8 @@ namespace helfem {
             sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
           // Evaluate radial functions
-          helfem::Matrix frad(radial_.get_bf(iel));
-          helfem::Matrix drad(radial_.get_df(iel));
+          helfem::Matrix frad(radial_.bf(iel));
+          helfem::Matrix drad(radial_.df(iel));
 
           // Form supermatrices
           dr=Eigen::MatrixXcd::Zero(frad.rows(),lval.size()*frad.cols());
@@ -1213,10 +1213,10 @@ namespace helfem {
             sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
 
           // Evaluate radial functions
-          helfem::Vector r(radial_.get_r(iel));
-          helfem::Matrix frad(radial_.get_bf(iel));
-          helfem::Matrix drad(radial_.get_df(iel));
-          helfem::Matrix lrad(radial_.get_lf(iel));
+          helfem::Vector r(radial_.r(iel));
+          helfem::Matrix frad(radial_.bf(iel));
+          helfem::Matrix drad(radial_.df(iel));
+          helfem::Matrix lrad(radial_.lf(iel));
 
           // Form supermatrix
           Eigen::MatrixXcd lf(Eigen::MatrixXcd::Zero(frad.rows(),lval.size()*frad.cols()));
@@ -1238,7 +1238,7 @@ namespace helfem {
       std::vector<Eigen::Index> TwoDBasisT<T>::bf_list(size_t iel) const {
         // Radial functions in element
         size_t ifirst, ilast;
-        radial_.get_idx(iel,ifirst,ilast);
+        radial_.idx(iel,ifirst,ilast);
         // Number of radial functions in element
         size_t Nr(ilast-ifirst+1);
 
@@ -1263,18 +1263,18 @@ namespace helfem {
       std::pair<size_t, size_t>
       TwoDBasisT<T>::radial_element_range(size_t iel) const {
         size_t ifirst, ilast;
-        radial_.get_idx(iel, ifirst, ilast);
+        radial_.idx(iel, ifirst, ilast);
         return {ifirst, ilast};
       }
 
       template <typename T>
-      helfem::Vec<T> TwoDBasisT<T>::get_wrad(size_t iel) const {
-        return radial_.get_wrad(iel);
+      helfem::Vec<T> TwoDBasisT<T>::wrad(size_t iel) const {
+        return radial_.wrad(iel);
       }
 
       template <typename T>
-      helfem::Vec<T> TwoDBasisT<T>::get_r(size_t iel) const {
-        return radial_.get_r(iel);
+      helfem::Vec<T> TwoDBasisT<T>::r(size_t iel) const {
+        return radial_.r(iel);
       }
 
       template class TwoDBasisT<double>;

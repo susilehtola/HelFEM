@@ -134,9 +134,9 @@ namespace helfem {
         /// Get number of radial elements
         size_t get_rad_Nel() const;
         /// Get radial quadrature weights
-        helfem::Vector get_wrad(size_t iel) const;
+        helfem::Vector wrad(size_t iel) const;
         /// Get r values
-        helfem::Vector get_r(size_t iel) const;
+        helfem::Vector r(size_t iel) const;
 
         /// Electron density at nucleus
         double nuclear_density(const helfem::Matrix & P) const;

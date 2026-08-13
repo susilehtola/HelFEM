@@ -131,8 +131,8 @@ namespace {
 
     // --- Basis -------------------------------------------------------------
     auto poly = std::shared_ptr<const pb::PolynomialBasisT<T>>(
-        polynomial_basis::get_basis_T<T>(primbas, Nnodes));
-    const int Nquad = 5 * poly->get_nbf();
+        polynomial_basis::make_basis_T<T>(primbas, Nnodes));
+    const int Nquad = 5 * poly->nbf();
 
     // Element boundaries: computed in double and cast up, so that every
     // precision solves the SAME variational problem and the columns below

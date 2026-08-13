@@ -427,7 +427,7 @@ namespace helfem {
           // Reconstruct the old polynomial basis so the reassembled
           // FE basis matches the checkpoint's Nbf exactly.
           std::shared_ptr<const polynomial_basis::PolynomialBasis> old_poly(
-              polynomial_basis::get_basis(old_primbas, old_nnodes));
+              polynomial_basis::make_basis(old_primbas, old_nnodes));
           sadatom::basis::TwoDBasis oldbasis(old_Z, modelpotential::POINT_NUCLEUS,
                                               0.0, old_poly, opts.zeroder,
                                               old_Nquad, old_bval, old_lmax);
@@ -617,8 +617,8 @@ namespace helfem {
           Checkpoint savechk(opts.save_file, /*writemode=*/true);
           savechk.write("sadatom_Z",       opts.Z);
           savechk.write("sadatom_lmax",    opts.lmax);
-          savechk.write("sadatom_primbas", opts.poly->get_id());
-          savechk.write("sadatom_nnodes",  opts.poly->get_nnodes());
+          savechk.write("sadatom_primbas", opts.poly->id());
+          savechk.write("sadatom_nnodes",  opts.poly->nnodes());
           savechk.write("sadatom_Nquad",   opts.Nquad);
           savechk.write("sadatom_bval", opts.bval);
 

@@ -139,7 +139,7 @@ int main(void) {
   {
     printf("\nExchange-correlation screening vs. the grid implementation:\n");
     std::shared_ptr<const polynomial_basis::PolynomialBasis> poly(
-        polynomial_basis::get_basis(atomdb::data::primbas, atomdb::data::nnodes));
+        polynomial_basis::make_basis(atomdb::data::primbas, atomdb::data::nnodes));
     const helfem::Vector bv(atomdb::element_boundaries());
     sadatom::basis::TwoDBasis tdb(1, modelpotential::POINT_NUCLEUS, 0.0, poly, false,
                                   atomdb::data::nquad, bv, atomdb::lmax());
@@ -180,7 +180,7 @@ int main(void) {
 
   // The stored orbitals must reproduce the stored density:
   //   rho(r) = sum_l sum_n occ_nl R_nl(r)^2 / (4 pi)
-  // This pins the normalization convention of Atom::orbitals -- get_bf
+  // This pins the normalization convention of Atom::orbitals -- bf
   // returns B(r)/r, so the contraction is R(r) and not r*R(r) -- so that
   // a projected guess does not have to rediscover it, and gets it wrong
   // by a factor of r if it does.

@@ -63,8 +63,8 @@ int main(int argc, char **argv) {
   const int mmax = parser.get<int>("mmax");
 
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
-      polynomial_basis::get_basis(primbas, Nnodes));
-  const int Nquad = 5 * poly->get_nbf();
+      polynomial_basis::make_basis(primbas, Nnodes));
+  const int Nquad = 5 * poly->nbf();
 
   const Eigen::VectorXi lmmax = Eigen::VectorXi::Constant(mmax + 1, lmax);
   Eigen::VectorXi lval, mval;
@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
 
   diatomic::basis::TwoDBasis basis(7, 7, Rhalf, poly, Nquad, bval, lval, mval);
 
-  const int nprim = (int) poly->get_nbf();
+  const int nprim = (int) poly->nbf();
   const int n = nprim * nprim;
   printf("nnodes = %i -> Nprim = %i, Nprim^2 = %i, nquad = %i\n",
          Nnodes, nprim, n, Nquad);

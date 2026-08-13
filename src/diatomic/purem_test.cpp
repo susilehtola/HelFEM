@@ -113,8 +113,8 @@ int main(int argc, char **argv) {
   const int primbas = parser.get<int>("primbas");
 
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
-      polynomial_basis::get_basis(primbas, Nnodes));
-  const int Nquad = 5 * poly->get_nbf();
+      polynomial_basis::make_basis(primbas, Nnodes));
+  const int Nquad = 5 * poly->nbf();
 
   const Eigen::VectorXi lmmax = Eigen::VectorXi::Constant(mmax + 1, lmax);
   Eigen::VectorXi lval, mval;
@@ -182,12 +182,12 @@ int main(int argc, char **argv) {
     for (int m = 0; m <= std::min(mmax, 2); m++) {
       // A radial point comfortably inside the second element, and a few nu
       const size_t iel = std::min<size_t>(1, basis.get_rad_Nel() - 1);
-      const helfem::Vector rr(basis.get_r(iel));
+      const helfem::Vector rr(basis.r(iel));
       // The FEM basis is only C0 across element boundaries -- the second
       // derivative jumps -- so a finite-difference stencil must not step out
       // of the element. Gauss-Lobatto points cluster at the edges, so skip
       // any radial point within `edge` of a boundary.
-      const helfem::Vector bv(basis.get_bval());
+      const helfem::Vector bv(basis.bval());
       const double edge = 100.0 * 1e-4;
       for (size_t irad = 0; irad < (size_t) rr.size(); irad += 7) {
         const double mu = rr(irad);

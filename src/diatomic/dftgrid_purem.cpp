@@ -88,8 +88,8 @@ namespace helfem {
         const Eigen::Index nang = cth.size();
         const bool need_df = do_grad || do_tau || do_lapl;
 
-        const double r0    = basp->get_r(iel)(irad);
-        const double wr    = basp->get_wrad(iel)(irad);
+        const double r0    = basp->r(iel)(irad);
+        const double wr    = basp->wrad(iel)(irad);
         const double Rhalf = basp->get_Rhalf();
         const double shmu  = std::sinh(r0);
 
@@ -682,7 +682,7 @@ namespace helfem {
           grid.check_grad_tau_lapl(x_func, c_func);
 
           for (size_t iel = 0; iel < basp->get_rad_Nel(); iel++) {
-            for (size_t irad = 0; irad < (size_t) basp->get_r(iel).size(); irad++) {
+            for (size_t irad = 0; irad < (size_t) basp->r(iel).size(); irad++) {
               grid.compute_bf(iel, irad);
               grid.update_density(P);
               nel  += grid.compute_Nel();
@@ -713,7 +713,7 @@ namespace helfem {
           grid.check_grad_tau_lapl(x_func, c_func);
 
           for (size_t iel = 0; iel < basp->get_rad_Nel(); iel++) {
-            for (size_t irad = 0; irad < (size_t) basp->get_r(iel).size(); irad++) {
+            for (size_t irad = 0; irad < (size_t) basp->r(iel).size(); irad++) {
               grid.compute_bf(iel, irad);
               grid.update_density(Pa, Pb);
               nel  += grid.compute_Nel();

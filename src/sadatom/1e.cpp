@@ -84,12 +84,12 @@ int main(int argc, char **argv) {
   bool zeroder=false;
 
   // Get primitive basis
-  auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::get_basis(primbas,Nnodes)));
+  auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::make_basis(primbas,Nnodes)));
 
   if(Nquad==0)
     // Set default value
-    Nquad=5*poly->get_nbf();
-  else if(Nquad<2*poly->get_nbf())
+    Nquad=5*poly->nbf();
+  else if(Nquad<2*poly->nbf())
     throw std::logic_error("Insufficient radial quadrature.\n");
   // Order of quadrature rule
   printf("Using %i point quadrature rule.\n",Nquad);
@@ -126,13 +126,13 @@ int main(int argc, char **argv) {
 
     // Evaluate orbitals on the quadrature grid.
     const Eigen::Index Ncols = C.cols();
-    const Eigen::Index Npts  = radial.get_bf(0).rows();
+    const Eigen::Index Npts  = radial.bf(0).rows();
     helfem::Matrix Cv = helfem::Matrix::Zero(radial.Nel() * Npts, Ncols);
     for (size_t iel = 0; iel < radial.Nel(); ++iel) {
       size_t ifirst, ilast;
-      radial.get_idx(iel, ifirst, ilast);
+      radial.idx(iel, ifirst, ilast);
       const helfem::Matrix Csub = C.middleRows(ifirst, ilast - ifirst + 1);
-      const helfem::Matrix bf   = radial.get_bf(iel);
+      const helfem::Matrix bf   = radial.bf(iel);
       Cv.middleRows(iel * Npts, Npts) = bf * Csub;
     }
 
@@ -146,12 +146,12 @@ int main(int argc, char **argv) {
 
   // Concatenate per-element radii and quadrature weights into flat
   // vectors and write them to the checkpoint.
-  const Eigen::Index Npts = radial.get_r(0).size();
+  const Eigen::Index Npts = radial.r(0).size();
   helfem::Vector radii   = helfem::Vector::Zero(radial.Nel() * Npts);
   helfem::Vector weights = helfem::Vector::Zero(radial.Nel() * Npts);
   for (size_t iel = 0; iel < radial.Nel(); ++iel) {
-    radii  .segment(iel * Npts, Npts) = radial.get_r   (iel);
-    weights.segment(iel * Npts, Npts) = radial.get_wrad(iel);
+    radii  .segment(iel * Npts, Npts) = radial.r   (iel);
+    weights.segment(iel * Npts, Npts) = radial.wrad(iel);
   }
 
   chkpt.write("r",  radii);

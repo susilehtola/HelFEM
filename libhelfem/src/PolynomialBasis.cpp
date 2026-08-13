@@ -29,7 +29,7 @@
 
 namespace helfem {
   namespace polynomial_basis {
-    PolynomialBasis * get_basis(int primbas, int Nnodes) {
+    PolynomialBasis * make_basis(int primbas, int Nnodes) {
       if(Nnodes<2)
         throw std::logic_error("Can't have finite element basis with less than two nodes per element.\n");
 

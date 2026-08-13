@@ -473,8 +473,8 @@ namespace helfem {
         const Eigen::Index nbf=(Eigen::Index) bf_ind.size();
 
         // Get radii and radial weights
-        helfem::Vector r(basp->get_r(iel));
-        helfem::Vector wrad(basp->get_wrad(iel));
+        helfem::Vector r(basp->r(iel));
+        helfem::Vector wrad(basp->wrad(iel));
         const Eigen::Index nrad=wrad.size();
         const Eigen::Index nang=wang.size();
 

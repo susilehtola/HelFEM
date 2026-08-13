@@ -44,8 +44,8 @@ namespace helfem {
       ///     the analysis binaries -- eval_bf / eval_df / eval_lf (which return
       ///     Eigen::MatrixXcd and go through the double-only ::spherical_harmonics).
       ///     These are compiled for every T but THROW unless T = double; they
-      ///     are not on the Fock path. (The quadrature-point accessors get_bval
-      ///     / get_wrad / get_r are precision-generic helfem::Vec<T>.)
+      ///     are not on the Fock path. (The quadrature-point accessors bval
+      ///     / wrad / r are precision-generic helfem::Vec<T>.)
       /// The angular-index bookkeeping (get_lval / m_indices / get_sym_idx,
       /// Eigen::VectorXi / std::vector<Eigen::Index>) is integer-valued, hence
       /// precision-free, and is shared by all instantiations unchanged.
@@ -168,19 +168,19 @@ namespace helfem {
         /// The underlying radial FEM basis. Public so that library
         /// consumers (the installed helfem/atomic/TwoDBasis.h is the
         /// libatomscf-facing surface) can reach the quadrature grid:
-        /// get_r(iel) gives the radii, get_wrad(iel) the weights and
-        /// get_bval() the element boundaries, without this class having
+        /// r(iel) gives the radii, wrad(iel) the weights and
+        /// bval() the element boundaries, without this class having
         /// to mirror each accessor.
         const FEMRadialBasisT<T> & radial() const { return radial_; }
 
         /// Get number of quadrature points
-        int get_nquad() const;
+        int nquad() const;
         /// Get boundary values
-        helfem::Vec<T> get_bval() const;
+        helfem::Vec<T> bval() const;
         /// Get polynomial basis identifier
-        int get_poly_id() const;
+        int poly_id() const;
         /// Get number of nodes in polynomial
-        int get_poly_nnodes() const;
+        int poly_nnodes() const;
         /// Is derivative zeroed at infinity?
         int get_zeroder() const;
 
@@ -285,9 +285,9 @@ namespace helfem {
         /// quantities.
         std::pair<size_t, size_t> radial_element_range(size_t iel) const;
         /// Get radial quadrature weights
-        helfem::Vec<T> get_wrad(size_t iel) const;
+        helfem::Vec<T> wrad(size_t iel) const;
         /// Get r values
-        helfem::Vec<T> get_r(size_t iel) const;
+        helfem::Vec<T> r(size_t iel) const;
       };
 
       /// The double instantiation, which every existing caller uses.

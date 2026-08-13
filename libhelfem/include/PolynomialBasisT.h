@@ -27,22 +27,22 @@ namespace polynomial_basis {
 /// Abstract template for a primitive polynomial basis defined on the
 /// reference element [-1, 1]. Concrete subclasses (LIPBasisT, HIPBasisT,
 /// GeneralHIPBasis, LegendreBasisT) implement eval_prim_dnf, copy,
-/// drop_first, drop_last and may override get_nodes.
+/// drop_first, drop_last and may override nodes.
 ///
 /// Templated on the scalar type T.
 template <typename T>
 class PolynomialBasisT {
  protected:
   /// Number of primitive functions
-  int nprim = 0;
-  /// List of enabled functions (column indices into the primitive set).
-  IVec enabled;
+  int nprim_ = 0;
+  /// List of enabled_ functions (column indices into the primitive set).
+  IVec enabled_;
   /// Number of overlapping functions (between adjacent elements)
-  int noverlap = 0;
+  int noverlap_ = 0;
   /// Identifier (used by factories and downstream metadata)
-  int id = 0;
+  int id_ = 0;
   /// Number of nodes
-  int nnodes = 0;
+  int nnodes_ = 0;
 
   /// Evaluate nth derivatives of primitive polynomials at given points.
   /// Default throws -- concrete subclasses must override.
@@ -60,22 +60,22 @@ class PolynomialBasisT {
   /// Polymorphic clone.
   virtual PolynomialBasisT * copy() const = 0;
 
-  int get_nprim()    const { return nprim; }
-  int get_nbf()      const { return static_cast<int>(enabled.size()); }
-  int get_noverlap() const { return noverlap; }
-  int get_id()       const { return id; }
-  int get_nnodes()   const { return nnodes; }
+  int nprim()    const { return nprim_; }
+  int nbf()      const { return static_cast<int>(enabled_.size()); }
+  int noverlap() const { return noverlap_; }
+  int id()       const { return id_; }
+  int nnodes()   const { return nnodes_; }
 
   /// Default node set is the reference element boundary {-1, +1};
   /// concrete subclasses (LIP/HIP) override with the actual node set.
-  virtual Vec<T> get_nodes() const {
+  virtual Vec<T> nodes() const {
     Vec<T> n(2);
     n(0) = T(-1);
     n(1) = T(1);
     return n;
   }
 
-  IVec get_enabled() const { return enabled; }
+  IVec enabled() const { return enabled_; }
 
   /// Drop first function(s); zero_deriv: also set derivatives to zero.
   virtual void drop_first(bool zero_func, bool zero_deriv) = 0;
@@ -83,14 +83,14 @@ class PolynomialBasisT {
   virtual void drop_last(bool zero_func, bool zero_deriv) = 0;
 
   /// Evaluate nth derivatives of polynomials at given points; applies the
-  /// element_length^-n chain-rule scaling and restricts to enabled
+  /// element_length^-n chain-rule scaling and restricts to enabled_
   /// functions.
   void eval_dnf(const Vec<T> & x, Mat<T> & dnf, int n,
                 T element_length) const {
     Mat<T> prim;
     eval_prim_dnf(x, prim, n, element_length);
-    // Column subset using Eigen 3.4 indexing: prim(all, enabled).
-    dnf = prim(Eigen::all, enabled) / std::pow(element_length, n);
+    // Column subset using Eigen 3.4 indexing: prim(all, enabled_).
+    dnf = prim(Eigen::all, enabled_) / std::pow(element_length, n);
   }
 
   Mat<T> eval_dnf(const Vec<T> & x, int n, T element_length) const {
@@ -99,7 +99,7 @@ class PolynomialBasisT {
     return dnf;
   }
 
-  /// Evaluate n-th derivative (w.r.t. r) of B_u(r)/r for every enabled
+  /// Evaluate n-th derivative (w.r.t. r) of B_u(r)/r for every enabled_
   /// shape function on the FIRST element [0, element_length], where x is in
   /// reference coords [-1, +1] and r = (element_length/2) * (x+1).
   ///

@@ -550,14 +550,14 @@ void Checkpoint::write(const helfem::atomic::basis::TwoDBasis & basis) {
   write("Zl",basis.get_Zl());
   write("Zr",basis.get_Zr());
   write("Rhalf",basis.get_Rhalf());
-  write("bval",basis.get_bval());
+  write("bval",basis.bval());
 
   write("finitenuc",basis.get_nuclear_model());
   write("Rrms",basis.get_nuclear_size());
 
-  write("n_quad",basis.get_nquad());
-  write("poly_id",basis.get_poly_id());
-  write("poly_nnodes",basis.get_poly_nnodes());
+  write("n_quad",basis.nquad());
+  write("poly_id",basis.poly_id());
+  write("poly_nnodes",basis.poly_nnodes());
   write("zeroder",basis.get_zeroder());
 
   // get_lval/get_mval are Eigen::VectorXi; stored as N x 1 int matrices.
@@ -610,7 +610,7 @@ void Checkpoint::read(helfem::atomic::basis::TwoDBasis & basis) {
   read("lval", lval);
   read("mval", mval);
 
-  auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(poly_id,poly_nnodes)));
+  auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::make_basis(poly_id,poly_nnodes)));
   basis=helfem::atomic::basis::TwoDBasis(Z, (helfem::modelpotential::nuclear_model_t) finitenuc, Rrms, poly, zeroder, n_quad, bval, lval.col(0), mval.col(0), Zl, Zr, Rhalf);
   
   if(cl) close();
@@ -631,11 +631,11 @@ void Checkpoint::write(const helfem::diatomic::basis::TwoDBasis & basis) {
   write("Z1",basis.get_Z1());
   write("Z2",basis.get_Z2());
   write("Rhalf",basis.get_Rhalf());
-  write("bval",basis.get_bval());
+  write("bval",basis.bval());
 
-  write("n_quad",basis.get_nquad());
-  write("poly_id",basis.get_poly_id());
-  write("poly_nnodes",basis.get_poly_nnodes());
+  write("n_quad",basis.nquad());
+  write("poly_id",basis.poly_id());
+  write("poly_nnodes",basis.poly_nnodes());
 
   // get_lval/get_mval are Eigen::VectorXi; stored as N x 1 int matrices.
   write("lval",Eigen::MatrixXi(basis.get_lval()));
@@ -679,7 +679,7 @@ void Checkpoint::read(helfem::diatomic::basis::TwoDBasis & basis) {
   read("lval", lval);
   read("mval", mval);
 
-  auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::get_basis(poly_id,poly_nnodes)));
+  auto poly(std::shared_ptr<const helfem::polynomial_basis::PolynomialBasis>(helfem::polynomial_basis::make_basis(poly_id,poly_nnodes)));
   basis=helfem::diatomic::basis::TwoDBasis(Z1, Z2, Rhalf, poly, n_quad, bval, lval.col(0), mval.col(0));
   
   if(cl) close();

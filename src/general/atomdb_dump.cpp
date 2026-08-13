@@ -55,8 +55,8 @@ int main(void) {
   r.push_back(0.0);
   w.push_back(0.0);
   for (size_t iel = 0; iel < rb.Nel(); iel++) {
-    const helfem::Vector ri = rb.get_r(iel);
-    const helfem::Vector wi = rb.get_wrad(iel);
+    const helfem::Vector ri = rb.r(iel);
+    const helfem::Vector wi = rb.wrad(iel);
     for (Eigen::Index ip = 0; ip < ri.size(); ip++) {
       r.push_back(ri(ip));
       w.push_back(wi(ip));

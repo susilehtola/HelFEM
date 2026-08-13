@@ -76,8 +76,8 @@ int main(int argc, char **argv) {
   const double thresh = parser.get<double>("thresh");
 
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
-      polynomial_basis::get_basis(primbas, Nnodes));
-  const int Nquad = 5 * poly->get_nbf();
+      polynomial_basis::make_basis(primbas, Nnodes));
+  const int Nquad = 5 * poly->nbf();
 
   const Eigen::VectorXi lmmax = Eigen::VectorXi::Constant(mmax + 1, lmax);
   Eigen::VectorXi lval, mval;

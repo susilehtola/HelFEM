@@ -83,7 +83,7 @@ namespace helfem {
       const T rlen = T(0.5) * (rmax - rmin);
       const Vec<T> r = Vec<T>::Constant(x.size(), rmid) + rlen * x;
 
-      const int nbf = poly->get_nbf();
+      const int nbf = poly->nbf();
       Mat<T> inner(x.size(), nbf * nbf);
       // Row 0: integral from rmin to r(0). With an endpoint-including rule
       // (Gauss-Lobatto) r(0) == rmin and the segment is empty; skip the
@@ -256,7 +256,7 @@ namespace helfem {
       const T rlen = T(0.5) * (rmax - rmin);
       const Vec<T> r = Vec<T>::Constant(x.size(), rmid) + rlen * x;
 
-      const int nbf = poly->get_nbf();
+      const int nbf = poly->nbf();
       Mat<T> zero     = Mat<T>::Zero(nbf * nbf, x.size());
       Mat<T> minusone = Mat<T>::Zero(nbf * nbf, x.size());
 
