@@ -106,69 +106,95 @@ static helfem::Matrix effective_potential_table(
   return result;
 }
 
-// Completeness profile Y(alpha, l): for each trial exponent alpha and
-// angular momentum l, the norm of the projection of the radial AO
-// (STO/GTO) onto the orthonormal FE basis -- i.e. how completely the FE
-// basis reproduces that AO (1 = fully represented). Column 0 is alpha;
-// columns 1..lmax+1 are the per-l profiles. Mirrors the bespoke
-// SCFSolver::ao_completeness_profile.
-static helfem::Matrix ao_completeness_profile(
-    const helfem::sadatom::basis::TwoDBasis & basis, const helfem::Matrix & Sinvh, int lmax,
-    const helfem::Vector & expn,
-    const std::function<helfem::Matrix(int l, const helfem::Vector & r)> & eval_ao) {
-  helfem::Matrix Y = helfem::Matrix::Zero(expn.size(), lmax + 2);
-  Y.col(0) = expn;
-  for (int l = 0; l <= lmax; l++) {
-    helfem::Matrix ao_projection = helfem::Matrix::Zero(expn.size(), basis.Nbf());
-    for (size_t iel = 0; iel < basis.get_rad_Nel(); iel++) {
-      const helfem::Vector r  = basis.r(iel);
-      const helfem::Vector wr = basis.wrad(iel);
-      const helfem::Matrix ao = eval_ao(l, r);          // (npts x nexp)
-      const helfem::Matrix bf = basis.eval_bf(iel);     // (npts x nbf_el)
-      const std::vector<Eigen::Index> bfl = basis.bf_list(iel);
-      const helfem::Vector wgt = wr.array() * r.array() * r.array();
-      const helfem::Matrix contrib = ao.transpose() * wgt.asDiagonal() * bf;
-      for (size_t j = 0; j < bfl.size(); ++j)
-        ao_projection.col(bfl[j]) += contrib.col(j);
-    }
-    // Into the orthonormal basis, then per-exponent norm.
-    const helfem::Matrix projT = (ao_projection * Sinvh).transpose();
-    for (Eigen::Index ix = 0; ix < expn.size(); ix++)
-      Y(ix, l + 1) = projT.col(ix).norm();
+// Function-specific FE expansion of a trial radial AO for the profiles
+// below. The AO is expanded as u(r) = r*R(r) on its own exponent-scaled
+// radial grid: LIP coefficients are nodal values, so the expansion needs
+// no quadrature, and on the AO's own scale the interpolation is
+// spectrally accurate. Every integral against the solution basis then
+// goes through the auto-converging cross-basis overlap, which
+// quadratures each element-pair intersection separately, so neither
+// basis's rule has to resolve the other's scale.
+//
+// The previous implementation instead evaluated the AOs at the SOLUTION
+// basis's quadrature nodes with the fixed SCF rule, which misintegrates
+// both ends of the profile: a tight AO (alpha ~ 1e10, support ~1e-5 au)
+// lives entirely between the first element's quadrature nodes, and a
+// diffuse one extends far beyond the last element boundary, which also
+// breaks its normalization.
+struct AOBasis {
+  /// Exponent-scaled radial basis for the trial AO
+  helfem::atomic::basis::FEMRadialBasis rad;
+  /// Radius of each basis function's interpolation node
+  helfem::Vector rnode;
+};
+
+static AOBasis make_ao_basis(double rmax) {
+  const int nnodes = 15, nelem = 10;
+  static const std::shared_ptr<const polynomial_basis::PolynomialBasis> poly(
+      polynomial_basis::make_basis(/*primbas=*/4, nnodes)); // LIP: nodal dofs
+  const helfem::Vector bval = helfem::Vector::LinSpaced(nelem + 1, 0.0, rmax);
+  // Dirichlet at both ends: u(0) = 0, and rmax is chosen so the AO has
+  // decayed to negligible size there.
+  polynomial_basis::FiniteElementBasis fem(poly, bval, true, false, true, false);
+
+  AOBasis ao;
+  ao.rad = helfem::atomic::basis::FEMRadialBasis(fem, 2 * nnodes);
+  const helfem::Vector x0 = poly->nodes();
+  ao.rnode = helfem::Vector::Zero(ao.rad.Nbf());
+  for (size_t iel = 0; iel < ao.rad.Nel(); iel++) {
+    size_t ifirst, ilast;
+    ao.rad.idx(iel, ifirst, ilast);
+    const helfem::IVec en = ao.rad.fem().basis(iel)->enabled();
+    for (Eigen::Index j = 0; j < en.size(); j++)
+      ao.rnode(ifirst + j) = ao.rad.r(x0(en(j)), iel);
   }
-  return Y;
+  return ao;
 }
 
-// Importance profile: like the completeness profile, but projects the
-// trial AOs onto the OCCUPIED SCF orbitals instead of the full FE basis
-// -- how important each exponent is for the converged density. Mirrors
-// SCFSolver::ao_importance_profile.
-static helfem::Matrix ao_importance_profile(
-    const helfem::sadatom::basis::TwoDBasis & basis,
+// Completeness profile Y(alpha, l): the norm of the projection of the
+// trial AO (STO/GTO) onto the orthonormalized FE space -- how completely
+// the FE basis reproduces that AO (1 = fully represented). Importance
+// profile I(alpha, l): the norm of its projection onto the occupied SCF
+// orbitals -- how important the exponent is for the converged density.
+// Column 0 is alpha; columns 1..lmax+1 are the per-l profiles. Both come
+// from the same cross-basis overlap, which only depends on the grids, so
+// they are computed together: one AO basis and one cross overlap per
+// exponent, shared by every l channel and both profiles.
+static void ao_profiles(
+    const helfem::sadatom::basis::TwoDBasis & basis, const helfem::Matrix & Sinvh,
     const helfem::Cube & C, const Eigen::VectorXi & occs, int lmax,
     const helfem::Vector & expn,
-    const std::function<helfem::Matrix(int l, const helfem::Vector & r)> & eval_ao) {
-  helfem::Matrix I = helfem::Matrix::Zero(expn.size(), lmax + 2);
-  I.col(0) = expn;
-  for (int l = 0; l <= lmax; l++) {
-    if (occs(l) <= 0) continue;
-    const int nocc = (int) std::ceil(occs(l) / (2.0 * (2.0 * l + 1.0)));
-    const helfem::Matrix Cocc = C[l].leftCols(nocc);
-    helfem::Matrix ao_projection = helfem::Matrix::Zero(nocc, expn.size());
-    for (size_t iel = 0; iel < basis.get_rad_Nel(); iel++) {
-      const helfem::Vector r  = basis.r(iel);
-      const helfem::Vector wr = basis.wrad(iel);
-      const helfem::Matrix ao = eval_ao(l, r);
-      const helfem::Matrix bf = basis.eval_bf(iel);
-      const std::vector<Eigen::Index> bfl = basis.bf_list(iel);
-      const helfem::Matrix orbs = bf * Cocc(bfl, Eigen::all);   // (npts x nocc)
-      const helfem::Vector wgt = wr.array() * r.array() * r.array();
-      ao_projection += orbs.transpose() * wgt.asDiagonal() * ao;
+    const std::function<double(double r, int l, double ex)> & eval_ao,
+    const std::function<double(double ex)> & ao_rmax,
+    helfem::Matrix & completeness, helfem::Matrix & importance) {
+  const helfem::atomic::basis::FEMRadialBasis & solrad = basis.get_radial();
+  completeness = helfem::Matrix::Zero(expn.size(), lmax + 2);
+  importance = helfem::Matrix::Zero(expn.size(), lmax + 2);
+  completeness.col(0) = expn;
+  importance.col(0) = expn;
+  for (Eigen::Index ix = 0; ix < expn.size(); ix++) {
+    const double ex = expn(ix);
+    const AOBasis ao = make_ao_basis(ao_rmax(ex));
+    const helfem::Matrix Sao = ao.rad.overlap();
+    // <u_i | v_j> between the solution basis and the AO basis, via the
+    // auto-converging element-pair-intersection quadrature.
+    const helfem::Matrix Sx = solrad.overlap(ao.rad);
+    for (int l = 0; l <= lmax; l++) {
+      // Nodal expansion coefficients of u_AO = r * R_AO(r), normalized
+      // numerically so the interpolation and box-truncation error can't
+      // push the profile past 1.
+      helfem::Vector c(ao.rnode.size());
+      for (Eigen::Index i = 0; i < c.size(); i++)
+        c(i) = ao.rnode(i) * eval_ao(ao.rnode(i), l, ex);
+      c /= std::sqrt(c.dot(Sao * c));
+      const helfem::Vector b = Sx * c;   // <u_i | u_AO>
+      completeness(ix, l + 1) = (Sinvh.transpose() * b).norm();
+      if (l < occs.size() && occs(l) > 0) {
+        const int nocc = (int) std::ceil(occs(l) / (2.0 * (2.0 * l + 1.0)));
+        importance(ix, l + 1) = (C[l].leftCols(nocc).transpose() * b).norm();
+      }
     }
-    for (Eigen::Index ix = 0; ix < expn.size(); ix++)
-      I(ix, l + 1) = ao_projection.col(ix).norm();
   }
-  return I;
 }
 
 // Write GTO and STO completeness/importance profiles for the converged
@@ -182,20 +208,27 @@ static void write_profiles(
   const helfem::Vector expn = logexp.array().unaryExpr(
       [](double x) { return std::pow(10.0, x); });
   const helfem::Matrix Sinvh = result.basis.Sinvh();
-  auto eval_gto = [&](int l, const helfem::Vector & r) {
-    return helfem::lcao::radial_GTO(r, l, expn); };
-  auto eval_sto = [&](int l, const helfem::Vector & r) {
-    return helfem::lcao::radial_STO(r, l, expn); };
+
+  // AO box sizes: alpha*rmax^2 = 50 (GTO) and zeta*rmax = 60 (STO) put
+  // the exponential factor below 1e-21; the r^(l+1) prefactor cannot
+  // bring that back to significance for any sane l.
+  auto eval_gto = [](double r, int l, double ex) {
+    return helfem::lcao::radial_GTO(r, l, ex); };
+  auto rmax_gto = [](double ex) { return std::sqrt(50.0 / ex); };
+  auto eval_sto = [](double r, int l, double ex) {
+    return helfem::lcao::radial_STO(r, l, ex); };
+  auto rmax_sto = [](double ex) { return 60.0 / ex; };
 
   const std::string el = element_symbols[Z];
-  io::write_raw_ascii(el + "_gto_completeness.dat",
-                      ao_completeness_profile(result.basis, Sinvh, lmax, expn, eval_gto));
-  io::write_raw_ascii(el + "_sto_completeness.dat",
-                      ao_completeness_profile(result.basis, Sinvh, lmax, expn, eval_sto));
-  io::write_raw_ascii(el + "_gto_importance.dat",
-                      ao_importance_profile(result.basis, result.orbs_a, result.occs_a, lmax, expn, eval_gto));
-  io::write_raw_ascii(el + "_sto_importance.dat",
-                      ao_importance_profile(result.basis, result.orbs_a, result.occs_a, lmax, expn, eval_sto));
+  helfem::Matrix comp, imp;
+  ao_profiles(result.basis, Sinvh, result.orbs_a, result.occs_a, lmax, expn,
+              eval_gto, rmax_gto, comp, imp);
+  io::write_raw_ascii(el + "_gto_completeness.dat", comp);
+  io::write_raw_ascii(el + "_gto_importance.dat", imp);
+  ao_profiles(result.basis, Sinvh, result.orbs_a, result.occs_a, lmax, expn,
+              eval_sto, rmax_sto, comp, imp);
+  io::write_raw_ascii(el + "_sto_completeness.dat", comp);
+  io::write_raw_ascii(el + "_sto_importance.dat", imp);
   printf("Wrote GTO/STO completeness and importance profiles for %s.\n", el.c_str());
 }
 
