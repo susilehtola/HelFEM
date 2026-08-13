@@ -314,7 +314,7 @@ namespace helfem {
         helfem::Mat<T> J_E = helfem::Mat<T>::Zero(Nrad, Nrad);
         for (size_t jel = 0; jel < Nel; ++jel) {
           size_t jfirst, jlast;
-          radial.get_idx(jel, jfirst, jlast);
+          radial.idx(jel, jfirst, jlast);
           const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
           const helfem::Mat<T> Psub =
               P_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj);
@@ -327,14 +327,14 @@ namespace helfem {
           const T jbig   = (jel > 0) ? T((r_big(jel) * Psub).trace()) : T(0);
           for (size_t iel = 0; iel < jel; ++iel) {
             size_t ifirst, ilast;
-            radial.get_idx(iel, ifirst, ilast);
+            radial.idx(iel, ifirst, ilast);
             const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
             J_E.block((Eigen::Index) ifirst, (Eigen::Index) ifirst, Ni, Ni)
                 += jbig * r_small(iel);
           }
           for (size_t iel = jel + 1; iel < Nel; ++iel) {
             size_t ifirst, ilast;
-            radial.get_idx(iel, ifirst, ilast);
+            radial.idx(iel, ifirst, ilast);
             const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
             J_E.block((Eigen::Index) ifirst, (Eigen::Index) ifirst, Ni, Ni)
                 += jsmall * r_big(iel);
@@ -362,11 +362,11 @@ namespace helfem {
         helfem::Mat<T> K_E = helfem::Mat<T>::Zero(Nrad, Nrad);
         for (size_t iel = 0; iel < Nel; ++iel) {
           size_t ifirst, ilast;
-          radial.get_idx(iel, ifirst, ilast);
+          radial.idx(iel, ifirst, ilast);
           const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
           for (size_t jel = 0; jel < Nel; ++jel) {
             size_t jfirst, jlast;
-            radial.get_idx(jel, jfirst, jlast);
+            radial.idx(jel, jfirst, jlast);
             const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
             if (iel == jel) {
               const helfem::Mat<T> Psub =
@@ -404,11 +404,11 @@ namespace helfem {
         helfem::Mat<T> K_E = helfem::Mat<T>::Zero(Nrad, Nrad);
         for (size_t iel = 0; iel < Nel; ++iel) {
           size_t ifirst, ilast;
-          radial.get_idx(iel, ifirst, ilast);
+          radial.idx(iel, ifirst, ilast);
           const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
           for (size_t jel = 0; jel < Nel; ++jel) {
             size_t jfirst, jlast;
-            radial.get_idx(jel, jfirst, jlast);
+            radial.idx(jel, jfirst, jlast);
             const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
             const helfem::Mat<T> Psub =
                 P_E.block((Eigen::Index) ifirst, (Eigen::Index) jfirst, Ni, Nj);
@@ -442,7 +442,7 @@ namespace helfem {
         helfem::Mat<T> J_E = helfem::Mat<T>::Zero(Nrad, Nrad);
         for (size_t jel = 0; jel < Nel; ++jel) {
           size_t jfirst, jlast;
-          radial.get_idx(jel, jfirst, jlast);
+          radial.idx(jel, jfirst, jlast);
           const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
           const helfem::Mat<T> Psub =
               P_E.block((Eigen::Index) jfirst, (Eigen::Index) jfirst, Nj, Nj);
@@ -455,14 +455,14 @@ namespace helfem {
           const T jbig   = (jel > 0) ? T((r_big(jel) * Psub).trace()) : T(0);
           for (size_t iel = 0; iel < jel; ++iel) {
             size_t ifirst, ilast;
-            radial.get_idx(iel, ifirst, ilast);
+            radial.idx(iel, ifirst, ilast);
             const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
             J_E.block((Eigen::Index) ifirst, (Eigen::Index) ifirst, Ni, Ni)
                 += jbig * r_small(iel);
           }
           for (size_t iel = jel + 1; iel < Nel; ++iel) {
             size_t ifirst, ilast;
-            radial.get_idx(iel, ifirst, ilast);
+            radial.idx(iel, ifirst, ilast);
             const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
             J_E.block((Eigen::Index) ifirst, (Eigen::Index) ifirst, Ni, Ni)
                 += jsmall * r_big(iel);
@@ -494,11 +494,11 @@ namespace helfem {
         helfem::Mat<T> K_E = helfem::Mat<T>::Zero(Nrad, Nrad);
         for (size_t iel = 0; iel < Nel; ++iel) {
           size_t ifirst, ilast;
-          radial.get_idx(iel, ifirst, ilast);
+          radial.idx(iel, ifirst, ilast);
           const Eigen::Index Ni = (Eigen::Index)(ilast - ifirst + 1);
           for (size_t jel = 0; jel < Nel; ++jel) {
             size_t jfirst, jlast;
-            radial.get_idx(jel, jfirst, jlast);
+            radial.idx(jel, jfirst, jlast);
             const Eigen::Index Nj = (Eigen::Index)(jlast - jfirst + 1);
             if (iel == jel) {
               // Factored in-element K via the J-ordered Cholesky factor:
@@ -578,7 +578,7 @@ namespace helfem {
         auto kt = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_ktei[iel].size() == 0) {
             size_t ifirst, ilast;
-            radial.get_idx(iel, ifirst, ilast);
+            radial.idx(iel, ifirst, ilast);
             const size_t Ni = ilast - ifirst + 1;
             scratch_ktei[iel] = utils::exchange_tei<T>(
                 detail_fe_2e::in_element_tei<T>(radial, L, iel, false, T(0)),
@@ -634,7 +634,7 @@ namespace helfem {
         auto kt = [&](size_t iel) -> const helfem::Mat<T> & {
           if (scratch_ktei[iel].size() == 0) {
             size_t ifirst, ilast;
-            radial.get_idx(iel, ifirst, ilast);
+            radial.idx(iel, ifirst, ilast);
             const size_t Ni = ilast - ifirst + 1;
             scratch_ktei[iel] = utils::exchange_tei<T>(
                 detail_fe_2e::in_element_tei<T>(radial, L, iel, true, lambda),

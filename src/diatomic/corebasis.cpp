@@ -239,7 +239,7 @@ int main(int argc, char **argv) {
   printf("Determining basis set for %s-%s at distance %e with Rmax=%e.\n",element_symbols[Z1].c_str(),element_symbols[Z2].c_str(),Rbond,Rmax);
 
   // Get primitive basis
-  auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::get_basis(primbas,Nnodes)));
+  auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::make_basis(primbas,Nnodes)));
 
   if(Nquad==0)
     // Set default value

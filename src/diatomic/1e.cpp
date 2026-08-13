@@ -89,12 +89,12 @@ int main(int argc, char **argv) {
   chkpt.write("nelb",0);
 
   // Get primitive basis
-  auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::get_basis(primbas,Nnodes)));
+  auto poly(std::shared_ptr<const polynomial_basis::PolynomialBasis>(polynomial_basis::make_basis(primbas,Nnodes)));
 
   if(Nquad==0)
     // Set default value
-    Nquad=5*poly->get_nbf();
-  else if(Nquad<2*poly->get_nbf())
+    Nquad=5*poly->nbf();
+  else if(Nquad<2*poly->nbf())
     throw std::logic_error("Insufficient radial quadrature.\n");
 
   printf("Using %i point quadrature rule.\n",Nquad);

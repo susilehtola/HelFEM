@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
 
   // Process defaults
   if(nquad<=0)
-    nquad=5*basis.get_poly_nnodes();
+    nquad=5*basis.poly_nnodes();
   if(lang<=0)
     lang=4*basis.get_lval().maxCoeff()+12;
   if(mang<=0)
@@ -90,8 +90,8 @@ int main(int argc, char **argv) {
   // mu array
   std::vector<helfem::Vector> mu(basis.get_rad_Nel()), wmu(basis.get_rad_Nel());
   for(size_t iel=0;iel<mu.size();iel++) {
-    mu[iel]=basis.get_r(iel);
-    wmu[iel]=basis.get_wrad(iel);
+    mu[iel]=basis.r(iel);
+    wmu[iel]=basis.wrad(iel);
   }
 
   size_t Nradpts=mu.size()*mu[0].size();

@@ -78,7 +78,7 @@ namespace helfem {
         helfem::Vector mu = mumid*helfem::Vector::Ones(x.size()) + mulen*x;
 
         // Compute the "inner" integrals as function of r.
-        helfem::Matrix inner(x.size(), (Eigen::Index) std::pow(poly->get_nbf(),2));
+        helfem::Matrix inner(x.size(), (Eigen::Index) std::pow(poly->nbf(),2));
         inner.row(0)=twoe_inner_integral_wrk(mumin, mu(0), mumin, mumax, l, x, wx, poly, L, M, tab).transpose();
         // Every subinterval uses a fresh nquad points!
         for(Eigen::Index ip=1;ip<x.size();ip++)

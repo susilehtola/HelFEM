@@ -75,7 +75,7 @@ namespace helfem {
     static const atomic::basis::FEMRadialBasis & shared_basis() {
       static const atomic::basis::FEMRadialBasis basis = []() {
         std::shared_ptr<const polynomial_basis::PolynomialBasis> poly(
-            polynomial_basis::get_basis(data::primbas, data::nnodes));
+            polynomial_basis::make_basis(data::primbas, data::nnodes));
         // Matches sadatom::basis::TwoDBasis: the function vanishes at the
         // origin and at the practical infinity, its derivative is free.
         polynomial_basis::FiniteElementBasis fem(poly, element_boundaries(), true,
@@ -105,7 +105,7 @@ namespace helfem {
       helfem::Vector qel(Nel), mel(Nel);
       for (size_t iel = 0; iel < Nel; iel++) {
         size_t ifirst, ilast;
-        radial_.get_idx(iel, ifirst, ilast);
+        radial_.idx(iel, ifirst, ilast);
         Psub_[iel] = P.block(ifirst, ifirst, ilast - ifirst + 1, ilast - ifirst + 1);
         qel(iel) = partial_integral(iel, -1.0, 1.0, false);
         mel(iel) = partial_integral(iel, -1.0, 1.0, true);
@@ -120,7 +120,7 @@ namespace helfem {
         Mabove_(iel) = Mabove_(iel + 1) + mel(iel + 1);
 
       Ntot_ = qel.sum();
-      Rmax_ = radial_.get_fem().element_end(Nel - 1);
+      Rmax_ = radial_.fem().element_end(Nel - 1);
     }
 
     int Atom::charge() const { return Z_; }
@@ -151,14 +151,14 @@ namespace helfem {
       if (n <= 0 || r <= 0.0 || r > Rmax_)
         return out;
       double xprim;
-      const size_t iel = locate(radial_.get_fem(), r, xprim);
+      const size_t iel = locate(radial_.fem(), r, xprim);
       helfem::Vector x(1);
       x(0) = xprim;
-      // get_bf returns B(r)/r, so contracting it with the stored
+      // bf returns B(r)/r, so contracting it with the stored
       // coefficients gives the radial function R(r) itself, not r*R(r).
-      const helfem::Matrix bf = radial_.get_bf(x, iel);
+      const helfem::Matrix bf = radial_.bf(x, iel);
       size_t ifirst, ilast;
-      radial_.get_idx(iel, ifirst, ilast);
+      radial_.idx(iel, ifirst, ilast);
       const helfem::Matrix C = coefficients(Z_, l);
       out = (bf * C.block(ifirst, 0, ilast - ifirst + 1, n)).transpose();
       return out;
@@ -168,11 +168,11 @@ namespace helfem {
       if (r <= 0.0 || r > Rmax_)
         return 0.0;
       double xprim;
-      const size_t iel = locate(radial_.get_fem(), r, xprim);
+      const size_t iel = locate(radial_.fem(), r, xprim);
       helfem::Vector x(1);
       x(0) = xprim;
-      // get_bf returns B(r)/r, so the contraction is 4 pi rho directly.
-      const helfem::Matrix bf = radial_.get_bf(x, iel);
+      // bf returns B(r)/r, so the contraction is 4 pi rho directly.
+      const helfem::Matrix bf = radial_.bf(x, iel);
       return r * r * (bf * Psub_[iel] * bf.transpose())(0, 0);
     }
 
@@ -185,11 +185,11 @@ namespace helfem {
       if (r <= 0.0 || r > Rmax_)
         return 0.0;
       double xprim;
-      const size_t iel = locate(radial_.get_fem(), r, xprim);
+      const size_t iel = locate(radial_.fem(), r, xprim);
       helfem::Vector x(1);
       x(0) = xprim;
-      const helfem::Matrix bf = radial_.get_bf(x, iel);
-      const helfem::Matrix df = radial_.get_df(x, iel);
+      const helfem::Matrix bf = radial_.bf(x, iel);
+      const helfem::Matrix df = radial_.df(x, iel);
       // d/dr sum_ij P_ij R_i R_j = 2 sum_ij P_ij R_i R_j', P symmetric.
       return 2.0 * (bf * Psub_[iel] * df.transpose())(0, 0) / (4.0 * M_PI);
     }
@@ -198,12 +198,12 @@ namespace helfem {
       if (r <= 0.0 || r > Rmax_)
         return 0.0;
       double xprim;
-      const size_t iel = locate(radial_.get_fem(), r, xprim);
+      const size_t iel = locate(radial_.fem(), r, xprim);
       helfem::Vector x(1);
       x(0) = xprim;
-      const helfem::Matrix bf = radial_.get_bf(x, iel);
-      const helfem::Matrix df = radial_.get_df(x, iel);
-      const helfem::Matrix lf = radial_.get_lf(x, iel);
+      const helfem::Matrix bf = radial_.bf(x, iel);
+      const helfem::Matrix df = radial_.df(x, iel);
+      const helfem::Matrix lf = radial_.lf(x, iel);
       // rho'' + 2 rho' / r, with rho'' = 2 (R' P R' + R P R'').
       const double d2 = 2.0 * ((df * Psub_[iel] * df.transpose())(0, 0) +
                                (bf * Psub_[iel] * lf.transpose())(0, 0));
@@ -236,7 +236,7 @@ namespace helfem {
       const double half_sub = 0.5 * (xb - xa);
       if (half_sub <= 0.0)
         return 0.0;
-      const polynomial_basis::FiniteElementBasis & fem = radial_.get_fem();
+      const polynomial_basis::FiniteElementBasis & fem = radial_.fem();
 
       const helfem::Vector & xq = in_element_rule().first;
       const helfem::Vector & wq = in_element_rule().second;
@@ -249,11 +249,11 @@ namespace helfem {
       // tracing it against the density matrix afterwards computes 400
       // matrix elements to extract one number; the integrand we actually
       // want is the scalar sum_ij P_ij R_i(r) R_j(r).
-      const helfem::Matrix bf = radial_.get_bf(xi, iel);
+      const helfem::Matrix bf = radial_.bf(xi, iel);
       const helfem::Vector quad =
           ((bf * Psub_[iel]).array() * bf.array()).rowwise().sum();
 
-      // get_bf gives R = B/r, so the quadratic form is 4 pi rho. The
+      // bf gives R = B/r, so the quadratic form is 4 pi rho. The
       // weight is r^2 for the charge and r for the 1/r moment -- written
       // as a multiplication rather than a division so that r = 0, which
       // the innermost element reaches, needs no special case.
@@ -271,7 +271,7 @@ namespace helfem {
       if (r >= Rmax_)
         return nelectrons();
       double xprim;
-      const size_t iel = locate(radial_.get_fem(), r, xprim);
+      const size_t iel = locate(radial_.fem(), r, xprim);
       return Qbelow_(iel) + partial_integral(iel, -1.0, xprim, false);
     }
 
@@ -281,7 +281,7 @@ namespace helfem {
       if (r >= Rmax_)
         return nelectrons();
       double xprim;
-      const size_t iel = locate(radial_.get_fem(), r, xprim);
+      const size_t iel = locate(radial_.fem(), r, xprim);
       // r * V_H(r) = Q(<r) + r * integral_{r'>r} rho(r') / r' dV.
       const double Qin = Qbelow_(iel) + partial_integral(iel, -1.0, xprim, false);
       const double Mout = Mabove_(iel) + partial_integral(iel, xprim, 1.0, true);

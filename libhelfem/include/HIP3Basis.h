@@ -39,18 +39,18 @@ class HIP3BasisT : public LIPBasisT<T> {
   Vec<T> lipxi, lipxi2, lipxi3;
 
  public:
-  /// id_ is the primbas value echoed via get_id() (typically 9 for HIP3).
-  HIP3BasisT(const Vec<T> & x, int id_ = 9) : LIPBasisT<T>(x, id_) {
+  /// id is the primbas value echoed via id() (typically 9 for HIP3).
+  HIP3BasisT(const Vec<T> & x, int id = 9) : LIPBasisT<T>(x, id) {
     // Four overlapping functions per node (value + 1st + 2nd + 3rd deriv).
-    this->noverlap = 4;
-    this->nprim    = 4 * static_cast<int>(this->x0.size());
-    this->enabled  = IVec::LinSpaced(this->nprim, 0, this->nprim - 1);
-    this->nnodes   = static_cast<int>(this->x0.size());
+    this->noverlap_ = 4;
+    this->nprim_    = 4 * static_cast<int>(this->x0_.size());
+    this->enabled_  = IVec::LinSpaced(this->nprim_, 0, this->nprim_ - 1);
+    this->nnodes_   = static_cast<int>(this->x0_.size());
 
     Mat<T> dlip, ddlip, dddlip;
-    detail::eval_lip_prim_dnf<T>(this->x0, this->x0, dlip,   1);
-    detail::eval_lip_prim_dnf<T>(this->x0, this->x0, ddlip,  2);
-    detail::eval_lip_prim_dnf<T>(this->x0, this->x0, dddlip, 3);
+    detail::eval_lip_prim_dnf<T>(this->x0_, this->x0_, dlip,   1);
+    detail::eval_lip_prim_dnf<T>(this->x0_, this->x0_, ddlip,  2);
+    detail::eval_lip_prim_dnf<T>(this->x0_, this->x0_, dddlip, 3);
     lipxi  = dlip.diagonal();
     lipxi2 = ddlip.diagonal();
     lipxi3 = dddlip.diagonal();
@@ -64,7 +64,7 @@ class HIP3BasisT : public LIPBasisT<T> {
 
   void eval_prim_dnf(const Vec<T> & x, Mat<T> & dnf, int n,
                      T element_length) const override {
-    detail::eval_hip3_prim_dnf<T>(x, this->x0, lipxi, lipxi2, lipxi3, dnf, n,
+    detail::eval_hip3_prim_dnf<T>(x, this->x0_, lipxi, lipxi2, lipxi3, dnf, n,
                                   element_length);
   }
 
@@ -75,8 +75,8 @@ class HIP3BasisT : public LIPBasisT<T> {
   ///   func=false, deriv=true  : drop only the three derivative interpolants
   ///   func=false, deriv=false : drop nothing
   void drop_first(bool func, bool deriv) override {
-    const IVec first(this->enabled.segment(0, (3) - (0) + 1));
-    const IVec rest(this->enabled.segment(4, (this->enabled.size() - (4) + 1) - 1));
+    const IVec first(this->enabled_.segment(0, (3) - (0) + 1));
+    const IVec rest(this->enabled_.segment(4, (this->enabled_.size() - (4) + 1) - 1));
     IVec keep;
     keep.resize((func ? 0 : 1) + (deriv ? 0 : 3) + rest.size());
     Eigen::Index idx = 0;
@@ -84,12 +84,12 @@ class HIP3BasisT : public LIPBasisT<T> {
     if (!deriv) { keep(idx++) = first(1); keep(idx++) = first(2); keep(idx++) = first(3); }
     if (rest.size())
       keep.segment(idx, (idx + rest.size() - (idx) + 1) - 1) = rest;
-    this->enabled = keep;
+    this->enabled_ = keep;
   }
 
   void drop_last(bool func, bool deriv) override {
-    const IVec head(this->enabled.segment(0, (this->enabled.size() - (0) + 1) - 5));
-    const IVec last(this->enabled.segment(this->enabled.size() - 4, (this->enabled.size() - (this->enabled.size() - 4) + 1) - 1));
+    const IVec head(this->enabled_.segment(0, (this->enabled_.size() - (0) + 1) - 5));
+    const IVec last(this->enabled_.segment(this->enabled_.size() - 4, (this->enabled_.size() - (this->enabled_.size() - 4) + 1) - 1));
     IVec keep;
     keep.resize(head.size() + (func ? 0 : 1) + (deriv ? 0 : 3));
     Eigen::Index idx = 0;
@@ -99,7 +99,7 @@ class HIP3BasisT : public LIPBasisT<T> {
     }
     if (!func)  keep(idx++) = last(0);
     if (!deriv) { keep(idx++) = last(1); keep(idx++) = last(2); keep(idx++) = last(3); }
-    this->enabled = keep;
+    this->enabled_ = keep;
   }
 
   // Pull the base's 3-arg eval_over_r overload back into scope.
@@ -132,7 +132,7 @@ class HIP3BasisT : public LIPBasisT<T> {
                    T element_length) const override {
     // All of the deflation maths is generated -- see
     // libhelfem/src/generate_hip_family_code.py --order 3 --over-r
-    detail::eval_hip3_prim_over_r<T>(x, this->x0, lipxi, lipxi2, lipxi3, this->enabled,
+    detail::eval_hip3_prim_over_r<T>(x, this->x0_, lipxi, lipxi2, lipxi3, this->enabled_,
                                       dnf_over_r, n, element_length);
   }
 };

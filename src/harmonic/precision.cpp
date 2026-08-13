@@ -34,7 +34,7 @@
 // not by the basis -- which is the whole argument for templating on the scalar.
 //
 // Nothing here is a special-cased "high precision path": FiniteElementBasisT<T>
-// and get_basis_T<T> are the ordinary production classes, instantiated at a
+// and make_basis_T<T> are the ordinary production classes, instantiated at a
 // different T. Everything below them (PolynomialBasisT<T>, LIPBasisT<T>,
 // lobatto_compute<T>) was already generic.
 
@@ -64,7 +64,7 @@ namespace {
     namespace pb = helfem::polynomial_basis;
 
     auto poly = std::shared_ptr<const pb::PolynomialBasisT<T>>(
-        polynomial_basis::get_basis_T<T>(primbas, Nnodes));
+        polynomial_basis::make_basis_T<T>(primbas, Nnodes));
 
     const helfem::Vec<T> r =
         helfem::Vec<T>::LinSpaced(Nelem + 1, T(-xmax), T(xmax));

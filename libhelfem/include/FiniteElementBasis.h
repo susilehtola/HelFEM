@@ -35,24 +35,24 @@ namespace helfem {
     class FiniteElementBasisT {
     protected:
       /// Polynomial basis
-      std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> poly;
+      std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> poly_;
 
       /// Element boundary values
       // Phase 5.5: members migrated to Eigen.
-      helfem::Vec<T> bval;
+      helfem::Vec<T> bval_;
       /// Zero out function at left end?
-      bool zero_func_left;
+      bool zero_func_left_;
       /// Zero out derivative at left end?
-      bool zero_deriv_left;
+      bool zero_deriv_left_;
       /// Zero out function at right end?
-      bool zero_func_right;
+      bool zero_func_right_;
       /// Zero out derivatives at right end?
-      bool zero_deriv_right;
+      bool zero_deriv_right_;
 
       /// First basis function in element
-      helfem::IVec first_func_in_element;
+      helfem::IVec first_func_in_element_;
       /// Last basis function in element
-      helfem::IVec last_func_in_element;
+      helfem::IVec last_func_in_element_;
       /// Update the above list of basis functions
       void update_bf_list();
 
@@ -65,7 +65,7 @@ namespace helfem {
     public:
       /// Dummy constructor
       FiniteElementBasisT();
-      /// Constructor. Phase 5.26: bval is Eigen at the public boundary
+      /// Constructor. Phase 5.26: bval_ is Eigen at the public boundary
       /// (matches the internal helfem::Vec<T> storage introduced in
       /// Phase 5.5).
       FiniteElementBasisT(const std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> &poly,
@@ -77,18 +77,18 @@ namespace helfem {
       void add_boundary(T r);
 
       /// Get the polynomial basis
-      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>>  get_poly() const;
+      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>>  poly() const;
       /// Get basis functions in element
       std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>>
-      get_basis(size_t iel) const;
+      basis(size_t iel) const;
 
       /// Get the numerical id of the polynomial basis
-      int get_poly_id() const;
+      int poly_id() const;
       /// Get the number of nodes in the polynomial basis
-      int get_poly_nnodes() const;
+      int poly_nnodes() const;
 
       /// Get the element boundaries
-      helfem::Vec<T> get_bval() const;
+      helfem::Vec<T> bval() const;
       /// Element begins at
       T element_begin(size_t iel) const;
       /// Element ends at
@@ -118,16 +118,16 @@ namespace helfem {
       T scaling_factor(size_t iel) const;
 
       /// Get the consecutive index range of the basis functions in the element
-      void get_idx(size_t iel, size_t &ifirst, size_t &ilast) const;
+      void idx(size_t iel, size_t &ifirst, size_t &ilast) const;
 
       /// Get maximum possible number of primitives
-      size_t get_max_nprim() const;
+      size_t max_nprim() const;
       /// Get number of functions in element
-      size_t get_nprim(size_t iel) const;
+      size_t nprim(size_t iel) const;
       /// Get number of basis functions
-      size_t get_nbf() const;
+      size_t nbf() const;
       /// Get number of elements
-      size_t get_nelem() const;
+      size_t nelem() const;
 
       /// Evaluate nth derivative
       /// Evaluate the n-th derivative of the basis functions in element iel.

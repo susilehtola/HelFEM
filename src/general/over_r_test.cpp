@@ -55,7 +55,7 @@ namespace {
 
     std::shared_ptr<pb::PolynomialBasisT<T>> poly;
     try {
-      poly.reset(polynomial_basis::get_basis_T<T>(b.primbas, Nnodes));
+      poly.reset(polynomial_basis::make_basis_T<T>(b.primbas, Nnodes));
     } catch (const std::exception &e) {
       printf("  %-10s SKIPPED (%s)\n", b.name, "not constructible");
       return 0;
@@ -130,7 +130,7 @@ namespace {
     {
       namespace pbq = helfem::polynomial_basis;
       std::shared_ptr<pbq::PolynomialBasisT<_Float128>> polyq(
-          polynomial_basis::get_basis_T<_Float128>(b.primbas, Nnodes));
+          polynomial_basis::make_basis_T<_Float128>(b.primbas, Nnodes));
       polyq->drop_first(true, false);
 
       for (int sI = 1; sI <= 160; sI++) {

@@ -23,12 +23,12 @@ namespace helfem {
   // Assemble a block-diagonal radial matrix by summing per-element
   // contributions. Kernel is a callable (size_t iel) -> helfem::Matrix
   // returning the per-element block; the block is placed into
-  // rows/cols [ifirst .. ilast] as returned by radial.get_idx(iel).
+  // rows/cols [ifirst .. ilast] as returned by radial.idx(iel).
   //
   // Replaces the copy-pasted pattern:
   //   for (size_t iel = 0; iel < radial.Nel(); ++iel) {
   //     size_t ifirst, ilast;
-  //     radial.get_idx(iel, ifirst, ilast);
+  //     radial.idx(iel, ifirst, ilast);
   //     M.submat(ifirst, ifirst, ilast, ilast) += radial.foo(iel);
   //   }
   // that appears ~13 times across src/atomic/TwoDBasis.cpp and
@@ -46,7 +46,7 @@ namespace helfem {
     helfem::Mat<T> M = helfem::Mat<T>::Zero(Nrad, Nrad);
     for (size_t iel = 0; iel < radial.Nel(); ++iel) {
       size_t ifirst, ilast;
-      radial.get_idx(iel, ifirst, ilast);
+      radial.idx(iel, ifirst, ilast);
       const Eigen::Index n = static_cast<Eigen::Index>(ilast - ifirst + 1);
       M.block(static_cast<Eigen::Index>(ifirst),
                static_cast<Eigen::Index>(ifirst), n, n) += kernel(iel);

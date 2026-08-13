@@ -32,12 +32,12 @@ namespace helfem {
     }
 
     template<typename T>
-    FiniteElementBasisT<T>::FiniteElementBasisT(const std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> & poly_,
-                                           const helfem::Vec<T> &bval_, bool zero_func_left_, bool zero_deriv_left_, bool zero_func_right_, bool zero_deriv_right_) : zero_func_left(zero_func_left_), zero_deriv_left(zero_deriv_left_), zero_func_right(zero_func_right_), zero_deriv_right(zero_deriv_right_) {
+    FiniteElementBasisT<T>::FiniteElementBasisT(const std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> & poly,
+                                           const helfem::Vec<T> &bval, bool zero_func_left, bool zero_deriv_left, bool zero_func_right, bool zero_deriv_right) : zero_func_left_(zero_func_left), zero_deriv_left_(zero_deriv_left), zero_func_right_(zero_func_right), zero_deriv_right_(zero_deriv_right) {
       // Phase 5.26: bval is Eigen at both the public boundary and the
       // internal storage; direct assignment, no bridge.
-      bval = bval_;
-      poly = std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>>(poly_->copy());
+      bval_ = bval;
+      poly_ = std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>>(poly->copy());
       // Update list of basis functions
       update_bf_list();
       // Check that basis functions are continuous
@@ -50,27 +50,27 @@ namespace helfem {
 
     template<typename T>
     void FiniteElementBasisT<T>::update_bf_list() {
-      if (bval.size() == 0)
+      if (bval_.size() == 0)
         throw std::logic_error("Can't update basis function list since there are no elements!\n");
 
       // Form list of element boundaries
-      first_func_in_element = helfem::IVec::Zero(bval.size() - 1);
-      last_func_in_element  = helfem::IVec::Zero(bval.size() - 1);
-      for (Eigen::Index iel = 0; iel < first_func_in_element.size(); ++iel) {
-        first_func_in_element(iel) = (iel == 0) ? 0
-            : last_func_in_element(iel - 1) - poly->get_noverlap() + 1;
-        last_func_in_element(iel) = first_func_in_element(iel) + basis_indices(iel).size() - 1;
+      first_func_in_element_ = helfem::IVec::Zero(bval_.size() - 1);
+      last_func_in_element_  = helfem::IVec::Zero(bval_.size() - 1);
+      for (Eigen::Index iel = 0; iel < first_func_in_element_.size(); ++iel) {
+        first_func_in_element_(iel) = (iel == 0) ? 0
+            : last_func_in_element_(iel - 1) - poly_->noverlap() + 1;
+        last_func_in_element_(iel) = first_func_in_element_(iel) + basis_indices(iel).size() - 1;
       }
     }
 
     template<typename T>
     void FiniteElementBasisT<T>::check_bf_continuity() const {
-      if(get_nelem()==1)
+      if(nelem()==1)
         return;
-      int noverlap(poly->get_noverlap());
+      int noverlap(poly_->noverlap());
 
-      helfem::Vec<T> dnorm(get_nelem()-1);
-      for(size_t iel=0; iel+1<get_nelem(); iel++) {
+      helfem::Vec<T> dnorm(nelem()-1);
+      for(size_t iel=0; iel+1<nelem(); iel++) {
         // Points that correspond to lh and rh elements
         helfem::Vec<T> xlh(1), xrh(1);
         xlh(0) = 1.0;
@@ -155,29 +155,29 @@ namespace helfem {
     }
 
     template<typename T>
-    void FiniteElementBasisT<T>::get_idx(size_t iel, size_t &ifirst, size_t &ilast) const {
-      ifirst = first_func_in_element[iel];
-      ilast = last_func_in_element[iel];
+    void FiniteElementBasisT<T>::idx(size_t iel, size_t &ifirst, size_t &ilast) const {
+      ifirst = first_func_in_element_[iel];
+      ilast = last_func_in_element_[iel];
     }
 
     template<typename T>
     void FiniteElementBasisT<T>::add_boundary(T r) {
-      // Check that r is not in bval
-      for (Eigen::Index i = 0; i < bval.size(); ++i)
-        if (bval(i) == r)
+      // Check that r is not in bval_
+      for (Eigen::Index i = 0; i < bval_.size(); ++i)
+        if (bval_(i) == r)
           return;
 
       // Append + sort
-      helfem::Vec<T> newbval(bval.size() + 1);
-      newbval.head(bval.size()) = bval;
-      newbval(bval.size()) = r;
+      helfem::Vec<T> newbval(bval_.size() + 1);
+      newbval.head(bval_.size()) = bval_;
+      newbval(bval_.size()) = r;
       std::sort(newbval.data(), newbval.data() + newbval.size());
-      bval = newbval;
+      bval_ = newbval;
       update_bf_list();
     }
 
     template<typename T>
-    std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> FiniteElementBasisT<T>::get_poly() const { return std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>>(poly->copy()); }
+    std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> FiniteElementBasisT<T>::poly() const { return std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>>(poly_->copy()); }
 
     template<typename T>
     T FiniteElementBasisT<T>::scaling_factor(size_t iel) const {
@@ -187,32 +187,32 @@ namespace helfem {
 
     template<typename T>
     T FiniteElementBasisT<T>::element_length(size_t iel) const {
-      if(iel>=get_nelem()) {
+      if(iel>=nelem()) {
         std::ostringstream oss;
-        oss << "Trying to access length of element " << iel << " but only have " << get_nelem() << "!\n";
+        oss << "Trying to access length of element " << iel << " but only have " << nelem() << "!\n";
         throw std::logic_error(oss.str());
       }
-      return bval(iel+1)-bval(iel);
+      return bval_(iel+1)-bval_(iel);
     }
 
     template<typename T>
     T FiniteElementBasisT<T>::element_begin(size_t iel) const {
-      if(iel>=get_nelem()) {
+      if(iel>=nelem()) {
         std::ostringstream oss;
-        oss << "Trying to access length of element " << iel << " but only have " << get_nelem() << "!\n";
+        oss << "Trying to access length of element " << iel << " but only have " << nelem() << "!\n";
         throw std::logic_error(oss.str());
       }
-      return bval(iel);
+      return bval_(iel);
     }
 
     template<typename T>
     T FiniteElementBasisT<T>::element_end(size_t iel) const {
-      if(iel>=get_nelem()) {
+      if(iel>=nelem()) {
         std::ostringstream oss;
-        oss << "Trying to access length of element " << iel << " but only have " << get_nelem() << "!\n";
+        oss << "Trying to access length of element " << iel << " but only have " << nelem() << "!\n";
         throw std::logic_error(oss.str());
       }
-      return bval(iel+1);
+      return bval_(iel+1);
     }
 
     template<typename T>
@@ -224,7 +224,7 @@ namespace helfem {
     size_t FiniteElementBasisT<T>::find_element(T x) const {
       // Find the element x is in
       size_t element_left = 0;
-      size_t element_right = get_nelem()-1;
+      size_t element_right = nelem()-1;
 
       if(x <= element_end(element_left))
         return element_left;
@@ -244,9 +244,9 @@ namespace helfem {
     }
 
     template<typename T>
-    helfem::Vec<T> FiniteElementBasisT<T>::get_bval() const {
-      // Phase 5.5: bval is now native Eigen; direct return.
-      return bval;
+    helfem::Vec<T> FiniteElementBasisT<T>::bval() const {
+      // Phase 5.5: bval_ is now native Eigen; direct return.
+      return bval_;
     }
 
     template<typename T>
@@ -261,16 +261,16 @@ namespace helfem {
 
     template<typename T>
     helfem::Vec<T> FiniteElementBasisT<T>::eval_coord(const helfem::Vec<T> & x) const {
-      helfem::Vec<T> r(get_nelem() * x.size());
-      for (size_t iel = 0; iel < get_nelem(); ++iel)
+      helfem::Vec<T> r(nelem() * x.size());
+      for (size_t iel = 0; iel < nelem(); ++iel)
         r.segment(iel * x.size(), x.size()) = eval_coord(x, iel);
       return r;
     }
 
     template<typename T>
     helfem::Vec<T> FiniteElementBasisT<T>::eval_weights(const helfem::Vec<T> & w) const {
-      helfem::Vec<T> wr(get_nelem() * w.size());
-      for (size_t iel = 0; iel < get_nelem(); ++iel)
+      helfem::Vec<T> wr(nelem() * w.size());
+      for (size_t iel = 0; iel < nelem(); ++iel)
         wr.segment(iel * w.size(), w.size()) = w * scaling_factor(iel);
       return wr;
     }
@@ -284,54 +284,54 @@ namespace helfem {
     }
 
     template<typename T>
-    int FiniteElementBasisT<T>::get_poly_id() const {
-      return poly->get_id();
+    int FiniteElementBasisT<T>::poly_id() const {
+      return poly_->id();
     }
 
     template<typename T>
-    int FiniteElementBasisT<T>::get_poly_nnodes() const {
-      return poly->get_nnodes();
+    int FiniteElementBasisT<T>::poly_nnodes() const {
+      return poly_->nnodes();
     }
 
     template<typename T>
     helfem::IVec FiniteElementBasisT<T>::basis_indices(size_t iel) const {
       // Phase 5.5: native Eigen pass-through.
-      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(get_basis(iel));
-      return p->get_enabled();
+      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(basis(iel));
+      return p->enabled();
     }
 
     template<typename T>
     std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>>
-    FiniteElementBasisT<T>::get_basis(size_t iel) const {
-      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(poly->copy());
+    FiniteElementBasisT<T>::basis(size_t iel) const {
+      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(poly_->copy());
       if (iel == 0)
-        p->drop_first(zero_func_left, zero_deriv_left);
-      if (iel == bval.size() - 2)
-        p->drop_last(zero_func_right, zero_deriv_right);
+        p->drop_first(zero_func_left_, zero_deriv_left_);
+      if (iel == bval_.size() - 2)
+        p->drop_last(zero_func_right_, zero_deriv_right_);
 
       return p;
     }
 
     template<typename T>
-    size_t FiniteElementBasisT<T>::get_nbf() const {
-      if (last_func_in_element.size() == 0)
+    size_t FiniteElementBasisT<T>::nbf() const {
+      if (last_func_in_element_.size() == 0)
         throw std::logic_error("Basis function list has not been filled\n");
-      return static_cast<size_t>(last_func_in_element(last_func_in_element.size() - 1) + 1);
+      return static_cast<size_t>(last_func_in_element_(last_func_in_element_.size() - 1) + 1);
     }
 
     template<typename T>
-    size_t FiniteElementBasisT<T>::get_nelem() const {
-      return bval.size() - 1;
+    size_t FiniteElementBasisT<T>::nelem() const {
+      return bval_.size() - 1;
     }
 
     template<typename T>
-    size_t FiniteElementBasisT<T>::get_max_nprim() const {
-      return poly->get_nprim();
+    size_t FiniteElementBasisT<T>::max_nprim() const {
+      return poly_->nprim();
     }
 
     template<typename T>
-    size_t FiniteElementBasisT<T>::get_nprim(size_t iel) const {
-      return get_basis(iel)->get_nbf();
+    size_t FiniteElementBasisT<T>::nprim(size_t iel) const {
+      return basis(iel)->nbf();
     }
 
     // Phase 5.3: eval_* migrated to Eigen; internal primitive-basis call no longer
@@ -341,7 +341,7 @@ namespace helfem {
     void FiniteElementBasisT<T>::eval_dnf(const helfem::Vec<T> & x, helfem::Mat<T> & dnf, int n, size_t iel) const {
       // helfem::Vec<T> == Vec<double>, same for Matrix; no
       // conversion needed.
-      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(get_basis(iel));
+      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(basis(iel));
       p->eval_dnf(x, dnf, n, scaling_factor(iel));
     }
 
@@ -361,7 +361,7 @@ namespace helfem {
             " element " << iel << " starts at " << (double) element_begin(iel) << ".\n";
         throw std::logic_error(oss.str());
       }
-      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(get_basis(iel));
+      std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> p(basis(iel));
       helfem::Mat<T> dnf_over_r;
       p->eval_over_r(x, dnf_over_r, n, scaling_factor(iel));
       return dnf_over_r;
@@ -369,11 +369,11 @@ namespace helfem {
 
     template<typename T>
     helfem::Mat<T> FiniteElementBasisT<T>::eval_dnf(const helfem::Vec<T> & x, int n) const {
-      helfem::Mat<T> f(get_nelem() * x.size(), get_nbf());
+      helfem::Mat<T> f(nelem() * x.size(), nbf());
       f.setZero();
-      for (size_t iel = 0; iel < get_nelem(); ++iel) {
-        const Eigen::Index ifirst = static_cast<Eigen::Index>(first_func_in_element(iel));
-        const Eigen::Index ilast  = static_cast<Eigen::Index>(last_func_in_element(iel));
+      for (size_t iel = 0; iel < nelem(); ++iel) {
+        const Eigen::Index ifirst = static_cast<Eigen::Index>(first_func_in_element_(iel));
+        const Eigen::Index ilast  = static_cast<Eigen::Index>(last_func_in_element_(iel));
         f.block(iel * x.size(), ifirst, x.size(), ilast - ifirst + 1) = eval_dnf(x, n, iel);
       }
       return f;
@@ -385,19 +385,19 @@ namespace helfem {
     template<typename T>
     helfem::Mat<T> FiniteElementBasisT<T>::matrix_element(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_lh, const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const {
       // Compute matrix elements in parallel
-      std::vector<helfem::Mat<T>> matel(get_nelem());
+      std::vector<helfem::Mat<T>> matel(nelem());
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-      for (size_t iel = 0; iel < get_nelem(); ++iel) {
+      for (size_t iel = 0; iel < nelem(); ++iel) {
         matel[iel] = matrix_element(iel, eval_lh, eval_rh, xq, wq, f);
       }
 
-      const Eigen::Index N = static_cast<Eigen::Index>(get_nbf());
+      const Eigen::Index N = static_cast<Eigen::Index>(nbf());
       helfem::Mat<T> M = helfem::Mat<T>::Zero(N, N);
-      for (size_t iel = 0; iel < get_nelem(); ++iel) {
+      for (size_t iel = 0; iel < nelem(); ++iel) {
         size_t ifirst, ilast;
-        get_idx(iel, ifirst, ilast);
+        idx(iel, ifirst, ilast);
         M.block((Eigen::Index) ifirst, (Eigen::Index) ifirst,
                 ilast - ifirst + 1, ilast - ifirst + 1) += matel[iel];
       }
@@ -406,18 +406,18 @@ namespace helfem {
 
     template<typename T>
     helfem::Vec<T> FiniteElementBasisT<T>::vector_element(const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval, const helfem::Vec<T> & xq, const helfem::Vec<T> & wq, const std::function<T(T)> & f) const {
-      std::vector<helfem::Vec<T>> vecel(get_nelem());
+      std::vector<helfem::Vec<T>> vecel(nelem());
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-      for (size_t iel = 0; iel < get_nelem(); ++iel) {
+      for (size_t iel = 0; iel < nelem(); ++iel) {
         vecel[iel] = vector_element(iel, eval, xq, wq, f);
       }
 
-      helfem::Vec<T> V = helfem::Vec<T>::Zero(get_nbf());
-      for (size_t iel = 0; iel < get_nelem(); ++iel) {
+      helfem::Vec<T> V = helfem::Vec<T>::Zero(nbf());
+      for (size_t iel = 0; iel < nelem(); ++iel) {
         size_t ifirst, ilast;
-        get_idx(iel, ifirst, ilast);
+        idx(iel, ifirst, ilast);
         V.segment((Eigen::Index) ifirst, ilast - ifirst + 1) += vecel[iel];
       }
       return V;
@@ -580,7 +580,7 @@ namespace helfem {
       // n that already integrates B*B*(polynomial f) exactly; the refine loop
       // then confirms (polynomial case) or extends (non-polynomial f). Using an
       // upper bound on the basis degree only affects speed, never correctness.
-      const int basisdeg = std::max(0, poly->get_noverlap() * poly->get_nnodes() - 1);
+      const int basisdeg = std::max(0, poly_->noverlap() * poly_->nnodes() - 1);
       const int fdeg     = std::max(0, poly_degree_f);
       const int deg      = 2 * basisdeg + fdeg;
       const int nmax     = 512;
@@ -610,18 +610,18 @@ namespace helfem {
         const std::function<T(T)> & f,
         const std::vector<T> & breakpoints,
         int poly_degree_f) const {
-      std::vector<helfem::Mat<T>> matel(get_nelem());
+      std::vector<helfem::Mat<T>> matel(nelem());
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-      for (size_t iel = 0; iel < get_nelem(); ++iel)
+      for (size_t iel = 0; iel < nelem(); ++iel)
         matel[iel] = matrix_element_auto(iel, eval_lh, eval_rh, f, breakpoints, poly_degree_f);
 
-      const Eigen::Index N = static_cast<Eigen::Index>(get_nbf());
+      const Eigen::Index N = static_cast<Eigen::Index>(nbf());
       helfem::Mat<T> M = helfem::Mat<T>::Zero(N, N);
-      for (size_t iel = 0; iel < get_nelem(); ++iel) {
+      for (size_t iel = 0; iel < nelem(); ++iel) {
         size_t ifirst, ilast;
-        get_idx(iel, ifirst, ilast);
+        idx(iel, ifirst, ilast);
         M.block((Eigen::Index) ifirst, (Eigen::Index) ifirst,
                 ilast - ifirst + 1, ilast - ifirst + 1) += matel[iel];
       }
@@ -677,7 +677,7 @@ namespace helfem {
     template<typename T>
     void FiniteElementBasisT<T>::print(const std::string & str) const {
       printf("%s",str.c_str());
-      printf("bval has %lld entries\n", (long long) bval.size());
+      printf("bval_ has %lld entries\n", (long long) bval_.size());
     }
 
     // Explicit instantiations. Everything below libhelfem was already generic;

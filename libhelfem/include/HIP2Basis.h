@@ -42,19 +42,19 @@ class HIP2BasisT : public LIPBasisT<T> {
   Vec<T> lipxi2;
 
  public:
-  /// id_ is just an identifier echoed via get_id(); the libhelfem
+  /// id is just an identifier echoed via id(); the libhelfem
   /// factory passes the primbas value (8 for HIP2).
-  HIP2BasisT(const Vec<T> & x, int id_ = 8) : LIPBasisT<T>(x, id_) {
+  HIP2BasisT(const Vec<T> & x, int id = 8) : LIPBasisT<T>(x, id) {
     // Three overlapping functions per node (value + 1st deriv + 2nd deriv).
-    this->noverlap = 3;
-    this->nprim    = 3 * static_cast<int>(this->x0.size());
-    this->enabled  = IVec::LinSpaced(this->nprim, 0, this->nprim - 1);
-    this->nnodes   = static_cast<int>(this->x0.size());
+    this->noverlap_ = 3;
+    this->nprim_    = 3 * static_cast<int>(this->x0_.size());
+    this->enabled_  = IVec::LinSpaced(this->nprim_, 0, this->nprim_ - 1);
+    this->nnodes_   = static_cast<int>(this->x0_.size());
 
     // L_i'(x_i) and L_i''(x_i) at every node, via the existing LIP evaluator.
     Mat<T> dlip, ddlip;
-    detail::eval_lip_prim_dnf<T>(this->x0, this->x0, dlip,  1);
-    detail::eval_lip_prim_dnf<T>(this->x0, this->x0, ddlip, 2);
+    detail::eval_lip_prim_dnf<T>(this->x0_, this->x0_, dlip,  1);
+    detail::eval_lip_prim_dnf<T>(this->x0_, this->x0_, ddlip, 2);
     lipxi  = dlip.diagonal();
     lipxi2 = ddlip.diagonal();
   }
@@ -67,7 +67,7 @@ class HIP2BasisT : public LIPBasisT<T> {
 
   void eval_prim_dnf(const Vec<T> & x, Mat<T> & dnf, int n,
                      T element_length) const override {
-    detail::eval_hip2_prim_dnf<T>(x, this->x0, lipxi, lipxi2, dnf, n,
+    detail::eval_hip2_prim_dnf<T>(x, this->x0_, lipxi, lipxi2, dnf, n,
                                   element_length);
   }
 
@@ -79,8 +79,8 @@ class HIP2BasisT : public LIPBasisT<T> {
   ///   func=false, deriv=true  : drop the two derivative interpolants
   ///   func=false, deriv=false : drop nothing
   void drop_first(bool func, bool deriv) override {
-    const IVec first(this->enabled.segment(0, (2) - (0) + 1));
-    const IVec rest(this->enabled.segment(3, (this->enabled.size() - (3) + 1) - 1));
+    const IVec first(this->enabled_.segment(0, (2) - (0) + 1));
+    const IVec rest(this->enabled_.segment(3, (this->enabled_.size() - (3) + 1) - 1));
     IVec keep;
     keep.resize((func ? 0 : 1) + (deriv ? 0 : 2) + rest.size());
     Eigen::Index idx = 0;
@@ -88,12 +88,12 @@ class HIP2BasisT : public LIPBasisT<T> {
     if (!deriv) { keep(idx++) = first(1); keep(idx++) = first(2); }
     if (rest.size())
       keep.segment(idx, (idx + rest.size() - (idx) + 1) - 1) = rest;
-    this->enabled = keep;
+    this->enabled_ = keep;
   }
 
   void drop_last(bool func, bool deriv) override {
-    const IVec head(this->enabled.segment(0, (this->enabled.size() - (0) + 1) - 4));
-    const IVec last(this->enabled.segment(this->enabled.size() - 3, (this->enabled.size() - (this->enabled.size() - 3) + 1) - 1));
+    const IVec head(this->enabled_.segment(0, (this->enabled_.size() - (0) + 1) - 4));
+    const IVec last(this->enabled_.segment(this->enabled_.size() - 3, (this->enabled_.size() - (this->enabled_.size() - 3) + 1) - 1));
     IVec keep;
     keep.resize(head.size() + (func ? 0 : 1) + (deriv ? 0 : 2));
     Eigen::Index idx = 0;
@@ -103,7 +103,7 @@ class HIP2BasisT : public LIPBasisT<T> {
     }
     if (!func)  keep(idx++) = last(0);
     if (!deriv) { keep(idx++) = last(1); keep(idx++) = last(2); }
-    this->enabled = keep;
+    this->enabled_ = keep;
   }
 
   // Pull the base's 3-arg eval_over_r overload back into scope.
@@ -114,7 +114,7 @@ class HIP2BasisT : public LIPBasisT<T> {
   /// drop_first(zero_func=true, zero_deriv=false) was called so the
   /// value-shape at node 0 is dropped (it has B(-1) != 0).
   ///
-  /// Derivations (with e = element_length = scaling_factor, x_i = x0(node),
+  /// Derivations (with e = element_length = scaling_factor, x_i = x0_(node),
   /// p1 = L_i'(x_i), p2 = L_i''(x_i), p = L_0(x) for node 0 or
   /// p = L_i^{(0)}(x) for i >= 1 with L_i = ((x+1)/(x_i+1)) L_i^{(0)}):
   ///
@@ -132,7 +132,7 @@ class HIP2BasisT : public LIPBasisT<T> {
                    T element_length) const override {
     // All of the deflation maths is generated -- see
     // libhelfem/src/generate_hip_family_code.py --order 2 --over-r
-    detail::eval_hip2_prim_over_r<T>(x, this->x0, lipxi, lipxi2, this->enabled,
+    detail::eval_hip2_prim_over_r<T>(x, this->x0_, lipxi, lipxi2, this->enabled_,
                                       dnf_over_r, n, element_length);
   }
 };

@@ -121,8 +121,8 @@ static helfem::Matrix ao_completeness_profile(
   for (int l = 0; l <= lmax; l++) {
     helfem::Matrix ao_projection = helfem::Matrix::Zero(expn.size(), basis.Nbf());
     for (size_t iel = 0; iel < basis.get_rad_Nel(); iel++) {
-      const helfem::Vector r  = basis.get_r(iel);
-      const helfem::Vector wr = basis.get_wrad(iel);
+      const helfem::Vector r  = basis.r(iel);
+      const helfem::Vector wr = basis.wrad(iel);
       const helfem::Matrix ao = eval_ao(l, r);          // (npts x nexp)
       const helfem::Matrix bf = basis.eval_bf(iel);     // (npts x nbf_el)
       const std::vector<Eigen::Index> bfl = basis.bf_list(iel);
@@ -156,8 +156,8 @@ static helfem::Matrix ao_importance_profile(
     const helfem::Matrix Cocc = C[l].leftCols(nocc);
     helfem::Matrix ao_projection = helfem::Matrix::Zero(nocc, expn.size());
     for (size_t iel = 0; iel < basis.get_rad_Nel(); iel++) {
-      const helfem::Vector r  = basis.get_r(iel);
-      const helfem::Vector wr = basis.get_wrad(iel);
+      const helfem::Vector r  = basis.r(iel);
+      const helfem::Vector wr = basis.wrad(iel);
       const helfem::Matrix ao = eval_ao(l, r);
       const helfem::Matrix bf = basis.eval_bf(iel);
       const std::vector<Eigen::Index> bfl = basis.bf_list(iel);
@@ -313,11 +313,11 @@ int main(int argc, char **argv) {
     printf("nela=%d nelb=%d\n", nela, nelb);
 
   auto poly = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
-      polynomial_basis::get_basis(primbas, Nnodes));
+      polynomial_basis::make_basis(primbas, Nnodes));
 
   if (Nquad == 0)
-    Nquad = 5 * poly->get_nbf();
-  else if (Nquad < 2 * poly->get_nbf())
+    Nquad = 5 * poly->nbf();
+  else if (Nquad < 2 * poly->nbf())
     throw std::logic_error("Insufficient radial quadrature.\n");
   if (verbosity >= 1)
     printf("Using %i point quadrature rule.\n", Nquad);

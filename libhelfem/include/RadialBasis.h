@@ -78,11 +78,11 @@ namespace helfem {
       class FEMRadialBasisT : public RadialBasisT<T> {
         /// Quadrature points
         // Phase 5.6: quadrature node/weight members migrated to Eigen.
-        helfem::Vec<T> xq;
+        helfem::Vec<T> xq_;
         /// Quadrature weights
-        helfem::Vec<T> wq;
+        helfem::Vec<T> wq_;
         /// Finite element basis
-        polynomial_basis::FiniteElementBasisT<T> fem;
+        polynomial_basis::FiniteElementBasisT<T> fem_;
 
         /// Quadrature-node values of the basis functions and of their
         /// first two derivatives, indexed by element. Filled on demand by
@@ -90,9 +90,9 @@ namespace helfem {
         /// the get_*(iel) overloads fall back to evaluating. Mutable
         /// because filling them changes nothing an observer can see --
         /// the values are a pure function of the element index.
-        mutable std::vector<helfem::Mat<T>> bfq_cache;
-        mutable std::vector<helfem::Mat<T>> dfq_cache;
-        mutable std::vector<helfem::Mat<T>> lfq_cache;
+        mutable std::vector<helfem::Mat<T>> bfq_cache_;
+        mutable std::vector<helfem::Mat<T>> dfq_cache_;
+        mutable std::vector<helfem::Mat<T>> lfq_cache_;
 
         /// Starting Gauss-Chebyshev order for the auto-converging
         /// two-electron primitives. Seeded from the requested n_quad so the
@@ -112,23 +112,23 @@ namespace helfem {
         void add_boundary(T r);
 
         /// Get polynomial basis
-        std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> get_poly() const;
+        std::shared_ptr<helfem::polynomial_basis::PolynomialBasisT<T>> poly() const;
         /// Get the underlying FE basis (read-only).
-        const polynomial_basis::FiniteElementBasisT<T> & get_fem() const { return fem; }
+        const polynomial_basis::FiniteElementBasisT<T> & fem() const { return fem_; }
 
         /// Get number of quadrature points
-        int get_nquad() const;
+        int nquad() const;
         /// Get quadrature points (Phase 5.20: Eigen at the public boundary).
-        helfem::Vec<T> get_xq() const;
+        helfem::Vec<T> xq() const;
         /// Get boundary values (Phase 5.20: Eigen at the public boundary).
-        helfem::Vec<T> get_bval() const;
+        helfem::Vec<T> bval() const;
         /// Get polynomial basis identifier
-        int get_poly_id() const;
+        int poly_id() const;
         /// Get number of nodes in polynomial basis
-        int get_poly_nnodes() const;
+        int poly_nnodes() const;
 
         /// Get number of overlapping functions
-        size_t get_noverlap() const;
+        size_t noverlap() const;
         /// Number of basis functions
         size_t Nbf() const override;
         /// Number of primitive functions in element
@@ -139,7 +139,7 @@ namespace helfem {
         /// Number of elements
         size_t Nel() const;
         /// Get function indices
-        void get_idx(size_t iel, size_t &ifirst, size_t &ilast) const;
+        void idx(size_t iel, size_t &ifirst, size_t &ilast) const;
 
         /// Compute radial matrix elements <r^n> in element (overlap is n=0,
         /// nuclear is n=-1). Eigen-typed (Phase 2a migration).
@@ -308,7 +308,7 @@ namespace helfem {
         /// table lookups.
         ///
         /// The values depend only on the element index -- the nodes are
-        /// the fixed rule `xq` -- so recomputing them, as the DFT grid
+        /// the fixed rule `xq_` -- so recomputing them, as the DFT grid
         /// did on every Fock build, is pure repetition: it cost ~11% of
         /// an atom-in-jellium run. Nel * Nquad * (nnodes+1) doubles per
         /// requested order, a few MB even for a large grid.
@@ -326,38 +326,38 @@ namespace helfem {
         /// Horner form,
         ///   d^n [B/r] = ( ... (c_0 B invr + c_1 B') invr + ... + c_n B^(n) ) invr,
         ///   c_k = (-1)^(n-k) n! / k!,
-        /// which reproduces the former per-order get_bf/get_df/get_lf
+        /// which reproduces the former per-order bf/df/lf
         /// groupings exactly; those are now one-line calls of this.
         helfem::Mat<T> eval_psi_dnf(const helfem::Vec<T> & x, int n, size_t iel) const;
 
-        helfem::Mat<T> get_bf(size_t iel) const;
+        helfem::Mat<T> bf(size_t iel) const;
         /// Evaluate basis functions at given points (Phase 5.24: Eigen input + return).
-        helfem::Mat<T> get_bf(const helfem::Vec<T> & x, size_t iel) const;
+        helfem::Mat<T> bf(const helfem::Vec<T> & x, size_t iel) const;
         /// Evaluate derivatives of basis functions at quadrature points (Eigen return).
-        helfem::Mat<T> get_df(size_t iel) const;
+        helfem::Mat<T> df(size_t iel) const;
         /// Evaluate derivatives of basis functions at given points
         /// (Phase 5.24: Eigen input + return).
-        helfem::Mat<T> get_df(const helfem::Vec<T> & x, size_t iel) const;
+        helfem::Mat<T> df(const helfem::Vec<T> & x, size_t iel) const;
         /// Evaluate second derivatives of basis functions at quadrature points (Eigen return).
-        helfem::Mat<T> get_lf(size_t iel) const;
+        helfem::Mat<T> lf(size_t iel) const;
         /// Evaluate second derivatives of basis functions at given points
         /// (Phase 5.24: Eigen input + return).
-        helfem::Mat<T> get_lf(const helfem::Vec<T> & x, size_t iel) const;
+        helfem::Mat<T> lf(const helfem::Vec<T> & x, size_t iel) const;
         /// Evaluate orbitals at a given point (Phase 5.23: Eigen-typed).
         helfem::Vec<T> eval_orbs(const helfem::Mat<T> & C, T r) const override;
 
         /// Get quadrature weights in element.
-        helfem::Vec<T> get_wrad(size_t iel) const;
+        helfem::Vec<T> wrad(size_t iel) const;
         /// Get quadrature weights in element from user-supplied weight
         /// vector (Phase 5.25: Eigen input + return).
-        helfem::Vec<T> get_wrad(const helfem::Vec<T> & w, size_t iel) const;
+        helfem::Vec<T> wrad(const helfem::Vec<T> & w, size_t iel) const;
         /// Get r values at quadrature points in element.
-        helfem::Vec<T> get_r(size_t iel) const;
+        helfem::Vec<T> r(size_t iel) const;
         /// Get r values at user-supplied x points in element
         /// (Phase 5.25: Eigen input + return).
-        helfem::Vec<T> get_r(const helfem::Vec<T> & x, size_t iel) const;
+        helfem::Vec<T> r(const helfem::Vec<T> & x, size_t iel) const;
 	/// Get r value
-        T get_r(T x, size_t iel) const;
+        T r(T x, size_t iel) const;
 
         /// Evaluate nuclear density (Phase 5.22: Eigen-typed argument).
         T nuclear_density(const helfem::Mat<T> &P) const;

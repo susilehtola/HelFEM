@@ -418,8 +418,8 @@ namespace helfem {
         // Get radial weights. Only do one radial quadrature point at a
         // time, since this is an easy way to save a lot of memory.
         helfem::Vector wrad(1), r(1);
-        wrad(0)=basp->get_wrad(iel)(irad);
-        r(0)=basp->get_r(iel)(irad);
+        wrad(0)=basp->wrad(iel)(irad);
+        r(0)=basp->r(iel)(irad);
 
         double Rhalf(basp->get_Rhalf());
 
@@ -545,7 +545,7 @@ namespace helfem {
           const helfem::Matrix P_exp(basp->expand_boundaries(P_e));
 
           for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-            for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
+            for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
               grid.compute_bf(iel,irad);
               grid.update_density(P_exp);
               nel+=grid.compute_Nel();
@@ -588,7 +588,7 @@ namespace helfem {
           const helfem::Matrix Pb_exp(basp->expand_boundaries(Pb_e));
 
           for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
-            for(size_t irad=0;irad<(size_t) basp->get_r(iel).size();irad++) {
+            for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
               grid.compute_bf(iel,irad);
               grid.update_density(Pa_exp,Pb_exp);
               nel+=grid.compute_Nel();
