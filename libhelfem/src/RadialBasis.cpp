@@ -866,15 +866,53 @@ namespace helfem {
       }
 
       template <typename T>
-      helfem::Mat<T> FEMRadialBasisT<T>::get_bf(const helfem::Vec<T> & x, size_t iel) const {
+      helfem::Mat<T> FEMRadialBasisT<T>::eval_psi_dnf(const helfem::Vec<T> & x, int n, size_t iel) const {
         if (iel == 0)
-          return fem.eval_over_r(x, 0, iel);
-        helfem::Mat<T> val = fem.eval_dnf(x, 0, iel);
+          return fem.eval_over_r(x, n, iel);
+        if (n == 0) {
+          // Plain division, matching the historical get_bf exactly.
+          helfem::Mat<T> val = fem.eval_dnf(x, 0, iel);
+          const helfem::Vec<T> r = fem.eval_coord(x, iel);
+          for (Eigen::Index ifun = 0; ifun < val.cols(); ++ifun)
+            for (Eigen::Index ir = 0; ir < val.rows(); ++ir)
+              val(ir, ifun) /= r(ir);
+          return val;
+        }
+        // Quotient rule for d^n/dr^n [B/r], Horner in 1/r. The
+        // coefficients c_k = (-1)^(n-k) n!/k! give, for n = 1 and 2,
+        // exactly the groupings the per-order routines used:
+        //   n=1: (-f invr + d) invr
+        //   n=2: ((2 f invr - 2 d) invr + l) invr
+        std::vector<helfem::Mat<T>> B(n + 1);
+        for (int k = 0; k <= n; k++)
+          B[k] = fem.eval_dnf(x, k, iel);
+        std::vector<T> c(n + 1);
+        {
+          T nfac = T(1);
+          for (int k = 2; k <= n; k++) nfac *= T(k);
+          T kfac = T(1);
+          for (int k = 0; k <= n; k++) {
+            if (k >= 2) kfac *= T(k);
+            c[k] = nfac / kfac;
+            if ((n - k) % 2) c[k] = -c[k];
+          }
+        }
         const helfem::Vec<T> r = fem.eval_coord(x, iel);
-        for (Eigen::Index ifun = 0; ifun < val.cols(); ++ifun)
-          for (Eigen::Index ir = 0; ir < val.rows(); ++ir)
-            val(ir, ifun) /= r(ir);
-        return val;
+        helfem::Mat<T> out(B[0].rows(), B[0].cols());
+        for (Eigen::Index ifun = 0; ifun < out.cols(); ++ifun)
+          for (Eigen::Index ir = 0; ir < out.rows(); ++ir) {
+            const T invr = T(1) / r(ir);
+            T acc = c[0] * B[0](ir, ifun);
+            for (int k = 1; k <= n; k++)
+              acc = acc * invr + c[k] * B[k](ir, ifun);
+            out(ir, ifun) = acc * invr;
+          }
+        return out;
+      }
+
+      template <typename T>
+      helfem::Mat<T> FEMRadialBasisT<T>::get_bf(const helfem::Vec<T> & x, size_t iel) const {
+        return eval_psi_dnf(x, 0, iel);
       }
 
       template <typename T>
@@ -886,18 +924,7 @@ namespace helfem {
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::get_df(const helfem::Vec<T> & x, size_t iel) const {
-        if (iel == 0)
-          return fem.eval_over_r(x, 1, iel);
-        helfem::Mat<T> fval = fem.eval_dnf(x, 0, iel);
-        helfem::Mat<T> dval = fem.eval_dnf(x, 1, iel);
-        const helfem::Vec<T> r = fem.eval_coord(x, iel);
-        helfem::Mat<T> der(fval.rows(), fval.cols());
-        for (Eigen::Index ifun = 0; ifun < der.cols(); ++ifun)
-          for (Eigen::Index ir = 0; ir < der.rows(); ++ir) {
-            const T invr = T(1) / r(ir);
-            der(ir, ifun) = (-fval(ir, ifun) * invr + dval(ir, ifun)) * invr;
-          }
-        return der;
+        return eval_psi_dnf(x, 1, iel);
       }
 
       template <typename T>
@@ -909,20 +936,7 @@ namespace helfem {
 
       template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::get_lf(const helfem::Vec<T> & x, size_t iel) const {
-        if (iel == 0)
-          return fem.eval_over_r(x, 2, iel);
-        helfem::Mat<T> fval = fem.eval_dnf(x, 0, iel);
-        helfem::Mat<T> dval = fem.eval_dnf(x, 1, iel);
-        helfem::Mat<T> lval = fem.eval_dnf(x, 2, iel);
-        const helfem::Vec<T> r = fem.eval_coord(x, iel);
-        helfem::Mat<T> lapl(fval.rows(), fval.cols());
-        for (Eigen::Index ifun = 0; ifun < lapl.cols(); ++ifun)
-          for (Eigen::Index ir = 0; ir < lapl.rows(); ++ir) {
-            const T invr = T(1) / r(ir);
-            lapl(ir, ifun) = ((T(2) * fval(ir, ifun) * invr - T(2) * dval(ir, ifun)) * invr
-                              + lval(ir, ifun)) * invr;
-          }
-        return lapl;
+        return eval_psi_dnf(x, 2, iel);
       }
 
       template <typename T>

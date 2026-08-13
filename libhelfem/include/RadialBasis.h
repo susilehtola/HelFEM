@@ -319,6 +319,17 @@ namespace helfem {
         void fill_quadrature_cache(bool need_df = false, bool need_lf = false) const;
 
         /// Evaluate basis functions at quadrature points (Eigen return).
+        /// d^n/dr^n of psi = B(r)/r for every basis function, at the
+        /// reference points x of element iel. ONE implementation for
+        /// every order: the first element uses the analytic (x+1)
+        /// deflation (eval_over_r), and iel > 0 the quotient rule in
+        /// Horner form,
+        ///   d^n [B/r] = ( ... (c_0 B invr + c_1 B') invr + ... + c_n B^(n) ) invr,
+        ///   c_k = (-1)^(n-k) n! / k!,
+        /// which reproduces the former per-order get_bf/get_df/get_lf
+        /// groupings exactly; those are now one-line calls of this.
+        helfem::Mat<T> eval_psi_dnf(const helfem::Vec<T> & x, int n, size_t iel) const;
+
         helfem::Mat<T> get_bf(size_t iel) const;
         /// Evaluate basis functions at given points (Phase 5.24: Eigen input + return).
         helfem::Mat<T> get_bf(const helfem::Vec<T> & x, size_t iel) const;
