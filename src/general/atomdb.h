@@ -96,14 +96,14 @@ namespace helfem {
       /// functionals are asked for and reused afterwards.
       mutable std::shared_ptr<XCFunctionals> xc_;
 
-    public:
       /// Integral over the part of element iel between the reference
       /// coordinates xa and xb, of the radial charge distribution
       /// 4 pi r^2 rho(r) (over_r = false) or of it divided by r
       /// (over_r = true). These are the two halves of the multipole
       /// expansion of 1/r_>, restricted to the element the evaluation
       /// point falls in; everything outside is already summed into
-      /// Qbelow_ and Mabove_.
+      /// Qbelow_ and Mabove_. Implementation detail of the evaluators
+      /// below; nothing outside this class uses it.
       double partial_integral(size_t iel, double xa, double xb, bool over_r) const;
 
     public:
