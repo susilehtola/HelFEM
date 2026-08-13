@@ -71,7 +71,7 @@ namespace helfem {
         T lambda;
 
         /// Radial basis set
-        FEMRadialBasisT<T> radial;
+        FEMRadialBasisT<T> radial_;
         /// Angular basis set: function l values
         Eigen::VectorXi lval;
         /// Angular basis set: function m values
@@ -164,6 +164,14 @@ namespace helfem {
         Eigen::VectorXi get_lval() const;
         /// Get m values
         Eigen::VectorXi get_mval() const;
+
+        /// The underlying radial FEM basis. Public so that library
+        /// consumers (the installed helfem/atomic/TwoDBasis.h is the
+        /// libatomscf-facing surface) can reach the quadrature grid:
+        /// get_r(iel) gives the radii, get_wrad(iel) the weights and
+        /// get_bval() the element boundaries, without this class having
+        /// to mirror each accessor.
+        const FEMRadialBasisT<T> & radial() const { return radial_; }
 
         /// Get number of quadrature points
         int get_nquad() const;
