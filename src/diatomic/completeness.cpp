@@ -181,10 +181,16 @@ int main(int argc, char **argv) {
       fflush(stdout);
     }
 
-    for(int l=std::abs(m);l<=completeness;l++) {
+    {
       static const std::string indices[]={"lh", "mid", "rh"};
       static const helfem::diatomic::twodquad::probe_t probes[]={helfem::diatomic::twodquad::PROBE_LEFT, helfem::diatomic::twodquad::PROBE_MIDDLE, helfem::diatomic::twodquad::PROBE_RIGHT};
       for(int icen=0;icen<3;icen++) {
+        // One panelisation sweep per probe covers the whole l range and
+        // every exponent; the per-l processing below just reuses the
+        // returned projection blocks.
+        const std::vector<helfem::Matrix> Plcao_all =
+          qgrid.graded_projections(std::abs(m), completeness, m, expn, probes[icen], iprobe==1);
+        for(int l=std::abs(m);l<=completeness;l++) {
         // Importance profile (no minimal basis): expn, alpha, beta
         helfem::Matrix I0 = helfem::Matrix::Zero(3, expn.size());
         // Importance profile: expn, alpha, beta
@@ -200,23 +206,10 @@ int main(int argc, char **argv) {
         } else
           throw std::logic_error("Unknown probe\n");
 
-        // Loop over batches of exponents
-        Eigen::Index exponent_batch_size = 200;
-        for(Eigen::Index exponent_batch = 0; exponent_batch <= expn.size()/exponent_batch_size; exponent_batch++) {
-          Eigen::Index istart = exponent_batch_size*exponent_batch;
-          Eigen::Index iend = std::min(exponent_batch_size*(exponent_batch+1), expn.size()) - 1;
-          if(istart>iend)
-            break;
-          helfem::Vector expbatch(expn.segment(istart, iend-istart+1));
-
-          // LCAO projection <\alpha|FEM>
-          helfem::Matrix Plcao;
-          if(iprobe==0) {
-            Plcao=qgrid.gto_projection(l, m, expbatch, probes[icen]);
-          } else if(iprobe==1) {
-            Plcao=qgrid.sto_projection(l, m, expbatch, probes[icen]);
-          } else
-            throw std::logic_error("Unknown probe\n");
+        {
+          const helfem::Vector & expbatch = expn;
+          const Eigen::Index istart = 0;
+          const helfem::Matrix & Plcao = Plcao_all[l - std::abs(m)];
 
           // Completeness profile
           helfem::Vector Ysub = (Plcao*Sinv*Plcao.transpose()).diagonal();
@@ -325,6 +318,7 @@ int main(int argc, char **argv) {
           Slcao.print("rh sto overlap");
           printf("\n");
         */
+        }
       }
     }
   }

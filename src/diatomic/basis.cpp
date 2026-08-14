@@ -534,7 +534,7 @@ namespace helfem {
         bool zero_func_right=true;
         bool zero_deriv_right=true;
         polynomial_basis::FiniteElementBasis fem_(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zero_deriv_right);
-        radial=RadialBasis(fem_, n_quad);
+        radial_=RadialBasis(fem_, n_quad);
         // Angular basis.
         lval_=lval;
         mval_=mval;
@@ -670,35 +670,35 @@ namespace helfem {
       }
 
       int TwoDBasis::nquad() const {
-        return radial.nquad();
+        return radial_.nquad();
       }
 
       helfem::Vector TwoDBasis::bval() const {
-        return radial.bval();
+        return radial_.bval();
       }
 
       double TwoDBasis::mumax() const {
-        helfem::Vector bval(radial.bval());
+        helfem::Vector bval(radial_.bval());
         return bval(bval.size()-1);
       }
 
       int TwoDBasis::poly_id() const {
-        return radial.poly_id();
+        return radial_.poly_id();
       }
 
       int TwoDBasis::poly_nnodes() const {
-        return radial.poly_nnodes();
+        return radial_.poly_nnodes();
       }
 
       size_t TwoDBasis::Ndummy() const {
-        return lval_.size()*radial.Nbf();
+        return lval_.size()*radial_.Nbf();
       }
 
       size_t TwoDBasis::Nbf() const {
         // Count total number of basis functions
         size_t nbf=0;
         for(size_t i=0;i<mval_.size();i++) {
-          nbf+=radial.Nbf();
+          nbf+=radial_.Nbf();
           if(mval_(i)!=0)
             // Remove first function
             nbf--;
@@ -708,7 +708,7 @@ namespace helfem {
       }
 
       size_t TwoDBasis::Nrad() const {
-        return radial.Nbf();
+        return radial_.Nbf();
       }
 
       size_t TwoDBasis::Nang() const {
@@ -722,14 +722,14 @@ namespace helfem {
         size_t ioff=0;
         for(size_t i=0;i<(size_t) mval_.size();i++) {
           if(mval_(i)==0) {
-            for(size_t j=0;j<radial.Nbf();j++)
-              idx[ioff+j]=(Eigen::Index) (i*radial.Nbf()+j);
-            ioff+=radial.Nbf();
+            for(size_t j=0;j<radial_.Nbf();j++)
+              idx[ioff+j]=(Eigen::Index) (i*radial_.Nbf()+j);
+            ioff+=radial_.Nbf();
           } else {
 	    // Just drop the first function
-            for(size_t j=0;j<radial.Nbf()-1;j++)
-              idx[ioff+j]=(Eigen::Index) (i*radial.Nbf()+1+j);
-            ioff+=radial.Nbf()-1;
+            for(size_t j=0;j<radial_.Nbf()-1;j++)
+              idx[ioff+j]=(Eigen::Index) (i*radial_.Nbf()+1+j);
+            ioff+=radial_.Nbf()-1;
           }
         }
 
@@ -739,7 +739,7 @@ namespace helfem {
       helfem::Matrix TwoDBasis::in_element_kernel(size_t iel, int L, int M) const {
         // Use the same auto-converged order as compute_tei so this diagnostic
         // reflects the kernel that was actually factorized.
-        const quadrature::TwoElectronElement el(radial.twoe_element(iel, converged_twoe_order(iel)));
+        const quadrature::TwoElectronElement el(radial_.twoe_element(iel, converged_twoe_order(iel)));
         quadrature::MLegendreCache leg(std::abs(M), L);
         const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, leg));
         const helfem::Matrix T02(quadrature::twoe_integral(el, 0, 2, L, M, leg));
@@ -756,8 +756,8 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDBasis::in_element_kernel_exchange(size_t iel, int L, int M) const {
-        const quadrature::TwoElectronElement el(radial.twoe_element(iel, converged_twoe_order(iel)));
-        const size_t Ni(radial.Nprim(iel));
+        const quadrature::TwoElectronElement el(radial_.twoe_element(iel, converged_twoe_order(iel)));
+        const size_t Ni(radial_.Nprim(iel));
 
         quadrature::MLegendreCache leg(std::abs(M), L);
         const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, leg));
@@ -780,15 +780,15 @@ namespace helfem {
       }
 
       std::pair<double,double> TwoDBasis::check_cd(size_t iel, int L, int M) const {
-        const size_t Ni(radial.Nprim(iel));
+        const size_t Ni(radial_.Nprim(iel));
         const size_t ilm(lmind(L,M));
-        const size_t Nel(radial.Nel());
+        const size_t Nel(radial_.Nel());
 
         // Exact kernel and the exact exchange-ordered tensors. Build at the
         // same auto-converged order compute_tei used, so the reference W here
         // matches the one that produced cd_B / cd_sigma (otherwise kerr would
         // pick up the order mismatch rather than the factorization error).
-        const quadrature::TwoElectronElement el(radial.twoe_element(iel, converged_twoe_order(iel)));
+        const quadrature::TwoElectronElement el(radial_.twoe_element(iel, converged_twoe_order(iel)));
         quadrature::MLegendreCache leg(std::abs(M), L);
         const helfem::Matrix T00(quadrature::twoe_integral(el,0,0,L,M,leg));
         const helfem::Matrix T02(quadrature::twoe_integral(el,0,2,L,M,leg));
@@ -854,13 +854,13 @@ namespace helfem {
 
       std::vector<Eigen::Index> TwoDBasis::m_indices(int m) const {
         return helfem::collect_shell_indices(mval_.size(),
-            [&](size_t i) { return (mval_(i) == 0) ? radial.Nbf() : radial.Nbf() - 1; },
+            [&](size_t i) { return (mval_(i) == 0) ? radial_.Nbf() : radial_.Nbf() - 1; },
             [&](size_t i) { return mval_(i) == m; });
       }
 
       std::vector<Eigen::Index> TwoDBasis::m_indices(int m, bool odd) const {
         return helfem::collect_shell_indices(mval_.size(),
-            [&](size_t i) { return (mval_(i) == 0) ? radial.Nbf() : radial.Nbf() - 1; },
+            [&](size_t i) { return (mval_(i) == 0) ? radial_.Nbf() : radial_.Nbf() - 1; },
             [&](size_t i) { return mval_(i) == m && (lval_(i) % 2 == odd); });
       }
 
@@ -1020,19 +1020,19 @@ namespace helfem {
       }
 
       void TwoDBasis::set_sub(helfem::Matrix & M, size_t iang, size_t jang, const helfem::Matrix & Mrad) const {
-        const size_t N(radial.Nbf());
+        const size_t N(radial_.Nbf());
         M.block(iang*N,jang*N,N,N)=Mrad;
       }
 
       void TwoDBasis::add_sub(helfem::Matrix & M, size_t iang, size_t jang, const helfem::Matrix & Mrad) const {
-        const size_t N(radial.Nbf());
+        const size_t N(radial_.Nbf());
         M.block(iang*N,jang*N,N,N)+=Mrad;
       }
 
       helfem::Matrix TwoDBasis::overlap() const {
         // Build radial matrix elements
-        helfem::Matrix I10(radial.radial_integral(1,0));
-        helfem::Matrix I12(radial.radial_integral(1,2));
+        helfem::Matrix I10(radial_.radial_integral(1,0));
+        helfem::Matrix I12(radial_.radial_integral(1,2));
 
         // Full overlap matrix
         helfem::Matrix S(helfem::Matrix::Zero(Ndummy(),Ndummy()));
@@ -1067,11 +1067,11 @@ namespace helfem {
       helfem::Matrix TwoDBasis::overlap(const TwoDBasis & rh) const {
         // Cross-basis overlap. Same coupling structure as overlap() but
         // with rh's radial basis on the right.
-        helfem::Matrix I10(radial.overlap(rh.radial, 0));
-        helfem::Matrix I12(radial.overlap(rh.radial, 2));
+        helfem::Matrix I10(radial_.overlap(rh.radial_, 0));
+        helfem::Matrix I12(radial_.overlap(rh.radial_, 2));
 
-        const size_t Ni(radial.Nbf());
-        const size_t Nj(rh.radial.Nbf());
+        const size_t Ni(radial_.Nbf());
+        const size_t Nj(rh.radial_.Nbf());
         helfem::Matrix S(helfem::Matrix::Zero(Ndummy(), rh.Ndummy()));
         for(size_t iang=0;iang<lval_.size();iang++) {
           int li(lval_(iang));
@@ -1102,9 +1102,9 @@ namespace helfem {
 
       helfem::Matrix TwoDBasis::kinetic() const {
         // Build radial kinetic energy matrix
-        helfem::Matrix Trad(radial.kinetic());
-        helfem::Matrix Ip1(radial.radial_integral(1,0));
-        helfem::Matrix Im1(radial.radial_integral(-1,0));
+        helfem::Matrix Trad(radial_.kinetic());
+        helfem::Matrix Ip1(radial_.radial_integral(1,0));
+        helfem::Matrix Im1(radial_.radial_integral(-1,0));
 
         // Full kinetic energy matrix
         helfem::Matrix T(helfem::Matrix::Zero(Ndummy(),Ndummy()));
@@ -1129,8 +1129,8 @@ namespace helfem {
 
       helfem::Matrix TwoDBasis::nuclear() const {
         // Build radial matrices
-        helfem::Matrix I10(radial.radial_integral(1,0));
-        helfem::Matrix I11(radial.radial_integral(1,1));
+        helfem::Matrix I10(radial_.radial_integral(1,0));
+        helfem::Matrix I11(radial_.radial_integral(1,1));
 
         // Full nuclear attraction matrix
         helfem::Matrix V(helfem::Matrix::Zero(Ndummy(),Ndummy()));
@@ -1170,8 +1170,8 @@ namespace helfem {
         helfem::Matrix V(helfem::Matrix::Zero(Ndummy(),Ndummy()));
 
         // Build radial matrix elements
-        helfem::Matrix I11(radial.radial_integral(1,1));
-        helfem::Matrix I13(radial.radial_integral(1,3));
+        helfem::Matrix I11(radial_.radial_integral(1,1));
+        helfem::Matrix I13(radial_.radial_integral(1,3));
 
         // Fill elements
         for(size_t iang=0;iang<lval_.size();iang++) {
@@ -1208,9 +1208,9 @@ namespace helfem {
         helfem::Matrix V(helfem::Matrix::Zero(Ndummy(),Ndummy()));
 
         // Build radial matrix elements
-        helfem::Matrix I10(radial.radial_integral(1,0));
-        helfem::Matrix I12(radial.radial_integral(1,2));
-        helfem::Matrix I14(radial.radial_integral(1,4));
+        helfem::Matrix I10(radial_.radial_integral(1,0));
+        helfem::Matrix I12(radial_.radial_integral(1,2));
+        helfem::Matrix I14(radial_.radial_integral(1,4));
 
         // Fill elements
         for(size_t iang=0;iang<lval_.size();iang++) {
@@ -1251,10 +1251,10 @@ namespace helfem {
         helfem::Matrix V(helfem::Matrix::Zero(Ndummy(),Ndummy()));
 
         // Build radial matrix elements
-        helfem::Matrix I10(radial.radial_integral(1,0)*std::pow(Rhalf_,3));
-        helfem::Matrix I12(radial.radial_integral(1,2)*std::pow(Rhalf_,3));
-        helfem::Matrix I30(radial.radial_integral(3,0)*std::pow(Rhalf_,5));
-        helfem::Matrix I32(radial.radial_integral(3,2)*std::pow(Rhalf_,5));
+        helfem::Matrix I10(radial_.radial_integral(1,0)*std::pow(Rhalf_,3));
+        helfem::Matrix I12(radial_.radial_integral(1,2)*std::pow(Rhalf_,3));
+        helfem::Matrix I30(radial_.radial_integral(3,0)*std::pow(Rhalf_,5));
+        helfem::Matrix I32(radial_.radial_integral(3,2)*std::pow(Rhalf_,5));
 
         // Fill elements
         for(size_t iang=0;iang<lval_.size();iang++) {
@@ -1334,7 +1334,7 @@ namespace helfem {
       int TwoDBasis::converged_twoe_order(size_t iel) const {
         // Seed the refinement from the requested --nquad so the common case
         // converges in 1-2 steps; the loop, not the seed, sets the accuracy.
-        int nstart = radial.nquad();
+        int nstart = radial_.nquad();
         if(nstart < 5) nstart = 5;
         if(nstart > twoe_nmax) nstart = twoe_nmax;
 
@@ -1360,7 +1360,7 @@ namespace helfem {
         int nconv = nstart;
         converge_block(
             [&](int n) {
-              const quadrature::TwoElectronElement el(radial.twoe_element(iel, n));
+              const quadrature::TwoElectronElement el(radial_.twoe_element(iel, n));
               quadrature::MLegendreCache leg(std::abs(M), L);
         const helfem::Matrix T00(quadrature::twoe_integral(el, 0, 0, L, M, leg));
               const helfem::Matrix T02(quadrature::twoe_integral(el, 0, 2, L, M, leg));
@@ -1381,7 +1381,7 @@ namespace helfem {
 
       void TwoDBasis::compute_tei(bool exchange) {
         // Number of distinct L values is
-        size_t Nel(radial.Nel());
+        size_t Nel(radial_.Nel());
 
         // Compute disjoint integrals
         disjoint_P0.resize(Nel*lm_map.size());
@@ -1421,10 +1421,10 @@ namespace helfem {
           quadrature::MLegendreCache leg(Mabs, Lhi);
           for(size_t ilm=lo;ilm<hi;ilm++) {
             const int L(lm_map[ilm].first);
-            disjoint_P0[ilm*Nel+iel]=radial.Plm_integral(0,iel,L,Mabs,leg);
-            disjoint_P2[ilm*Nel+iel]=radial.Plm_integral(2,iel,L,Mabs,leg);
-            disjoint_Q0[ilm*Nel+iel]=radial.Qlm_integral(0,iel,L,Mabs,leg);
-            disjoint_Q2[ilm*Nel+iel]=radial.Qlm_integral(2,iel,L,Mabs,leg);
+            disjoint_P0[ilm*Nel+iel]=radial_.Plm_integral(0,iel,L,Mabs,leg);
+            disjoint_P2[ilm*Nel+iel]=radial_.Plm_integral(2,iel,L,Mabs,leg);
+            disjoint_Q0[ilm*Nel+iel]=radial_.Qlm_integral(0,iel,L,Mabs,leg);
+            disjoint_Q2[ilm*Nel+iel]=radial_.Qlm_integral(2,iel,L,Mabs,leg);
           }
         }
 
@@ -1457,7 +1457,7 @@ namespace helfem {
           // reuse it across all (L, |M|). The order is set by double's eps, not
           // by --nquad.
           const int nconv = converged_twoe_order(iel);
-          const quadrature::TwoElectronElement eldata(radial.twoe_element(iel, nconv));
+          const quadrature::TwoElectronElement eldata(radial_.twoe_element(iel, nconv));
 
           // lm_map is |M|-major, so the entries form contiguous runs of one
           // |M|. Re-point the Legendre cache at each run as it starts: every
@@ -1476,9 +1476,9 @@ namespace helfem {
               leg.reset(M, Lhi);
             }
 
-            const helfem::Matrix T00(radial.twoe_integral(0,0,eldata,L,M,leg));
-            const helfem::Matrix T02(radial.twoe_integral(0,2,eldata,L,M,leg));
-            const helfem::Matrix T22(radial.twoe_integral(2,2,eldata,L,M,leg));
+            const helfem::Matrix T00(radial_.twoe_integral(0,0,eldata,L,M,leg));
+            const helfem::Matrix T02(radial_.twoe_integral(0,2,eldata,L,M,leg));
+            const helfem::Matrix T22(radial_.twoe_integral(2,2,eldata,L,M,leg));
 
             const Eigen::Index n = T00.rows();
             helfem::Matrix W(2*n, 2*n);
@@ -1632,9 +1632,9 @@ namespace helfem {
         const helfem::Matrix P(expand_boundaries(P_in));
 
         // Number of radial elements
-        size_t Nel(radial.Nel());
+        size_t Nel(radial_.Nel());
         // Number of radial functions
-        size_t Nrad(radial.Nbf());
+        size_t Nrad(radial_.Nbf());
 
         // Radial helper matrices
         std::vector<helfem::Matrix> Paux0(LM_map.size());
@@ -1697,7 +1697,7 @@ namespace helfem {
           // Loop over input elements
           for(size_t jel=0;jel<Nel;jel++) {
             size_t jfirst, jlast;
-            radial.idx(jel,jfirst,jlast);
+            radial_.idx(jel,jfirst,jlast);
             size_t Nj(jlast-jfirst+1);
 
             // Get density submatrices
@@ -1715,7 +1715,7 @@ namespace helfem {
             double ifac2(-jbig0 + jbig2);
             for(size_t iel=0;iel<jel;iel++) {
               size_t ifirst, ilast;
-              radial.idx(iel,ifirst,ilast);
+              radial_.idx(iel,ifirst,ilast);
               size_t Ni(ilast-ifirst+1);
 
               const helfem::Matrix & iint0=disjoint_P0[ilm*Nel+iel];
@@ -1729,7 +1729,7 @@ namespace helfem {
             ifac2=-jsmall0 + jsmall2;
             for(size_t iel=jel+1;iel<Nel;iel++) {
               size_t ifirst, ilast;
-              radial.idx(iel,ifirst,ilast);
+              radial_.idx(iel,ifirst,ilast);
               size_t Ni(ilast-ifirst+1);
 
               const helfem::Matrix & iint0=disjoint_Q0[ilm*Nel+iel];
@@ -1823,9 +1823,9 @@ namespace helfem {
         const helfem::Matrix P(expand_boundaries(P_in));
 
         // Number of radial elements
-        size_t Nel(radial.Nel());
+        size_t Nel(radial_.Nel());
         // Number of radial basis functions
-        size_t Nrad(radial.Nbf());
+        size_t Nrad(radial_.Nbf());
 
         // Pre-compute the (L, |M|) angular prefactor table once per call so
         // the inner loop reduces to a vector lookup + sign branch.
@@ -1967,12 +1967,12 @@ namespace helfem {
               // Loop over elements: output
               for(size_t iel=0;iel<Nel;iel++) {
                 size_t ifirst, ilast;
-                radial.idx(iel,ifirst,ilast);
+                radial_.idx(iel,ifirst,ilast);
 
                 // Input
                 for(size_t jel=0;jel<Nel;jel++) {
                   size_t jfirst, jlast;
-                  radial.idx(jel,jfirst,jlast);
+                  radial_.idx(jel,jfirst,jlast);
 
                   // Number of functions in the two elements
                   size_t Ni(ilast-ifirst+1);
@@ -2124,7 +2124,7 @@ namespace helfem {
           sph(i)=::spherical_harmonics(lval_(i),mval_(i),cth,phi);
 
         // Evaluate radial functions (single quadrature point, 1 x Nc row)
-        const helfem::Matrix rad(radial.bf(iel).row(irad));
+        const helfem::Matrix rad(radial_.bf(iel).row(irad));
         const Eigen::Index Nc = rad.cols();
 
         // Form supermatrix. sph(i) is complex, rad is real -> cast rad.
@@ -2136,7 +2136,7 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, int m) const {
-        return eval_bf(iel, irad, cth, m, radial.bf(iel));
+        return eval_bf(iel, irad, cth, m, radial_.bf(iel));
       }
 
       helfem::Matrix TwoDBasis::eval_bf(size_t iel, size_t irad, double cth, int m, const helfem::Matrix & rad_all) const {
@@ -2165,7 +2165,7 @@ namespace helfem {
 
       Eigen::VectorXcd TwoDBasis::eval_bf(double mu, double cth, double phi) const {
 	// Find out which element mu belongs to
-	const helfem::Vector bval(radial.bval());
+	const helfem::Vector bval(radial_.bval());
 	Eigen::Index iel;
 	for(iel=0;iel<bval.size()-1;iel++)
 	  if(bval(iel)<=mu && mu<=bval(iel+1))
@@ -2185,17 +2185,17 @@ namespace helfem {
         for(size_t i=0;i<(size_t) lval_.size();i++)
           sph(i)=::spherical_harmonics(lval_(i),mval_(i),cth,phi);
         // Evaluate radial functions (1 x Nc row)
-        const helfem::Matrix rad(radial.bf(iel,x));
+        const helfem::Matrix rad(radial_.bf(iel,x));
 
 	// Get indices of radial functions
 	size_t ifirst, ilast;
-        radial.idx(iel,ifirst,ilast);
+        radial_.idx(iel,ifirst,ilast);
 
         // Form supermatrix. arma used trans() on a real matrix = plain
         // transpose; sph(i) is complex so cast the transposed radial row.
 	Eigen::VectorXcd bf(Eigen::VectorXcd::Zero(Ndummy()));
 	for(size_t i=0;i<(size_t) lval_.size();i++) {
-	  bf.segment(i*radial.Nbf()+ifirst,ilast-ifirst+1)=sph(i)*rad.transpose().cast<std::complex<double>>();
+	  bf.segment(i*radial_.Nbf()+ifirst,ilast-ifirst+1)=sph(i)*rad.transpose().cast<std::complex<double>>();
 	}
 
 	return bf(pure_idx);
@@ -2208,8 +2208,8 @@ namespace helfem {
           sph(i)=::spherical_harmonics(lval_(i),mval_(i),cth,phi);
 
         // Evaluate radial functions (single quadrature point, 1 x Nc rows)
-        const helfem::Matrix frad(radial.bf(iel).row(irad));
-        const helfem::Matrix drad(radial.df(iel).row(irad));
+        const helfem::Matrix frad(radial_.bf(iel).row(irad));
+        const helfem::Matrix drad(radial_.df(iel).row(irad));
         const Eigen::Index Nc = frad.cols();
 
         // Form supermatrices
@@ -2271,8 +2271,8 @@ namespace helfem {
         }
 
         // Radial functions and their derivatives at the single radial point
-        const helfem::Matrix frad(radial.bf(iel).row(irad));
-        const helfem::Matrix drad(radial.df(iel).row(irad));
+        const helfem::Matrix frad(radial_.bf(iel).row(irad));
+        const helfem::Matrix drad(radial_.df(iel).row(irad));
         const Eigen::Index Nc = frad.cols();
 
         dr = helfem::Matrix::Zero(frad.rows(),flist.size()*Nc);
@@ -2292,7 +2292,7 @@ namespace helfem {
             flist.push_back(i);
 
         // Geometry at this (mu, nu) point
-        const double mu(radial.r(iel)(irad));
+        const double mu(radial_.r(iel)(irad));
         const double shmu(std::sinh(mu)), chmu(std::cosh(mu));
         // sin^2(nu), written to avoid cancellation near |cth| = 1
         const double sth2(std::max((1.0-cth)*(1.0+cth), 0.0));
@@ -2304,9 +2304,9 @@ namespace helfem {
         const double m2_sh2((shmu>0.0) ? (m*m)/(shmu*shmu) : 0.0);
 
         // Radial functions and their first two mu derivatives (1 x Nc rows)
-        const helfem::Matrix frad(radial.bf(iel).row(irad));
-        const helfem::Matrix drad(radial.df(iel).row(irad));
-        const helfem::Matrix d2rad(radial.d2f(iel).row(irad));
+        const helfem::Matrix frad(radial_.bf(iel).row(irad));
+        const helfem::Matrix drad(radial_.df(iel).row(irad));
+        const helfem::Matrix d2rad(radial_.d2f(iel).row(irad));
         const Eigen::Index Nc = frad.cols();
 
         // R'' + coth(mu) R' is common to every l in the block
@@ -2356,12 +2356,12 @@ namespace helfem {
       std::vector<Eigen::Index> TwoDBasis::bf_list_dummy(size_t iel) const {
         // Radial functions in element
         size_t ifirst, ilast;
-        radial.idx(iel,ifirst,ilast);
+        radial_.idx(iel,ifirst,ilast);
         // Number of radial functions in element
         size_t Nr(ilast-ifirst+1);
 
         // Total number of radial functions
-        size_t Nrad(radial.Nbf());
+        size_t Nrad(radial_.Nbf());
 
         // List of functions in the element
         std::vector<Eigen::Index> idx(Nr*lval_.size());
@@ -2379,12 +2379,12 @@ namespace helfem {
       std::vector<Eigen::Index> TwoDBasis::bf_list_dummy(size_t iel, int m) const {
         // Radial functions in element
         size_t ifirst, ilast;
-        radial.idx(iel,ifirst,ilast);
+        radial_.idx(iel,ifirst,ilast);
         // Number of radial functions in element
         size_t Nr(ilast-ifirst+1);
 
         // Total number of radial functions
-        size_t Nrad(radial.Nbf());
+        size_t Nrad(radial_.Nbf());
 
         // List of functions in the element
         std::vector<Eigen::Index> idx;
@@ -2397,27 +2397,27 @@ namespace helfem {
       }
 
       size_t TwoDBasis::rad_Nel() const {
-        return radial.Nel();
+        return radial_.Nel();
       }
 
       helfem::Matrix TwoDBasis::rad_bf(size_t iel) const {
-        return radial.bf(iel);
+        return radial_.bf(iel);
       }
 
       helfem::Matrix TwoDBasis::rad_df(size_t iel) const {
-        return radial.df(iel);
+        return radial_.df(iel);
       }
 
       helfem::Matrix TwoDBasis::rad_d2f(size_t iel) const {
-        return radial.d2f(iel);
+        return radial_.d2f(iel);
       }
 
       helfem::Vector TwoDBasis::wrad(size_t iel) const {
-        return radial.wrad(iel);
+        return radial_.wrad(iel);
       }
 
       helfem::Vector TwoDBasis::r(size_t iel) const {
-        return radial.r(iel);
+        return radial_.r(iel);
       }
 
     }
