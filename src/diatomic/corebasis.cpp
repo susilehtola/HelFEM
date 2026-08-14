@@ -96,7 +96,7 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
 
   bool diag=true;
   // Symmetry indices
-  std::vector<std::vector<Eigen::Index>> dsym=basis.get_sym_idx(symm);
+  std::vector<std::vector<Eigen::Index>> dsym=basis.sym_idx(symm);
 
   // Form overlap matrix
   const helfem::Matrix S(basis.overlap());
@@ -124,8 +124,8 @@ void eval(int Z1, int Z2, double Rrms1, double Rrms2, double Rbond, const std::s
       p1 = new modelpotential::TFAtom(Z1);
       p2 = new modelpotential::TFAtom(Z2);
     } else if(imodel < modelpotential::NOSUCH_NUCLEUS+4) {
-      p1 = modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) (imodel-4),Z1,Rrms1);
-      p2 = modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) (imodel-4),Z2,Rrms2);
+      p1 = modelpotential::nuclear_model((modelpotential::nuclear_model_t) (imodel-4),Z1,Rrms1);
+      p2 = modelpotential::nuclear_model((modelpotential::nuclear_model_t) (imodel-4),Z2,Rrms2);
     } else {
       throw std::logic_error("Unsupported guess\n");
     }
@@ -218,8 +218,8 @@ int main(int argc, char **argv) {
     printf("WARNING - Adding an odd number of functions at a time does not give a balanced description of gerade/ungerade orbitals and may give wrong results.\n");
 
   // Nuclear charge
-  int Z1(get_Z(parser.get<std::string>("Z1")));
-  int Z2(get_Z(parser.get<std::string>("Z2")));
+  int Z1(element_Z(parser.get<std::string>("Z1")));
+  int Z2(element_Z(parser.get<std::string>("Z2")));
   double Rrms1(parser.get<double>("Rrms1"));
   double Rrms2(parser.get<double>("Rrms2"));
   double Rbond(parser.get<double>("Rbond"));

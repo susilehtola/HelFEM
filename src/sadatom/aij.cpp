@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
   int Nelem(parser.get<int>("nelem"));
   double Nufreq(parser.get<double>("nufreq"));
 
-  int Z(get_Z(parser.get<std::string>("Z")));
+  int Z(element_Z(parser.get<std::string>("Z")));
   int Q(parser.get<int>("Q"));
   int M(parser.get<int>("M"));
 

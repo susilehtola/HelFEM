@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
     if (eta < -1.0) eta = -1.0;
     if (eta >  1.0) eta =  1.0;
     const double mu = utils::arcosh(xi);
-    if (mu > basis.get_mumax()) {
+    if (mu > basis.mumax()) {
       den(iz, 0) = zi;
       continue;
     }

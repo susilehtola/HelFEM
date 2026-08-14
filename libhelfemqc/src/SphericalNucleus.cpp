@@ -20,7 +20,7 @@ namespace helfem {
     template <typename T>
     SphericalNucleusT<T>::SphericalNucleusT(int Z_, T Rrms) : Z(Z_) {
       // Eqn (4) in Visscher-Dyall 1997
-      R0 = std::sqrt(T(5)/T(3))*Rrms;
+      R0_ = std::sqrt(T(5)/T(3))*Rrms;
     }
 
     template <typename T>
@@ -29,23 +29,23 @@ namespace helfem {
 
     template <typename T>
     T SphericalNucleusT<T>::V(T r) const {
-      if(r>=R0) {
+      if(r>=R0_) {
         // See full charge, eqn (7a) in Visscher-Dyall 1997
         return -Z/r;
       } else {
         // See only charge inside, eqn (7b) in Visscher-Dyall 1997
-        return -Z/(T(2)*R0)*(T(3)-std::pow(r/R0,2));
+        return -Z/(T(2)*R0_)*(T(3)-std::pow(r/R0_,2));
       }
     }
 
     template <typename T>
-    T SphericalNucleusT<T>::get_R0() const {
-      return R0;
+    T SphericalNucleusT<T>::R0() const {
+      return R0_;
     }
 
     template <typename T>
-    void SphericalNucleusT<T>::set_R0(T R0_) {
-      R0=R0_;
+    void SphericalNucleusT<T>::set_R0(T R0) {
+      R0_=R0;
     }
 
     template class SphericalNucleusT<double>;

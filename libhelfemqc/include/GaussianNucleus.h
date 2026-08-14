@@ -25,7 +25,7 @@ namespace helfem {
       /// Charge
       int Z;
       /// Size
-      T mu;
+      T mu_;
 
       /// Cutoff for Taylor series
       T Rcut;
@@ -36,10 +36,10 @@ namespace helfem {
       ~GaussianNucleusT();
       /// Potential
       T V(T r) const override;
-      /// Get mu
-      T get_mu() const;
-      /// Set mu
-      void set_mu(T mu);
+      /// Get mu_
+      T mu() const;
+      /// Set mu_
+      void set_mu(T mu_);
     };
 
     /// The double instantiation, which every existing caller uses.

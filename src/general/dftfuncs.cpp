@@ -34,7 +34,7 @@ extern "C" {
 #define KW_HF "hyb_x_hf"
 
 // Print keyword corresponding to functional.
-std::string get_keyword(int func_id) {
+std::string func_keyword(int func_id) {
   // Check if none was specified. This is internal to ERKALE.
   if(func_id==ID_NONE)
     return KW_NONE;
@@ -131,12 +131,12 @@ void parse_xc_func(int & x_func, int & c_func, const std::string & xc) {
   // Sanity check: don't try to use kinetic energy functionals.
   if(is_kinetic(x_func)) {
     std::ostringstream oss;
-    oss << "The wanted functional "<< get_keyword(x_func) << " is a kinetic energy functional.\n";
+    oss << "The wanted functional "<< func_keyword(x_func) << " is a kinetic energy functional.\n";
     throw std::runtime_error(oss.str());
   }
   if(is_kinetic(c_func)) {
     std::ostringstream oss;
-    oss << "The wanted functional "<< get_keyword(c_func) << " is a kinetic energy functional.\n";
+    oss << "The wanted functional "<< func_keyword(c_func) << " is a kinetic energy functional.\n";
     throw std::runtime_error(oss.str());
   }
 
@@ -153,17 +153,17 @@ void print_info(int x_func, int c_func) {
   if(!helfem::verbose)
     return;
   if(is_exchange_correlation(x_func)) {
-    printf("Used exchange-correlation functional is %s, ",get_keyword(x_func).c_str());
+    printf("Used exchange-correlation functional is %s, ",func_keyword(x_func).c_str());
     print_info(x_func);
   } else {
     if(is_exchange(x_func)) {
-      printf("Used exchange functional is %s, ",get_keyword(x_func).c_str());
+      printf("Used exchange functional is %s, ",func_keyword(x_func).c_str());
       print_info(x_func);
     } else
       printf("No exchange functional.\n");
 
     if(is_correlation(c_func)) {
-      printf("\nUsed correlation functional is %s, ",get_keyword(c_func).c_str());
+      printf("\nUsed correlation functional is %s, ",func_keyword(c_func).c_str());
       print_info(c_func);
       printf("\n");
     } else

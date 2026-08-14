@@ -27,7 +27,7 @@ typedef struct {
 } func_t;
 
 /// Print keyword corresponding to functional.
-std::string get_keyword(int func_id);
+std::string func_keyword(int func_id);
 
 /// Find out ID of functional
 int find_func(std::string name);

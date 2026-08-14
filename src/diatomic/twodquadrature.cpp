@@ -172,7 +172,7 @@ namespace helfem {
         wrad=helfem::Vector::Zero(1);
         wrad(0)=basp->wrad(iel)(irad);
 
-        double Rhalf(basp->get_Rhalf());
+        double Rhalf(basp->Rhalf());
 
         // Calculate helpers
         helfem::Vector shmu(r.array().sinh());
@@ -199,7 +199,7 @@ namespace helfem {
         // quadrature point and then keeps a single row, so calling it inside
         // the angular loop redid that work cth.size() times over. Hoisted
         // above the parallel region, which also keeps it read-only shared.
-        const helfem::Matrix rad_all(basp->get_rad_bf(iel));
+        const helfem::Matrix rad_all(basp->rad_bf(iel));
 
         // Loop over angular grid
 #ifdef _OPENMP
@@ -219,7 +219,7 @@ namespace helfem {
       }
 
       void TwoDGridWorker::model_potential(const modelpotential::ModelPotential * p1, const modelpotential::ModelPotential * p2) {
-        double Rhalf(basp->get_Rhalf());
+        double Rhalf(basp->Rhalf());
         helfem::Vector chmu(r.array().cosh());
 
         itg=helfem::Matrix::Zero(1,wtot.size());
@@ -285,7 +285,7 @@ namespace helfem {
       }
 
       void TwoDGridWorker::ao_projection(const std::function<helfem::Vector(double r)> & compute_ao, probe_t p) {
-        double Rhalf(basp->get_Rhalf());
+        double Rhalf(basp->Rhalf());
         helfem::Vector chmu(r.array().cosh());
 
         itg=helfem::Matrix::Zero(compute_ao(0.0).size(),wtot.size());
@@ -372,7 +372,7 @@ namespace helfem {
 
         // Get unique m values in basis set. eval_pot accumulates into H
         // additively per m, so the iteration order does not affect the result.
-        const Eigen::VectorXi mvals(basp->get_mval());
+        const Eigen::VectorXi mvals(basp->mval());
         std::vector<int> muni;
         for(Eigen::Index i=0;i<mvals.size();i++)
           if(std::find(muni.begin(),muni.end(),mvals(i))==muni.end())
@@ -382,7 +382,7 @@ namespace helfem {
           TwoDGridWorker grid(basp,lang);
 
           for(size_t im=0;im<muni.size();im++) {
-            for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+            for(size_t iel=0;iel<basp->rad_Nel();iel++) {
               for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
                 grid.compute_bf(iel,irad,muni[im]);
                 grid.model_potential(p1, p2);
@@ -409,7 +409,7 @@ namespace helfem {
           return S(Eigen::all, basp->pure_indices());
 
         TwoDGridWorker grid(basp, lang);
-        for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+        for(size_t iel=0;iel<basp->rad_Nel();iel++) {
           for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.ao_projection(compute_ao, p);
@@ -430,7 +430,7 @@ namespace helfem {
           return S;
 
         TwoDGridWorker grid(basp, lang);
-        for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+        for(size_t iel=0;iel<basp->rad_Nel();iel++) {
           for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.ao_projection(compute_ao, p);
@@ -445,7 +445,7 @@ namespace helfem {
         helfem::Matrix S = helfem::Matrix::Zero(expn.size(),basp->Ndummy());
         TwoDGridWorker grid(basp,lang);
 
-        for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+        for(size_t iel=0;iel<basp->rad_Nel();iel++) {
           for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.gto(l, expn, p);
@@ -461,7 +461,7 @@ namespace helfem {
         helfem::Matrix S = helfem::Matrix::Zero(expn.size(),expn.size());
         TwoDGridWorker grid(basp,lang);
 
-        for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+        for(size_t iel=0;iel<basp->rad_Nel();iel++) {
           for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.gto(l, expn, p);
@@ -477,7 +477,7 @@ namespace helfem {
         helfem::Matrix S = helfem::Matrix::Zero(expn.size(),basp->Ndummy());
         TwoDGridWorker grid(basp,lang);
 
-        for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+        for(size_t iel=0;iel<basp->rad_Nel();iel++) {
           for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.sto(l, expn, p);
@@ -493,7 +493,7 @@ namespace helfem {
         helfem::Matrix S = helfem::Matrix::Zero(expn.size(),expn.size());
         TwoDGridWorker grid(basp,lang);
 
-        for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+        for(size_t iel=0;iel<basp->rad_Nel();iel++) {
           for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.sto(l, expn, p);
@@ -537,7 +537,7 @@ namespace helfem {
         helfem::Matrix S = helfem::Matrix::Zero(C.cols(),basp->Ndummy());
         TwoDGridWorker grid(basp,lang);
 
-        for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+        for(size_t iel=0;iel<basp->rad_Nel();iel++) {
           for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
             grid.compute_bf(iel,irad,m);
             grid.ao_projection(eval_ao, p);

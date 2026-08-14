@@ -25,7 +25,7 @@ namespace helfem {
       /// Charge
       int Z;
       /// Size
-      T R0;
+      T R0_;
     public:
       /// Constructor
       SphericalNucleusT(int Z, T Rrms);
@@ -34,16 +34,16 @@ namespace helfem {
       /// Potential
       T V(T r) const override;
       /// The potential is piecewise: the interior of the uniformly
-      /// charged ball joins the exterior -Z/r at R0 with a discontinuous
+      /// charged ball joins the exterior -Z/r at R0_ with a discontinuous
       /// second derivative, so the quadrature must split there.
       std::vector<T> breakpoints(T a, T b) const override {
-        if (R0 > a && R0 < b) return std::vector<T>{R0};
+        if (R0_ > a && R0_ < b) return std::vector<T>{R0_};
         return std::vector<T>();
       }
-      /// Get R0
-      T get_R0() const;
-      /// Set R0
-      void set_R0(T R0);
+      /// Get R0_
+      T R0() const;
+      /// Set R0_
+      void set_R0(T R0_);
     };
 
     /// The double instantiation, which every existing caller uses.

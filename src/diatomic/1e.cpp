@@ -71,8 +71,8 @@ int main(int argc, char **argv) {
   int mmax(parser.get<int>("mmax"));
 
   // Nuclear charge
-  int Z1(get_Z(parser.get<std::string>("Z1")));
-  int Z2(get_Z(parser.get<std::string>("Z2")));
+  int Z1(element_Z(parser.get<std::string>("Z1")));
+  int Z2(element_Z(parser.get<std::string>("Z2")));
   double Rbond(parser.get<double>("Rbond"));
 
   std::string save(parser.get<std::string>("save"));

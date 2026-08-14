@@ -32,7 +32,7 @@ namespace helfem {
     /// Instantiated for double, long double and (under
     /// HELFEM_HAVE_FLOAT128) _Float128.
     template <typename T>
-    ModelPotentialT<T> * get_nuclear_model(nuclear_model_t model, int Z, T Rrms);
+    ModelPotentialT<T> * nuclear_model(nuclear_model_t model, int Z, T Rrms);
 
     /// Thomas-Fermi atom
     class TFAtom : public ModelPotential {

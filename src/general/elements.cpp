@@ -22,7 +22,7 @@
 #include <sstream>
 #include <stdexcept>
 
-int get_Z(std::string el) {
+int element_Z(std::string el) {
   if(!el.size())
     // Assume no nucleus
     return 0;

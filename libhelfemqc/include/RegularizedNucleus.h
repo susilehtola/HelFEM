@@ -27,20 +27,20 @@ namespace helfem {
       /// Charge
       int Z;
       /// Size parameters
-      T a, b;
+      T a_, b_;
     public:
       /// Constructor
-      RegularizedNucleusT(int Z, T a);
+      RegularizedNucleusT(int Z, T a_);
       /// Destructor
       ~RegularizedNucleusT();
       /// Potential
       T V(T r) const override;
-      /// Get a
-      T get_a() const;
-      /// Get b
-      T get_b() const;
+      /// Get a_
+      T a() const;
+      /// Get b_
+      T b() const;
       /// Set mu
-      void set_a(T a);
+      void set_a(T a_);
     };
 
     /// The double instantiation, which every existing caller uses.

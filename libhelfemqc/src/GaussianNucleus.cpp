@@ -31,26 +31,26 @@ namespace helfem {
 
     template <typename T>
     T GaussianNucleusT<T>::V(T R) const {
-      // Taylor series for erf(mu*r)/r from Maple
+      // Taylor series for erf(mu_*r)/r from Maple
       if(R <= Rcut) {
-        T mur2 = std::pow(mu*R,2);
-        return -Z*utils::two_over_sqrtpi<T>()*mu*( T(1) + (T(-1)/T(3) + (T(1)/T(10) - T(1)/T(42)*mur2)*mur2)*mur2);
+        T mur2 = std::pow(mu_*R,2);
+        return -Z*utils::two_over_sqrtpi<T>()*mu_*( T(1) + (T(-1)/T(3) + (T(1)/T(10) - T(1)/T(42)*mur2)*mur2)*mur2);
       } else {
-        return -Z*std::erf(mu*R)/R;
+        return -Z*std::erf(mu_*R)/R;
       }
     }
 
     template <typename T>
-    T GaussianNucleusT<T>::get_mu() const {
-      return mu;
+    T GaussianNucleusT<T>::mu() const {
+      return mu_;
     }
 
     template <typename T>
-    void GaussianNucleusT<T>::set_mu(T mu_) {
+    void GaussianNucleusT<T>::set_mu(T mu) {
       // Set value
-      mu=mu_;
+      mu_=mu;
       // Update Taylor series cutoff: sixth-order term is epsilon
-      Rcut = std::pow(T(42)*std::numeric_limits<T>::epsilon(), T(1)/T(6))/mu;
+      Rcut = std::pow(T(42)*std::numeric_limits<T>::epsilon(), T(1)/T(6))/mu_;
     }
 
     template class GaussianNucleusT<double>;

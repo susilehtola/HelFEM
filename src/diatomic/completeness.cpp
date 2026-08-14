@@ -77,13 +77,13 @@ int main(int argc, char **argv) {
   loadchk.read("Z2",Z2);
 
   // Completeness probe
-  int lquad = (ldft>0) ? ldft : 4*basis.get_lval().maxCoeff()+12;
+  int lquad = (ldft>0) ? ldft : 4*basis.lval().maxCoeff()+12;
   helfem::diatomic::twodquad::TwoDGrid qgrid;
   qgrid=helfem::diatomic::twodquad::TwoDGrid(&basis,lquad);
   qgrid.compute_atoms(Z1,Z2);
 
   // Unique m values, sorted ascending
-  Eigen::VectorXi mval_all(basis.get_mval());
+  Eigen::VectorXi mval_all(basis.mval());
   std::vector<int> mtmp(mval_all.data(), mval_all.data()+mval_all.size());
   std::sort(mtmp.begin(), mtmp.end());
   mtmp.erase(std::unique(mtmp.begin(), mtmp.end()), mtmp.end());

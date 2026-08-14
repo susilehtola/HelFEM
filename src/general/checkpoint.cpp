@@ -546,23 +546,23 @@ void Checkpoint::write(const helfem::atomic::basis::TwoDBasis & basis) {
   write("HelFEM_ID",1);
 
   // Write nuclear charges
-  write("Z",basis.get_Z());
-  write("Zl",basis.get_Zl());
-  write("Zr",basis.get_Zr());
-  write("Rhalf",basis.get_Rhalf());
+  write("Z",basis.Z());
+  write("Zl",basis.Zl());
+  write("Zr",basis.Zr());
+  write("Rhalf",basis.Rhalf());
   write("bval",basis.bval());
 
-  write("finitenuc",basis.get_nuclear_model());
-  write("Rrms",basis.get_nuclear_size());
+  write("finitenuc",basis.nuclear_model());
+  write("Rrms",basis.nuclear_size());
 
   write("n_quad",basis.nquad());
   write("poly_id",basis.poly_id());
   write("poly_nnodes",basis.poly_nnodes());
-  write("zeroder",basis.get_zeroder());
+  write("zeroder",basis.zeroder());
 
-  // get_lval/get_mval are Eigen::VectorXi; stored as N x 1 int matrices.
-  write("lval",Eigen::MatrixXi(basis.get_lval()));
-  write("mval",Eigen::MatrixXi(basis.get_mval()));
+  // lval/mval are Eigen::VectorXi; stored as N x 1 int matrices.
+  write("lval",Eigen::MatrixXi(basis.lval()));
+  write("mval",Eigen::MatrixXi(basis.mval()));
 
   if(cl) close();
 }
@@ -628,18 +628,18 @@ void Checkpoint::write(const helfem::diatomic::basis::TwoDBasis & basis) {
   write("HelFEM_ID",2);
 
   // Write nuclear charges
-  write("Z1",basis.get_Z1());
-  write("Z2",basis.get_Z2());
-  write("Rhalf",basis.get_Rhalf());
+  write("Z1",basis.Z1());
+  write("Z2",basis.Z2());
+  write("Rhalf",basis.Rhalf());
   write("bval",basis.bval());
 
   write("n_quad",basis.nquad());
   write("poly_id",basis.poly_id());
   write("poly_nnodes",basis.poly_nnodes());
 
-  // get_lval/get_mval are Eigen::VectorXi; stored as N x 1 int matrices.
-  write("lval",Eigen::MatrixXi(basis.get_lval()));
-  write("mval",Eigen::MatrixXi(basis.get_mval()));
+  // lval/mval are Eigen::VectorXi; stored as N x 1 int matrices.
+  write("lval",Eigen::MatrixXi(basis.lval()));
+  write("mval",Eigen::MatrixXi(basis.mval()));
 
   if(cl) close();
 }

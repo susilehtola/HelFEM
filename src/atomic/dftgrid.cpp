@@ -464,7 +464,7 @@ namespace helfem {
               Hbo(bf_ind[i],bf_ind[j])+=Hb(i,j);
       }
 
-      // check_grad_tau_lapl, get_grad_tau_lapl, set_grad_tau_lapl:
+      // check_grad_tau_lapl, grad_tau_lapl, set_grad_tau_lapl:
       // inherited from helfem::dftgrid_common::DFTGridWorkerBase.
 
       void DFTGridWorker::compute_bf(size_t iel) {
@@ -606,7 +606,7 @@ namespace helfem {
 #ifdef _OPENMP
 #pragma omp for
 #endif
-          for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
+          for(size_t iel=0;iel<basp->rad_Nel();iel+=2) {
             grid.compute_bf(iel);
             grid.update_density(P);
             nel+=grid.compute_Nel();
@@ -625,7 +625,7 @@ namespace helfem {
 #ifdef _OPENMP
 #pragma omp for
 #endif
-          for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
+          for(size_t iel=1;iel<basp->rad_Nel();iel+=2) {
             grid.compute_bf(iel);
             grid.update_density(P);
             nel+=grid.compute_Nel();
@@ -670,7 +670,7 @@ namespace helfem {
 #ifdef _OPENMP
 #pragma omp for
 #endif
-          for(size_t iel=0;iel<basp->get_rad_Nel();iel+=2) {
+          for(size_t iel=0;iel<basp->rad_Nel();iel+=2) {
             grid.compute_bf(iel);
             grid.update_density(Pa,Pb);
             nel+=grid.compute_Nel();
@@ -688,7 +688,7 @@ namespace helfem {
 #ifdef _OPENMP
 #pragma omp for
 #endif
-          for(size_t iel=1;iel<basp->get_rad_Nel();iel+=2) {
+          for(size_t iel=1;iel<basp->rad_Nel();iel+=2) {
             grid.compute_bf(iel);
             grid.update_density(Pa,Pb);
             nel+=grid.compute_Nel();

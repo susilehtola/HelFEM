@@ -25,7 +25,7 @@ namespace helfem {
       /// Two-dimensional basis set
       class TwoDBasis {
         /// Nuclear charge
-        int Z;
+        int Z_;
         /// Nuclear model
         modelpotential::nuclear_model_t model;
         /// Rms radius
@@ -37,9 +37,9 @@ namespace helfem {
         double lambda;
 
         /// Radial basis set
-        atomic::basis::FEMRadialBasis radial;
+        atomic::basis::FEMRadialBasis radial_;
         /// Angular basis set: function l values
-        Eigen::VectorXi lval;
+        Eigen::VectorXi lval_;
 
         // Phase 2c: per-element 2e caches migrated to Eigen.
         /// Auxiliary integrals
@@ -64,7 +64,7 @@ namespace helfem {
       public:
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int n_quad, const helfem::Vector & bval, int lmax, bool zeroright=true);
+        TwoDBasis(int Z_, modelpotential::nuclear_model_t model, double Rrms, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, bool zeroder, int n_quad, const helfem::Vector & bval, int lmax, bool zeroright=true);
         /// Destructor
         ~TwoDBasis();
 
@@ -78,13 +78,13 @@ namespace helfem {
         /// Number of basis functions
         size_t Nbf() const;
         /// Get charge
-        int charge() const;
+        int Z() const;
 
         /// Form half-inverse overlap matrix
         helfem::Matrix Sinvh() const;
         /// Cross-basis overlap S12 = <this | rh>. Sadatom is spherically
-        /// symmetric so the cross-basis overlap is a plain radial overlap
-        /// between two FE radial bases; the same matrix applies to every
+        /// symmetric so the cross-basis overlap is a plain radial_ overlap
+        /// between two FE radial_ bases; the same matrix applies to every
         /// l-block downstream. Used by the SCF driver's --load path.
         helfem::Matrix overlap(const TwoDBasis & rh) const;
         // Phase 3: SCF surface migrated to Eigen.
@@ -98,7 +98,7 @@ namespace helfem {
         helfem::Matrix nuclear() const;
 	/// Form confinement potential matrix
 	helfem::Matrix confinement(int N, double r_0, int iconf, double V, double shift_pot) const;
-        /// Matrix elements of an arbitrary radial potential. Optional
+        /// Matrix elements of an arbitrary radial_ potential. Optional
         /// breakpoints mark radii where the potential is non-smooth
         /// (e.g. the jellium sphere edges), so the auto-converging
         /// quadrature can split the integration there.
@@ -131,9 +131,9 @@ namespace helfem {
         /// Evaluate orbitals
         helfem::Vector eval_orbs(const helfem::Matrix & C, double r) const;
 
-        /// Get number of radial elements
-        size_t get_rad_Nel() const;
-        /// Get radial quadrature weights
+        /// Get number of radial_ elements
+        size_t rad_Nel() const;
+        /// Get radial_ quadrature weights
         helfem::Vector wrad(size_t iel) const;
         /// Get r values
         helfem::Vector r(size_t iel) const;
@@ -150,18 +150,18 @@ namespace helfem {
 
         /// Radii
         helfem::Vector radii() const;
-        /// Compute the radial Slater-Condon integral F^k for an orbital
+        /// Compute the radial_ Slater-Condon integral F^k for an orbital
         /// specified by its coefficient vector c (length Nrad) in the
         /// u = r * R basis.
         double slater_F(int k, const helfem::Vector & c) const;
         /// Matrices of r^n, n = -2..3 (skipping 0), for computing <r^n>
         /// expectation values of orbitals
         std::vector< std::pair<int, helfem::Matrix> > Rmatrices() const;
-        /// Compute radial orbitals
+        /// Compute radial_ orbitals
         helfem::Matrix orbitals(const helfem::Matrix & C) const;
-        /// Compute radial orbitals' first derivative
+        /// Compute radial_ orbitals' first derivative
         helfem::Matrix orbitals_derivative(const helfem::Matrix & C) const;
-        /// Compute radial orbitals' second derivative
+        /// Compute radial_ orbitals' second derivative
         helfem::Matrix orbitals_second_derivative(const helfem::Matrix & C) const;
 
         /// Compute the electron density in given element at wanted points
@@ -189,10 +189,10 @@ namespace helfem {
         /// Compute the exchange-correlation screening
         helfem::Matrix xc_screening(const helfem::Matrix & Parad, const helfem::Matrix & Pbrad, int x_func, int c_func) const;
 
-        /// Read-only access to the underlying radial basis. Useful for
+        /// Read-only access to the underlying radial_ basis. Useful for
         /// callers that want to build an NAORadialBasis on top of a
         /// converged sadatom SCF (see extract_naos_per_l below).
-        const atomic::basis::FEMRadialBasis & get_radial() const { return radial; }
+        const atomic::basis::FEMRadialBasis & radial() const { return radial_; }
 
 
       };

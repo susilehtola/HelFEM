@@ -35,7 +35,7 @@ namespace grid {
 /// Endpoints are snapped to exactly 0 and rmax to avoid floating-point
 /// roundoff. Templated on the scalar type T.
 template <typename T>
-Vec<T> get_grid(T rmax, int num_el, int igrid, T zexp,
+Vec<T> make_grid(T rmax, int num_el, int igrid, T zexp,
                 bool verbose = false) {
   Vec<T> bval;
 
