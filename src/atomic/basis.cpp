@@ -51,20 +51,20 @@ namespace helfem {
       }
 
       helfem::Vector normal_grid(int num_el, double rmax, int igrid, double zexp) {
-        return utils::get_grid(rmax,num_el,igrid,zexp);
+        return utils::make_grid(rmax,num_el,igrid,zexp);
       }
 
       helfem::Vector finite_nuclear_grid(int num_el, double rmax, int igrid, double zexp, int num_el_nuc, double rnuc, int igrid_nuc, double zexp_nuc) {
         if(num_el_nuc) {
           // Grid for the finite nucleus
-          helfem::Vector bnuc(utils::get_grid(rnuc,num_el_nuc,igrid_nuc,zexp_nuc));
+          helfem::Vector bnuc(utils::make_grid(rnuc,num_el_nuc,igrid_nuc,zexp_nuc));
           // and the one for the electrons
-          helfem::Vector belec(utils::get_grid(rmax-rnuc,num_el,igrid,zexp));
+          helfem::Vector belec(utils::make_grid(rmax-rnuc,num_el,igrid,zexp));
 
           helfem::Vector bnucel(concatenate_grid(bnuc,bnuc));
           return concatenate_grid(bnucel,belec);
         } else {
-          return utils::get_grid(rmax,num_el,igrid,zexp);
+          return utils::make_grid(rmax,num_el,igrid,zexp);
         }
       }
 
@@ -86,20 +86,20 @@ namespace helfem {
         helfem::Vector bval0, bval1;
         if(b0used) {
           // 0 to b0
-          bval0=utils::get_grid(b0,num_el0,igrid,zexp);
+          bval0=utils::make_grid(b0,num_el0,igrid,zexp);
         }
         if(b1used) {
           // b0 to b1
 
           // Reverse grid to get tighter spacing around nucleus
-          helfem::Vector b1grid(utils::get_grid(b1-b0,num_el0,igrid,zexp));
+          helfem::Vector b1grid(utils::make_grid(b1-b0,num_el0,igrid,zexp));
           bval1=-b1grid.reverse();
           bval1.array()+=(b1-b0);
           // Assert numerical exactness
           bval1(0)=0.0;
           bval1(bval1.size()-1)=b1-b0;
         }
-        helfem::Vector bval2=utils::get_grid(b2-b1,num_el,igrid,zexp);
+        helfem::Vector bval2=utils::make_grid(b2-b1,num_el,igrid,zexp);
 
         helfem::Vector bval;
         if(b0used && b1used) {

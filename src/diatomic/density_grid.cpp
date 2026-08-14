@@ -66,9 +66,9 @@ int main(int argc, char **argv) {
   if(nquad<=0)
     nquad=5*basis.poly_nnodes();
   if(lang<=0)
-    lang=4*basis.get_lval().maxCoeff()+12;
+    lang=4*basis.lval().maxCoeff()+12;
   if(mang<=0)
-    mang=4*basis.get_mval().cwiseAbs().maxCoeff()+5;
+    mang=4*basis.mval().cwiseAbs().maxCoeff()+5;
 
   helfem::Vector cth, phi, wang;
   helfem::angular::angular_chebyshev(lang,mang,cth,phi,wang);
@@ -88,7 +88,7 @@ int main(int argc, char **argv) {
   helfem::Matrix Sinv(Sinvh*Sinvh.transpose());
 
   // mu array
-  std::vector<helfem::Vector> mu(basis.get_rad_Nel()), wmu(basis.get_rad_Nel());
+  std::vector<helfem::Vector> mu(basis.rad_Nel()), wmu(basis.rad_Nel());
   for(size_t iel=0;iel<mu.size();iel++) {
     mu[iel]=basis.r(iel);
     wmu[iel]=basis.wrad(iel);
@@ -101,17 +101,17 @@ int main(int argc, char **argv) {
   size_t Ngrid = Nradpts*wang.size();
 
   // Pretabulate basis function data
-  Eigen::VectorXi lval(basis.get_lval());
-  Eigen::VectorXi mval(basis.get_mval());
+  Eigen::VectorXi lval(basis.lval());
+  Eigen::VectorXi mval(basis.mval());
   Eigen::MatrixXcd sph(wang.size(),lval.size());
   for(Eigen::Index il=0;il<lval.size();il++)
     for(Eigen::Index iang=0;iang<wang.size();iang++)
       sph(iang,il)=::spherical_harmonics(lval(il),mval(il),cth(iang),phi(iang));
 
   // Evaluate radial functions
-  std::vector<helfem::Matrix> radbf(basis.get_rad_Nel());
+  std::vector<helfem::Matrix> radbf(basis.rad_Nel());
   for(size_t iel=0;iel<mu.size();iel++) {
-    radbf[iel] = basis.get_rad_bf(iel);
+    radbf[iel] = basis.rad_bf(iel);
   }
 
   // Density arrays
@@ -210,7 +210,7 @@ int main(int argc, char **argv) {
         double shmu(sinh(r(irad)));
         double chmu(cosh(r(irad)));
         wquad(igrid)=wr(irad)*wang(iang);
-        dV(igrid)=std::pow(basis.get_Rhalf(),3)*shmu*(chmu*chmu - cth(iang)*cth(iang))*wr(irad)*wang(iang);
+        dV(igrid)=std::pow(basis.Rhalf(),3)*shmu*(chmu*chmu - cth(iang)*cth(iang))*wr(irad)*wang(iang);
 
         // Orbital values
         orbagrid.row(igrid) = orbaval;
@@ -264,10 +264,10 @@ int main(int argc, char **argv) {
     savechk.write("Torbb.re",helfem::Matrix(Torbbgrid.real()));
     savechk.write("Torbb.im",helfem::Matrix(Torbbgrid.imag()));
   }
-  savechk.write("Rh",basis.get_Rhalf());
-  savechk.write("Z1",basis.get_Z1());
-  savechk.write("Z2",basis.get_Z2());
-  int mmax = basis.get_mval().maxCoeff();
+  savechk.write("Rh",basis.Rhalf());
+  savechk.write("Z1",basis.Z1());
+  savechk.write("Z2",basis.Z2());
+  int mmax = basis.mval().maxCoeff();
   savechk.write("mmax",mmax);
 
   printf("Saved density to file %s\n",output.c_str());

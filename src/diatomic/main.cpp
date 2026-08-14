@@ -19,7 +19,7 @@
 //   - Unrestricted DFT: two particle types (alpha, beta) each split into the
 //     same symmetry blocks; max_occupation = 1 per orbital.
 //
-// Symmetry decomposition uses basis.get_sym_idx(--symmetry) with 0/1/2 for
+// Symmetry decomposition uses basis.sym_idx(--symmetry) with 0/1/2 for
 // none / per-m / per-(m, parity). Per-block Sinvh_k is the symmetric
 // orthonormalization of S restricted to that block. Fock builder assembles
 // the AO Fock matrix once, then extracts and orthonormalizes per block.
@@ -125,8 +125,8 @@ int main(int argc, char **argv) {
   // The shared basis/grid/functional code reports through this flag.
   helfem::set_verbosity(verbosity >= 1);
 
-  const int Z1        = get_Z(parser.get<std::string>("Z1"));
-  const int Z2        = get_Z(parser.get<std::string>("Z2"));
+  const int Z1        = element_Z(parser.get<std::string>("Z1"));
+  const int Z2        = element_Z(parser.get<std::string>("Z2"));
         double Rbond  = parser.get<double>("Rbond");
   if (parser.get<bool>("angstrom")) {
     if (verbosity >= 1)
@@ -218,7 +218,7 @@ int main(int argc, char **argv) {
   const helfem::Vector bval = atomic::basis::normal_grid(Nelem, mumax, igrid, zexp);
 
   // Homonuclear g/u symmetry is not a valid decomposition for a
-  // heteronuclear molecule -- get_sym_idx(2) still splits by (m, l%2)
+  // heteronuclear molecule -- sym_idx(2) still splits by (m, l%2)
   // but the SCF then sees an artificially restricted trial space and
   // converges to a WRONG energy (silent in the bespoke driver too
   // until relaxation to symm=1). Match the bespoke driver's warn +
@@ -262,9 +262,9 @@ int main(int argc, char **argv) {
     Vnuc = basis.nuclear();
   } else {
     modelpotential::ModelPotential *pot1 =
-        modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) finitenuc, Z1, Rrms1);
+        modelpotential::nuclear_model((modelpotential::nuclear_model_t) finitenuc, Z1, Rrms1);
     modelpotential::ModelPotential *pot2 =
-        modelpotential::get_nuclear_model((modelpotential::nuclear_model_t) finitenuc, Z2, Rrms2);
+        modelpotential::nuclear_model((modelpotential::nuclear_model_t) finitenuc, Z2, Rrms2);
     const int lquad = 4 * lmmax.maxCoeff() + 12;
     helfem::diatomic::twodquad::TwoDGrid qgrid(&basis, lquad);
     Vnuc = qgrid.model_potential(pot1, pot2);
@@ -299,13 +299,13 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < Nbf; ++i) all[i] = static_cast<Eigen::Index>(i);
     dsym.push_back(all);
   } else {
-    dsym = basis.get_sym_idx(symm);
+    dsym = basis.sym_idx(symm);
   }
   const size_t nsym = dsym.size();
   // Under --symmetry=3 each |m|>0 block also carries its -|m| partner:
   // same radial problem, so it is mirrored rather than solved twice.
   const std::vector<std::vector<Eigen::Index>> dmirror =
-      basis.get_sym_mirror_idx(symm);
+      basis.sym_mirror_idx(symm);
   std::vector<int> block_degeneracy(nsym, 1);
   for (size_t k = 0; k < nsym; ++k)
     if (!dmirror[k].empty()) block_degeneracy[k] = 2;
@@ -344,7 +344,7 @@ int main(int argc, char **argv) {
   std::vector<std::string> block_descriptions;
   helfem::scf_driver::build_ooo_block_metadata<OOO_Real>(
       nsym, nparttype, restricted, Ntot, nela, nelb,
-      basis.get_sym_labels(symm), block_degeneracy,
+      basis.sym_labels(symm), block_degeneracy,
       number_of_blocks_per_particle_type, maximum_occupation,
       number_of_particles, block_descriptions);
 
@@ -502,7 +502,7 @@ int main(int argc, char **argv) {
     // Whole-basis orthonormalization: the guess density is assembled in
     // the AO basis and only afterwards split into symmetry blocks.
     const helfem::Matrix Sinvh_full = basis.Sinvh(false, 0);
-    const Eigen::VectorXi basis_m = basis.get_mval();
+    const Eigen::VectorXi basis_m = basis.mval();
     const int mlo = basis_m.minCoeff(), mhi = basis_m.maxCoeff();
 
     helfem::Matrix Psad = helfem::Matrix::Zero(Nbf, Nbf);

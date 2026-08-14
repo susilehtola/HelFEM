@@ -64,19 +64,19 @@ namespace helfem {
       }
 
       template <typename T>
-      TwoDBasisT<T>::TwoDBasisT(int Z_, modelpotential::nuclear_model_t model_,
+      TwoDBasisT<T>::TwoDBasisT(int Z, modelpotential::nuclear_model_t model_,
                                 T Rrms_,
                                 const std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> & poly,
-                                bool zeroder_, int n_quad,
+                                bool zeroder, int n_quad,
                                 const helfem::Vec<T> & bval,
                                 const Eigen::VectorXi & lval_e,
                                 const Eigen::VectorXi & mval_e,
-                                int Zl_, int Zr_, T Rhalf_) {
+                                int Zl, int Zr, T Rhalf) {
         // Nuclear charge
-        Z=Z_;
-        Zl=Zl_;
-        Zr=Zr_;
-        Rhalf=Rhalf_;
+        Z_=Z;
+        Zl_=Zl;
+        Zr_=Zr;
+        Rhalf_=Rhalf;
         model=model_;
         Rrms=Rrms_;
 
@@ -84,13 +84,13 @@ namespace helfem {
         bool zero_func_left=true;
         bool zero_deriv_left=false;
         bool zero_func_right=true;
-        zeroder=zeroder_;
-        polynomial_basis::FiniteElementBasisT<T> fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zeroder);
+        zeroder_=zeroder;
+        polynomial_basis::FiniteElementBasisT<T> fem(poly, bval, zero_func_left, zero_deriv_left, zero_func_right, zeroder_);
         radial_=FEMRadialBasisT<T>(fem, n_quad);
 
         // Construct angular basis
-        lval=lval_e;
-        mval=mval_e;
+        lval_=lval_e;
+        mval_=mval_e;
       }
 
       template <typename T>
@@ -98,43 +98,43 @@ namespace helfem {
       }
 
       template <typename T>
-      int TwoDBasisT<T>::get_nuclear_model() const {
+      int TwoDBasisT<T>::nuclear_model() const {
         return model;
       }
 
       template <typename T>
-      T TwoDBasisT<T>::get_nuclear_size() const {
+      T TwoDBasisT<T>::nuclear_size() const {
         return Rrms;
       }
 
       template <typename T>
-      int TwoDBasisT<T>::get_Z() const {
-        return Z;
+      int TwoDBasisT<T>::Z() const {
+        return Z_;
       }
 
       template <typename T>
-      int TwoDBasisT<T>::get_Zl() const {
-        return Zl;
+      int TwoDBasisT<T>::Zl() const {
+        return Zl_;
       }
 
       template <typename T>
-      int TwoDBasisT<T>::get_Zr() const {
-        return Zr;
+      int TwoDBasisT<T>::Zr() const {
+        return Zr_;
       }
 
       template <typename T>
-      T TwoDBasisT<T>::get_Rhalf() const {
-        return Rhalf;
+      T TwoDBasisT<T>::Rhalf() const {
+        return Rhalf_;
       }
 
       template <typename T>
-      Eigen::VectorXi TwoDBasisT<T>::get_lval() const {
-        return lval;
+      Eigen::VectorXi TwoDBasisT<T>::lval() const {
+        return lval_;
       }
 
       template <typename T>
-      Eigen::VectorXi TwoDBasisT<T>::get_mval() const {
-        return mval;
+      Eigen::VectorXi TwoDBasisT<T>::mval() const {
+        return mval_;
       }
 
       template <typename T>
@@ -158,13 +158,13 @@ namespace helfem {
       }
 
       template <typename T>
-      int TwoDBasisT<T>::get_zeroder() const {
-        return zeroder;
+      int TwoDBasisT<T>::zeroder() const {
+        return zeroder_;
       }
 
       template <typename T>
       size_t TwoDBasisT<T>::Ndummy() const {
-        return lval.size()*radial_.Nbf();
+        return lval_.size()*radial_.Nbf();
       }
 
       template <typename T>
@@ -179,25 +179,25 @@ namespace helfem {
 
       template <typename T>
       size_t TwoDBasisT<T>::Nang() const {
-        return lval.size();
+        return lval_.size();
       }
 
       template <typename T>
       std::vector<Eigen::Index> TwoDBasisT<T>::m_indices(int m) const {
-        return helfem::collect_shell_indices(mval.size(),
+        return helfem::collect_shell_indices(mval_.size(),
             [&](size_t)   { return radial_.Nbf(); },
-            [&](size_t i) { return mval(i) == m; });
+            [&](size_t i) { return mval_(i) == m; });
       }
 
       template <typename T>
       std::vector<Eigen::Index> TwoDBasisT<T>::lm_indices(int l, int m) const {
-        return helfem::collect_shell_indices(mval.size(),
+        return helfem::collect_shell_indices(mval_.size(),
             [&](size_t)   { return radial_.Nbf(); },
-            [&](size_t i) { return mval(i) == m && lval(i) == l; });
+            [&](size_t i) { return mval_(i) == m && lval_(i) == l; });
       }
 
       template <typename T>
-      std::vector<std::vector<Eigen::Index>> TwoDBasisT<T>::get_sym_idx(int symm) const {
+      std::vector<std::vector<Eigen::Index>> TwoDBasisT<T>::sym_idx(int symm) const {
         std::vector<std::vector<Eigen::Index>> idx;
         if(symm==0) {
           idx.resize(1);
@@ -207,18 +207,18 @@ namespace helfem {
         } else if(symm==1) {
           // Unique m values in ascending order (matches arma::find_unique).
           std::vector<int> mv;
-          for (Eigen::Index i = 0; i < mval.size(); ++i)
-            if (std::find(mv.begin(), mv.end(), mval(i)) == mv.end())
-              mv.push_back(mval(i));
+          for (Eigen::Index i = 0; i < mval_.size(); ++i)
+            if (std::find(mv.begin(), mv.end(), mval_(i)) == mv.end())
+              mv.push_back(mval_(i));
           std::sort(mv.begin(), mv.end());
 
           idx.resize(mv.size());
           for(size_t i=0;i<mv.size();i++)
             idx[i]=m_indices(mv[i]);
         } else if(symm==2) {
-          idx.resize(mval.size());
-          for(size_t i=0;i<(size_t) mval.size();i++) {
-            idx[i]=lm_indices(lval(i),mval(i));
+          idx.resize(mval_.size());
+          for(size_t i=0;i<(size_t) mval_.size();i++) {
+            idx[i]=lm_indices(lval_(i),mval_(i));
           }
         } else
           throw std::logic_error("Unknown symmetry\n");
@@ -227,8 +227,8 @@ namespace helfem {
       }
 
       template <typename T>
-      std::vector<std::string> TwoDBasisT<T>::get_sym_labels(int symm) const {
-        // Mirrors get_sym_idx block for block: same branches, same
+      std::vector<std::string> TwoDBasisT<T>::sym_labels(int symm) const {
+        // Mirrors sym_idx block for block: same branches, same
         // ordering, same unique-m sort. Anything changed there has to be
         // changed here too.
         std::vector<std::string> labels;
@@ -243,17 +243,17 @@ namespace helfem {
           labels.push_back("all");
         } else if(symm==1) {
           std::vector<int> mv;
-          for (Eigen::Index i = 0; i < mval.size(); ++i)
-            if (std::find(mv.begin(), mv.end(), mval(i)) == mv.end())
-              mv.push_back(mval(i));
+          for (Eigen::Index i = 0; i < mval_.size(); ++i)
+            if (std::find(mv.begin(), mv.end(), mval_(i)) == mv.end())
+              mv.push_back(mval_(i));
           std::sort(mv.begin(), mv.end());
           for(size_t i=0;i<mv.size();i++)
             labels.push_back(mlabel(mv[i]));
         } else if(symm==2) {
           // One block per (l,m) channel of the angular basis.
-          for(size_t i=0;i<(size_t) mval.size();i++) {
+          for(size_t i=0;i<(size_t) mval_.size();i++) {
             std::ostringstream oss;
-            oss << "l=" << lval(i) << " " << mlabel(mval(i));
+            oss << "l=" << lval_(i) << " " << mlabel(mval_(i));
             labels.push_back(oss.str());
           }
         } else
@@ -270,12 +270,12 @@ namespace helfem {
         if(sym==0) {
           return scf::form_Sinvh<T>(S, chol);
         } else {
-          // Per-symmetry-block orthonormalization. get_sym_idx returns the
+          // Per-symmetry-block orthonormalization. sym_idx returns the
           // (scattered) AO index list for each block; the orthonormal
           // columns are packed contiguously, so Sinvh maps orthonormal ->
           // AO with block-diagonal structure (scattered rows, contiguous
           // columns per block).
-          std::vector<std::vector<Eigen::Index>> midx(get_sym_idx(sym));
+          std::vector<std::vector<Eigen::Index>> midx(sym_idx(sym));
           const Eigen::Index N = static_cast<Eigen::Index>(Nbf());
           helfem::Mat<T> Sinvh = helfem::Mat<T>::Zero(N, N);
           Eigen::Index ioff = 0;
@@ -327,7 +327,7 @@ namespace helfem {
             [&](size_t iel) { return radial_.radial_integral(0, iel); });
 
         helfem::Mat<T> O = helfem::Mat<T>::Zero(Ndummy(), Ndummy());
-        for(size_t iang=0;iang<(size_t) lval.size();iang++)
+        for(size_t iang=0;iang<(size_t) lval_.size();iang++)
           set_sub(O,iang,iang,Orad);
 
         return O;
@@ -343,9 +343,9 @@ namespace helfem {
         const Eigen::Index n   = static_cast<Eigen::Index>(radial_.Nbf());
         const Eigen::Index rhn = static_cast<Eigen::Index>(rh.radial_.Nbf());
 
-        for(size_t iang=0;iang<(size_t) lval.size();iang++)
-          for(size_t jang=0;jang<(size_t) rh.lval.size();jang++)
-            if(lval(iang) == rh.lval(jang) && mval(iang) == rh.mval(jang))
+        for(size_t iang=0;iang<(size_t) lval_.size();iang++)
+          for(size_t jang=0;jang<(size_t) rh.lval_.size();jang++)
+            if(lval_(iang) == rh.lval_(jang) && mval_(iang) == rh.mval_(jang))
               S.block(static_cast<Eigen::Index>(iang)*n,
                       static_cast<Eigen::Index>(jang)*rhn, n, rhn) = Srad;
 
@@ -363,11 +363,11 @@ namespace helfem {
         // Full kinetic energy matrix
         helfem::Mat<T> Tmat = helfem::Mat<T>::Zero(Ndummy(), Ndummy());
         // Fill elements
-        for(size_t iang=0;iang<(size_t) lval.size();iang++) {
+        for(size_t iang=0;iang<(size_t) lval_.size();iang++) {
           set_sub(Tmat,iang,iang,Trad);
-          if(lval(iang)>0) {
+          if(lval_(iang)>0) {
             // We also get the l(l+1) term
-            add_sub(Tmat,iang,iang,static_cast<T>(lval(iang)*(lval(iang)+1))*Trad_l);
+            add_sub(Tmat,iang,iang,static_cast<T>(lval_(iang)*(lval_(iang)+1))*Trad_l);
           }
         }
 
@@ -377,7 +377,7 @@ namespace helfem {
       template <typename T>
       helfem::Mat<T> TwoDBasisT<T>::nuclear() const {
         if(model != modelpotential::POINT_NUCLEUS) {
-          modelpotential::ModelPotentialT<T> *pot=modelpotential::get_nuclear_model<T>(model,Z,Rrms);
+          modelpotential::ModelPotentialT<T> *pot=modelpotential::nuclear_model<T>(model,Z_,Rrms);
           helfem::Mat<T> Vnuc = model_potential(pot);
           delete pot;
           return Vnuc;
@@ -385,39 +385,39 @@ namespace helfem {
           // Full nuclear attraction matrix
           helfem::Mat<T> V = helfem::Mat<T>::Zero(Ndummy(), Ndummy());
 
-          if (Z != 0) {
+          if (Z_ != 0) {
             const helfem::Mat<T> Vrad = helfem::assemble_radial_diagonal(radial_,
                 [&](size_t iel) { return radial_.radial_integral(-1, iel); });
-            for (size_t iang = 0; iang < (size_t) lval.size(); iang++)
-              set_sub(V, iang, iang, static_cast<T>(-Z) * Vrad);
+            for (size_t iang = 0; iang < (size_t) lval_.size(); iang++)
+              set_sub(V, iang, iang, static_cast<T>(-Z_) * Vrad);
           }
 
-          if(Zl != 0 || Zr != 0) {
+          if(Zl_ != 0 || Zr_ != 0) {
             // Auxiliary matrices
-            int Lmax(2*lval.maxCoeff());
+            int Lmax(2*lval_.maxCoeff());
             std::vector<helfem::Mat<T>> Vaux(Lmax+1);
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
             for (int L = 0; L <= Lmax; L++) {
               Vaux[L] = helfem::assemble_radial_diagonal(radial_,
-                  [&](size_t iel) { return radial_.nuclear_offcenter(iel, Rhalf, L); });
+                  [&](size_t iel) { return radial_.nuclear_offcenter(iel, Rhalf_, L); });
             }
 
-            int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
+            int gmax(std::max(lval_.maxCoeff(),mval_.maxCoeff()));
             gaunt::GauntT<T> gaunt(gmax,2*gmax,gmax);
 
             /// Loop over basis set
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
-            for(size_t iang=0;iang<(size_t) lval.size();iang++) {
-              for(size_t jang=0;jang<(size_t) lval.size();jang++) {
-                int li(lval(iang));
-                int mi(mval(iang));
+            for(size_t iang=0;iang<(size_t) lval_.size();iang++) {
+              for(size_t jang=0;jang<(size_t) lval_.size();jang++) {
+                int li(lval_(iang));
+                int mi(mval_(iang));
 
-                int lj(lval(jang));
-                int mj(mval(jang));
+                int lj(lval_(jang));
+                int mj(mval_(jang));
 
                 // Zero contribution
                 if(mi!=mj)
@@ -430,7 +430,7 @@ namespace helfem {
                     continue;
 
                   const T signL = (L & 1) ? T(-1) : T(1);
-                  add_sub(V,iang,jang,(cpl*(signL*T(Zl) + T(Zr)))*Vaux[L]);
+                  add_sub(V,iang,jang,(cpl*(signL*T(Zl_) + T(Zr_)))*Vaux[L]);
                 }
               }
             }
@@ -448,7 +448,7 @@ namespace helfem {
         const helfem::Mat<T> Vrad = helfem::assemble_radial_diagonal(radial_,
             [&](size_t iel) { return radial_.model_potential(pot, iel); });
 	// Fill elements
-	for(size_t iang=0;iang<(size_t) lval.size();iang++)
+	for(size_t iang=0;iang<(size_t) lval_.size();iang++)
 	  set_sub(V,iang,iang,Vrad);
 
         return V;
@@ -468,7 +468,7 @@ namespace helfem {
             });
 
         // Fill elements
-        for(size_t iang=0;iang<(size_t) lval.size();iang++)
+        for(size_t iang=0;iang<(size_t) lval_.size();iang++)
           set_sub(O,iang,iang,Orad);
 
         return O;
@@ -483,17 +483,17 @@ namespace helfem {
         // Full electric couplings
         helfem::Mat<T> V = helfem::Mat<T>::Zero(Ndummy(), Ndummy());
 
-        int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
+        int gmax(std::max(lval_.maxCoeff(),mval_.maxCoeff()));
         gaunt::GauntT<T> gaunt(gmax,1,gmax);
 
         // Fill elements
-        for(size_t iang=0;iang<(size_t) lval.size();iang++) {
-          int li(lval(iang));
-          int mi(mval(iang));
+        for(size_t iang=0;iang<(size_t) lval_.size();iang++) {
+          int li(lval_(iang));
+          int mi(mval_(iang));
 
-          for(size_t jang=0;jang<(size_t) lval.size();jang++) {
-            int lj(lval(jang));
-            int mj(mval(jang));
+          for(size_t jang=0;jang<(size_t) lval_.size();jang++) {
+            int lj(lval_(jang));
+            int mj(mval_(jang));
 
             // Calculate coupling
             T cpl(gaunt.cosine_coupling(lj,mj,li,mi));
@@ -514,17 +514,17 @@ namespace helfem {
         // Full electric couplings
         helfem::Mat<T> V = helfem::Mat<T>::Zero(Ndummy(), Ndummy());
 
-        int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
+        int gmax(std::max(lval_.maxCoeff(),mval_.maxCoeff()));
         gaunt::GauntT<T> gaunt(gmax,2,gmax);
 
         // Fill elements
-        for(size_t iang=0;iang<(size_t) lval.size();iang++) {
-          int li(lval(iang));
-          int mi(mval(iang));
+        for(size_t iang=0;iang<(size_t) lval_.size();iang++) {
+          int li(lval_(iang));
+          int mi(mval_(iang));
 
-          for(size_t jang=0;jang<(size_t) lval.size();jang++) {
-            int lj(lval(jang));
-            int mj(mval(jang));
+          for(size_t jang=0;jang<(size_t) lval_.size();jang++) {
+            int lj(lval_(jang));
+            int mj(mval_(jang));
 
             // Y_2^0 has m=0, so the m-sum forces mj == mi.
             if(mj != mi) continue;
@@ -553,17 +553,17 @@ namespace helfem {
         // Full coupling
         helfem::Mat<T> V = helfem::Mat<T>::Zero(Ndummy(), Ndummy());
 
-        int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
+        int gmax(std::max(lval_.maxCoeff(),mval_.maxCoeff()));
         gaunt::GauntT<T> gaunt(gmax,4,gmax);
 
         // Fill elements
-        for(size_t iang=0;iang<(size_t) lval.size();iang++) {
-          int li(lval(iang));
-          int mi(mval(iang));
+        for(size_t iang=0;iang<(size_t) lval_.size();iang++) {
+          int li(lval_(iang));
+          int mi(mval_(iang));
 
-          for(size_t jang=0;jang<(size_t) lval.size();jang++) {
-            int lj(lval(jang));
-            int mj(mval(jang));
+          for(size_t jang=0;jang<(size_t) lval_.size();jang++) {
+            int lj(lval_(jang));
+            int mj(mval_(jang));
 
             // Calculate coupling
             T cpl(gaunt.sine2_coupling(lj,mj,li,mi));
@@ -588,7 +588,7 @@ namespace helfem {
               "Primitive teis have not been computed -- call "
               "compute_tei() before radial_df_factors().");
 
-        const int N_L = 2 * lval.maxCoeff() + 1;
+        const int N_L = 2 * lval_.maxCoeff() + 1;
         const size_t Nrad = radial_.Nbf();
         const size_t Nel  = radial_.Nel();
 
@@ -712,7 +712,7 @@ namespace helfem {
         // disjoint_L / disjoint_m1L from radial.radial_integral and
         // prim_chol (in-element only; cross-element is assembled on the
         // fly from the disjoint factors inside the cached J/K helpers).
-        const int N_L = 2 * lval.maxCoeff() + 1;
+        const int N_L = 2 * lval_.maxCoeff() + 1;
         atomic::basis::compute_disjoint_radial_integrals(
             radial_, N_L, disjoint_L, disjoint_m1L);
 
@@ -738,7 +738,7 @@ namespace helfem {
       void TwoDBasisT<T>::compute_yukawa(T lambda_) {
         lambda = lambda_;
         yukawa = true;
-        const int N_L = 2 * lval.maxCoeff() + 1;
+        const int N_L = 2 * lval_.maxCoeff() + 1;
         // Yukawa-mode disjoint factors (bessel i / bessel k) + in-element
         // Yukawa 2e.
         atomic::basis::compute_disjoint_radial_integrals(
@@ -766,7 +766,7 @@ namespace helfem {
         // (iel, jel) pairs are stored explicitly in rs_ktei.
         disjoint_iL.clear();
         disjoint_kL.clear();
-        const int N_L = 2 * lval.maxCoeff() + 1;
+        const int N_L = 2 * lval_.maxCoeff() + 1;
         atomic::basis::compute_erfc_ktei(radial_, N_L, lambda, rs_ktei);
       }
 
@@ -784,14 +784,14 @@ namespace helfem {
         // Number of radial functions
         const Eigen::Index Nrad = static_cast<Eigen::Index>(radial_.Nbf());
         // Gaunt coefficient table
-        int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
+        int gmax(std::max(lval_.maxCoeff(),mval_.maxCoeff()));
         gaunt::GauntT<T> gaunt(gmax,2*gmax,gmax);
 
         // maximal M value
-        int Mmax=mval.maxCoeff()-mval.minCoeff();
+        int Mmax=mval_.maxCoeff()-mval_.minCoeff();
 
         // Radial helper matrices
-        std::vector< std::vector<helfem::Mat<T>> > Paux(2*lval.maxCoeff()+1);
+        std::vector< std::vector<helfem::Mat<T>> > Paux(2*lval_.maxCoeff()+1);
         for(int L=0;L<(int) Paux.size();L++) {
           Paux[L].resize(2*Mmax+1);
           for(int M=-std::min(L,Mmax);M<=std::min(L,Mmax);M++) {
@@ -800,13 +800,13 @@ namespace helfem {
         }
 
         // Form radial helpers: contract ket
-        for(size_t kang=0;kang<(size_t) lval.size();kang++) {
-          for(size_t lang=0;lang<(size_t) lval.size();lang++) {
+        for(size_t kang=0;kang<(size_t) lval_.size();kang++) {
+          for(size_t lang=0;lang<(size_t) lval_.size();lang++) {
             // l and m values
-            int lk(lval(kang));
-            int mk(mval(kang));
-            int ll(lval(lang));
-            int ml(mval(lang));
+            int lk(lval_(kang));
+            int mk(mval_(kang));
+            int ll(lval_(lang));
+            int ml(mval_(lang));
             // RH m value
             int M(mk-ml);
             // M values match. Loop over possible couplings
@@ -822,7 +822,7 @@ namespace helfem {
         }
 
         // Helper matrices
-        std::vector< std::vector<helfem::Mat<T>> > Jaux(2*lval.maxCoeff()+1);
+        std::vector< std::vector<helfem::Mat<T>> > Jaux(2*lval_.maxCoeff()+1);
         for(int L=0;L<(int) Jaux.size();L++) {
           Jaux[L].resize(2*Mmax+1);
           for(int M=-std::min(L,Mmax);M<=std::min(L,Mmax);M++) {
@@ -851,13 +851,13 @@ namespace helfem {
 
         // Full Coulomb matrix
         helfem::Mat<T> J = helfem::Mat<T>::Zero(Ndummy(),Ndummy());
-        for(size_t iang=0;iang<(size_t) lval.size();iang++) {
-          for(size_t jang=0;jang<(size_t) lval.size();jang++) {
+        for(size_t iang=0;iang<(size_t) lval_.size();iang++) {
+          for(size_t jang=0;jang<(size_t) lval_.size();jang++) {
             // l and m values
-            int li(lval(iang));
-            int mi(mval(iang));
-            int lj(lval(jang));
-            int mj(mval(jang));
+            int li(lval_(iang));
+            int mi(mval_(iang));
+            int lj(lval_(jang));
+            int mj(mval_(jang));
             // LH m value
             int M(mj-mi);
 
@@ -886,7 +886,7 @@ namespace helfem {
         const helfem::Mat<T> & P = P0_in;
 
         // Gaunt coefficient table
-        int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
+        int gmax(std::max(lval_.maxCoeff(),mval_.maxCoeff()));
         gaunt::GauntT<T> gaunt(gmax,2*gmax,gmax);
 
         // Number of radial elements
@@ -913,16 +913,16 @@ namespace helfem {
 #ifdef _OPENMP
 #pragma omp for collapse(2)
 #endif
-          for(size_t jang=0;jang<(size_t) lval.size();jang++) {
-            for(size_t kang=0;kang<(size_t) lval.size();kang++) {
-              int lj(lval(jang));
-              int mj(mval(jang));
+          for(size_t jang=0;jang<(size_t) lval_.size();jang++) {
+            for(size_t kang=0;kang<(size_t) lval_.size();kang++) {
+              int lj(lval_(jang));
+              int mj(mval_(jang));
 
-              int lk(lval(kang));
-              int mk(mval(kang));
+              int lk(lval_(kang));
+              int mk(mval_(kang));
 
               // Form radial helpers
-              size_t N_L(2*lval.maxCoeff()+1);
+              size_t N_L(2*lval_.maxCoeff()+1);
               std::vector<helfem::Mat<T>> Rmat(N_L);
               for(size_t i=0;i<N_L;i++) {
                 Rmat[i] = helfem::Mat<T>::Zero(Nrad,Nrad);
@@ -931,13 +931,13 @@ namespace helfem {
               std::vector<bool> couple(N_L,false);
 
               // Perform angular sums
-              for(size_t iang=0;iang<(size_t) lval.size();iang++) {
-                int li(lval(iang));
-                int mi(mval(iang));
+              for(size_t iang=0;iang<(size_t) lval_.size();iang++) {
+                int li(lval_(iang));
+                int mi(mval_(iang));
 
-                for(size_t lang=0;lang<(size_t) lval.size();lang++) {
-                  int ll(lval(lang));
-                  int ml(mval(lang));
+                for(size_t lang=0;lang<(size_t) lval_.size();lang++) {
+                  int ll(lval_(lang));
+                  int ml(mval_(lang));
 
                   // LH m value
                   int M(mj-mi);
@@ -1008,7 +1008,7 @@ namespace helfem {
         const helfem::Mat<T> & P = P0_in;
 
         // Gaunt coefficient table
-        int gmax(std::max(lval.maxCoeff(),mval.maxCoeff()));
+        int gmax(std::max(lval_.maxCoeff(),mval_.maxCoeff()));
         gaunt::GauntT<T> gaunt(gmax,2*gmax,gmax);
 
         // Number of radial elements
@@ -1030,16 +1030,16 @@ namespace helfem {
 #ifdef _OPENMP
 #pragma omp for collapse(2)
 #endif
-          for(size_t jang=0;jang<(size_t) lval.size();jang++) {
-            for(size_t kang=0;kang<(size_t) lval.size();kang++) {
-              int lj(lval(jang));
-              int mj(mval(jang));
+          for(size_t jang=0;jang<(size_t) lval_.size();jang++) {
+            for(size_t kang=0;kang<(size_t) lval_.size();kang++) {
+              int lj(lval_(jang));
+              int mj(mval_(jang));
 
-              int lk(lval(kang));
-              int mk(mval(kang));
+              int lk(lval_(kang));
+              int mk(mval_(kang));
 
               // Form radial helpers
-              size_t N_L(2*lval.maxCoeff()+1);
+              size_t N_L(2*lval_.maxCoeff()+1);
               std::vector<helfem::Mat<T>> Rmat(N_L);
               for(size_t i=0;i<N_L;i++) {
                 Rmat[i] = helfem::Mat<T>::Zero(Nrad,Nrad);
@@ -1048,13 +1048,13 @@ namespace helfem {
               std::vector<bool> couple(N_L,false);
 
               // Perform angular sums
-              for(size_t iang=0;iang<(size_t) lval.size();iang++) {
-                int li(lval(iang));
-                int mi(mval(iang));
+              for(size_t iang=0;iang<(size_t) lval_.size();iang++) {
+                int li(lval_(iang));
+                int mi(mval_(iang));
 
-                for(size_t lang=0;lang<(size_t) lval.size();lang++) {
-                  int ll(lval(lang));
-                  int ml(mval(lang));
+                for(size_t lang=0;lang<(size_t) lval_.size();lang++) {
+                  int ll(lval_(lang));
+                  int ml(mval_(lang));
 
                   // LH m value
                   int M(mj-mi);
@@ -1134,16 +1134,16 @@ namespace helfem {
       Eigen::MatrixXcd TwoDBasisT<T>::eval_bf(size_t iel, double cth, double phi) const {
         if constexpr (std::is_same_v<T, double>) {
           // Evaluate spherical harmonics
-          Eigen::VectorXcd sph(lval.size());
-          for(size_t i=0;i<(size_t) lval.size();i++)
-            sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
+          Eigen::VectorXcd sph(lval_.size());
+          for(size_t i=0;i<(size_t) lval_.size();i++)
+            sph(i)=::spherical_harmonics(lval_(i),mval_(i),cth,phi);
 
           // Evaluate radial functions
           helfem::Matrix rad(radial_.bf(iel));
 
           // Form supermatrix
-          Eigen::MatrixXcd bf(rad.rows(),lval.size()*rad.cols());
-          for(size_t i=0;i<(size_t) lval.size();i++)
+          Eigen::MatrixXcd bf(rad.rows(),lval_.size()*rad.cols());
+          for(size_t i=0;i<(size_t) lval_.size();i++)
             bf.middleCols(i*rad.cols(),rad.cols())=sph(i)*rad.cast<std::complex<double>>();
 
           return bf;
@@ -1157,25 +1157,25 @@ namespace helfem {
       void TwoDBasisT<T>::eval_df(size_t iel, double cth, double phi, Eigen::MatrixXcd & dr, Eigen::MatrixXcd & dth, Eigen::MatrixXcd & dphi) const {
         if constexpr (std::is_same_v<T, double>) {
           // Evaluate spherical harmonics
-          Eigen::VectorXcd sph(lval.size());
-          for(size_t i=0;i<(size_t) lval.size();i++)
-            sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
+          Eigen::VectorXcd sph(lval_.size());
+          for(size_t i=0;i<(size_t) lval_.size();i++)
+            sph(i)=::spherical_harmonics(lval_(i),mval_(i),cth,phi);
 
           // Evaluate radial functions
           helfem::Matrix frad(radial_.bf(iel));
           helfem::Matrix drad(radial_.df(iel));
 
           // Form supermatrices
-          dr=Eigen::MatrixXcd::Zero(frad.rows(),lval.size()*frad.cols());
-          dth=Eigen::MatrixXcd::Zero(frad.rows(),lval.size()*frad.cols());
-          dphi=Eigen::MatrixXcd::Zero(frad.rows(),lval.size()*frad.cols());
+          dr=Eigen::MatrixXcd::Zero(frad.rows(),lval_.size()*frad.cols());
+          dth=Eigen::MatrixXcd::Zero(frad.rows(),lval_.size()*frad.cols());
+          dphi=Eigen::MatrixXcd::Zero(frad.rows(),lval_.size()*frad.cols());
 
           // Radial one is easy
-          for(size_t i=0;i<(size_t) lval.size();i++)
+          for(size_t i=0;i<(size_t) lval_.size();i++)
             dr.middleCols(i*frad.cols(),frad.cols())=sph(i)*drad.cast<std::complex<double>>();
           // and so is phi
-          for(size_t i=0;i<(size_t) lval.size();i++)
-            dphi.middleCols(i*frad.cols(),frad.cols())=(std::complex<double>(0.0,mval(i))*sph(i))*frad.cast<std::complex<double>>();
+          for(size_t i=0;i<(size_t) lval_.size();i++)
+            dphi.middleCols(i*frad.cols(),frad.cols())=(std::complex<double>(0.0,mval_(i))*sph(i))*frad.cast<std::complex<double>>();
           // sin^2(theta) = (1 - cth)(1 + cth) is algebraically identical to
           // 1 - cth*cth but avoids the catastrophic cancellation when cth is
           // close to +/- 1. The std::max(..., 0.0) is a paranoia floor for
@@ -1187,14 +1187,14 @@ namespace helfem {
           const double cotth = (sinth > 0.0) ? cth/sinth : 0.0;
 
           // but theta is nastier
-          for(size_t i=0;i<(size_t) lval.size();i++) {
-            int l(lval(i));
-            int m(mval(i));
+          for(size_t i=0;i<(size_t) lval_.size();i++) {
+            int l(lval_(i));
+            int m(mval_(i));
 
             // Angular factor
             std::complex<double> angfac(m*cotth*sph(i));
-            if(mval(i)<lval(i))
-              angfac+=sqrt((l-m)*(l+m+1))*std::exp(std::complex<double>(0,-phi))*::spherical_harmonics(lval(i),mval(i)+1,cth,phi);
+            if(mval_(i)<lval_(i))
+              angfac+=sqrt((l-m)*(l+m+1))*std::exp(std::complex<double>(0,-phi))*::spherical_harmonics(lval_(i),mval_(i)+1,cth,phi);
 
             dth.middleCols(i*frad.cols(),frad.cols())=angfac*frad.cast<std::complex<double>>();
           }
@@ -1208,9 +1208,9 @@ namespace helfem {
       Eigen::MatrixXcd TwoDBasisT<T>::eval_lf(size_t iel, double cth, double phi) const {
         if constexpr (std::is_same_v<T, double>) {
           // Evaluate spherical harmonics
-          Eigen::VectorXcd sph(lval.size());
-          for(size_t i=0;i<(size_t) lval.size();i++)
-            sph(i)=::spherical_harmonics(lval(i),mval(i),cth,phi);
+          Eigen::VectorXcd sph(lval_.size());
+          for(size_t i=0;i<(size_t) lval_.size();i++)
+            sph(i)=::spherical_harmonics(lval_(i),mval_(i),cth,phi);
 
           // Evaluate radial functions
           helfem::Vector r(radial_.r(iel));
@@ -1219,13 +1219,13 @@ namespace helfem {
           helfem::Matrix lrad(radial_.lf(iel));
 
           // Form supermatrix
-          Eigen::MatrixXcd lf(Eigen::MatrixXcd::Zero(frad.rows(),lval.size()*frad.cols()));
+          Eigen::MatrixXcd lf(Eigen::MatrixXcd::Zero(frad.rows(),lval_.size()*frad.cols()));
           // Loop over basis function indices
-          for(size_t iang=0;iang<(size_t) lval.size();iang++)
+          for(size_t iang=0;iang<(size_t) lval_.size();iang++)
             for(Eigen::Index irad=0;irad<frad.cols();irad++)
               // Loop over grid-point indices
               for(Eigen::Index igrid=0;igrid<frad.rows();igrid++)
-                lf(igrid,iang*frad.cols()+irad) = (lrad(igrid,irad) + 2*drad(igrid,irad)/r(igrid) - lval(iang)*(lval(iang)+1)*frad(igrid,irad)/(r(igrid)*r(igrid)))*sph(iang);
+                lf(igrid,iang*frad.cols()+irad) = (lrad(igrid,irad) + 2*drad(igrid,irad)/r(igrid) - lval_(iang)*(lval_(iang)+1)*frad(igrid,irad)/(r(igrid)*r(igrid)))*sph(iang);
 
           return lf;
         } else {
@@ -1246,8 +1246,8 @@ namespace helfem {
         size_t Nradf(radial_.Nbf());
 
         // List of functions in the element
-        std::vector<Eigen::Index> idx(Nr*lval.size());
-        for(size_t iam=0;iam<(size_t) lval.size();iam++)
+        std::vector<Eigen::Index> idx(Nr*lval_.size());
+        for(size_t iam=0;iam<(size_t) lval_.size();iam++)
           for(size_t j=0;j<Nr;j++)
             idx[iam*Nr+j]=(Eigen::Index) (Nradf*iam+ifirst+j);
 
@@ -1255,7 +1255,7 @@ namespace helfem {
       }
 
       template <typename T>
-      size_t TwoDBasisT<T>::get_rad_Nel() const {
+      size_t TwoDBasisT<T>::rad_Nel() const {
         return radial_.Nel();
       }
 

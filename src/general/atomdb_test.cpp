@@ -60,7 +60,7 @@ static double quad(const F &f, double a, double b, int nsub = 1, int n = 40) {
 
 int main(void) {
   const int maxZ = atomdb::max_Z();
-  const helfem::Vector bval(atomdb::element_boundaries());
+  const helfem::Vector bval(atomdb::bval());
   const double Rmax = bval(bval.size() - 1);
 
   printf("Database: Z = 1..%i, lmax = %i, %i radial functions on %i elements "
@@ -140,7 +140,7 @@ int main(void) {
     printf("\nExchange-correlation screening vs. the grid implementation:\n");
     std::shared_ptr<const polynomial_basis::PolynomialBasis> poly(
         polynomial_basis::make_basis(atomdb::data::primbas, atomdb::data::nnodes));
-    const helfem::Vector bv(atomdb::element_boundaries());
+    const helfem::Vector bv(atomdb::bval());
     sadatom::basis::TwoDBasis tdb(1, modelpotential::POINT_NUCLEUS, 0.0, poly, false,
                                   atomdb::data::nquad, bv, atomdb::lmax());
     const helfem::Vector rq(tdb.radii());

@@ -408,7 +408,7 @@ namespace helfem {
           }
       }
 
-      // check_grad_tau_lapl, get_grad_tau_lapl, set_grad_tau_lapl:
+      // check_grad_tau_lapl, grad_tau_lapl, set_grad_tau_lapl:
       // inherited from DFTGridWorkerBase.
 
       void DFTGridWorker::compute_bf(size_t iel, size_t irad) {
@@ -421,7 +421,7 @@ namespace helfem {
         wrad(0)=basp->wrad(iel)(irad);
         r(0)=basp->r(iel)(irad);
 
-        double Rhalf(basp->get_Rhalf());
+        double Rhalf(basp->Rhalf());
 
         // Calculate helpers
         helfem::Vector shmu = r.array().sinh();
@@ -544,7 +544,7 @@ namespace helfem {
           // Loop-invariant: expand once, not once per grid point.
           const helfem::Matrix P_exp(basp->expand_boundaries(P_e));
 
-          for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+          for(size_t iel=0;iel<basp->rad_Nel();iel++) {
             for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
               grid.compute_bf(iel,irad);
               grid.update_density(P_exp);
@@ -587,7 +587,7 @@ namespace helfem {
           const helfem::Matrix Pa_exp(basp->expand_boundaries(Pa_e));
           const helfem::Matrix Pb_exp(basp->expand_boundaries(Pb_e));
 
-          for(size_t iel=0;iel<basp->get_rad_Nel();iel++) {
+          for(size_t iel=0;iel<basp->rad_Nel();iel++) {
             for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
               grid.compute_bf(iel,irad);
               grid.update_density(Pa_exp,Pb_exp);

@@ -92,7 +92,7 @@ namespace helfem {
         /// Destructor
         ~DFTGridWorker();
 
-        // check_grad_tau_lapl / get_grad_tau_lapl / set_grad_tau_lapl
+        // check_grad_tau_lapl / grad_tau_lapl / set_grad_tau_lapl
         // are inherited from DFTGridWorkerBase.
 
         /// Compute basis functions on grid points

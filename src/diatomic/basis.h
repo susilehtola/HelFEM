@@ -97,7 +97,7 @@ namespace helfem {
         helfem::Matrix twoe_integral(int alpha, int beta, const quadrature::TwoElectronElement & el, int L, int M, quadrature::MLegendreCache & leg) const;
 
         /// Get quadrature points
-        helfem::Vector get_chmu_quad() const;
+        helfem::Vector chmu_quad() const;
         /// Evaluate basis functions at quadrature points
         helfem::Matrix bf(size_t iel) const;
         /// Evaluate basis functions at wanted point in [-1,1]
@@ -105,7 +105,7 @@ namespace helfem {
         /// Evaluate derivatives of basis functions at quadrature points
         helfem::Matrix df(size_t iel) const;
         /// Evaluate second derivatives of basis functions at quadrature points
-        helfem::Matrix get_d2f(size_t iel) const;
+        helfem::Matrix d2f(size_t iel) const;
         /// Get quadrature weights
         helfem::Vector wrad(size_t iel) const;
         /// Get r values
@@ -121,21 +121,21 @@ namespace helfem {
       bool operator==(const lmidx_t & lh, const lmidx_t & rh);
 
       /// l(m) array to l, m arrays
-      void lm_to_l_m(const Eigen::VectorXi & lmmax, Eigen::VectorXi & lval, Eigen::VectorXi & mval);
+      void lm_to_l_m(const Eigen::VectorXi & lmmax, Eigen::VectorXi & lval_, Eigen::VectorXi & mval_);
 
       /// Two-dimensional basis set
       class TwoDBasis {
         /// Nuclear charges
-        int Z1, Z2;
+        int Z1_, Z2_;
         /// Half-bond distance
-        double Rhalf;
+        double Rhalf_;
 
         /// Radial basis set
         RadialBasis radial;
         /// Angular basis set: function l values
-        Eigen::VectorXi lval;
+        Eigen::VectorXi lval_;
         /// Angular basis set: function m values
-        Eigen::VectorXi mval;
+        Eigen::VectorXi mval_;
         /// Density is symmetric under m -> -m (see set_absm_symmetric).
         bool absm_symmetric = false;
 
@@ -198,7 +198,7 @@ namespace helfem {
         size_t LMind(int L, int M, bool check=true) const;
 
         /// Build the unsigned-M angular prefactor table
-        ///   4 * pi * Rhalf^5 / ((L + |M|)! / (L - |M|)!)
+        ///   4 * pi * Rhalf_^5 / ((L + |M|)! / (L - |M|)!)
         /// indexed in lockstep with lm_map. The (-1)^M sign is applied at
         /// each lookup site so the same table serves both Coulomb (which
         /// iterates LM_map with signed M) and exchange (which derives M
@@ -219,28 +219,28 @@ namespace helfem {
         // Dummy constructor
         TwoDBasis();
         /// Constructor
-        TwoDBasis(int Z1, int Z2, double Rhalf, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const helfem::Vector & bval, const Eigen::VectorXi & lval, const Eigen::VectorXi & mval, bool legendre=true);
+        TwoDBasis(int Z1_, int Z2_, double Rhalf_, const std::shared_ptr<const polynomial_basis::PolynomialBasis> &poly, int n_quad, const helfem::Vector & bval, const Eigen::VectorXi & lval_, const Eigen::VectorXi & mval_, bool legendre=true);
         /// Destructor
         ~TwoDBasis();
 
-        /// Get Z1
-        int get_Z1() const;
-        /// Get Z2
-        int get_Z2() const;
-        /// Get Rhalf
-        double get_Rhalf() const;
+        /// Get Z1_
+        int Z1() const;
+        /// Get Z2_
+        int Z2() const;
+        /// Get Rhalf_
+        double Rhalf() const;
 
         /// Get l values
-        Eigen::VectorXi get_lval() const;
+        Eigen::VectorXi lval() const;
         /// Get m values
-        Eigen::VectorXi get_mval() const;
+        Eigen::VectorXi mval() const;
 
         /// Get number of quadrature points
         int nquad() const;
         /// Get boundary values
         helfem::Vector bval() const;
 	/// Get maximum mu value
-	double get_mumax() const;
+	double mumax() const;
         /// Get polynomial basis identifier
         int poly_id() const;
         /// Get polynomial basis order
@@ -331,10 +331,10 @@ namespace helfem {
         std::vector<Eigen::Index> m_indices(int m) const;
         /// Get indices of basis functions with wanted m quantum number and parity
         std::vector<Eigen::Index> m_indices(int m, bool odd) const;
-        /// Physical labels for the blocks of get_sym_idx, in the same
-        /// order ("m=+1", "m=-2 u", ...). Kept alongside get_sym_idx so
+        /// Physical labels for the blocks of sym_idx, in the same
+        /// order ("m=+1", "m=-2 u", ...). Kept alongside sym_idx so
         /// the two cannot drift apart.
-        std::vector<std::string> get_sym_labels(int symm) const;
+        std::vector<std::string> sym_labels(int symm) const;
         /// Largest |m| present in the basis.
         int absm_max() const;
         /// Declare that every density handed to exchange() will be
@@ -344,12 +344,12 @@ namespace helfem {
         void set_absm_symmetric(bool sym);
         /// Is the density guaranteed symmetric under m -> -m?
         bool is_absm_symmetric() const;
-        /// For each block of get_sym_idx, the index set of its -|m|
+        /// For each block of sym_idx, the index set of its -|m|
         /// partner, or an empty list when the block has none. Only
         /// symm==3 pairs blocks; other symmetries return empties.
-        std::vector<std::vector<Eigen::Index>> get_sym_mirror_idx(int symm) const;
+        std::vector<std::vector<Eigen::Index>> sym_mirror_idx(int symm) const;
         /// Get indices for wanted symmetry (one index list per block)
-        std::vector<std::vector<Eigen::Index>> get_sym_idx(int isym) const;
+        std::vector<std::vector<Eigen::Index>> sym_idx(int isym) const;
 
         /// Evaluate basis functions at quadrature points
         Eigen::MatrixXcd eval_bf(size_t iel, size_t irad, double cth, double phi) const;
@@ -357,7 +357,7 @@ namespace helfem {
         /// Evaluate basis functions with m=m at quadrature point
         helfem::Matrix eval_bf(size_t iel, size_t irad, double cth, int m) const;
         /// Same, but with the element's radial functions already evaluated
-        /// (rad_all = get_rad_bf(iel), rows = radial points). The FEM
+        /// (rad_all = rad_bf(iel), rows = radial points). The FEM
         /// polynomials depend only on the element, so callers that loop over
         /// angular points should hoist that evaluation out of the loop rather
         /// than redo it -- and throw away all but one row -- per angular point.
@@ -388,7 +388,7 @@ namespace helfem {
         /// Laplacian-dependent meta-GGAs.
         ///
         /// In prolate spheroidal coordinates, with h = h_mu = h_nu and
-        /// h_phi = Rhalf sinh(mu) sin(nu),
+        /// h_phi = Rhalf_ sinh(mu) sin(nu),
         ///
         ///   grad^2 f = (1/h^2) [ f_mumu + coth(mu) f_mu
         ///                        + f_nunu + cot(nu) f_nu ] - (m^2/h_phi^2) f.
@@ -415,18 +415,18 @@ namespace helfem {
         std::vector<Eigen::Index> bf_list(size_t iel) const;
 
         /// Get number of radial elements
-        size_t get_rad_Nel() const;
+        size_t rad_Nel() const;
         /// Get radial quadrature weights
         helfem::Vector wrad(size_t iel) const;
         /// Get r values
         helfem::Vector r(size_t iel) const;
         /// Get radial basis functions at the quadrature points of element iel
         /// (rows = radial points, cols = element primitives)
-        helfem::Matrix get_rad_bf(size_t iel) const;
+        helfem::Matrix rad_bf(size_t iel) const;
         /// Get their first mu derivatives, same layout
-        helfem::Matrix get_rad_df(size_t iel) const;
+        helfem::Matrix rad_df(size_t iel) const;
         /// Get their second mu derivatives, same layout
-        helfem::Matrix get_rad_d2f(size_t iel) const;
+        helfem::Matrix rad_d2f(size_t iel) const;
 
         /// Electron density at nuclei
       };

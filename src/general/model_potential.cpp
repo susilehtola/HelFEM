@@ -11,7 +11,7 @@ namespace helfem {
     // formatted with helfem::io::fmt_sci (scientific, at T's own precision)
     // and spliced in as %s -- no truncation to double at the I/O boundary.
     template <typename T>
-    ModelPotentialT<T> * get_nuclear_model(nuclear_model_t model, int Z, T Rrms) {
+    ModelPotentialT<T> * nuclear_model(nuclear_model_t model, int Z, T Rrms) {
       switch(model) {
       case(POINT_NUCLEUS):
         printf("Getting point nucleus with Z=%i\n",Z);
@@ -36,12 +36,12 @@ namespace helfem {
     }
 
     template ModelPotentialT<double> *
-    get_nuclear_model<double>(nuclear_model_t, int, double);
+    nuclear_model<double>(nuclear_model_t, int, double);
     template ModelPotentialT<long double> *
-    get_nuclear_model<long double>(nuclear_model_t, int, long double);
+    nuclear_model<long double>(nuclear_model_t, int, long double);
 #ifdef HELFEM_HAVE_FLOAT128
     template ModelPotentialT<_Float128> *
-    get_nuclear_model<_Float128>(nuclear_model_t, int, _Float128);
+    nuclear_model<_Float128>(nuclear_model_t, int, _Float128);
 #endif
 
     TFAtom::TFAtom(int Z_) : Z(Z_) {
@@ -103,7 +103,7 @@ namespace helfem {
       // strictly inside (a, b) are reported: one coinciding with an
       // element end is already handled by the element decomposition.
       if(!atom) return std::vector<double>();   // dummy centre
-      const helfem::Vector bval(atom->element_boundaries());
+      const helfem::Vector bval(atom->bval());
       std::vector<double> bp;
       for(Eigen::Index i=0;i<bval.size();i++)
         if(bval(i) > a && bval(i) < b)

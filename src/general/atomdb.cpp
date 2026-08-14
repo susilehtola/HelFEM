@@ -28,7 +28,7 @@ namespace helfem {
     int lmax() { return data::lmax; }
     int Nbf() { return data::Nbf; }
 
-    helfem::Vector element_boundaries() {
+    helfem::Vector bval() {
       return Eigen::Map<const helfem::Vector>(data::bval, data::nelem + 1);
     }
 
@@ -78,7 +78,7 @@ namespace helfem {
             polynomial_basis::make_basis(data::primbas, data::nnodes));
         // Matches sadatom::basis::TwoDBasis: the function vanishes at the
         // origin and at the practical infinity, its derivative is free.
-        polynomial_basis::FiniteElementBasis fem(poly, element_boundaries(), true,
+        polynomial_basis::FiniteElementBasis fem(poly, bval(), true,
                                                  false, true, false);
         return atomic::basis::FEMRadialBasis(fem, data::nquad);
       }();
@@ -123,14 +123,14 @@ namespace helfem {
       Rmax_ = radial_.fem().element_end(Nel - 1);
     }
 
-    int Atom::charge() const { return Z_; }
+    int Atom::Z() const { return Z_; }
 
     double Atom::nelectrons() const { return Ntot_; }
 
     const atomic::basis::FEMRadialBasis & Atom::basis() const { return radial_; }
 
-    helfem::Vector Atom::element_boundaries() const {
-      return atomdb::element_boundaries();
+    helfem::Vector Atom::bval() const {
+      return atomdb::bval();
     }
 
     /// Locate r and return the element index and the matching coordinate

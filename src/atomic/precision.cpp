@@ -137,7 +137,7 @@ namespace {
     // Element boundaries: computed in double and cast up, so that every
     // precision solves the SAME variational problem and the columns below
     // differ by arithmetic alone.
-    const helfem::Vector bval_d = utils::get_grid(Rmax, Nelem, igrid, zexp);
+    const helfem::Vector bval_d = utils::make_grid(Rmax, Nelem, igrid, zexp);
     helfem::Vec<T> bval(bval_d.size());
     for (Eigen::Index i = 0; i < bval_d.size(); i++)
       bval(i) = T(bval_d(i));

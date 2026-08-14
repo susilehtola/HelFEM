@@ -52,7 +52,7 @@ namespace helfem {
     /// Number of radial basis functions the coefficients refer to.
     int Nbf();
     /// Element boundaries of the shared radial grid (nelem+1 entries).
-    helfem::Vector element_boundaries();
+    helfem::Vector bval();
 
     /// Number of stored orbitals for (Z, l). Orbitals whose occupation
     /// fell below the storage threshold are absent, so this is smaller
@@ -111,7 +111,7 @@ namespace helfem {
       explicit Atom(int Z);
 
       /// Nuclear charge
-      int charge() const;
+      int Z() const;
       /// Number of electrons carried by the stored orbitals. Slightly
       /// below Z, by the occupation left in the discarded orbitals.
       double nelectrons() const;
@@ -119,7 +119,7 @@ namespace helfem {
       const atomic::basis::FEMRadialBasis & basis() const;
       /// Element boundaries: the radii at which the derived quantities
       /// are only piecewise smooth. Feed these to the quadrature.
-      helfem::Vector element_boundaries() const;
+      helfem::Vector bval() const;
 
       /// Radial functions R_nl(r) of the stored orbitals of this l, one
       /// entry per stored orbital, evaluated at radius r.

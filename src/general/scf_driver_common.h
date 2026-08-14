@@ -22,7 +22,7 @@
 //
 // The linear algebra is Eigen-native (helfem::Matrix / helfem::Vector);
 // the per-symmetry-block gather/scatter uses the Eigen index lists
-// (std::vector<Eigen::Index>) the basis get_sym_idx returns directly.
+// (std::vector<Eigen::Index>) the basis sym_idx returns directly.
 // Keeping the working matrices Eigen (rather than a LAPACK back end) is
 // what lets the SCF driver be instantiated at extended precision --
 // Eigen's SelfAdjointEigenSolver is scalar-generic where a LAPACK
@@ -342,7 +342,7 @@ namespace helfem {
     /// prefix per channel.
     ///
     /// sym_labels names the blocks physically ("m=+1", "l=2 m=-1",
-    /// "m=-2 u") and comes from the basis's get_sym_labels, which is the
+    /// "m=-2 u") and comes from the basis's sym_labels, which is the
     /// same place the block ordering itself is defined. The occupations
     /// OOO prints are then readable as quantum numbers rather than as
     /// bare block indices.
@@ -376,7 +376,7 @@ namespace helfem {
       if (sym_labels.size() != nsym) {
         std::ostringstream oss;
         oss << "Got " << sym_labels.size() << " symmetry labels for " << nsym
-            << " blocks: get_sym_labels and get_sym_idx are out of sync.\n";
+            << " blocks: sym_labels and sym_idx are out of sync.\n";
         throw std::logic_error(oss.str());
       }
       number_of_blocks_per_particle_type.resize(nparttype);

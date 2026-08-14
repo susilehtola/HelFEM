@@ -22,9 +22,9 @@
 #include <grid.h>
 #include <cstring>
 
-helfem::Vector helfem::utils::get_grid(double rmax, int num_el, int igrid,
+helfem::Vector helfem::utils::make_grid(double rmax, int num_el, int igrid,
                                         double zexp) {
   // The FEM grid is Eigen; return directly.
-  return helfem::grid::get_grid<double>(rmax, num_el, igrid, zexp,
+  return helfem::grid::make_grid<double>(rmax, num_el, igrid, zexp,
                                                    helfem::verbose);
 }

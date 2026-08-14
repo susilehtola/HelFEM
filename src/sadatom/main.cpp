@@ -97,7 +97,7 @@ static helfem::Matrix effective_potential_table(
   result.col(5) = vcoul;
   result.col(6) = vxc;
   result.col(7) = wt;
-  result.col(8) = basis.charge() * helfem::Vector::Ones(Zeff.size()) - Zeff;
+  result.col(8) = basis.Z() * helfem::Vector::Ones(Zeff.size()) - Zeff;
 
   printf("Electron density by quadrature: %.10e\n",
          (wt.array() * rho.array() * r.array() * r.array()).sum());
@@ -167,7 +167,7 @@ static void ao_profiles(
     const std::function<double(double r, int l, double ex)> & eval_ao,
     const std::function<double(double ex)> & ao_rmax,
     helfem::Matrix & completeness, helfem::Matrix & importance) {
-  const helfem::atomic::basis::FEMRadialBasis & solrad = basis.get_radial();
+  const helfem::atomic::basis::FEMRadialBasis & solrad = basis.radial();
   completeness = helfem::Matrix::Zero(expn.size(), lmax + 2);
   importance = helfem::Matrix::Zero(expn.size(), lmax + 2);
   completeness.col(0) = expn;
@@ -299,7 +299,7 @@ int main(int argc, char **argv) {
   const int igrid   = parser.get<int>("grid");
   const double zexp = parser.get<double>("zexp");
   const int Nelem   = parser.get<int>("nelem");
-  const int Z       = get_Z(parser.get<std::string>("Z"));
+  const int Z       = element_Z(parser.get<std::string>("Z"));
         int Q       = parser.get<int>("Q");
         int M       = parser.get<int>("M");
         int nela    = parser.get<int>("nela");

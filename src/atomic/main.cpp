@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
   // The shared basis/grid/functional code reports through this flag.
   helfem::set_verbosity(verbosity >= 1);
 
-  const int    Z          = get_Z(parser.get<std::string>("Z"));
+  const int    Z          = element_Z(parser.get<std::string>("Z"));
         int    Q          = parser.get<int>("Q");
         int    M          = parser.get<int>("M");
         int    nela       = parser.get<int>("nela");
@@ -160,8 +160,8 @@ int main(int argc, char **argv) {
   const double Rrms       = parser.get<double>("Rrms");
         int    restr      = parser.get<int>("restricted");
   const int    symm       = parser.get<int>("symmetry");
-  const int    Zl         = get_Z(parser.get<std::string>("Zl"));
-  const int    Zr         = get_Z(parser.get<std::string>("Zr"));
+  const int    Zl         = element_Z(parser.get<std::string>("Zl"));
+  const int    Zr         = element_Z(parser.get<std::string>("Zr"));
         double Rhalf      = parser.get<double>("Rmid");
   if (parser.get<bool>("angstrom") && Rhalf != 0.0) {
     if (verbosity >= 1)
@@ -318,7 +318,7 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < Nbf; ++i) all[i] = static_cast<Eigen::Index>(i);
     dsym.push_back(all);
   } else {
-    dsym = basis.get_sym_idx(symm_eff);
+    dsym = basis.sym_idx(symm_eff);
   }
   const size_t nsym = dsym.size();
 
@@ -345,7 +345,7 @@ int main(int argc, char **argv) {
   std::vector<std::string> block_descriptions;
   helfem::scf_driver::build_ooo_block_metadata<OOO_Real>(
       nsym, nparttype, restricted, Ntot, nela, nelb,
-      basis.get_sym_labels(symm_eff), std::vector<int>(nsym, 1),
+      basis.sym_labels(symm_eff), std::vector<int>(nsym, 1),
       number_of_blocks_per_particle_type, maximum_occupation,
       number_of_particles, block_descriptions);
 
@@ -545,7 +545,7 @@ int main(int argc, char **argv) {
       throw std::logic_error("occs.dat: expected 4 columns (nocca, noccb, l, m) for symmetry=2.");
 
     // Match each occs row to a dsym block by comparing BF-index sets.
-    // The dsym[k] arrays come from basis.get_sym_idx(symm), so an m-key
+    // The dsym[k] arrays come from basis.sym_idx(symm), so an m-key
     // row hits basis.m_indices(m) which is exactly one of the dsym entries.
     Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> fixed_particles =
         Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1>::Zero(nsym * nparttype);

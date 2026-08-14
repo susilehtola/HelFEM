@@ -46,24 +46,24 @@ namespace helfem {
       ///     These are compiled for every T but THROW unless T = double; they
       ///     are not on the Fock path. (The quadrature-point accessors bval
       ///     / wrad / r are precision-generic helfem::Vec<T>.)
-      /// The angular-index bookkeeping (get_lval / m_indices / get_sym_idx,
+      /// The angular-index bookkeeping (lval / m_indices / sym_idx,
       /// Eigen::VectorXi / std::vector<Eigen::Index>) is integer-valued, hence
       /// precision-free, and is shared by all instantiations unchanged.
       template <typename T>
       class TwoDBasisT {
         /// Nuclear charge
-        int Z;
+        int Z_;
         /// Nuclear model
         modelpotential::nuclear_model_t model;
         /// Rms radius
         T Rrms;
 
         /// Left-hand nuclear charge
-        int Zl;
+        int Zl_;
         /// Right-hand nuclear charge
-        int Zr;
+        int Zr_;
         /// Bond length
-        T Rhalf;
+        T Rhalf_;
 
         /// Yukawa exchange?
         bool yukawa;
@@ -73,11 +73,11 @@ namespace helfem {
         /// Radial basis set
         FEMRadialBasisT<T> radial_;
         /// Angular basis set: function l values
-        Eigen::VectorXi lval;
+        Eigen::VectorXi lval_;
         /// Angular basis set: function m values
-        Eigen::VectorXi mval;
+        Eigen::VectorXi mval_;
         /// Zero out derivative at practical infinity?
-        bool zeroder;
+        bool zeroder_;
 
         /// Auxiliary integrals
         std::vector<helfem::Mat<T>> disjoint_L, disjoint_m1L;
@@ -135,35 +135,35 @@ namespace helfem {
       public:
         TwoDBasisT();
         /// Constructor
-        // bval/lval/mval are accepted as Eigen types at the public boundary.
-        TwoDBasisT(int Z, modelpotential::nuclear_model_t model, T Rrms,
+        // bval/lval_/mval_ are accepted as Eigen types at the public boundary.
+        TwoDBasisT(int Z_, modelpotential::nuclear_model_t model, T Rrms,
                    const std::shared_ptr<const helfem::polynomial_basis::PolynomialBasisT<T>> &poly,
-                   bool zeroder, int n_quad,
+                   bool zeroder_, int n_quad,
                    const helfem::Vec<T> & bval,
-                   const Eigen::VectorXi & lval,
-                   const Eigen::VectorXi & mval,
-                   int Zl, int Zr, T Rhalf);
+                   const Eigen::VectorXi & lval_,
+                   const Eigen::VectorXi & mval_,
+                   int Zl_, int Zr_, T Rhalf_);
         /// Destructor
         ~TwoDBasisT();
 
-        /// Get Z
-        int get_Z() const;
-        /// Get Zl
-        int get_Zl() const;
-        /// Get Zr
-        int get_Zr() const;
-        /// Get Rhalf
-        T get_Rhalf() const;
+        /// Get Z_
+        int Z() const;
+        /// Get Zl_
+        int Zl() const;
+        /// Get Zr_
+        int Zr() const;
+        /// Get Rhalf_
+        T Rhalf() const;
 
         /// Get nuclear model
-        int get_nuclear_model() const;
+        int nuclear_model() const;
         /// Get nuclear size
-        T get_nuclear_size() const;
+        T nuclear_size() const;
 
         /// Get l values
-        Eigen::VectorXi get_lval() const;
+        Eigen::VectorXi lval() const;
         /// Get m values
-        Eigen::VectorXi get_mval() const;
+        Eigen::VectorXi mval() const;
 
         /// The underlying radial FEM basis. Public so that library
         /// consumers (the installed helfem/atomic/TwoDBasis.h is the
@@ -182,7 +182,7 @@ namespace helfem {
         /// Get number of nodes in polynomial
         int poly_nnodes() const;
         /// Is derivative zeroed at infinity?
-        int get_zeroder() const;
+        int zeroder() const;
 
 
         /// Compute two-electron integrals
@@ -235,7 +235,7 @@ namespace helfem {
         helfem::Mat<T> rs_exchange(const helfem::Mat<T> & P) const;
 
         /// Density-fitted (Cholesky-factored) BARE radial Slater
-        /// integrals R^k(i, j, m, n) for k = 0..2*max(lval).
+        /// integrals R^k(i, j, m, n) for k = 0..2*max(lval_).
         ///
         /// Returns vec[k][Q] = helfem::Mat<T> of shape (Nrad, Nrad),
         /// the Q-th Cholesky factor for multipole k, so that:
@@ -261,11 +261,11 @@ namespace helfem {
         /// Get indices of basis functions with wanted l and m quantum numbers
         std::vector<Eigen::Index> lm_indices(int l, int m) const;
         /// Get indices for wanted symmetry (one index list per block)
-        std::vector<std::vector<Eigen::Index>> get_sym_idx(int isym) const;
-        /// Physical labels for the blocks of get_sym_idx, in the same
-        /// order ("m=+1", "l=2 m=-1", ...). Kept alongside get_sym_idx so
+        std::vector<std::vector<Eigen::Index>> sym_idx(int isym) const;
+        /// Physical labels for the blocks of sym_idx, in the same
+        /// order ("m=+1", "l=2 m=-1", ...). Kept alongside sym_idx so
         /// the two cannot drift apart.
-        std::vector<std::string> get_sym_labels(int isym) const;
+        std::vector<std::string> sym_labels(int isym) const;
 
         /// Evaluate basis functions (T = double only)
         Eigen::MatrixXcd eval_bf(size_t iel, double cth, double phi) const;
@@ -277,7 +277,7 @@ namespace helfem {
         std::vector<Eigen::Index> bf_list(size_t iel) const;
 
         /// Get number of radial elements
-        size_t get_rad_Nel() const;
+        size_t rad_Nel() const;
         /// Get (ifirst, ilast) inclusive radial-function index range
         /// for element iel. Adjacent elements OVERLAP at boundary
         /// indices (one shared index for C^0 LIP, two for C^1 HIP);

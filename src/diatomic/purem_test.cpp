@@ -100,8 +100,8 @@ int main(int argc, char **argv) {
   parser.add<double>("perturb", 0, "relative perturbation of P: report how much H moves (functional conditioning)", false, 0.0);
   parser.parse_check(argc, argv);
 
-  const int Z1 = get_Z(parser.get<std::string>("Z1"));
-  const int Z2 = get_Z(parser.get<std::string>("Z2"));
+  const int Z1 = element_Z(parser.get<std::string>("Z1"));
+  const int Z2 = element_Z(parser.get<std::string>("Z2"));
   const double Rbond = parser.get<double>("Rbond");
   const int nela = parser.get<int>("nela");
   const int nelb = parser.get<int>("nelb");
@@ -181,7 +181,7 @@ int main(int argc, char **argv) {
 
     for (int m = 0; m <= std::min(mmax, 2); m++) {
       // A radial point comfortably inside the second element, and a few nu
-      const size_t iel = std::min<size_t>(1, basis.get_rad_Nel() - 1);
+      const size_t iel = std::min<size_t>(1, basis.rad_Nel() - 1);
       const helfem::Vector rr(basis.r(iel));
       // The FEM basis is only C0 across element boundaries -- the second
       // derivative jumps -- so a finite-difference stencil must not step out

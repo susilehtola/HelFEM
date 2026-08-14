@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
   parser.add<double>("thresh", 0, "how much of the norm may be missing", false, 1e-3);
   parser.parse_check(argc, argv);
 
-  const int Z1 = get_Z(parser.get<std::string>("Z1"));
+  const int Z1 = element_Z(parser.get<std::string>("Z1"));
   const double Rbond = parser.get<double>("Rbond");
   const int lmax = parser.get<int>("lmax");
   const int mmax = parser.get<int>("mmax");

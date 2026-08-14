@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
 */
 
   // Get parameters
-  int Z(get_Z(parser.get<std::string>("Z")));
+  int Z(element_Z(parser.get<std::string>("Z")));
   double Rmax(parser.get<double>("Rmax"));
   int igrid(parser.get<int>("grid"));
   int igrid0(parser.get<int>("grid0"));

@@ -35,7 +35,7 @@ namespace helfem {
         chebyshev::chebyshev(lang, cth, wang);
 
         // Distinct m values present in the basis
-        const Eigen::VectorXi mv(basp->get_mval());
+        const Eigen::VectorXi mv(basp->mval());
         for (size_t i = 0; i < (size_t) mv.size(); i++) {
           const int m = (int) mv(i);
           if (std::find(mlist.begin(), mlist.end(), m) == mlist.end())
@@ -45,7 +45,7 @@ namespace helfem {
 
         // Angular factors depend only on (l, m, nu) -- not on the radial point
         // -- so build them once here rather than per element / per radial point.
-        const Eigen::VectorXi lv(basp->get_lval());
+        const Eigen::VectorXi lv(basp->lval());
         const Eigen::Index nang = cth.size();
         lval_m.assign(mlist.size(), std::vector<int>());
         sph_m.assign(mlist.size(), std::vector<helfem::Vector>());
@@ -90,7 +90,7 @@ namespace helfem {
 
         const double r0    = basp->r(iel)(irad);
         const double wr    = basp->wrad(iel)(irad);
-        const double Rhalf = basp->get_Rhalf();
+        const double Rhalf = basp->Rhalf();
         const double shmu  = std::sinh(r0);
 
         // Scale factors and the quadrature weight. Same measure as
@@ -120,11 +120,11 @@ namespace helfem {
         // once per element instead of once per (radial point, angular point,
         // m block) -- see the note in the header.
         if (!cache_valid || iel != cached_iel) {
-          rad_f = basp->get_rad_bf(iel);
+          rad_f = basp->rad_bf(iel);
           if (need_df) {
-            rad_df = basp->get_rad_df(iel);
+            rad_df = basp->rad_df(iel);
             if (do_lapl)
-              rad_d2f = basp->get_rad_d2f(iel);
+              rad_d2f = basp->rad_d2f(iel);
           }
           cached_iel  = iel;
           cache_valid = true;
@@ -681,7 +681,7 @@ namespace helfem {
           PureMDFTGridWorker grid(basp, lang);
           grid.check_grad_tau_lapl(x_func, c_func);
 
-          for (size_t iel = 0; iel < basp->get_rad_Nel(); iel++) {
+          for (size_t iel = 0; iel < basp->rad_Nel(); iel++) {
             for (size_t irad = 0; irad < (size_t) basp->r(iel).size(); irad++) {
               grid.compute_bf(iel, irad);
               grid.update_density(P);
@@ -712,7 +712,7 @@ namespace helfem {
           PureMDFTGridWorker grid(basp, lang);
           grid.check_grad_tau_lapl(x_func, c_func);
 
-          for (size_t iel = 0; iel < basp->get_rad_Nel(); iel++) {
+          for (size_t iel = 0; iel < basp->rad_Nel(); iel++) {
             for (size_t irad = 0; irad < (size_t) basp->r(iel).size(); irad++) {
               grid.compute_bf(iel, irad);
               grid.update_density(Pa, Pb);
