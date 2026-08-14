@@ -729,6 +729,17 @@ int main(int argc, char **argv) {
     // Densities written straight through the checkpoint's helfem::Matrix overloads.
     savechk.write("Pa", Pa_final);
     savechk.write("Pb", Pb_final);
+    // The AO-basis orbitals, occupied columns first: what diatomic_cpl
+    // projects the probe AOs against.
+    helfem::Matrix Ca_final, Cb_final;
+    helfem::Vector occa_final, occb_final;
+    helfem::scf_driver::assemble_final_orbitals<OOO_Real>(
+        Nbf, restricted, dsym, Sinvh, final_orbs, final_occs,
+        Ca_final, occa_final, Cb_final, occb_final);
+    savechk.write("Ca", Ca_final);
+    savechk.write("Cb", Cb_final);
+    savechk.write("occa", occa_final);
+    savechk.write("occb", occb_final);
     savechk.write("nela", nela);
     savechk.write("nelb", nelb);
     // Extra parameters needed by density_line / density_grid / completeness.

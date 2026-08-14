@@ -59,9 +59,11 @@ int main(int argc, char **argv) {
   // Basis set
   diatomic::basis::TwoDBasis basis;
   loadchk.read(basis);
-  // Sinvh
-  helfem::Matrix Sinvh;
-  loadchk.read("Sinvh",Sinvh);
+  // Whole-basis orthonormalization, rebuilt from the loaded basis: the
+  // OOO-era checkpoints don't carry Sinvh (the drivers work per
+  // symmetry block), and recomputing it here also keeps this tool
+  // independent of how the checkpoint was produced.
+  helfem::Matrix Sinvh = basis.Sinvh(/*chol=*/false, /*sym=*/0);
   helfem::Matrix Sinv(Sinvh*Sinvh.transpose());
   // Orbitals
   helfem::Matrix Ca, Cb;

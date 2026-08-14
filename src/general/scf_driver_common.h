@@ -290,6 +290,64 @@ namespace helfem {
       return {Pa_final, Pb_final};
     }
 
+    /// Assemble global AO-basis orbital matrices from the converged
+    /// per-block orthonormal-basis orbitals, for --save. Columns are
+    /// sorted by occupation (descending), so leftCols(nocc) spans the
+    /// occupied space -- the layout the analysis tools (diatomic_cpl,
+    /// ...) expect of the checkpoint's Ca/Cb. The occupation vectors
+    /// come back in the same order, as per-spin occupations (the
+    /// restricted channel's total is split evenly).
+    template <typename Real>
+    inline void assemble_final_orbitals(
+        size_t Nbf, bool restricted,
+        const std::vector<std::vector<Eigen::Index>> & dsym,
+        const std::vector<helfem::Matrix> & Sinvh,
+        const OpenOrbitalOptimizer::Orbitals<Real> & final_orbs,
+        const OpenOrbitalOptimizer::OrbitalOccupations<Real> & final_occs,
+        helfem::Matrix & Ca, helfem::Vector & occa,
+        helfem::Matrix & Cb, helfem::Vector & occb) {
+      const size_t nsym = dsym.size();
+      const Eigen::Index N = static_cast<Eigen::Index>(Nbf);
+
+      auto build = [&](size_t block_offset, helfem::Matrix & C, helfem::Vector & occ,
+                       double occ_scale) {
+        // (occupation, block, column-in-block), sorted descending by
+        // occupation; ties keep block-then-column order (stable_sort).
+        std::vector<std::tuple<double, size_t, Eigen::Index>> order;
+        for (size_t k = 0; k < nsym; ++k) {
+          if (dsym[k].empty()) continue;
+          const helfem::Vector & o = final_occs[block_offset + k];
+          for (Eigen::Index c = 0; c < o.size(); ++c)
+            order.emplace_back(o(c), k, c);
+        }
+        std::stable_sort(order.begin(), order.end(),
+                         [](const auto & a, const auto & b) {
+                           return std::get<0>(a) > std::get<0>(b);
+                         });
+
+        C = helfem::Matrix::Zero(N, static_cast<Eigen::Index>(order.size()));
+        occ = helfem::Vector::Zero(static_cast<Eigen::Index>(order.size()));
+        for (size_t i = 0; i < order.size(); ++i) {
+          const size_t k = std::get<1>(order[i]);
+          const Eigen::Index c = std::get<2>(order[i]);
+          const helfem::Vector col_ao = Sinvh[k] * final_orbs[block_offset + k].col(c);
+          const std::vector<Eigen::Index> & idx = dsym[k];
+          for (size_t r = 0; r < idx.size(); ++r)
+            C(idx[r], static_cast<Eigen::Index>(i)) = col_ao(static_cast<Eigen::Index>(r));
+          occ(static_cast<Eigen::Index>(i)) = occ_scale * std::get<0>(order[i]);
+        }
+      };
+
+      if (restricted) {
+        build(0, Ca, occa, 0.5);
+        Cb = Ca;
+        occb = occa;
+      } else {
+        build(0, Ca, occa, 1.0);
+        build(nsym, Cb, occb, 1.0);
+      }
+    }
+
     /// CLI-input normalisation shared by both drivers:
     /// * scf::parse_nela_nelb fills in nela/nelb from --Q and --M
     ///   when both are zero on entry;
