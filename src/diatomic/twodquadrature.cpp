@@ -17,10 +17,13 @@
 #include "../general/atomdb.h"
 #include "chebyshev.h"
 #include "../general/lcao.h"
+#include "../general/spherical_harmonics.h"
 #include "../general/model_potential.h"
 #include "../sadatom/scf.h"
 #include "utils.h"
 #include <algorithm>
+#include <map>
+#include <limits>
 #include <cmath>
 
 // PBE ground states determined with 10 radial elements
@@ -441,20 +444,307 @@ namespace helfem {
         return S;
       }
 
-      helfem::Matrix TwoDGrid::gto_projection(int l, int m, const helfem::Vector & expn, probe_t p) {
-        helfem::Matrix S = helfem::Matrix::Zero(expn.size(),basp->Ndummy());
-        TwoDGridWorker grid(basp,lang);
+      // Panel-graded AO projection: one quadrature whose panels are
+      // smooth for BOTH factors of the integrand at every exponent.
+      //
+      // The basis side is covered exactly by construction: panels never
+      // cross a mu-element boundary, so the basis functions restricted
+      // to any panel are polynomials. The AO side is covered by grading:
+      // within each element, panels are bisected until the AO's radial
+      // argument r_p spans no more than a couple of its decay lengths
+      // and its angular argument cos(theta_p) is narrow, so the AO is a
+      // low-degree function on every panel it can reach. Panels the AO
+      // cannot reach are dropped, and the recursion around the probe
+      // point itself stops once a panel's whole extent is deep inside
+      // the AO peak (its contribution is O((r_hi/scale)^(l+3)) of the
+      // total). Tensor Gauss on the accepted panels is then spectrally
+      // accurate for every exponent -- tight, moderate or diffuse --
+      // with no rule switch anywhere.
+      //
+      // The panel bounds are exact, not sampled: r_p and cos(theta_p)
+      // are monotone in mu and in eta for all three probes (e.g. left
+      // probe: dr_p/deta = a > 0, dcth_p/deta = sinh^2(mu)/(cosh(mu) +
+      // eta)^2 >= 0), so corner evaluations bound them. The one special
+      // case is a corner that touches the probe itself (r_p = 0), where
+      // the angle is undefined and is treated as spanning [-1, 1].
+      //
+      // Conventions match the (mu, nu) grid path: the same
+      // spherical_harmonics-at-phi=0 basis values, the same
+      // sph_legendre AO angular factor, the same analytic 2 pi from the
+      // phi integral. One deliberate difference: the midbond probe's
+      // angular argument is the true polar angle about the midpoint,
+      // cos(theta_c) = z / r_c, where the old grid path used the
+      // prolate eta. The two agree for l = 0 (both constant); for l > 0
+      // the old choice made the "midbond AO" a hybrid object rather
+      // than a spherical harmonic about the midpoint.
+      std::vector<helfem::Matrix> TwoDGrid::graded_projections(int lmin, int lmax_ao, int m,
+                                                                const helfem::Vector & expn,
+                                                                probe_t p, bool sto_probe) const {
+        const int nl = lmax_ao - lmin + 1;
+        const double a = basp->Rhalf();
+        const size_t Nrad = basp->Nrad();
+        const std::vector<Eigen::Index> pure = basp->pure_indices();
+        const Eigen::VectorXi shell_m = basp->mval();
 
-        for(size_t iel=0;iel<basp->rad_Nel();iel++) {
-          for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
-            grid.compute_bf(iel,irad,m);
-            grid.gto(l, expn, p);
-            grid.multiply_Plm(l, m, p);
-            grid.eval_proj(S);
+        // The phi integral is analytic: it kills every m' != m block
+        // and yields the same 2 pi the grid path folds into its
+        // weights. Collect the surviving functions.
+        std::vector<Eigen::Index> mfun;
+        for(size_t i = 0; i < pure.size(); i++)
+          if(shell_m(pure[i] / Nrad) == m)
+            mfun.push_back((Eigen::Index) i);
+
+        std::vector<helfem::Matrix> SL(nl, helfem::Matrix::Zero(expn.size(), pure.size()));
+        if(mfun.empty())
+          return SL;
+
+        // Lean per-element evaluation tables: each surviving function is
+        // (angular shell) x (global radial function); within an element
+        // only the radial functions [ifirst, ilast] are non-zero, so per
+        // element we keep (output column, shell, local radial index).
+        const Eigen::VectorXi shell_l = basp->lval();
+        const helfem::diatomic::basis::RadialBasis & rad = basp->radial();
+        std::vector<int> live_shells;
+        for(Eigen::Index i = 0; i < shell_m.size(); i++)
+          if(shell_m(i) == m)
+            live_shells.push_back((int) i);
+        struct Entry { Eigen::Index col; int shell; Eigen::Index jloc; };
+        std::vector<std::vector<Entry>> eltab(rad.Nel());
+        for(size_t iel = 0; iel < rad.Nel(); iel++) {
+          size_t ifirst, ilast;
+          rad.idx(iel, ifirst, ilast);
+          for(Eigen::Index k = 0; k < (Eigen::Index) mfun.size(); k++) {
+            const Eigen::Index dummy = pure[mfun[k]];
+            const size_t g = dummy % Nrad;
+            if(g >= ifirst && g <= ilast)
+              eltab[iel].push_back({mfun[k], (int) (dummy / Nrad), (Eigen::Index) (g - ifirst)});
           }
         }
 
-        return S(Eigen::all,basp->pure_indices());
+        // AO geometry at a point, in cancellation-free form: near an
+        // on-focus probe both cosh(mu) - 1 and 1 +- eta vanish, so the
+        // textbook expressions lose all their digits exactly where the
+        // grading operates.
+        const auto geom = [a, p](double mu, double eta, double & rp, double & cthp) {
+          const double sh2 = std::sinh(0.5 * mu);
+          const double chm1 = 2.0 * sh2 * sh2;   // cosh(mu) - 1
+          const double ch = 1.0 + chm1;
+          if(p == PROBE_LEFT) {
+            const double q = 1.0 + eta;
+            rp = a * (chm1 + q);
+            cthp = (rp > 0.0) ? (ch * q - chm1) / (chm1 + q) : 1.0;
+          } else if(p == PROBE_RIGHT) {
+            const double q = 1.0 - eta;
+            rp = a * (chm1 + q);
+            cthp = (rp > 0.0) ? (ch * q - chm1) / (chm1 + q) : 1.0;
+          } else {
+            const double sh = std::sinh(mu);
+            rp = a * std::hypot(sh, eta);
+            cthp = (rp > 0.0) ? a * ch * eta / rp : 1.0;
+          }
+          cthp = std::clamp(cthp, -1.0, 1.0);
+        };
+
+        const auto eval_Plm = [m](int L, double u) {
+          return std::sph_legendre(static_cast<unsigned>(L),
+                                   static_cast<unsigned>(std::abs(m)),
+                                   std::acos(std::clamp(u, -1.0, 1.0)));
+        };
+
+        // Panel rules. Full orders cover the element-wide basis
+        // polynomials (degree ~ nnodes for the radial factor, ~ Lmax
+        // for the angular one); deeply graded panels see only a tiny
+        // slice of those polynomials, which is effectively low degree,
+        // so they get lean orders.
+        const int Lmax = basp->lval().maxCoeff();
+        helfem::Vector xf_mu, wf_mu, xf_eta, wf_eta, xl_mu, wl_mu, xl_eta, wl_eta;
+        lobatto::lobatto_compute(16, xf_mu, wf_mu);
+        lobatto::lobatto_compute((Lmax + lmax_ao) / 2 + 12, xf_eta, wf_eta);
+        lobatto::lobatto_compute(10, xl_mu, wl_mu);
+        lobatto::lobatto_compute(12, xl_eta, wl_eta);
+
+        const helfem::Vector bval(basp->bval());
+
+        // Octave batching: exponents within a factor two share one
+        // panelisation, graded for the tightest member and reaching as
+        // far as the most diffuse one. The basis evaluation -- the
+        // dominant cost -- is then paid once per point for the whole
+        // bucket instead of once per exponent.
+        std::map<int, std::vector<Eigen::Index>> buckets;
+        for(Eigen::Index ix = 0; ix < expn.size(); ix++)
+          buckets[(int) std::floor(std::log2(expn(ix)))].push_back(ix);
+        std::vector<std::vector<Eigen::Index>> bucket_list;
+        for(auto & b : buckets)
+          bucket_list.push_back(b.second);
+
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+        for(size_t ib = 0; ib < bucket_list.size(); ib++) {
+          const std::vector<Eigen::Index> & bucket = bucket_list[ib];
+          double scale = std::numeric_limits<double>::infinity(), rmax_ao = 0.0;
+          for(Eigen::Index ix : bucket) {
+            const double s = sto_probe ? 1.0 / expn(ix) : 1.0 / std::sqrt(expn(ix));
+            scale = std::min(scale, s);
+            rmax_ao = std::max(rmax_ao, (sto_probe ? 32.0 : std::sqrt(32.0)) * s);
+          }
+
+          std::vector<double> wao(nl * bucket.size());
+          double m1el = 0.0, m2el = 0.0;
+
+          const std::function<void(size_t,double,double,double,double,double,int)> panel =
+              [&](size_t iel, double m1, double m2, double e1, double e2, double elwidth, int depth) {
+            // Exact panel bounds from the corners (monotonicity; see
+            // above). A probe-touching corner leaves the angle free.
+            double r11, r12, r21, r22, c11, c12, c21, c22;
+            geom(m1, e1, r11, c11); geom(m1, e2, r12, c12);
+            geom(m2, e1, r21, c21); geom(m2, e2, r22, c22);
+            double rlo = std::min(std::min(r11, r12), std::min(r21, r22));
+            double rhi = std::max(std::max(r11, r12), std::max(r21, r22));
+            if(p == PROBE_MIDDLE && e1 < 0.0 && e2 > 0.0) {
+              double rm, cm;
+              geom(m1, 0.0, rm, cm);
+              rlo = std::min(rlo, rm);
+            }
+            double clo = std::min(std::min(c11, c12), std::min(c21, c22));
+            double chi = std::max(std::max(c11, c12), std::max(c21, c22));
+            if(rlo <= 0.0) { clo = -1.0; chi = 1.0; }
+
+            if(rlo > rmax_ao)
+              return;                        // the AO cannot reach this panel
+
+            const bool tiny = rhi < 1e-3 * scale;   // deep inside the AO peak
+            const bool rok = (rhi - rlo) <= 2.0 * scale;
+            // Far from the probe (proper annulus panels), cos(theta_p)
+            // is a tame analytic function of eta no matter how wide its
+            // range, and the full-order eta rule integrates it; only
+            // near the probe does the mapping distort violently.
+            const bool cok = (chi - clo) <= 0.6 || rlo >= 2.0 * (rhi - rlo);
+            if(!tiny && !(rok && cok) && depth < 48) {
+              // Bisect the direction that contributes more of the
+              // offending spread. r_p is monotone in mu, so corner
+              // differences measure the mu direction exactly; along eta
+              // the midpoint probe has an interior minimum at eta = 0
+              // (all four corners of a symmetric panel see the SAME
+              // r_p), so the eta span must include it or the chooser
+              // goes blind and bisects mu forever.
+              const double dr_mu  = std::max(std::abs(r21 - r11), std::abs(r22 - r12));
+              double dr_eta = std::max(std::abs(r12 - r11), std::abs(r22 - r21));
+              if(p == PROBE_MIDDLE && e1 < 0.0 && e2 > 0.0) {
+                double rmid1, rmid2, cdum;
+                geom(m1, 0.0, rmid1, cdum);
+                geom(m2, 0.0, rmid2, cdum);
+                dr_eta = std::max({dr_eta, r11 - rmid1, r12 - rmid1, r21 - rmid2, r22 - rmid2});
+              }
+              const double dc_mu  = std::max(std::abs(c21 - c11), std::abs(c22 - c12));
+              const double dc_eta = std::max(std::abs(c12 - c11), std::abs(c22 - c21));
+              const bool r_worse = ((rhi - rlo) / (2.0 * scale)) >= ((chi - clo) / 0.6);
+              bool split_mu = r_worse ? (dr_mu > dr_eta) : (dc_mu > dc_eta);
+              // degenerate metrics (e.g. a probe-corner panel): fall
+              // back to bisecting the longer side in relative units
+              if((r_worse && dr_mu <= 0.0 && dr_eta <= 0.0) ||
+                 (!r_worse && dc_mu <= 0.0 && dc_eta <= 0.0))
+                split_mu = ((m2 - m1) / elwidth) >= (0.5 * (e2 - e1));
+              if(split_mu) {
+                const double mm = 0.5 * (m1 + m2);
+                panel(iel, m1, mm, e1, e2, elwidth, depth + 1);
+                panel(iel, mm, m2, e1, e2, elwidth, depth + 1);
+              } else {
+                const double em = 0.5 * (e1 + e2);
+                panel(iel, m1, m2, e1, em, elwidth, depth + 1);
+                panel(iel, m1, m2, em, e2, elwidth, depth + 1);
+              }
+              return;
+            }
+
+            // Integrate. Lean rule once the panel is a small slice of
+            // the element in both directions.
+            const bool lean = (m2 - m1) < 0.0625 * elwidth && (e2 - e1) < 0.125;
+            const helfem::Vector & xmu = lean ? xl_mu : xf_mu, & wmu = lean ? wl_mu : wf_mu;
+            const helfem::Vector & xet = lean ? xl_eta : xf_eta, & wet = lean ? wl_eta : wf_eta;
+            const double mmid = 0.5 * (m2 + m1), mhw = 0.5 * (m2 - m1);
+            const double emid = 0.5 * (e2 + e1), ehw = 0.5 * (e2 - e1);
+            // Only the bucket members whose AO reaches this panel do
+            // any work here; the tight members die on the outer annuli.
+            std::vector<size_t> livek;
+            for(size_t k = 0; k < bucket.size(); k++) {
+              const double ex = expn(bucket[k]);
+              const bool reaches = sto_probe ? (ex * rlo <= 32.0)
+                                             : (ex * rlo * rlo <= 32.0);
+              if(reaches)
+                livek.push_back(k);
+            }
+            if(livek.empty())
+              return;
+
+            // Per-panel factor tables: the radial basis values depend
+            // only on mu and the shell harmonics only on eta, so they
+            // are evaluated once per node line, not once per point.
+            // (The Lobatto endpoints can land an ulp outside the
+            // element under round-off; clamp so the lookups succeed.)
+            helfem::Vector xloc(xmu.size());
+            for(Eigen::Index iq = 0; iq < xmu.size(); iq++) {
+              const double mu = std::clamp(mmid + mhw * xmu(iq), m1, m2);
+              xloc(iq) = std::clamp(2.0 * (mu - m1el) / (m2el - m1el) - 1.0, -1.0, 1.0);
+            }
+            const helfem::Matrix rmat = rad.bf(iel, xloc);   // (nmu x nlocal)
+            helfem::Matrix sph_tab(xet.size(), shell_l.size());
+            for(Eigen::Index jq = 0; jq < xet.size(); jq++) {
+              const double eta = std::clamp(emid + ehw * xet(jq), -1.0, 1.0);
+              for(int s : live_shells)
+                sph_tab(jq, s) = std::real(::spherical_harmonics(shell_l(s), m, eta, 0.0));
+            }
+
+            for(Eigen::Index iq = 0; iq < xmu.size(); iq++) {
+              const double mu = std::clamp(mmid + mhw * xmu(iq), m1, m2);
+              const double shmu = std::sinh(mu);
+              for(Eigen::Index jq = 0; jq < xet.size(); jq++) {
+                const double eta = std::clamp(emid + ehw * xet(jq), -1.0, 1.0);
+                double rp, cthp;
+                geom(mu, eta, rp, cthp);
+                if(rp <= 0.0)
+                  continue;
+                // dV = 2 pi a^3 sinh(mu) (sinh^2(mu) + 1 - eta^2) dmu deta
+                const double jac = a * a * a * shmu * (shmu * shmu + 1.0 - eta * eta);
+                const double wgeo = 2.0 * M_PI * mhw * wmu(iq) * ehw * wet(jq) * jac;
+                bool live = false;
+                for(int il = 0; il < nl; il++) {
+                  const double wPl = wgeo * eval_Plm(lmin + il, cthp);
+                  for(size_t kk = 0; kk < livek.size(); kk++) {
+                    const double ex = expn(bucket[livek[kk]]);
+                    const double Rao = sto_probe ? lcao::radial_STO(rp, lmin + il, ex)
+                                                 : lcao::radial_GTO(rp, lmin + il, ex);
+                    wao[il * livek.size() + kk] = wPl * Rao;
+                    live = live || (Rao != 0.0);
+                  }
+                }
+                if(!live)
+                  continue;
+                for(const Entry & en : eltab[iel]) {
+                  const double b = sph_tab(jq, en.shell) * rmat(iq, en.jloc);
+                  for(int il = 0; il < nl; il++) {
+                    helfem::Matrix & Sl = SL[il];
+                    const double * w = &wao[il * livek.size()];
+                    for(size_t kk = 0; kk < livek.size(); kk++)
+                      Sl(bucket[livek[kk]], en.col) += w[kk] * b;
+                  }
+                }
+              }
+            }
+          };
+
+          for(size_t iel = 0; iel + 1 < (size_t) bval.size(); iel++) {
+            m1el = bval(iel);
+            m2el = bval(iel + 1);
+            panel(iel, m1el, m2el, -1.0, 1.0, m2el - m1el, 0);
+          }
+        }
+
+        return SL;
+      }
+
+      helfem::Matrix TwoDGrid::gto_projection(int l, int m, const helfem::Vector & expn, probe_t p) {
+        return graded_projections(l, l, m, expn, p, /*sto_probe=*/false)[0];
       }
 
       helfem::Matrix TwoDGrid::gto_overlap(int l, int m, const helfem::Vector & expn, probe_t p) {
@@ -474,19 +764,7 @@ namespace helfem {
       }
 
       helfem::Matrix TwoDGrid::sto_projection(int l, int m, const helfem::Vector & expn, probe_t p) {
-        helfem::Matrix S = helfem::Matrix::Zero(expn.size(),basp->Ndummy());
-        TwoDGridWorker grid(basp,lang);
-
-        for(size_t iel=0;iel<basp->rad_Nel();iel++) {
-          for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
-            grid.compute_bf(iel,irad,m);
-            grid.sto(l, expn, p);
-            grid.multiply_Plm(l, m, p);
-            grid.eval_proj(S);
-          }
-        }
-
-        return S(Eigen::all,basp->pure_indices());
+        return graded_projections(l, l, m, expn, p, /*sto_probe=*/true)[0];
       }
 
       helfem::Matrix TwoDGrid::sto_overlap(int l, int m, const helfem::Vector & expn, probe_t p) {

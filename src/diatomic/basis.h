@@ -131,7 +131,7 @@ namespace helfem {
         double Rhalf_;
 
         /// Radial basis set
-        RadialBasis radial;
+        RadialBasis radial_;
         /// Angular basis set: function l values
         Eigen::VectorXi lval_;
         /// Angular basis set: function m values
@@ -236,6 +236,10 @@ namespace helfem {
         Eigen::VectorXi mval() const;
 
         /// Get number of quadrature points
+        /// The underlying radial basis (read-only), following
+        /// atomic::TwoDBasisT::radial(); the graded AO projection
+        /// evaluates radial functions at arbitrary points through this.
+        const RadialBasis & radial() const { return radial_; }
         int nquad() const;
         /// Get boundary values
         helfem::Vector bval() const;

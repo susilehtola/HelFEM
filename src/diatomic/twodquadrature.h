@@ -135,6 +135,26 @@ namespace helfem {
         helfem::Matrix gto_overlap(int l, int m, const helfem::Vector & expn, probe_t p);
         /// Compute STO projection
         helfem::Matrix sto_projection(int l, int m, const helfem::Vector & expn, probe_t p);
+
+        /// AO projection <bf|AO> on a panel-graded quadrature that
+        /// covers BOTH factors exactly: panels never cross a mu-element
+        /// boundary (the basis is polynomial on every panel) and are
+        /// bisected until the AO's radial and angular arguments are
+        /// narrow on each panel it can reach (the AO is low-degree
+        /// there). Spectrally accurate at every exponent, no rule
+        /// switch. Layout matches the grid path: (nexp x Nbf).
+        /// One panelisation sweep per probe serves every l and every
+        /// exponent: the panels, radial rows and shell harmonics are
+        /// l-independent, so computing the whole l-range at once is
+        /// what makes the tool's scan affordable. Returns one
+        /// (nexp x Nbf) matrix per l in [lmin, lmax_ao].
+        ///
+        /// Values below Y ~ 1e-14 in the derived profiles are noise
+        /// limited (that is eps^2 of the plateau) for ANY double
+        /// precision rule; this diagnostic makes no claims there.
+        std::vector<helfem::Matrix> graded_projections(int lmin, int lmax_ao, int m,
+                                                       const helfem::Vector & expn,
+                                                       probe_t p, bool sto_probe) const;
         /// Compute STO overlap
         helfem::Matrix sto_overlap(int l, int m, const helfem::Vector & expn, probe_t p);
 
