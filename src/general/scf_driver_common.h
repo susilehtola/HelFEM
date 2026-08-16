@@ -222,14 +222,26 @@ namespace helfem {
     /// blocks become 0x0 placeholders. Called per spin channel and
     /// per block from the driver's --load path.
     ///
-    ///   P_orth = Sinvh_k^T . Pspin(dsym[k], dsym[k]) . Sinvh_k
+    ///   P_orth = (Sinvh_k^T S_k) . Pspin(dsym[k], dsym[k]) . (S_k Sinvh_k)
     ///          -> V, w  (descending); w clamped to [0, max_occ]
+    ///
+    /// The S factors are what makes this a DENSITY transformation.
+    /// Orbital coefficients transform as C = Sinvh C~, so the density
+    /// P = C n C^T pulls back as P~ = Sinvh^-1 P Sinvh^-T, and
+    /// Sinvh^T S Sinvh = I gives Sinvh^-1 = Sinvh^T S on the retained
+    /// subspace. Dropping the S factors would apply the Fock (covariant)
+    /// rule instead: that returns S^-1 P S^-1, whose trace is not the
+    /// electron count and whose dominant eigenvectors are the directions
+    /// where S^-1 blows up -- the most nearly linearly dependent,
+    /// highest-kinetic-energy ones. Restarting from an exact same-basis
+    /// density then began at +3.8e5 Eh instead of the converged energy.
     template <typename Real>
     inline void fill_block_from_density(
         size_t out_index,
         OpenOrbitalOptimizer::Orbitals<Real> & orbs,
         OpenOrbitalOptimizer::OrbitalOccupations<Real> & occs,
-        const helfem::Matrix & Pspin, const std::vector<Eigen::Index> & idx,
+        const helfem::Matrix & Pspin, const helfem::Matrix & S,
+        const std::vector<Eigen::Index> & idx,
         const helfem::Matrix & Sinvh_block, double max_occ) {
       if (idx.empty()) {
         orbs[out_index] = helfem::Matrix::Zero(0, 0);
@@ -237,7 +249,9 @@ namespace helfem {
         return;
       }
       const helfem::Matrix Pblk  = Pspin(idx, idx);
-      const helfem::Matrix Porth = Sinvh_block.transpose() * Pblk * Sinvh_block;
+      const helfem::Matrix Sblk  = S(idx, idx);
+      const helfem::Matrix SC    = Sblk * Sinvh_block;
+      const helfem::Matrix Porth = SC.transpose() * Pblk * SC;
       // SelfAdjointEigenSolver returns eigenvalues in ascending order;
       // reverse for descending (largest occupation first), matching the
       // old symmetric-eigensolver + manual reversal.
