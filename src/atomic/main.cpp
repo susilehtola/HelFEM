@@ -636,13 +636,13 @@ int main(int argc, char **argv) {
       const helfem::Matrix P_total = Pa_new + Pb_new;
       for (size_t k = 0; k < nsym; ++k)
         helfem::scf_driver::fill_block_from_density(
-            k, loaded_orbs, loaded_occs, P_total, dsym[k], Sinvh[k], max_occ_restr);
+            k, loaded_orbs, loaded_occs, P_total, S, dsym[k], Sinvh[k], max_occ_restr);
     } else {
       for (size_t k = 0; k < nsym; ++k) {
         helfem::scf_driver::fill_block_from_density(
-            k,        loaded_orbs, loaded_occs, Pa_new, dsym[k], Sinvh[k], max_occ_open);
+            k, loaded_orbs, loaded_occs, Pa_new, S, dsym[k], Sinvh[k], max_occ_open);
         helfem::scf_driver::fill_block_from_density(
-            nsym + k, loaded_orbs, loaded_occs, Pb_new, dsym[k], Sinvh[k], max_occ_open);
+            nsym + k, loaded_orbs, loaded_occs, Pb_new, S, dsym[k], Sinvh[k], max_occ_open);
       }
     }
     scfsolver.initialize_with_orbitals(loaded_orbs, loaded_occs);
