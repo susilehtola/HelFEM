@@ -484,7 +484,13 @@ namespace helfem {
             } else {
               Pl_new = helfem::Matrix::Zero(Nrad, Nrad);
             }
-            const helfem::Matrix Porth = Sinvh_full.transpose() * Pl_new * Sinvh_full;
+            // A density is contravariant: P~ = Sinvh^-1 P Sinvh^-T, and
+            // Sinvh^T S Sinvh = I gives Sinvh^-1 = Sinvh^T S. Without
+            // the S factors this is the Fock rule, which returns
+            // S^-1 P S^-1 -- see the same fix in
+            // scf_driver::fill_block_from_density.
+            const helfem::Matrix SC    = S_new * Sinvh_full;
+            const helfem::Matrix Porth = SC.transpose() * Pl_new * SC;
             Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(Porth);
             if (es.info() != Eigen::Success)
               throw std::logic_error("--load: eigendecomposition of projected l block density failed");
