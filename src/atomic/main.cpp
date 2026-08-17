@@ -629,21 +629,35 @@ int main(int argc, char **argv) {
     // largest first for Aufbau semantics).
     OpenOrbitalOptimizer::Orbitals<OOO_Real>            loaded_orbs(nsym * nparttype);
     OpenOrbitalOptimizer::OrbitalOccupations<OOO_Real>  loaded_occs(nsym * nparttype);
+    double seed_dev_a = 0.0, seed_dev_b = 0.0;
     const double max_occ_restr = 2.0;
     const double max_occ_open  = 1.0;
     if (restricted) {
       // Single channel: eigenvalues of total P should be in [0, 2].
       const helfem::Matrix P_total = Pa_new + Pb_new;
       for (size_t k = 0; k < nsym; ++k)
-        helfem::scf_driver::fill_block_from_density(
-            k, loaded_orbs, loaded_occs, P_total, S, dsym[k], Sinvh[k], max_occ_restr);
+        seed_dev_a = std::max(seed_dev_a, helfem::scf_driver::fill_block_from_density(
+            k, loaded_orbs, loaded_occs, P_total, S, dsym[k], Sinvh[k], max_occ_restr));
     } else {
       for (size_t k = 0; k < nsym; ++k) {
-        helfem::scf_driver::fill_block_from_density(
-            k, loaded_orbs, loaded_occs, Pa_new, S, dsym[k], Sinvh[k], max_occ_open);
-        helfem::scf_driver::fill_block_from_density(
-            nsym + k, loaded_orbs, loaded_occs, Pb_new, S, dsym[k], Sinvh[k], max_occ_open);
+        seed_dev_a = std::max(seed_dev_a, helfem::scf_driver::fill_block_from_density(
+            k, loaded_orbs, loaded_occs, Pa_new, S, dsym[k], Sinvh[k], max_occ_open));
+        seed_dev_b = std::max(seed_dev_b, helfem::scf_driver::fill_block_from_density(
+            nsym + k, loaded_orbs, loaded_occs, Pb_new, S, dsym[k], Sinvh[k], max_occ_open));
       }
+    }
+    if (restricted) {
+      double nel = 0.0;
+      for (size_t k = 0; k < nsym; ++k) nel += loaded_occs[k].sum();
+      helfem::scf_driver::check_seeded_density(seed_dev_a, nel, "total", verbosity);
+    } else {
+      double nela_got = 0.0, nelb_got = 0.0;
+      for (size_t k = 0; k < nsym; ++k) {
+        nela_got += loaded_occs[k].sum();
+        nelb_got += loaded_occs[nsym + k].sum();
+      }
+      helfem::scf_driver::check_seeded_density(seed_dev_a, nela_got, "alpha", verbosity);
+      helfem::scf_driver::check_seeded_density(seed_dev_b, nelb_got, "beta", verbosity);
     }
     scfsolver.initialize_with_orbitals(loaded_orbs, loaded_occs);
   } else {
