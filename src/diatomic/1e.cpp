@@ -142,7 +142,10 @@ int main(int argc, char **argv) {
   bool diag=true;
   bool symm=false;
   helfem::Matrix Sinvh(basis.Sinvh(!diag,symm));
-  chkpt.write("Sinvh",Sinvh);
+  // Deliberately NOT written to the checkpoint: it is a property of
+  // the basis and the linear-dependence threshold, so a reader on
+  // another machine may legitimately form a different one. Readers
+  // rebuild it from the stored basis instead.
   printf("Half-inverse formed in %.6f\n",timer.get());
   {
     helfem::Matrix Smo(Sinvh.transpose()*S*Sinvh);
