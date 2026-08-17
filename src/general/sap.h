@@ -52,4 +52,11 @@
   DOI: 10.1002/qua.25945
 */
 double sap_effective_charge(int Z, double r);
+
+/* Number of knots in the tabulated radial grid, and the radius of the
+   i:th one. The table is interpolated linearly between knots, so these
+   are the radii at which the SAP potential is not smooth: a quadrature
+   that does not split there converges only algebraically. */
+int sap_num_knots(void);
+double sap_knot(int i);
 #endif

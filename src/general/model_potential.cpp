@@ -78,6 +78,24 @@ namespace helfem {
       return -::sap_effective_charge(Z,r)/r;
     }
 
+    std::vector<double> SAPAtom::breakpoints(double a, double b) const {
+      // The table is interpolated linearly, so every knot is a kink.
+      // Only the ones strictly inside the element are reported; one
+      // sitting on an element boundary is already handled by the
+      // element decomposition. The grid is ascending, so the scan can
+      // stop at the first knot past b.
+      std::vector<double> bp;
+      const int nknot = ::sap_num_knots();
+      for (int i = 0; i < nknot; i++) {
+        const double r = ::sap_knot(i);
+        if (r >= b)
+          break;
+        if (r > a)
+          bp.push_back(r);
+      }
+      return bp;
+    }
+
     SAPFEAtom::SAPFEAtom(int Z_) : SAPFEAtom(Z_, XC_LDA_X, 0) {
     }
 
