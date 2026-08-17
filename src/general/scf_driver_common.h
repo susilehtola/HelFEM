@@ -235,8 +235,13 @@ namespace helfem {
     /// where S^-1 blows up -- the most nearly linearly dependent,
     /// highest-kinetic-energy ones. Restarting from an exact same-basis
     /// density then began at +3.8e5 Eh instead of the converged energy.
+    /// Returns the relative Frobenius deviation between the density
+    /// this block's seeded orbitals reconstruct and the density it was
+    /// given -- zero when the pair (V, w) really represents Pblk. See
+    /// check_seeded_density below for why the electron count alone is
+    /// not enough to catch a bad transformation.
     template <typename Real>
-    inline void fill_block_from_density(
+    inline double fill_block_from_density(
         size_t out_index,
         OpenOrbitalOptimizer::Orbitals<Real> & orbs,
         OpenOrbitalOptimizer::OrbitalOccupations<Real> & occs,
@@ -246,7 +251,7 @@ namespace helfem {
       if (idx.empty()) {
         orbs[out_index] = helfem::Matrix::Zero(0, 0);
         occs[out_index] = helfem::Vector::Zero(0);
-        return;
+        return 0.0;
       }
       const helfem::Matrix Pblk  = Pspin(idx, idx);
       const helfem::Matrix Sblk  = S(idx, idx);
@@ -267,6 +272,49 @@ namespace helfem {
       }
       orbs[out_index] = V;
       occs[out_index] = w;
+
+      // Round trip: the seeded pair, mapped back to the AO basis, must
+      // rebuild the block density it came from.
+      const helfem::Matrix Cao  = Sinvh_block * V;
+      const helfem::Matrix Prec = Cao * w.asDiagonal() * Cao.transpose();
+      const double nrm = Pblk.norm();
+      return (Prec - Pblk).norm() / std::max(1.0, nrm);
+    }
+
+    /// Assert that the orbitals and occupations just seeded into OOO
+    /// really represent the density that was read.
+    ///
+    /// The assertion is a round trip -- rebuild the density from the
+    /// seeded pair and compare -- NOT the electron count. The count is
+    /// too weak to catch the transformation bug this file used to
+    /// carry: pulling the density back with the Fock rule gives
+    /// S^-1 P S^-1, whose eigenvalues are not occupations at all, but
+    /// clamping them to [0, max_occ] leaves one orbital at max_occ and
+    /// the rest at zero, so for H2 the seeded occupations summed to
+    /// exactly 2.000000 while the guess energy was +6.2e4 Eh. The
+    /// count agreed by coincidence; the density did not.
+    ///
+    /// Nothing else notices: DIIS recovers from a bad guess, so the run
+    /// still converges to the right energy and merely wastes
+    /// iterations -- which is how the restart stayed broken in all
+    /// three drivers without a single test failing.
+    inline void check_seeded_density(double deviation, double electrons,
+                                     const char * label, int verbosity) {
+      // Threshold picked from the two regimes, which are 16 orders
+      // apart: a sound restart lands near 1e-8 (clamping the near-zero
+      // natural occupations of a converged density to exactly zero
+      // costs about that much), while the Fock-rule transformation this
+      // file used to apply gives 1e8. Anything in between is a real
+      // mismatch worth reporting.
+      if (deviation > 1e-4) {
+        printf("WARNING: the %s restart guess does not reproduce the loaded"
+               " density (relative deviation %.3e).\n         The SCF will"
+               " start from a degraded guess.\n", label, deviation);
+        fflush(stdout);
+      } else if (verbosity >= 1) {
+        printf("Restart guess reproduces the loaded %s density to %.1e"
+               " and carries %.6f electrons.\n", label, deviation, electrons);
+      }
     }
 
     /// Save-path helper: reconstruct the full AO alpha / beta density

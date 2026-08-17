@@ -473,6 +473,7 @@ namespace helfem {
           OpenOrbitalOptimizer::Orbitals<OOO_Real>            loaded_orbs(nblock * nparttype);
           OpenOrbitalOptimizer::OrbitalOccupations<OOO_Real>  loaded_occs(nblock * nparttype);
 
+          double seed_dev = 0.0;
           auto fill_l = [&](size_t base, size_t l, const helfem::Cube & Pcube,
                              double per_l_electrons, double max_occ) {
             helfem::Matrix Pl_new;
@@ -505,6 +506,15 @@ namespace helfem {
             }
             loaded_orbs[base + l] = V;
             loaded_occs[base + l] = w;
+
+            // Round trip: the seeded pair must rebuild the density it
+            // came from. See scf_driver::check_seeded_density for why
+            // the electron count alone cannot catch a bad
+            // transformation here.
+            const helfem::Matrix Cao  = Sinvh_full * V;
+            const helfem::Matrix Prec = Cao * w.asDiagonal() * Cao.transpose();
+            seed_dev = std::max(seed_dev,
+                                (Prec - Pl_new).norm() / std::max(1.0, Pl_new.norm()));
           };
 
           // Per-l electron counts to renormalise into. Read from
@@ -535,6 +545,13 @@ namespace helfem {
               double max_occ = 2.0 * l + 1;
               fill_l(nblock, l, Pbl_old, per_l, max_occ);
             }
+          }
+          {
+            double nel = 0.0;
+            for (size_t b = 0; b < loaded_occs.size(); ++b)
+              nel += loaded_occs[b].sum();
+            helfem::scf_driver::check_seeded_density(seed_dev, nel, "atomic",
+                                                     opts.verbosity);
           }
           scfsolver.initialize_with_orbitals(loaded_orbs, loaded_occs);
         } else {
