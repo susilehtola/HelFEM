@@ -69,6 +69,13 @@ namespace helfem {
     /// Superposition of atomic potentials, from the tabulated effective
     /// charge of sap.cpp. Zeff is interpolated between tabulation knots,
     /// so the potential is only piecewise smooth on the tabulation grid.
+    /// Superposition of atomic potentials, from the tabulated table in
+    /// sap.cpp. The table is interpolated LINEARLY between its knots, so
+    /// the potential is only C0: it has a kink at every knot, and
+    /// breakpoints() reports the ones inside the element so the
+    /// quadrature can split there. Without that the refinement converges
+    /// only algebraically (measured O(n^-2), stalling at ~2e-8) and
+    /// grinds to the order cap on every run that uses this guess.
     class SAPAtom : public ModelPotential {
       /// Charge
       int Z;
@@ -79,6 +86,8 @@ namespace helfem {
       ~SAPAtom();
       /// Potential
       double V(double r) const override;
+      /// Knots of the interpolation table inside (a, b).
+      std::vector<double> breakpoints(double a, double b) const override;
     };
 
     /// Superposition of atomic potentials, evaluated on the fly from the
