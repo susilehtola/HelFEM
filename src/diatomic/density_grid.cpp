@@ -82,9 +82,17 @@ int main(int argc, char **argv) {
   loadchk.read("nela",nela);
   loadchk.read("nelb",nelb);
 
-  // Inverse overlap
-  helfem::Matrix Sinvh;
-  loadchk.read("Sinvh", Sinvh);
+  // Inverse overlap, rebuilt from the loaded basis rather than read
+  // from the checkpoint. Sinvh is a property of the basis and of the
+  // linear-dependence threshold applied to it, not of the wave
+  // function: storing it makes the file depend on the machine that
+  // wrote it (a different BLAS or eigensolver can truncate or order
+  // the null space differently), and the SCF drivers do not write it
+  // at all, so reading it made this tool usable only with
+  // diatomic_1e checkpoints. Everything in a checkpoint is in the
+  // finite element basis; anything orthonormal-basis dependent is
+  // derived here, at load time, from the basis in hand.
+  const helfem::Matrix Sinvh(basis.Sinvh(/*chol=*/false, /*sym=*/0));
   helfem::Matrix Sinv(Sinvh*Sinvh.transpose());
 
   // mu array
