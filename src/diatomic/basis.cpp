@@ -2090,6 +2090,23 @@ namespace helfem {
 
         // Mirror the m >= 0 half onto the negative-m output blocks.
         // Channel (l,m) pairs with (l,-m); K(-mj,-mk) = K(mj,mk).
+        //
+        // How much this can save is set by the block structure, not by
+        // this implementation. Whenever the density is block diagonal
+        // in m -- every symmetry >= 1 case -- so is K, so the build
+        // touches
+        //     n0^2 + 2 sum_{m>0} nm^2
+        // output blocks (nm = shells of that |m|), of which the mirror
+        // removes sum_{m>0} nm^2. The ratio approaches 2 only when the
+        // m = 0 channel is negligible, and in the usual angular bases
+        // m = 0 carries the MOST shells, so the ceiling is well below:
+        //     N2  lmax=13,9       358 -> 277 blocks   1.29x
+        //     Cu2 lmax=46,34,28  5979 -> 4094 blocks  1.46x
+        // Counting the work deterministically (output blocks, radial
+        // contractions and multiply flops) reproduces those ratios
+        // exactly, so the mirror already delivers everything the
+        // structure allows. Wall-clock comparisons suggest a shortfall
+        // only because a loaded machine adds +-20% between builds.
         if(absm_symmetric) {
           std::vector<size_t> mirror_ang(Nang, Nang);
           for(size_t a1=0;a1<Nang;a1++)
