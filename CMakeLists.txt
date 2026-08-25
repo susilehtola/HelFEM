@@ -397,6 +397,79 @@ if(HELFEM_BINARIES)
     message(STATUS "libxc ${LIBXC_VERSION}")
 endif()
 
+# OpenTrustRegion -- second-order trust-region orbital optimizer, used by
+# the atom-in-jellium driver where the fractional occupations at the Fermi
+# level leave the first-order methods crawling. It is a Fortran library
+# with a C interface, so it is strictly optional: without it the drivers
+# build exactly as before, minus the --secondorder path.
+#
+# Only the LP64 (32-bit integer) build is usable. The C header picks its
+# integer type from USE_ILP64 at OUR compile time, and we do not define
+# that, so a 64-bit-integer library would disagree with the settings
+# struct we compile against -- silently, since the symbol names are the
+# same either way. helfem::otr therefore carries the LP64 library or
+# nothing at all, and otr_solver.cpp additionally checks the library's
+# own `ilp64` flag at run time.
+option(HELFEM_OPENTRUSTREGION
+       "Use OpenTrustRegion for second-order orbital optimization" ON)
+add_library(helfem_otr INTERFACE)
+add_library(helfem::otr ALIAS helfem_otr)
+set(HELFEM_OPENTRUSTREGION_ACTIVE OFF)
+if(HELFEM_OPENTRUSTREGION)
+    find_package(OpenTrustRegion QUIET COMPONENTS int32)
+    if(OpenTrustRegion_FOUND)
+        target_link_libraries(helfem_otr INTERFACE OpenTrustRegion::opentrustregion)
+        set(HELFEM_OPENTRUSTREGION_ACTIVE ON)
+        message(STATUS "Using system OpenTrustRegion ${OpenTrustRegion_VERSION}")
+    else()
+        # Fetching means compiling Fortran, which HelFEM otherwise does not
+        # need, and linking an LP64 BLAS/LAPACK, which OpenTrustRegion marks
+        # REQUIRED. Both are checked here rather than left to fail inside the
+        # subproject, so a machine without them degrades to a build without
+        # the second-order path instead of a configure error.
+        include(CheckLanguage)
+        check_language(Fortran)
+        set(BLA_SIZEOF_INTEGER 4)
+        find_package(BLAS QUIET)
+        find_package(LAPACK QUIET)
+        if(CMAKE_Fortran_COMPILER AND BLAS_FOUND AND LAPACK_FOUND)
+            message(STATUS "OpenTrustRegion not found; fetching from GitHub")
+            enable_language(Fortran)
+            enable_language(C)
+            include(FetchContent)
+            # Same reasoning as OpenOrbitalOptimizer above: keep the fetched
+            # copy's install() rules out of our install tree, and pin the
+            # commit so two builds of identical HelFEM source cannot link
+            # different optimizers.
+            set(_otr_exclude "")
+            if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
+                set(_otr_exclude EXCLUDE_FROM_ALL)
+            endif()
+            # Force the LP64 build; OpenTrustRegion's own autodetection falls
+            # back to ILP64 when it cannot find a 32-bit BLAS, which is the
+            # one outcome we cannot consume.
+            set(INTEGER_SIZE 4 CACHE STRING "OpenTrustRegion integer size" FORCE)
+            set(OpenTrustRegion_BUILD_TESTING OFF CACHE INTERNAL "")
+            FetchContent_Declare(OpenTrustRegion
+                GIT_REPOSITORY https://github.com/eriksen-lab/opentrustregion.git
+                GIT_TAG        v2.0.0
+                ${_otr_exclude})
+            FetchContent_MakeAvailable(OpenTrustRegion)
+            unset(_otr_exclude)
+            target_link_libraries(helfem_otr INTERFACE opentrustregion)
+            set(HELFEM_OPENTRUSTREGION_ACTIVE ON)
+        else()
+            message(STATUS "OpenTrustRegion unavailable "
+                           "(needs a Fortran compiler and an LP64 BLAS/LAPACK); "
+                           "the second-order optimizer will not be built")
+        endif()
+    endif()
+endif()
+if(HELFEM_OPENTRUSTREGION_ACTIVE)
+    target_compile_definitions(helfem_otr INTERFACE HELFEM_HAVE_OPENTRUSTREGION)
+endif()
+install(TARGETS helfem_otr EXPORT helfemTargets)
+
 # ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
