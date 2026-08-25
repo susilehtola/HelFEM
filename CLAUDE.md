@@ -93,3 +93,90 @@ Higher-level library linking against `helfem`. Contains SCF infrastructure, DFT 
 | `diatomic_cpl` | `src/diatomic/completeness.cpp` | Completeness profile |
 | `diatomic_dline` | `src/diatomic/density_line.cpp` | Density along bond axis |
 | `diatomic_dgrid` | `src/diatomic/density_grid.cpp` | Density on 2D grid |
+| `aij` | `src/sadatom/aij.cpp` | Atom in jellium |
+
+## Second-order convergence in `aij`
+
+The atom-in-jellium problem optimizes the occupations as well as the
+orbitals, and that is what makes it converge badly at first order. When
+two orbitals are degenerate, moving density between them costs nothing to
+first order in the orbital energies, so the gradient is flat along exactly
+the direction that matters while the real cost -- a dense coupling through
+the Coulomb and XC kernels -- is entirely second order. The spin-restricted
+Fe atom is the standard case: 4s and 3d come out at the same orbital
+energy and sit in different `l` blocks, so no orbital rotation connects
+them at all and their whole interaction is `<4s 4s|W|3d 3d>`. ODA alone
+does not converge it in 2000 iterations; `--secondorder=1` reaches a
+gradient of 1e-9 in a couple of seconds.
+
+`--secondorder=1` runs the first-order solver for `--preiter` iterations
+and then hands over to a trust-region optimizer built on OpenTrustRegion
+(`src/general/trustregion_scf.{h,cpp}`, over the wrapper in
+`otr_solver.{h,cpp}`). The first-order phase only has to find the
+occupation *pattern* -- which shells are fractionally occupied -- and get
+close enough for a quadratic model to mean something; the second-order
+phase optimizes within that pattern and is not the thing that should be
+deciding to open a closed shell.
+
+Two habits worth keeping:
+
+- **`--sotest=1e-4` before trusting a result on a new system.** It checks
+  the analytic gradient and Hessian against finite differences of the
+  energy, including mixed `d1 . H d2` forms that a single-direction check
+  cannot see. Nothing downstream distinguishes a wrong Hessian from a hard
+  problem. For a GGA or meta-GGA the Hessian is *deliberately* approximate
+  -- the kernel keeps only its density-density block -- so `--sotest`
+  measures the deviation (0.14% for PBE, 0.08% for TPSS) instead of
+  failing.
+- **Read the conditioning report at `--verbosity=1`.** It prints the
+  spread of the uncoupled Hessian diagonal and how much of it is
+  near-singular. Exact zeros there are not ill-conditioning, they are a
+  bug: they mean the parameter set contains rotations that do not change
+  the density.
+
+`--soredfac` defaults to 3e-1, a hundred times looser than
+OpenTrustRegion's own default, and that is deliberate. A step whose
+microiterations missed their residual-reduction target is discarded
+however good it is -- probed directly, one discarded step lowered the
+energy by 5.3e-4 and landed on the minimum -- so tightening this does not
+sharpen the answer, it makes the solver throw away good steps until it
+stalls. Loosening it is not a trade either: on the cases that already
+worked it is *cheaper* (Fe LDA 65 Hessian-vector products to 48, Fe PBE 81
+to 55) at identical energies. The same over-tight target was also what
+made `--sosolver=tcg` appear broken.
+
+**Hand over from a well-converged first-order solution.** `--preiter`
+defaults to 100 and lower is not merely slower, it is silently wrong: the
+second-order phase optimizes *within* an occupation pattern and cannot
+discover one. From the core guess (`--preiter=0`) Fe converges in a second
+to an RMS gradient of 5e-9 and an energy 6.1 Eh too high; Cm lands 124 Eh
+too high. Even at `--preiter=20` Fe converges to 2.2e-9 at the *pure-state*
+solution, 0.032 Eh above the ensemble one, because 4s came over exactly
+full. A block frozen on the wrong side of the Fermi level violates the KKT
+conditions of  min E(n) s.t. 0<=n_i<=w, sum n_i = N  -- by Janak's theorem
+dE/dn_i = eps_i, so a full orbital must lie below eps_F and an empty one
+above it. Such a point is stationary for the *restricted* problem with that
+block pinned, which is why the gradient there can be tiny and the energy
+still wrong. The optimizer detects this and releases the block rather than
+merely warning, which repairs the answer outright: Fe at `--preiter=20`
+goes from 0.032 Eh high to exact, and Cm at 20 from 0.029 Eh high to exact.
+It does not rescue a start from the bare core guess, where the orbitals
+themselves are wrong rather than the occupations.
+
+Known weakness: the second-order phase is sensitive to where the
+first-order phase hands over. Fe with TPSS, Cr and Nb all stall at
+`--preiter=40` and all converge in a second at 20, 30, 50 or 60. This is
+not cured, only made cheap -- those cases now stop within a second or two
+a few parts in 10^7 from the minimum, rather than grinding for 900 seconds
+far away from it. A work ceiling, counted per macroiteration so it fires
+on work-without-progress rather than on an absolute budget, is what stops
+them, and it says what happened. If a system matters and stalls, move
+`--preiter`.
+
+Occupation coupling is where the exact preconditioner earns itself, and it
+takes two occupation coordinates to see it -- with one the block is 1x1
+and there is nothing to capture. Curium (5f, 6d and 7s fractionally
+occupied at once) is the demonstration: the exact block reaches an RMS
+gradient of 9.7e-10 where the floored diagonal strands the solve 3.8e-3
+above the minimum. Almost every open-shell atom has only one such
+coordinate, so most systems will never show the difference.

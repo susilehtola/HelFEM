@@ -6,7 +6,7 @@ general/angular.cpp general/scf_helpers.cpp general/lcao.cpp
 general/dftgrid_common.cpp
 general/gsz.cpp general/sap.cpp general/dftfuncs.cpp
 general/atomdb.cpp general/atomdb_data.cpp
-general/checkpoint.cpp atomic/basis.cpp
+general/checkpoint.cpp general/otr_solver.cpp general/trustregion_scf.cpp atomic/basis.cpp
 atomic/TwoDBasis.cpp
 atomic/dftgrid.cpp sadatom/basis.cpp
 sadatom/dftgrid.cpp sadatom/scf.cpp
@@ -27,6 +27,10 @@ if(TARGET OpenOrbitalOptimizer::OpenOrbitalOptimizer)
 elseif(TARGET openorbitaloptimizer)
     target_link_libraries(helfem-common PUBLIC openorbitaloptimizer)
 endif()
+# OpenTrustRegion (general/otr_solver.cpp). helfem::otr is an empty
+# INTERFACE target when the library is not available, in which case the
+# wrapper compiles to a stub that reports otr::available() == false.
+target_link_libraries(helfem-common PUBLIC helfem::otr)
 # Propagate OpenMP to consumers of helfem-common. Without this, an
 # external consumer linking helfem::helfem misses -fopenmp / libgomp
 # and fails with undefined references like GOMP_parallel.

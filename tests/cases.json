@@ -3562,6 +3562,69 @@
         "--method=mgga_x_tpss-mgga_c_tpss",
         "--symmetry=3"
       ]
+    },
+    {
+      "name": "aij-Fe-firstorder",
+      "code": "aij",
+      "tags": [
+        "jellium",
+        "lda",
+        "consistency"
+      ],
+      "_why": "spin-restricted Fe: 4s and 3d come out degenerate and fractionally occupied, which is the case the first-order methods handle worst. ODA alone does not converge it in 2000 iterations. Paired with the second-order run below.",
+      "args": [
+        "--Z=Fe",
+        "--M=0",
+        "--nelem=5",
+        "--njellium=0",
+        "--rs=0",
+        "--method=lda_x",
+        "--convthr=1e-7"
+      ]
+    },
+    {
+      "name": "aij-Fe-secondorder",
+      "code": "aij",
+      "tags": [
+        "jellium",
+        "lda",
+        "consistency",
+        "secondorder"
+      ],
+      "_why": "the same Fe atom through the trust-region optimizer, which optimizes the 4s/3d occupation transfer explicitly rather than waiting for the first-order iteration to find it.",
+      "args": [
+        "--Z=Fe",
+        "--M=0",
+        "--nelem=5",
+        "--njellium=0",
+        "--rs=0",
+        "--method=lda_x",
+        "--secondorder=1",
+        "--preiter=30",
+        "--soconvthr=1e-8"
+      ]
+    },
+    {
+      "name": "aij-Al-jellium-secondorder",
+      "code": "aij",
+      "tags": [
+        "jellium",
+        "lda",
+        "consistency",
+        "secondorder"
+      ],
+      "_why": "unrestricted second-order path: alpha and beta are separate particle types with separately conserved electron counts, which the restricted Fe pair does not exercise.",
+      "args": [
+        "--Z=Al",
+        "--M=2",
+        "--nelem=5",
+        "--method=lda_x",
+        "--njellium=6",
+        "--rs=2.07",
+        "--secondorder=1",
+        "--preiter=30",
+        "--soconvthr=1e-8"
+      ]
     }
   ],
   "_invariants_comment": [
@@ -4280,6 +4343,26 @@
       ],
       "field": "total",
       "tolerance": 1e-09
+    },
+    {
+      "name": "aij-secondorder-equals-firstorder-Fe",
+      "_why": "the second-order optimizer must find the SAME minimum as the first-order one, not merely a fast one. Reference-free: it ties the trust-region path, its analytic gradient and its XC response kernel to the ordinary SCF at the point where the two must agree. Fe is the case where they disagree most easily, since the 4s/3d occupations are free parameters and a wrong occupation Hessian lands on a different stationary point with a plausible-looking energy.",
+      "cases": [
+        "aij-Fe-firstorder",
+        "aij-Fe-secondorder"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "aij-secondorder-equals-firstorder-Al-jellium",
+      "_why": "same statement for the unrestricted path, where the occupation transfers are confined within a spin.",
+      "cases": [
+        "aij-Al-jellium",
+        "aij-Al-jellium-secondorder"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
     }
   ]
 }

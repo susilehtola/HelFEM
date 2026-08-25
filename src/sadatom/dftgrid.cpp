@@ -253,6 +253,48 @@ namespace helfem {
 
       // eval_Exc: inherited from DFTGridWorkerBase.
 
+      helfem::Matrix DFTGridWorker::eval_density(const std::vector<helfem::Matrix> & Pc0) const {
+        const Eigen::Index nbf = (Eigen::Index) bf_ind.size();
+
+        // Sum the l-slices first: only the total density enters an LDA
+        // kernel, and the gather is the expensive part.
+        helfem::Matrix P = helfem::Matrix::Zero(nbf, nbf);
+        for(size_t islice=0; islice<Pc0.size(); islice++)
+          for(size_t i=0;i<bf_ind.size();i++)
+            for(size_t j=0;j<bf_ind.size();j++)
+              P(i,j) += Pc0[islice](bf_ind[i], bf_ind[j]);
+
+        helfem::Matrix Pvloc = P*bf;
+        helfem::Matrix drho = helfem::Matrix::Zero(1, wtot.size());
+        for(Eigen::Index ip=0;ip<wtot.size();ip++)
+          drho(0,ip) = (Pvloc.col(ip).array()*bf.col(ip).array()).sum();
+        return drho;
+      }
+
+      helfem::Matrix DFTGridWorker::eval_density(const std::vector<helfem::Matrix> & Pac0, const std::vector<helfem::Matrix> & Pbc0) const {
+        const Eigen::Index nbf = (Eigen::Index) bf_ind.size();
+
+        helfem::Matrix Pa = helfem::Matrix::Zero(nbf, nbf);
+        for(size_t islice=0; islice<Pac0.size(); islice++)
+          for(size_t i=0;i<bf_ind.size();i++)
+            for(size_t j=0;j<bf_ind.size();j++)
+              Pa(i,j) += Pac0[islice](bf_ind[i], bf_ind[j]);
+        helfem::Matrix Pb = helfem::Matrix::Zero(nbf, nbf);
+        for(size_t islice=0; islice<Pbc0.size(); islice++)
+          for(size_t i=0;i<bf_ind.size();i++)
+            for(size_t j=0;j<bf_ind.size();j++)
+              Pb(i,j) += Pbc0[islice](bf_ind[i], bf_ind[j]);
+
+        helfem::Matrix Pavloc = Pa*bf;
+        helfem::Matrix Pbvloc = Pb*bf;
+        helfem::Matrix drho = helfem::Matrix::Zero(2, wtot.size());
+        for(Eigen::Index ip=0;ip<wtot.size();ip++) {
+          drho(0,ip) = (Pavloc.col(ip).array()*bf.col(ip).array()).sum();
+          drho(1,ip) = (Pbvloc.col(ip).array()*bf.col(ip).array()).sum();
+        }
+        return drho;
+      }
+
       void DFTGridWorker::eval_Fxc(std::vector<helfem::Matrix> & Ho) const {
         if(polarized) {
           throw std::runtime_error("Refusing to compute restricted Fock matrix with unrestricted density.\n");
@@ -651,10 +693,113 @@ namespace helfem {
         Exc=exc;
         Nel=nel;
       }
+      void DFTGrid::eval_Fxc_response(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Cube & P, const std::vector<helfem::Cube> & dP, std::vector<helfem::Cube> & dH, double thr) {
+        const Eigen::Index Nrad = P[0].rows();
 
+        dH.resize(dP.size());
+        for(size_t ip=0; ip<dP.size(); ip++) {
+          if(dP[ip].size() != P.size())
+            throw std::logic_error("Perturbation has a different number of l-slices than the reference density.\n");
+          dH[ip] = helfem::Cube(P.size(), helfem::Matrix::Zero(Nrad, Nrad));
+        }
+        if(dP.empty())
+          return;
 
+        prime_quadrature_cache(x_func,c_func);
 
+        // One pass over the elements, exactly as eval_Fxc does, except
+        // that the potential handed to the assembly is the response
+        // potential of each perturbation in turn.
+        auto do_element = [&](DFTGridWorker & grid, size_t iel) {
+          grid.compute_bf(iel);
+          grid.update_density(P);
+          grid.init_xc();
+          grid.init_fxc();
+          if(x_func>0)
+            grid.compute_fxc(x_func,x_pars,thr);
+          if(c_func>0)
+            grid.compute_fxc(c_func,c_pars,thr);
+          for(size_t ip=0; ip<dP.size(); ip++) {
+            grid.set_response_potential(grid.eval_density(dP[ip]));
+            grid.eval_Fxc(dH[ip]);
+          }
+        };
 
-    }
-  }
-}
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+          DFTGridWorker grid(basp);
+          grid.check_grad_tau_lapl(x_func,c_func);
+
+          // Same even/odd element split as eval_Fxc: neighbouring
+          // elements share boundary functions, so writing them from two
+          // threads at once would race.
+#ifdef _OPENMP
+#pragma omp for
+#endif
+          for(size_t iel=0;iel<basp->rad_Nel();iel+=2)
+            do_element(grid, iel);
+#ifdef _OPENMP
+#pragma omp for
+#endif
+          for(size_t iel=1;iel<basp->rad_Nel();iel+=2)
+            do_element(grid, iel);
+        }
+      }
+
+      void DFTGrid::eval_Fxc_response(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Cube & Pa, const helfem::Cube & Pb, const std::vector<helfem::Cube> & dPa, const std::vector<helfem::Cube> & dPb, std::vector<helfem::Cube> & dHa, std::vector<helfem::Cube> & dHb, double thr) {
+        const Eigen::Index Nrad = Pa[0].rows();
+
+        if(dPa.size() != dPb.size())
+          throw std::logic_error("Different numbers of alpha and beta perturbations.\n");
+
+        dHa.resize(dPa.size());
+        dHb.resize(dPb.size());
+        for(size_t ip=0; ip<dPa.size(); ip++) {
+          dHa[ip] = helfem::Cube(Pa.size(), helfem::Matrix::Zero(Nrad, Nrad));
+          dHb[ip] = helfem::Cube(Pb.size(), helfem::Matrix::Zero(Nrad, Nrad));
+        }
+        if(dPa.empty())
+          return;
+
+        prime_quadrature_cache(x_func,c_func);
+
+        auto do_element = [&](DFTGridWorker & grid, size_t iel) {
+          grid.compute_bf(iel);
+          grid.update_density(Pa,Pb);
+          grid.init_xc();
+          grid.init_fxc();
+          if(x_func>0)
+            grid.compute_fxc(x_func,x_pars,thr);
+          if(c_func>0)
+            grid.compute_fxc(c_func,c_pars,thr);
+          for(size_t ip=0; ip<dPa.size(); ip++) {
+            grid.set_response_potential(grid.eval_density(dPa[ip],dPb[ip]));
+            grid.eval_Fxc(dHa[ip],dHb[ip],true);
+          }
+        };
+
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+          DFTGridWorker grid(basp);
+          grid.check_grad_tau_lapl(x_func,c_func);
+
+#ifdef _OPENMP
+#pragma omp for
+#endif
+          for(size_t iel=0;iel<basp->rad_Nel();iel+=2)
+            do_element(grid, iel);
+#ifdef _OPENMP
+#pragma omp for
+#endif
+          for(size_t iel=1;iel<basp->rad_Nel();iel+=2)
+            do_element(grid, iel);
+        }
+      }
+
+    } // namespace dftgrid
+  } // namespace sadatom
+} // namespace helfem

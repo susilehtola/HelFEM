@@ -78,6 +78,13 @@ namespace helfem {
       /// Functional derivative wrt kinetic energy density
       helfem::Matrix vtau;
 
+      // Response kernel (second derivatives). Only the density-density
+      // block exists so far; see compute_fxc for what a GGA or meta-GGA
+      // kernel would have to add.
+      /// d^2 e_xc / d rho^2. 1 x Npts unpolarized, 3 x Npts (uu, ud, dd)
+      /// polarized -- libxc's own layout.
+      helfem::Matrix v2rho2;
+
     public:
       DFTGridWorkerBase();
       virtual ~DFTGridWorkerBase();
@@ -110,6 +117,41 @@ namespace helfem {
       /// Compute libxc functional contribution and add to exc / vxc /
       /// vsigma / vtau / vlapl. pot=true also computes potentials.
       void compute_xc(int func_id, const helfem::Vector & params, double thr, bool pot = true);
+
+      /// Initialise the kernel buffer. Call between update_density and
+      /// compute_fxc, the same way init_xc precedes compute_xc.
+      void init_fxc();
+
+      /// Accumulate one functional's density-density second derivatives
+      /// into v2rho2, at the density update_density last set. Works for
+      /// LDA, GGA and meta-GGA functionals alike -- libxc has the entry
+      /// point in every case.
+      ///
+      /// For a GGA or meta-GGA this is a DELIBERATELY INCOMPLETE kernel:
+      /// the gradient and tau blocks (v2rhosigma, v2sigma2, v2rhotau,
+      /// ...) are dropped, and so is an assembly term that no choice of
+      /// potential buffers could supply -- the response of a GGA matrix
+      /// contains vsigma * grad(drho), while the eval_Fxc assembly in the
+      /// derived workers can only ever multiply the *stored* gradient of
+      /// the reference density.
+      ///
+      /// That is a sound trade because of where this kernel is used: it
+      /// builds the model Hessian and the preconditioner of a trust
+      /// region method, never the energy or the gradient. A model Hessian
+      /// only has to be of the right order of magnitude to give a good
+      /// direction; the step is then validated against the true energy by
+      /// the trust-region ratio test and the line search, so an
+      /// approximate kernel costs iterations, not correctness. Completing
+      /// the kernel is the natural upgrade, and this is the seam for it.
+      void compute_fxc(int func_id, const helfem::Vector & params, double thr);
+
+      /// Overwrite the potential buffers with the response potential
+      /// f_xc . drho, so that the derived worker's eval_Fxc assembles the
+      /// linear response of the XC matrix instead of the XC matrix
+      /// itself -- the assembly is the same integral either way, and
+      /// this is what lets the response reuse it verbatim. drho carries
+      /// the perturbation density in the same layout as rho.
+      void set_response_potential(const helfem::Matrix & drho);
     };
 
     /// Same as increment_lda below, but for a basis whose real and

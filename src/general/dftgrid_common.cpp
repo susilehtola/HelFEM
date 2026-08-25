@@ -254,5 +254,106 @@ namespace helfem {
       xc_func_end(&func);
     }
 
+    void DFTGridWorkerBase::init_fxc() {
+      v2rho2 = helfem::Matrix::Zero(polarized ? 3 : 1, wtot.size());
+    }
+
+    void DFTGridWorkerBase::compute_fxc(int func_id, const helfem::Vector & p,
+                                        double thr) {
+      bool gga, mgga_t, mgga_l;
+      is_gga_mgga(func_id, gga, mgga_t, mgga_l);
+
+      const size_t N = (size_t) wtot.size();
+      const int nspin = polarized ? XC_POLARIZED : XC_UNPOLARIZED;
+
+      xc_func_type func;
+      if (xc_func_init(&func, func_id, nspin) != 0) {
+        std::ostringstream oss;
+        oss << "Functional " << func_id << " not found!";
+        throw std::runtime_error(oss.str());
+      }
+      xc_func_set_dens_threshold(&func, thr);
+
+      if (p.size()) {
+        if (p.size() != (Eigen::Index) xc_func_info_get_n_ext_params((xc_func_info_type *) func.info))
+          throw std::logic_error("Incompatible number of parameters!\n");
+        helfem::Vector phlp(p);
+        xc_func_set_ext_params(&func, phlp.data());
+      }
+
+      // A functional without XC_FLAGS_HAVE_FXC would leave the buffer
+      // untouched, i.e. contribute a silently zero kernel; the Hessian
+      // would then be wrong in a way nothing downstream can detect.
+      if (!(func.info->flags & XC_FLAGS_HAVE_FXC)) {
+        xc_func_end(&func);
+        std::ostringstream oss;
+        oss << "Functional " << func_id << " does not implement its second "
+            << "derivatives, so no response kernel can be formed.\n";
+        throw std::logic_error(oss.str());
+      }
+
+      // Only the density-density block is kept; the rest are evaluated
+      // into scratch and discarded. See the header for why an incomplete
+      // GGA / meta-GGA kernel is the right trade here.
+      helfem::Matrix wrk = helfem::Matrix::Zero(v2rho2.rows(), v2rho2.cols());
+      const Eigen::Index n2 = polarized ? 3 : 1;
+      const Eigen::Index n4 = polarized ? 4 : 1;
+      const Eigen::Index n6 = polarized ? 6 : 1;
+      if (mgga_t || mgga_l) {
+        helfem::Matrix rs(n6, N), rl(n4, N), rt(n4, N), s2(n6, N), sl(n6, N),
+            st(n6, N), l2(n2, N), lt(n4, N), t2(n2, N);
+        // libxc dereferences lapl / tau only when the functional asks for
+        // them, exactly as compute_xc above relies on.
+        double *laplp = mgga_l ? lapl.data() : NULL;
+        double *taup = mgga_t ? tau.data() : NULL;
+        double *l2p = mgga_l ? l2.data() : NULL;
+        double *ltp = mgga_l ? lt.data() : NULL;
+        double *rlp = mgga_l ? rl.data() : NULL;
+        double *slp = mgga_l ? sl.data() : NULL;
+        double *t2p = mgga_t ? t2.data() : NULL;
+        double *rtp = mgga_t ? rt.data() : NULL;
+        double *stp = mgga_t ? st.data() : NULL;
+        xc_mgga_fxc(&func, N, rho.data(), sigma.data(), laplp, taup, wrk.data(),
+                    rs.data(), rlp, rtp, s2.data(), slp, stp, l2p, ltp, t2p);
+      } else if (gga) {
+        helfem::Matrix rs(n6, N), s2(n6, N);
+        xc_gga_fxc(&func, N, rho.data(), sigma.data(), wrk.data(), rs.data(),
+                   s2.data());
+      } else {
+        xc_lda_fxc(&func, N, rho.data(), wrk.data());
+      }
+      v2rho2 += wrk;
+
+      xc_func_end(&func);
+    }
+
+    void DFTGridWorkerBase::set_response_potential(const helfem::Matrix & drho) {
+      if (drho.rows() != rho.rows() || drho.cols() != rho.cols()) {
+        std::ostringstream oss;
+        oss << "Perturbation density is " << drho.rows() << "x" << drho.cols()
+            << " but the reference density is " << rho.rows() << "x"
+            << rho.cols() << ".\n";
+        throw std::logic_error(oss.str());
+      }
+
+      if (!polarized) {
+        vxc.row(0) = v2rho2.row(0).array() * drho.row(0).array();
+      } else {
+        // libxc stores the polarized kernel as (uu, ud, dd), so the
+        // response mixes the spin channels: dv_s = sum_t f_st drho_t.
+        vxc.row(0) = v2rho2.row(0).array() * drho.row(0).array() +
+                     v2rho2.row(1).array() * drho.row(1).array();
+        vxc.row(1) = v2rho2.row(1).array() * drho.row(0).array() +
+                     v2rho2.row(2).array() * drho.row(1).array();
+      }
+
+      // The assembly branches on these. The response we assemble is
+      // LDA-shaped whatever the functional is, since only the
+      // density-density kernel block was kept.
+      do_gga    = false;
+      do_mgga_t = false;
+      do_mgga_l = false;
+    }
+
   } // namespace dftgrid_common
 } // namespace helfem

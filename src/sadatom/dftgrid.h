@@ -79,6 +79,17 @@ namespace helfem {
         /// Update values of density, unrestricted calculation
         void update_density(const std::vector<helfem::Matrix> & Pa, const std::vector<helfem::Matrix> & Pb);
 
+        /// Evaluate the density of a *second* density matrix on the
+        /// current element grid and return it in the rho layout, leaving
+        /// the reference density -- and with it the kernel computed at
+        /// that density -- untouched. This is how a response evaluation
+        /// gets its perturbation density without a second pass over the
+        /// element. Only the density itself is formed: the LDA kernel
+        /// needs nothing else.
+        helfem::Matrix eval_density(const std::vector<helfem::Matrix> & P) const;
+        /// Same for a spin-polarized perturbation
+        helfem::Matrix eval_density(const std::vector<helfem::Matrix> & Pa, const std::vector<helfem::Matrix> & Pb) const;
+
         // compute_Nel() is inherited from DFTGridWorkerBase.
 
         // init_xc / compute_xc / eval_Exc / zero_Exc are inherited
@@ -125,6 +136,23 @@ namespace helfem {
         /// Compute Fock matrix, exchange-correlation energy and integrated
         /// electron density, unrestricted case.
         void eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Cube & Pa, const helfem::Cube & Pb, helfem::Cube & Ha, helfem::Cube & Hb, double & Exc, double & Nel, bool beta, double thr);
+
+        /// Linear response of the XC matrix to each of the density
+        /// perturbations dP, evaluated at the reference density P:
+        /// dH[i] = f_xc . dP[i]. Exact for an LDA; for a GGA or meta-GGA
+        /// it is the density-density part of the kernel only, which is
+        /// what a model Hessian needs (see
+        /// DFTGridWorkerBase::compute_fxc).
+        ///
+        /// The perturbations are passed as a batch because everything
+        /// except the last contraction -- the basis values, the reference
+        /// density, the libxc kernel evaluation -- is shared between
+        /// them. Building an exact Hessian in a d-dimensional subspace
+        /// therefore costs far less than d separate response builds.
+        void eval_Fxc_response(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Cube & P, const std::vector<helfem::Cube> & dP, std::vector<helfem::Cube> & dH, double thr);
+        /// Unrestricted counterpart; alpha and beta perturbations are
+        /// batched together because the kernel mixes the spin channels.
+        void eval_Fxc_response(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Cube & Pa, const helfem::Cube & Pb, const std::vector<helfem::Cube> & dPa, const std::vector<helfem::Cube> & dPb, std::vector<helfem::Cube> & dHa, std::vector<helfem::Cube> & dHb, double thr);
 
       };
 
