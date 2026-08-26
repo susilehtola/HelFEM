@@ -761,6 +761,10 @@ namespace helfem {
         auto do_element = [&](DFTGridWorker & grid, size_t iel) {
           grid.compute_bf(iel);
           grid.update_density(P);
+          // init_xc allocates the potential buffers that
+          // set_response_potential writes the response into, and resets
+          // the do_gga / do_mgga flags so the assembly is LDA-shaped.
+          grid.init_xc();
           grid.init_fxc();
           if(x_func>0)
             grid.compute_fxc(x_func, x_pars, thr);
@@ -811,6 +815,10 @@ namespace helfem {
         auto do_element = [&](DFTGridWorker & grid, size_t iel) {
           grid.compute_bf(iel);
           grid.update_density(Pa,Pb);
+          // init_xc allocates the potential buffers that
+          // set_response_potential writes the response into, and resets
+          // the do_gga / do_mgga flags so the assembly is LDA-shaped.
+          grid.init_xc();
           grid.init_fxc();
           if(x_func>0)
             grid.compute_fxc(x_func, x_pars, thr);
