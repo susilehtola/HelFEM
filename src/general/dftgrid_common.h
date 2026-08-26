@@ -23,9 +23,15 @@
 // compute_Nel, etc.) stay in the derived classes.
 
 #include <Matrix.h>
+#include <deque>
+#include <memory>
 #include <vector>
 #include <sstream>
 #include <stdexcept>
+
+/// libxc's functional handle. Forward declared -- exactly as libxc's own
+/// header does -- so that <xc.h> stays out of every consumer of this one.
+struct xc_func_type;
 
 namespace helfem {
   namespace dftgrid_common {
@@ -96,6 +102,38 @@ namespace helfem {
       helfem::Matrix v2rhosigma, v2sigma2;
       /// meta-GGA (kinetic energy density) blocks
       helfem::Matrix v2rhotau, v2sigmatau, v2tau2;
+
+      /// One initialized libxc functional, together with the answers to
+      /// the constant questions HelFEM asks about it.
+      ///
+      /// None of this changes over a run, but all of it used to be
+      /// rebuilt constantly: compute_xc and compute_fxc did their own
+      /// xc_func_init / xc_func_end on every element, is_gga_mgga did
+      /// another pair on every call, and has_exc -- which does one too --
+      /// sat inside the NaN guard's loop over QUADRATURE POINTS, so a
+      /// libxc functional was constructed and destroyed once per grid
+      /// point per element per functional to answer a question whose
+      /// answer never changed.
+      struct Functional {
+        int id = 0;
+        int nspin = 0;
+        double thr = 0.0;
+        helfem::Vector params;
+        bool gga = false, mgga_t = false, mgga_l = false, have_exc = false;
+        /// The deleter carries the xc_func_end call, so it is bound in
+        /// the .cpp and <xc.h> is not needed here.
+        std::shared_ptr<xc_func_type> func;
+      };
+      /// A deque rather than a vector: functional() hands out references
+      /// into this, and a deque never invalidates them when it grows.
+      std::deque<Functional> funcs;
+
+      /// The initialized functional and its properties for this id, spin
+      /// channel, density threshold and parameter set, built on first use
+      /// and kept for the lifetime of the worker. Workers are per-thread,
+      /// so this needs no locking.
+      const Functional & functional(int func_id, const helfem::Vector & params,
+                                    double thr);
 
     public:
       DFTGridWorkerBase();

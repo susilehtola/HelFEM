@@ -3625,6 +3625,65 @@
         "--preiter=30",
         "--soconvthr=1e-8"
       ]
+    },
+    {
+      "name": "gensap-Fe-secondorder",
+      "code": "gensap",
+      "tags": [
+        "lda",
+        "consistency",
+        "secondorder"
+      ],
+      "_why": "spin-restricted Fe through the trust-region optimizer. This is the case that motivates the feature in gensap: the first-order solver does not converge here at all, and stops 0.103 Eh above the minimum, because 4s and 3d come out degenerate in different l blocks and no orbital rotation connects them. Matched to aij's bare-atom settings (lmax 4, core guess) so the two drivers can be compared directly.",
+      "args": [
+        "--Z=Fe",
+        "--M=0",
+        "--lmax=4",
+        "--nelem=5",
+        "--iguess=0",
+        "--method=lda_x",
+        "--secondorder=1",
+        "--preiter=30",
+        "--soconvthr=1e-8"
+      ]
+    },
+    {
+      "name": "gensap-Fe-hf-firstorder",
+      "code": "gensap",
+      "tags": [
+        "hf",
+        "unrestricted",
+        "consistency"
+      ],
+      "_why": "spin-polarized Fe at Hartree-Fock, where the Fock matrix carries exact exchange. Paired with the second-order run below: exchange is the one term of the response the DFT cases never exercise.",
+      "args": [
+        "--Z=Fe",
+        "--M=5",
+        "--lmax=2",
+        "--nelem=5",
+        "--method=HF"
+      ]
+    },
+    {
+      "name": "gensap-Fe-hf-secondorder",
+      "code": "gensap",
+      "tags": [
+        "hf",
+        "unrestricted",
+        "consistency",
+        "secondorder"
+      ],
+      "_why": "the same Hartree-Fock atom through the trust-region optimizer, so that the analytic exchange response is tied to the ordinary SCF.",
+      "args": [
+        "--Z=Fe",
+        "--M=5",
+        "--lmax=2",
+        "--nelem=5",
+        "--method=HF",
+        "--secondorder=1",
+        "--preiter=30",
+        "--soconvthr=1e-8"
+      ]
     }
   ],
   "_invariants_comment": [
@@ -4360,6 +4419,26 @@
       "cases": [
         "aij-Al-jellium",
         "aij-Al-jellium-secondorder"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "gensap-secondorder-equals-aij-bare-atom-Fe",
+      "_why": "aij with no jellium IS the bare atom, so gensap's second-order path and aij's must land on the same number. Reference-free, and it crosses two independent drivers: the energy expressions, the Fock builders and the SCF drivers are separate code, and only the trust-region optimizer beneath them is shared. Fe is the case that discriminates, since the 4s/3d occupations are free parameters and a wrong occupation Hessian lands on a different stationary point with a plausible-looking energy -- which is exactly what the first-order solver does here, 0.103 Eh high.",
+      "cases": [
+        "aij-Fe-secondorder",
+        "gensap-Fe-secondorder"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "gensap-secondorder-equals-firstorder-Fe-hf",
+      "_why": "the second-order optimizer must find the same minimum as the ordinary SCF when the Fock matrix carries exact exchange. Exchange is linear in the density, so its response is exact -- but it is a separate term from the Coulomb and XC ones, and nothing else in the suite exercises it through the Hessian.",
+      "cases": [
+        "gensap-Fe-hf-firstorder",
+        "gensap-Fe-hf-secondorder"
       ],
       "field": "total",
       "tolerance": 1e-08

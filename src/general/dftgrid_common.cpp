@@ -96,9 +96,56 @@ namespace helfem {
       return nel;
     }
 
+    const DFTGridWorkerBase::Functional &
+    DFTGridWorkerBase::functional(int func_id, const helfem::Vector & p,
+                                  double thr) {
+      const int nspin = polarized ? XC_POLARIZED : XC_UNPOLARIZED;
+      for (const Functional & f : funcs)
+        if (f.id == func_id && f.nspin == nspin && f.thr == thr &&
+            f.params.size() == p.size() &&
+            (p.size() == 0 || (f.params - p).cwiseAbs().maxCoeff() == 0.0))
+          return f;
+
+      Functional f;
+      f.id = func_id;
+      f.nspin = nspin;
+      f.thr = thr;
+      f.params = p;
+      is_gga_mgga(func_id, f.gga, f.mgga_t, f.mgga_l);
+      f.have_exc = has_exc(func_id);
+
+      // Initialize first, wrap second: the deleter calls xc_func_end, and
+      // running that on a functional xc_func_init refused would be worse
+      // than the failure it reports.
+      xc_func_type * raw = new xc_func_type;
+      if (xc_func_init(raw, func_id, nspin) != 0) {
+        delete raw;
+        std::ostringstream oss;
+        oss << "Functional " << func_id << " not found!";
+        throw std::runtime_error(oss.str());
+      }
+      f.func = std::shared_ptr<xc_func_type>(raw, [](xc_func_type * q) {
+        xc_func_end(q);
+        delete q;
+      });
+
+      xc_func_set_dens_threshold(raw, thr);
+      if (p.size()) {
+        if (p.size() != (Eigen::Index) xc_func_info_get_n_ext_params((xc_func_info_type *) raw->info))
+          throw std::logic_error("Incompatible number of parameters!\n");
+        helfem::Vector phlp(p);
+        xc_func_set_ext_params(raw, phlp.data());
+      }
+
+      funcs.push_back(f);
+      return funcs.back();
+    }
+
     void DFTGridWorkerBase::compute_xc(int func_id, const helfem::Vector & p, double thr, bool pot) {
-      bool gga, mgga_t, mgga_l;
-      is_gga_mgga(func_id, gga, mgga_t, mgga_l);
+      const Functional & fc = functional(func_id, p, thr);
+      xc_func_type & func = *fc.func;
+      const bool gga = fc.gga, mgga_t = fc.mgga_t, mgga_l = fc.mgga_l;
+      const bool have_exc = fc.have_exc;
 
       do_gga    = do_gga    || gga || mgga_t || mgga_l;
       do_mgga_t = do_mgga_t || mgga_t;
@@ -109,7 +156,7 @@ namespace helfem {
       helfem::Vector exc_wrk;
       helfem::Matrix vxc_wrk, vsigma_wrk, vlapl_wrk, vtau_wrk;
 
-      if (has_exc(func_id))
+      if (have_exc)
         exc_wrk = helfem::Vector::Zero(exc.size());
       if (pot) {
         vxc_wrk = helfem::Matrix::Zero(vxc.rows(), vxc.cols());
@@ -121,24 +168,7 @@ namespace helfem {
           vlapl_wrk = helfem::Matrix::Zero(vlapl.rows(), vlapl.cols());
       }
 
-      const int nspin = polarized ? XC_POLARIZED : XC_UNPOLARIZED;
-
-      xc_func_type func;
-      if (xc_func_init(&func, func_id, nspin) != 0) {
-        std::ostringstream oss;
-        oss << "Functional " << func_id << " not found!";
-        throw std::runtime_error(oss.str());
-      }
-      xc_func_set_dens_threshold(&func, thr);
-
-      if (p.size()) {
-        if (p.size() != (Eigen::Index) xc_func_info_get_n_ext_params((xc_func_info_type *) func.info))
-          throw std::logic_error("Incompatible number of parameters!\n");
-        helfem::Vector phlp(p);
-        xc_func_set_ext_params(&func, phlp.data());
-      }
-
-      if (has_exc(func_id)) {
+      if (have_exc) {
         if (pot) {
           if (mgga_t || mgga_l) {
             double * laplp  = mgga_l ? lapl.data()      : NULL;
@@ -193,7 +223,7 @@ namespace helfem {
       // so atomic and diatomic get the same warning). Prints only;
       // never modifies state.
       for (size_t i = 0; i < N; ++i) {
-        const double e = has_exc(func_id) ? exc_wrk(i) : 0.0;
+        const double e = have_exc ? exc_wrk(i) : 0.0;
         double rhoa = 0.0, rhob = 0.0;
         double sigmaaa = 0.0, sigmaab = 0.0, sigmabb = 0.0;
         double lapla = 0.0, laplb = 0.0, taua = 0.0, taub = 0.0;
@@ -243,7 +273,7 @@ namespace helfem {
         }
       }
 
-      if (has_exc(func_id))
+      if (have_exc)
         exc += exc_wrk;
       if (pot) {
         if (mgga_l)                     vlapl  += vlapl_wrk;
@@ -251,8 +281,6 @@ namespace helfem {
         if (mgga_t || mgga_l || gga)    vsigma += vsigma_wrk;
         vxc += vxc_wrk;
       }
-
-      xc_func_end(&func);
     }
 
     void DFTGridWorkerBase::init_fxc() {
@@ -274,32 +302,16 @@ namespace helfem {
 
     void DFTGridWorkerBase::compute_fxc(int func_id, const helfem::Vector & p,
                                         double thr) {
-      bool gga, mgga_t, mgga_l;
-      is_gga_mgga(func_id, gga, mgga_t, mgga_l);
+      const Functional & fc = functional(func_id, p, thr);
+      xc_func_type & func = *fc.func;
+      const bool gga = fc.gga, mgga_t = fc.mgga_t, mgga_l = fc.mgga_l;
 
       const size_t N = (size_t) wtot.size();
-      const int nspin = polarized ? XC_POLARIZED : XC_UNPOLARIZED;
-
-      xc_func_type func;
-      if (xc_func_init(&func, func_id, nspin) != 0) {
-        std::ostringstream oss;
-        oss << "Functional " << func_id << " not found!";
-        throw std::runtime_error(oss.str());
-      }
-      xc_func_set_dens_threshold(&func, thr);
-
-      if (p.size()) {
-        if (p.size() != (Eigen::Index) xc_func_info_get_n_ext_params((xc_func_info_type *) func.info))
-          throw std::logic_error("Incompatible number of parameters!\n");
-        helfem::Vector phlp(p);
-        xc_func_set_ext_params(&func, phlp.data());
-      }
 
       // A functional without XC_FLAGS_HAVE_FXC would leave the buffer
       // untouched, i.e. contribute a silently zero kernel; the Hessian
       // would then be wrong in a way nothing downstream can detect.
       if (!(func.info->flags & XC_FLAGS_HAVE_FXC)) {
-        xc_func_end(&func);
         std::ostringstream oss;
         oss << "Functional " << func_id << " does not implement its second "
             << "derivatives, so no response kernel can be formed.\n";
@@ -349,8 +361,6 @@ namespace helfem {
         v2tau2   += t2;
         if (do_grad) v2sigmatau += st;
       }
-
-      xc_func_end(&func);
     }
 
     void DFTGridWorkerBase::build_vgrad(const helfem::Matrix & grho) {

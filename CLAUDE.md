@@ -95,7 +95,7 @@ Higher-level library linking against `helfem`. Contains SCF infrastructure, DFT 
 | `diatomic_dgrid` | `src/diatomic/density_grid.cpp` | Density on 2D grid |
 | `aij` | `src/sadatom/aij.cpp` | Atom in jellium |
 
-## Second-order convergence in `aij`
+## Second-order convergence in `aij` and `gensap`
 
 The atom-in-jellium problem optimizes the occupations as well as the
 orbitals, and that is what makes it converge badly at first order. When
@@ -172,6 +172,39 @@ far away from it. A work ceiling, counted per macroiteration so it fires
 on work-without-progress rather than on an absolute budget, is what stops
 them, and it says what happened. If a system matters and stalls, move
 `--preiter`.
+
+`gensap` carries the same optimizer over the same parametrization, since
+the spherically averaged atom is the same problem with the jellium
+switched off. The options are spelled the same (`--secondorder`,
+`--preiter`, `--sotest`, ...), and the two drivers can be compared
+directly: `aij` with `--njellium=0 --rs=0` IS the bare atom, and on Fe
+both reach `-1258.9186876173` through separate energy expressions, Fock
+builders and SCF drivers.
+
+That case is worth knowing about, because in `gensap` first order does
+not merely converge slowly -- it stops at `-1258.8157`, **0.103 Eh above
+the minimum**, without printing a convergence line. The second-order
+phase repairs it outright.
+
+Two things are specific to `gensap`:
+
+- **Exact exchange goes through the Hessian too.** `gensap` supports HF
+  and hybrids, which `aij` does not. Exchange is linear in the density,
+  so its response is exact; `--sotest` confirms it (`d1.H.d1` agrees with
+  finite differences to 1.9e-10 at HF), and on Fe the first- and
+  second-order answers agree to 2e-10 Eh.
+- **Frozen occupations and `--secondorder` are refused together.** The
+  occupations are among the variables the optimizer optimizes, so
+  `--fixed-per-l` style pinning has no meaning there, and the driver
+  throws rather than silently ignoring one of the two.
+
+The handover sensitivity is more visible here than in `aij`, because
+`gensap` defaults to the SAP initial guess (`--iguess=2`) and lands
+somewhere different. On Fe with that guess the energy is right from
+`--preiter` 30 upwards, but the RMS gradient stalls between 1e-8 and 4e-7
+and the convergence line is not printed; with the core guess
+(`--iguess=0`) the same run reaches 4.9e-10. The energy is not what is
+uncertain -- it repeats to all printed digits -- only the flag.
 
 Occupation coupling is where the exact preconditioner earns itself, and it
 takes two occupation coordinates to see it -- with one the block is 1x1
