@@ -3783,6 +3783,53 @@
         "--preiter=30",
         "--soconvthr=1e-8"
       ]
+    },
+    {
+      "name": "atomic-Be-lda-r-secondorder",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "consistency",
+        "secondorder"
+      ],
+      "_why": "closed-shell Be through the trust-region optimizer. Occupations are integer in the atomic code, so the free occupation coordinates vanish and this is a pure orbital-rotation Newton step -- which is exactly what makes it a clean test of the orbital half of the gradient and Hessian, with the occupation half switched off.",
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=4",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1",
+        "--secondorder=1",
+        "--preiter=20",
+        "--soconvthr=1e-8"
+      ]
+    },
+    {
+      "name": "atomic-N-lda-u-secondorder",
+      "code": "atomic",
+      "tags": [
+        "unrestricted",
+        "lda",
+        "open-shell",
+        "consistency",
+        "secondorder"
+      ],
+      "_why": "the same statement for the spin-polarized path, where alpha and beta carry separate copies of every symmetry block and therefore separate orthonormalizers.",
+      "args": [
+        "--Z=N",
+        "--M=4",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=4",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=0",
+        "--secondorder=1",
+        "--preiter=20",
+        "--soconvthr=1e-8"
+      ]
     }
   ],
   "_invariants_comment": [
@@ -4548,6 +4595,26 @@
       "cases": [
         "gensap-Cr-firstorder",
         "gensap-Cr-secondorder"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "atomic-secondorder-equals-firstorder-Be",
+      "_why": "the second-order optimizer must find the SAME minimum as the ordinary SCF, not merely a fast one. Reference-free. This is the atomic code's version of the aij/gensap statement, and it is the check that the per-block orthonormalizers, the density scatter into the full basis and the LDA response kernel of the atomic grid all compose correctly.",
+      "cases": [
+        "atomic-Be-lda-r",
+        "atomic-Be-lda-r-secondorder"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "atomic-secondorder-equals-firstorder-N",
+      "_why": "same statement for the spin-polarized path.",
+      "cases": [
+        "atomic-N-lda-u",
+        "atomic-N-lda-u-secondorder"
       ],
       "field": "total",
       "tolerance": 1e-08
