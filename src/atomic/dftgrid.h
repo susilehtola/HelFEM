@@ -127,6 +127,12 @@ namespace helfem {
 
         /// Numerical clean up of xc
 
+        /// Assemble the gradient coefficient of the assembly from
+        /// vsigma and the stored density gradient. Call after
+        /// compute_xc and before eval_Fxc; the response path fills
+        /// vgrad itself and must not call this.
+        void build_vgrad() { DFTGridWorkerBase::build_vgrad(grho); }
+
         /// Evaluate Fock matrix, restricted calculation
         void eval_Fxc(helfem::Matrix & H) const;
         /// Evaluate Fock matrix, unrestricted calculation

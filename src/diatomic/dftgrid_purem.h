@@ -131,6 +131,11 @@ namespace helfem {
         /// the analytic phi integration.
         /// Index of the block holding -m, or mlist.size() if none.
         size_t mirror_block(size_t im) const;
+        /// Assemble the gradient coefficient of the assembly from
+        /// vsigma and the stored density gradient. Call after
+        /// compute_xc and before eval_Fxc.
+        void build_vgrad() { DFTGridWorkerBase::build_vgrad(grho); }
+        /// Accumulate the XC Fock contribution, restricted
         void eval_Fxc(helfem::Matrix & H) const;
         /// Accumulate the XC Fock contribution, unrestricted
         void eval_Fxc(helfem::Matrix & Ha, helfem::Matrix & Hb, bool beta=true) const;

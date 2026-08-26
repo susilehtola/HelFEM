@@ -604,13 +604,17 @@ int main(int argc, char **argv) {
       // Derivative check only: the analytic gradient and Hessian are the
       // whole content of the second-order method, and nothing downstream
       // can tell a wrong Hessian from a hard problem.
-      // The response kernel is the true one only for an LDA; beyond that
-      // the Hessian is deliberately approximate, so it is measured rather
-      // than tested.
+      // The response kernel itself is now exact for the density and
+      // gradient channels (see set_response_potential), but the analytic
+      // Hessian still disagrees with finite differences for a GGA, and
+      // the disagreement is NOT in the kernel: zeroing the gradient
+      // channel leaves the d1/d2 vs d2/d1 asymmetry unchanged, so the
+      // missing piece is elsewhere in the second-order assembly. Until
+      // that is found, a non-LDA Hessian is still measured, not tested.
       bool xg=false, xt=false, xl=false, cg=false, ct=false, cl=false;
       if(x_func > 0) ::is_gga_mgga(x_func, xg, xt, xl);
       if(c_func > 0) ::is_gga_mgga(c_func, cg, ct, cl);
-      const bool exact_kernel = !(xg||xt||xl||cg||ct||cl);
+      const bool exact_kernel = !(xl||cl);
       if(!opt.verify(sotest, 1e-4, verbosity, exact_kernel))
         throw std::runtime_error("The analytic derivatives disagree with finite differences.\n");
       return;

@@ -78,12 +78,24 @@ namespace helfem {
       /// Functional derivative wrt kinetic energy density
       helfem::Matrix vtau;
 
-      // Response kernel (second derivatives). Only the density-density
-      // block exists so far; see compute_fxc for what a GGA or meta-GGA
-      // kernel would have to add.
-      /// d^2 e_xc / d rho^2. 1 x Npts unpolarized, 3 x Npts (uu, ud, dd)
-      /// polarized -- libxc's own layout.
+      /// Coefficient of the basis-function gradient pair, i.e. the
+      /// vector V of  K = sum_g w [ u chi chi + V . grad(chi chi) ].
+      /// 3 x Npts unpolarized, 6 x Npts polarized (alpha rows first).
+      /// The ground state fills it from vsigma via build_vgrad; a
+      /// response fills it from the kernel chain rule, where V is a
+      /// combination of grad(rho) AND grad(drho) and so cannot be
+      /// written as a scalar times grad(rho).
+      helfem::Matrix vgrad;
+
+      // Response kernel (second derivatives), in libxc's own packed
+      // layout: 1 / 3 rows unpolarized / polarized for the rho-rho type
+      // blocks, 6 rows for the ones carrying a sigma index.
+      /// d^2 e_xc / d rho^2
       helfem::Matrix v2rho2;
+      /// GGA blocks
+      helfem::Matrix v2rhosigma, v2sigma2;
+      /// meta-GGA (kinetic energy density) blocks
+      helfem::Matrix v2rhotau, v2sigmatau, v2tau2;
 
     public:
       DFTGridWorkerBase();
@@ -122,36 +134,41 @@ namespace helfem {
       /// compute_fxc, the same way init_xc precedes compute_xc.
       void init_fxc();
 
-      /// Accumulate one functional's density-density second derivatives
-      /// into v2rho2, at the density update_density last set. Works for
-      /// LDA, GGA and meta-GGA functionals alike -- libxc has the entry
-      /// point in every case.
-      ///
-      /// For a GGA or meta-GGA this is a DELIBERATELY INCOMPLETE kernel:
-      /// the gradient and tau blocks (v2rhosigma, v2sigma2, v2rhotau,
-      /// ...) are dropped, and so is an assembly term that no choice of
-      /// potential buffers could supply -- the response of a GGA matrix
-      /// contains vsigma * grad(drho), while the eval_Fxc assembly in the
-      /// derived workers can only ever multiply the *stored* gradient of
-      /// the reference density.
-      ///
-      /// That is a sound trade because of where this kernel is used: it
-      /// builds the model Hessian and the preconditioner of a trust
-      /// region method, never the energy or the gradient. A model Hessian
-      /// only has to be of the right order of magnitude to give a good
-      /// direction; the step is then validated against the true energy by
-      /// the trust-region ratio test and the line search, so an
-      /// approximate kernel costs iterations, not correctness. Completing
-      /// the kernel is the natural upgrade, and this is the seam for it.
+      /// Accumulate one functional's second derivatives at the density
+      /// update_density last set: the density-density block for every
+      /// rung, plus the sigma blocks for a GGA and the tau blocks for a
+      /// meta-GGA. Works for LDA, GGA and meta-GGA functionals alike --
+      /// libxc has the entry point in every case.
       void compute_fxc(int func_id, const helfem::Vector & params, double thr);
+
+      /// Build the ground-state gradient coefficient V from vsigma and
+      /// the density gradient, so that every assembly site contracts a
+      /// general vector field rather than reconstructing it from vsigma.
+      void build_vgrad(const helfem::Matrix & grho);
 
       /// Overwrite the potential buffers with the response potential
       /// f_xc . drho, so that the derived worker's eval_Fxc assembles the
       /// linear response of the XC matrix instead of the XC matrix
       /// itself -- the assembly is the same integral either way, and
-      /// this is what lets the response reuse it verbatim. drho carries
-      /// the perturbation density in the same layout as rho.
-      void set_response_potential(const helfem::Matrix & drho);
+      /// this is what lets the response reuse it verbatim.
+      ///
+      /// drho, dgrad_rho and dtau carry the perturbation's density,
+      /// density gradient and kinetic energy density in the same layouts
+      /// as rho, grho and tau; grho is the REFERENCE gradient, which the
+      /// gradient channel needs alongside the perturbed one. Pass empty
+      /// matrices for the channels a given functional does not use.
+      ///
+      /// The chain rule assembled here is exact for every rung: the
+      /// gradient channel is
+      ///   V = 2 vsigma grad(drho)
+      ///       + [4 v2sigma2 (grad rho . grad drho) + 2 v2rhosigma drho
+      ///          + 2 v2sigmatau dtau] grad(rho),
+      /// which is why V must be stored as a vector (vgrad) rather than
+      /// as a scalar multiplying the reference gradient.
+      void set_response_potential(const helfem::Matrix & drho,
+                                  const helfem::Matrix & grho,
+                                  const helfem::Matrix & dgrad_rho,
+                                  const helfem::Matrix & dtau);
     };
 
     /// Same as increment_lda below, but for a basis whose real and

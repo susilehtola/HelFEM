@@ -319,15 +319,14 @@ namespace helfem {
         }
 
         if(do_gga) {
-          // Get vsigma
-          helfem::Vector vs=vsigma.row(0).transpose();
-          // Get grad rho
-          helfem::Matrix gr=grho.topRows(3).transpose();
-          // Multiply grad rho by vsigma and the weights
+          // vgrad is the vector coefficient of the basis-function
+          // gradient pair, already assembled from vsigma (ground state)
+          // or from the kernel chain rule (response).
+          helfem::Matrix gr=vgrad.topRows(3).transpose();
           for(Eigen::Index i=0;i<gr.rows();i++) {
-            gr(i,0)*=2.0*wtot(i)*vs(i)/scale_r(i);
-            gr(i,1)*=2.0*wtot(i)*vs(i)/scale_theta(i);
-            gr(i,2)*=2.0*wtot(i)*vs(i)/scale_phi(i);
+            gr(i,0)*=wtot(i)/scale_r(i);
+            gr(i,1)*=wtot(i)/scale_theta(i);
+            gr(i,2)*=wtot(i)/scale_phi(i);
           }
           // Increment matrix
           increment_gga_split(H,gr,bf_re,bf_im,{&bf_rho_re,&bf_theta_re,&bf_phi_re},{&bf_rho_im,&bf_theta_im,&bf_phi_im});
@@ -387,31 +386,21 @@ namespace helfem {
           fprintf(stderr,"NaN in Hamiltonian!\n");
 
         if(do_gga) {
-          // Get vsigma
-          helfem::Vector vs_aa=vsigma.row(0).transpose();
-          helfem::Vector vs_ab=vsigma.row(1).transpose();
-
-          // Get grad rho
-          helfem::Matrix gr_a0=grho.topRows(3).transpose();
-          helfem::Matrix gr_b0=grho.bottomRows(3).transpose();
-
-          // Multiply grad rho by vsigma and the weights
-          helfem::Matrix gr_a(gr_a0);
+          helfem::Matrix gr_a=vgrad.topRows(3).transpose();
           for(Eigen::Index i=0;i<gr_a.rows();i++) {
-            gr_a(i,0)=wtot(i)*(2.0*vs_aa(i)*gr_a0(i,0) + vs_ab(i)*gr_b0(i,0))/scale_r(i);
-            gr_a(i,1)=wtot(i)*(2.0*vs_aa(i)*gr_a0(i,1) + vs_ab(i)*gr_b0(i,1))/scale_theta(i);
-            gr_a(i,2)=wtot(i)*(2.0*vs_aa(i)*gr_a0(i,2) + vs_ab(i)*gr_b0(i,2))/scale_phi(i);
+            gr_a(i,0)*=wtot(i)/scale_r(i);
+            gr_a(i,1)*=wtot(i)/scale_theta(i);
+            gr_a(i,2)*=wtot(i)/scale_phi(i);
           }
           // Increment matrix
           increment_gga_split(Ha,gr_a,bf_re,bf_im,{&bf_rho_re,&bf_theta_re,&bf_phi_re},{&bf_rho_im,&bf_theta_im,&bf_phi_im});
 
           if(beta) {
-            helfem::Vector vs_bb=vsigma.row(2).transpose();
-            helfem::Matrix gr_b(gr_b0);
+            helfem::Matrix gr_b=vgrad.bottomRows(3).transpose();
             for(Eigen::Index i=0;i<gr_b.rows();i++) {
-              gr_b(i,0)=wtot(i)*(2.0*vs_bb(i)*gr_b0(i,0) + vs_ab(i)*gr_a0(i,0))/scale_r(i);
-              gr_b(i,1)=wtot(i)*(2.0*vs_bb(i)*gr_b0(i,1) + vs_ab(i)*gr_a0(i,1))/scale_theta(i);
-              gr_b(i,2)=wtot(i)*(2.0*vs_bb(i)*gr_b0(i,2) + vs_ab(i)*gr_a0(i,2))/scale_phi(i);
+              gr_b(i,0)*=wtot(i)/scale_r(i);
+              gr_b(i,1)*=wtot(i)/scale_theta(i);
+              gr_b(i,2)*=wtot(i)/scale_phi(i);
             }
             increment_gga_split(Hb,gr_b,bf_re,bf_im,{&bf_rho_re,&bf_theta_re,&bf_phi_re},{&bf_rho_im,&bf_theta_im,&bf_phi_im});
           }
@@ -619,6 +608,9 @@ namespace helfem {
             if(c_func>0)
               grid.compute_xc(c_func, c_pars, thr);
 
+            // the assembly contracts a general vector field; build it once
+            grid.build_vgrad();
+
             exc+=grid.eval_Exc();
             grid.eval_Fxc(H);
           }
@@ -637,6 +629,9 @@ namespace helfem {
               grid.compute_xc(x_func, x_pars, thr);
             if(c_func>0)
               grid.compute_xc(c_func, c_pars, thr);
+
+            // the assembly contracts a general vector field; build it once
+            grid.build_vgrad();
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(H);
@@ -682,6 +677,9 @@ namespace helfem {
             if(c_func>0)
               grid.compute_xc(c_func, c_pars, thr);
 
+            // the assembly contracts a general vector field; build it once
+            grid.build_vgrad();
+
             exc+=grid.eval_Exc();
             grid.eval_Fxc(Ha,Hb,beta);
           }
@@ -699,6 +697,9 @@ namespace helfem {
               grid.compute_xc(x_func, x_pars, thr);
             if(c_func>0)
               grid.compute_xc(c_func, c_pars, thr);
+
+            // the assembly contracts a general vector field; build it once
+            grid.build_vgrad();
 
             exc+=grid.eval_Exc();
             grid.eval_Fxc(Ha,Hb,beta);

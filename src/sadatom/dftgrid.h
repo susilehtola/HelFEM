@@ -53,6 +53,12 @@ namespace helfem {
 
         /// Gradient of electron density
         helfem::Matrix grho;
+        /// Where the centrifugal term of tau survived the clamp in
+        /// update_density, per spin channel and grid point (1.0 / 0.0).
+        /// A response must differentiate max(term2, 0), whose derivative
+        /// follows the REFERENCE sign, so the mask has to be recorded
+        /// when tau is built rather than inferred from the perturbation.
+        helfem::Matrix tau_centrifugal;
 
         // Members provided by helfem::dftgrid_common::DFTGridWorkerBase:
         //   wtot, exc, rho, sigma, vxc, vsigma, lapl, tau, vlapl, vtau
@@ -89,12 +95,49 @@ namespace helfem {
         helfem::Matrix eval_density(const std::vector<helfem::Matrix> & P) const;
         /// Same for a spin-polarized perturbation
         helfem::Matrix eval_density(const std::vector<helfem::Matrix> & Pa, const std::vector<helfem::Matrix> & Pb) const;
+        /// Perturbed density, radial density gradient and kinetic energy
+        /// density of one perturbation, as the same bilinear forms in the
+        /// perturbed density matrix that update_density uses for the
+        /// reference. Empty matrices come back for the channels the
+        /// functional does not use.
+        /// The reference density gradient, which the response kernel's
+        /// gradient channel needs alongside the perturbed one.
+        const helfem::Matrix & get_grho() const { return grho; }
+        /// Debug: check the perturbed fields against central differences
+        /// of the reference fields. Destroys the cached density.
+        void check_response_fields(const helfem::Cube & P,
+                                   const helfem::Cube & dP,
+                                   const helfem::Matrix & drho,
+                                   const helfem::Matrix & dgrho,
+                                   const helfem::Matrix & dtau);
+        /// Debug: spin-resolved perturbed fields vs central differences.
+        void check_response_fields_spin(const helfem::Cube & Pa,
+                                        const helfem::Cube & Pb,
+                                        const helfem::Cube & dPa,
+                                        const helfem::Cube & dPb,
+                                        const helfem::Matrix & drho,
+                                        const helfem::Matrix & dgrho,
+                                        const helfem::Matrix & dtau);
+        /// Spin-resolved perturbed fields, two rows per quantity.
+        void eval_response_fields(const std::vector<helfem::Matrix> & Pa,
+                                  const std::vector<helfem::Matrix> & Pb,
+                                  helfem::Matrix & drho,
+                                  helfem::Matrix & dgrho,
+                                  helfem::Matrix & dtau) const;
+        void eval_response_fields(const std::vector<helfem::Matrix> & P,
+                                  helfem::Matrix & drho,
+                                  helfem::Matrix & dgrho,
+                                  helfem::Matrix & dtau) const;
 
         // compute_Nel() is inherited from DFTGridWorkerBase.
-
         // init_xc / compute_xc / eval_Exc / zero_Exc are inherited
         // from DFTGridWorkerBase.
 
+        /// Assemble the gradient coefficient of the assembly from
+        /// vsigma and the stored density gradient. Call after
+        /// compute_xc and before eval_Fxc; the response path fills
+        /// vgrad itself and must not call this.
+        void build_vgrad() { DFTGridWorkerBase::build_vgrad(grho); }
 
         /// Evaluate Fock matrix, restricted calculation. One
         /// helfem::Matrix per l-slice.
