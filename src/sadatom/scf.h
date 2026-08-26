@@ -84,6 +84,41 @@ namespace helfem {
         /// above it -- their energy is stable to 1e-11 while the error
         /// sits frozen just above the target -- and need it relaxed.
         double convthr = 1e-7;
+        /// Follow the first-order SCF with second-order trust-region
+        /// optimization of the orbitals AND the fractional occupations.
+        ///
+        /// The spherically averaged atom optimizes its occupations as
+        /// well as its orbitals, and that is what makes the open-shell
+        /// transition metals converge badly: two degenerate orbitals in
+        /// different l blocks are connected by no orbital rotation at
+        /// all, so moving density between them costs nothing at first
+        /// order while its real cost -- the Coulomb and XC coupling
+        /// <k_b k_b|W|k_c k_c> -- is entirely second order. See
+        /// helfem::trscf for the parametrization.
+        bool secondorder = false;
+        /// First-order iterations to run before handing over. The
+        /// second-order phase optimizes WITHIN an occupation pattern and
+        /// cannot discover one, so this is not merely a speed knob:
+        /// handing over too early converges tightly to the wrong answer.
+        int preiter = 100;
+        /// RMS gradient the second-order phase converges to
+        double soconvthr = 1e-8;
+        /// Trust-region macro- and microiteration caps
+        int somacro = 150;
+        int somicro = 50;
+        /// Ceiling on Hessian-vector products per macroiteration; 0 uses
+        /// the optimizer's own default
+        int somaxhess = 0;
+        /// OpenTrustRegion's residual-reduction factor. Its own default
+        /// (1e-3) discards good steps; see helfem::trscf.
+        double soredfac = 3e-1;
+        /// Reduced-space solver: "davidson" or "tcg"
+        std::string sosolver = "davidson";
+        /// Use the exact occupation-block preconditioner
+        bool soprecond = true;
+        /// Instead of optimizing, check the analytic gradient and
+        /// Hessian against finite differences with this step size
+        double sotest = 0.0;
         /// Load orbital guess from checkpoint. Empty = start from core-H
         /// guess as before. When non-empty, the old basis + per-l AO
         /// densities are read from the checkpoint, projected into the

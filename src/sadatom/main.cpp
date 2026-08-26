@@ -29,6 +29,7 @@
 #include "../general/lcao.h"
 #include "../atomic/basis.h"
 #include "scf.h"
+#include "../general/otr_solver.h"
 #include "../general/eigen_io.h"
 // std::abs / std::round / std::lround for the --occs integrality check.
 #include <cmath>
@@ -273,6 +274,16 @@ int main(int argc, char **argv) {
   parser.add<int>("verbosity", 0, "output detail: 0 silent, 1 setup and energies, 5 also per-iteration Fock timings; also passed to the SCF solver", false, 5);
   parser.add<int>("maxiter", 0, "maximum number of SCF iterations", false, 128);
   parser.add<double>("convthr", 0, "SCF convergence threshold", false, 1e-7);
+  parser.add<bool>("secondorder", 0, "follow the first-order SCF with second-order trust-region optimization of the orbitals and the fractional occupations", false, false);
+  parser.add<int>("preiter", 0, "first-order iterations to run before switching to the second-order optimizer", false, 100);
+  parser.add<double>("soconvthr", 0, "RMS gradient the second-order optimizer converges to", false, 1e-8);
+  parser.add<int>("somacro", 0, "second-order macroiteration cap", false, 150);
+  parser.add<int>("somicro", 0, "second-order microiteration cap", false, 50);
+  parser.add<int>("somaxhess", 0, "ceiling on Hessian-vector products per macroiteration; 0 for the default", false, 0);
+  parser.add<double>("soredfac", 0, "second-order residual-reduction factor", false, 3e-1);
+  parser.add<std::string>("sosolver", 0, "second-order reduced-space solver: davidson or tcg", false, "davidson");
+  parser.add<bool>("soprecond", 0, "use the exact occupation-block preconditioner", false, true);
+  parser.add<double>("sotest", 0, "instead of optimizing, check the analytic gradient and Hessian against finite differences with this step size", false, 0.0);
 
   // SAP / effective-potential generation (parity with bespoke gensap).
   // With a functional active, gensap tabulates the radial effective
@@ -391,6 +402,23 @@ int main(int argc, char **argv) {
   opts.scf_methods  = parser.get<std::string>("scfmethods");
   opts.maxiter      = parser.get<int>("maxiter");
   opts.convthr      = parser.get<double>("convthr");
+  opts.secondorder  = parser.get<bool>("secondorder");
+  opts.preiter      = parser.get<int>("preiter");
+  opts.soconvthr    = parser.get<double>("soconvthr");
+  opts.somacro      = parser.get<int>("somacro");
+  opts.somicro      = parser.get<int>("somicro");
+  opts.somaxhess    = parser.get<int>("somaxhess");
+  opts.soredfac     = parser.get<double>("soredfac");
+  opts.sosolver     = parser.get<std::string>("sosolver");
+  opts.soprecond    = parser.get<bool>("soprecond");
+  opts.sotest       = parser.get<double>("sotest");
+  // A derivative check is a second-order run that stops after checking.
+  if (opts.sotest > 0.0)
+    opts.secondorder = true;
+  if (opts.secondorder && !helfem::otr::available())
+    throw std::logic_error("This HelFEM was built without OpenTrustRegion, so "
+                           "--secondorder is unavailable. Configure with "
+                           "-DHELFEM_OPENTRUSTREGION=ON.\n");
   opts.iguess       = parser.get<int>("iguess");
   opts.load_file    = parser.get<std::string>("load");
   opts.save_file    = parser.get<std::string>("save");

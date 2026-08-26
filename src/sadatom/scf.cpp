@@ -19,6 +19,7 @@
 #include "../general/scf_helpers.h"
 #include "../general/checkpoint.h"
 #include "../general/scf_driver_common.h"
+#include "../general/trustregion_scf.h"
 
 #include "openorbitaloptimizer/scfsolver.hpp"
 
@@ -122,47 +123,61 @@ namespace helfem {
           return out;
         };
 
-        auto accumulate_density = [&](helfem::Matrix & Prad, helfem::Cube & Pl_cube,
-                                       size_t l, const helfem::Matrix & orb,
-                                       const helfem::Vector & occ, double & Ekin_out) {
-          if (occ.cwiseAbs().maxCoeff() == 0.0) return;
-          const helfem::Matrix C = Sinvh * orb;
-          const helfem::Matrix P_l = C * occ.asDiagonal() * C.transpose();
-          Prad += P_l;
-          Pl_cube[l] = P_l;
-          Ekin_out += (P_l * T).trace();
-          if (l > 0)
-            Ekin_out += l * (l + 1) * (P_l * Tl).trace();
-        };
-
-        // Shared implementation of the Fock build. `log_line`, when
-        // non-null, collects the energy breakdown instead of it going
-        // straight to stdout: a batched build evaluates its entries
-        // concurrently, and interleaved printf from several threads
-        // would be unreadable and out of order. Everything else here is
-        // either a local or a const capture, so the body is safe to run
-        // from several threads at once.
-        auto build_fock = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm,
-                              std::string * log_line,
-                              helfem::scf_driver::FockTimer::Components * tc) {
+        // Per-block FEM densities of an OpenOrbitalOptimizer solution.
+        // Blocks are l = 0..lmax for the restricted case, and alpha
+        // l = 0..lmax followed by beta l = 0..lmax for the unrestricted
+        // one, matching the block layout OOO is given.
+        auto blocked_density = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm) {
           const auto & orbitals    = dm.first;
           const auto & occupations = dm.second;
+          helfem::Cube P(orbitals.size(), helfem::Matrix::Zero(Nrad, Nrad));
+          for (size_t b = 0; b < orbitals.size(); ++b) {
+            if (occupations[b].cwiseAbs().maxCoeff() == 0.0) continue;
+            // Same radial basis for every l
+            const helfem::Matrix C = Sinvh * orbitals[b];
+            P[b] = C * occupations[b].asDiagonal() * C.transpose();
+          }
+          return P;
+        };
+
+        // Energy and per-block Fock matrices in the FEM basis, given the
+        // per-block FEM densities. This is the whole energy expression,
+        // lifted out of the OpenOrbitalOptimizer builders below so that
+        // the second-order optimizer -- which works from densities
+        // rather than from orbitals and occupations -- shares it instead
+        // of restating it.
+        //
+        // `log_line`, when non-null, collects the energy breakdown
+        // instead of it going straight to stdout: a batched build
+        // evaluates its entries concurrently, and interleaved printf
+        // from several threads would be unreadable and out of order.
+        // Everything else here is either a local or a const capture, so
+        // the body is safe to run from several threads at once.
+        auto fock_fem = [&](const helfem::Cube & P, helfem::Cube & Fout,
+                            std::string * log_line,
+                            helfem::scf_driver::FockTimer::Components * tc) -> double {
+          if (P.size() != nblock * nparttype)
+            throw std::logic_error("Density has an unexpected number of blocks.\n");
           // Component timings go into the caller's own Components, never
           // into shared state: a batched build runs these concurrently.
           Timer tbuild, tcomp;
 
-          OpenOrbitalOptimizer::FockMatrix<OOO_Real> fock(nblock * nparttype);
           helfem::Matrix Prad = helfem::Matrix::Zero(Nrad, Nrad);
           double Ekin = 0.0;
           double Exc = 0.0;
           double nelnum = 0.0;
           helfem::Cube XCa, XCb;
-          helfem::Cube Pal(nblock, helfem::Matrix::Zero(Nrad, Nrad));
+          helfem::Cube Pal(P.begin(), P.begin() + nblock);
           helfem::Cube Pbl;
 
+          for (size_t b = 0; b < P.size(); ++b) {
+            const size_t l = b % nblock;
+            Prad += P[b];
+            Ekin += (P[b] * T).trace();
+            if (l > 0) Ekin += l * (l + 1) * (P[b] * Tl).trace();
+          }
+
           if (restricted) {
-            for (size_t l = 0; l < nblock; ++l)
-              accumulate_density(Prad, Pal, l, orbitals[l], occupations[l], Ekin);
             if (tc) tc->density += tcomp.get();
             if (have_xc) {
               tcomp.set();
@@ -172,14 +187,7 @@ namespace helfem {
               if (tc) tc->xc += tcomp.get();
             }
           } else {
-            Pbl.assign(nblock, helfem::Matrix::Zero(Nrad, Nrad));
-            helfem::Matrix Prad_a = helfem::Matrix::Zero(Nrad, Nrad);
-            helfem::Matrix Prad_b = helfem::Matrix::Zero(Nrad, Nrad);
-            for (size_t l = 0; l < nblock; ++l) {
-              accumulate_density(Prad_a, Pal, l, orbitals[l], occupations[l], Ekin);
-              accumulate_density(Prad_b, Pbl, l, orbitals[nblock + l], occupations[nblock + l], Ekin);
-            }
-            Prad = Prad_a + Prad_b;
+            Pbl.assign(P.begin() + nblock, P.end());
             if (tc) tc->density += tcomp.get();
             if (have_xc) {
               tcomp.set();
@@ -265,21 +273,119 @@ namespace helfem {
               Fl += XC_cube[l];
             if (add_k)
               Fl += K_cube[l];
-            return Sinvh.transpose() * Fl * Sinvh;
+            return Fl;
           };
 
+          Fout.assign(nblock * nparttype, helfem::Matrix());
           if (restricted) {
             for (size_t l = 0; l < nblock; ++l)
-              fock[l] = build_fock_block(l, XCa, have_xc, Ka, have_exx);
+              Fout[l] = build_fock_block(l, XCa, have_xc, Ka, have_exx);
           } else {
             for (size_t l = 0; l < nblock; ++l) {
-              fock[l]          = build_fock_block(l, XCa, have_xc, Ka, have_exx);
-              fock[nblock + l] = build_fock_block(l, XCb, have_xc && opts.nelb > 0,
+              Fout[l]          = build_fock_block(l, XCa, have_xc, Ka, have_exx);
+              Fout[nblock + l] = build_fock_block(l, XCb, have_xc && opts.nelb > 0,
                                                    Kb, have_exx && opts.nelb > 0);
             }
           }
           if (tc) tc->total = tbuild.get();
+          return Etot;
+        };
+
+        // The same build in the form OpenOrbitalOptimizer wants: a
+        // density matrix in, energy and orthonormal-basis Fock out.
+        auto build_fock = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm,
+                              std::string * log_line,
+                              helfem::scf_driver::FockTimer::Components * tc) {
+          helfem::Cube F;
+          const double Etot = fock_fem(blocked_density(dm), F, log_line, tc);
+          OpenOrbitalOptimizer::FockMatrix<OOO_Real> fock(nblock * nparttype);
+          for (size_t b = 0; b < F.size(); ++b)
+            fock[b] = Sinvh.transpose() * F[b] * Sinvh;
           return std::make_pair(Etot, fock);
+        };
+
+        // Linear response of those Fock matrices to a batch of density
+        // perturbations. The one-electron terms (T, Vnuc, Vconf, the
+        // centrifugal l(l+1)Tl) are independent of the density and drop
+        // out; the Coulomb and exchange halves are linear, so their
+        // response is exact and costs one more build of each; the XC
+        // half goes through the response kernel, which is exact for LDA
+        // and GGA and keeps only the density, gradient and tau channels
+        // beyond that.
+        auto response_fem = [&](const helfem::Cube & P,
+                                const std::vector<helfem::Cube> & dP,
+                                std::vector<helfem::Cube> & dF) {
+          const size_t nt = dP.size();
+          dF.assign(nt, helfem::Cube());
+
+          std::vector<helfem::Cube> dXCa, dXCb;
+          if (have_xc) {
+            if (restricted) {
+              std::vector<helfem::Cube> dPs(nt);
+              for (size_t it = 0; it < nt; ++it)
+                dPs[it] = divided_cube(dP[it], angfac);
+              grid.eval_Fxc_response(opts.x_func, opts.x_pars, opts.c_func, opts.c_pars,
+                                      divided_cube(helfem::Cube(P.begin(), P.begin() + nblock), angfac),
+                                      dPs, dXCa, opts.dftthr);
+            } else {
+              std::vector<helfem::Cube> dPa(nt), dPb(nt);
+              for (size_t it = 0; it < nt; ++it) {
+                dPa[it] = divided_cube(helfem::Cube(dP[it].begin(), dP[it].begin() + nblock), angfac);
+                dPb[it] = divided_cube(helfem::Cube(dP[it].begin() + nblock, dP[it].end()), angfac);
+              }
+              grid.eval_Fxc_response(opts.x_func, opts.x_pars, opts.c_func, opts.c_pars,
+                                      divided_cube(helfem::Cube(P.begin(), P.begin() + nblock), angfac),
+                                      divided_cube(helfem::Cube(P.begin() + nblock, P.end()), angfac),
+                                      dPa, dPb, dXCa, dXCb, opts.dftthr);
+              for (size_t it = 0; it < nt; ++it)
+                for (size_t l = 0; l < dXCb[it].size(); ++l) dXCb[it][l] /= angfac;
+            }
+            for (size_t it = 0; it < nt; ++it)
+              for (size_t l = 0; l < dXCa[it].size(); ++l) dXCa[it][l] /= angfac;
+          }
+
+          for (size_t it = 0; it < nt; ++it) {
+            helfem::Matrix dPrad = helfem::Matrix::Zero(Nrad, Nrad);
+            for (size_t b = 0; b < dP[it].size(); ++b)
+              dPrad += dP[it][b];
+            const helfem::Matrix dJ = basis.coulomb(dPrad / angfac);
+
+            // Exchange is linear in the density, so its response is the
+            // same contraction applied to the perturbation.
+            helfem::Cube dKa, dKb;
+            if (have_exx) {
+              auto exchange_response = [&](const helfem::Cube & dPs, bool spin_averaged) {
+                helfem::Cube ang(dPs.size());
+                for (size_t l = 0; l < dPs.size(); ++l)
+                  ang[l] = dPs[l] / (spin_averaged ? 2.0 * (2 * l + 1) : (2 * l + 1));
+                helfem::Cube dK(dPs.size(), helfem::Matrix::Zero(Nrad, Nrad));
+                if (kfrac != 0.0) {
+                  const helfem::Cube Kx = basis.exchange(ang);
+                  for (size_t l = 0; l < dPs.size(); ++l) dK[l] += kfrac * Kx[l];
+                }
+                if (kshort != 0.0) {
+                  const helfem::Cube Kx = basis.rs_exchange(ang);
+                  for (size_t l = 0; l < dPs.size(); ++l) dK[l] += kshort * Kx[l];
+                }
+                return dK;
+              };
+              dKa = exchange_response(helfem::Cube(dP[it].begin(), dP[it].begin() + nblock),
+                                       restricted);
+              if (!restricted)
+                dKb = exchange_response(helfem::Cube(dP[it].begin() + nblock, dP[it].end()), false);
+            }
+
+            dF[it].assign(nblock * nparttype, helfem::Matrix::Zero(Nrad, Nrad));
+            for (size_t b = 0; b < dF[it].size(); ++b) {
+              const size_t l = b % nblock;
+              const bool beta_block = (b >= nblock);
+              dF[it][b] = dJ;
+              if (have_xc && !(beta_block && opts.nelb <= 0))
+                dF[it][b] += beta_block ? dXCb[it][l] : dXCa[it][l];
+              if (have_exx && !(beta_block && opts.nelb <= 0))
+                dF[it][b] += beta_block ? dKb[l] : dKa[l];
+            }
+          }
         };
 
         // Per-component wall clock for the Fock build, plus the time
@@ -384,7 +490,13 @@ namespace helfem {
             number_of_particles, fock_builder, block_descriptions);
         scfsolver.set_batched_fock_builder(batched_fock_builder);
         scfsolver.set("verbosity", opts.verbosity);
-        scfsolver.set("maximum_iterations", opts.maxiter);
+        // With a second-order phase to follow, the first-order one only
+        // has to find the occupation PATTERN -- which shells are
+        // fractionally occupied -- and get close enough for a quadratic
+        // model to mean something.
+        scfsolver.set("maximum_iterations",
+                      opts.secondorder ? std::min(opts.maxiter, opts.preiter)
+                                       : opts.maxiter);
         scfsolver.set("convergence_threshold", opts.convthr);
 
         // Frozen per-l occupation: hand OOO a per-block particle count
@@ -393,6 +505,12 @@ namespace helfem {
         // occupation directly rather than reading occs.dat.
         const bool freeze_a = static_cast<int>(opts.fixed_per_l_a.size()) == lmax + 1;
         const bool freeze_b = (!restricted) && static_cast<int>(opts.fixed_per_l_b.size()) == lmax + 1;
+        if ((freeze_a || freeze_b) && opts.secondorder)
+          throw std::logic_error("Frozen per-l occupations cannot be combined "
+                                 "with the second-order optimizer: the "
+                                 "occupations are among the variables it "
+                                 "optimizes, so pinning them has no meaning "
+                                 "there.\n");
         if (freeze_a || freeze_b) {
           Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1> fixed =
               Eigen::Matrix<OOO_Real, Eigen::Dynamic, 1>::Zero(nblock * nparttype);
@@ -566,8 +684,78 @@ namespace helfem {
         // (in the Sinvh-orthonormal basis) back to AO coefficients
         // (Nbf, Nbf) per l, matching the arma::cube layout the
         // bespoke sadatom SCFSolver used to hand back.
-        const auto orbitals    = scfsolver.get_orbitals();
-        const auto occupations = scfsolver.get_orbital_occupations();
+        auto orbitals    = scfsolver.get_orbitals();
+        auto occupations = scfsolver.get_orbital_occupations();
+
+        if (opts.secondorder) {
+          std::vector<double> maxocc((size_t) maximum_occupation.size());
+          for (Eigen::Index i = 0; i < maximum_occupation.size(); ++i)
+            maxocc[(size_t) i] = maximum_occupation(i);
+
+          helfem::trscf::FockBuilder so_fock =
+              [&](const helfem::Cube & P, helfem::Cube & F) {
+            // No reporting: the trust-region solver prints its own
+            // iteration table, and a microiteration sweep makes many
+            // objective evaluations that are not iterations.
+            return fock_fem(P, F, nullptr, nullptr);
+          };
+          helfem::trscf::ResponseBuilder so_response =
+              [&](const helfem::Cube & P, const std::vector<helfem::Cube> & dP,
+                  std::vector<helfem::Cube> & dF) { response_fem(P, dP, dF); };
+
+          helfem::trscf::Optimizer opt(Sinvh, maxocc,
+                                        std::vector<size_t>(nparttype, nblock),
+                                        so_fock, so_response);
+          opt.set_reference(orbitals, occupations);
+
+          if (opts.sotest > 0.0) {
+            // Derivative check only: the analytic gradient and Hessian
+            // are the whole content of the second-order method, and
+            // nothing downstream can tell a wrong Hessian from a hard
+            // problem. The response kernel is exact for LDA and GGA and
+            // for the tau channel of a meta-GGA; a Laplacian-dependent
+            // functional has no response channel at all, so there the
+            // Hessian is measured rather than tested.
+            bool xg=false, xt=false, xl=false, cg=false, ct=false, cl=false;
+            if (opts.x_func > 0) is_gga_mgga(opts.x_func, xg, xt, xl);
+            if (opts.c_func > 0) is_gga_mgga(opts.c_func, cg, ct, cl);
+            if (!opt.verify(opts.sotest, 1e-4, opts.verbosity, !(xl || cl)))
+              throw std::runtime_error("The analytic derivatives disagree with "
+                                       "finite differences.\n");
+          } else {
+            helfem::trscf::Options sopt;
+            sopt.otr.conv_tol = opts.soconvthr;
+            sopt.otr.n_macro = opts.somacro;
+            sopt.otr.n_micro = opts.somicro;
+            sopt.max_hessian = opts.somaxhess;
+            sopt.otr.global_red_factor = opts.soredfac;
+            sopt.otr.local_red_factor = 0.1 * opts.soredfac;
+            sopt.otr.subsystem_solver = opts.sosolver;
+            // OpenTrustRegion prints its iteration table at level 3.
+            sopt.otr.verbose = (opts.verbosity >= 1) ? std::max(3, opts.verbosity) : 0;
+            sopt.exact_precond = opts.soprecond;
+            sopt.verbosity = opts.verbosity;
+
+            const helfem::trscf::Result res = opt.run(sopt);
+            orbitals    = opt.orbitals();
+            occupations = opt.occupations();
+
+            // Announce convergence the way every other driver does; a
+            // run with no such line is rejected as non-converged, which
+            // is why this is printed only when the gradient came down.
+            if (res.converged)
+              printf("Converged to energy %.10f!\n", res.energy);
+            if (opts.verbosity >= 1) {
+              printf("\nSecond-order optimization reached energy %.10f with RMS "
+                     "gradient %.3e\n", res.energy, res.grad_rms);
+              printf("  %i reference updates, %i objective evaluations, %i "
+                     "Hessian-vector products in %i response builds\n",
+                     (int) res.n_update, (int) res.n_objective,
+                     (int) res.n_hessian, (int) res.n_response);
+              fflush(stdout);
+            }
+          }
+        }
 
         AtomicSCFResult result;
         result.basis = basis;
