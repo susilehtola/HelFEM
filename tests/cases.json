@@ -3596,7 +3596,7 @@
         "consistency",
         "secondorder"
       ],
-      "_why": "spin-restricted Fe handed over to the second-order optimizer EARLY. There is no first-order Fe case because there should not be one: whether the first-order solver converges this system depends on the thread count -- 634 Fock builds and converged on four threads, 607 and not converged on one -- and it is the system the second-order machinery exists for in the first place. Paired with the preiter=30 run below, so that agreement tests the handover and the KKT release rather than one trajectory. DIIS is deliberately absent: this is the case with a genuine occupation coordinate (2 fractionally occupied blocks, 1 transfer), and DIIS extrapolates on the assumption that the occupations are fixed.",
+      "_why": "spin-restricted Fe handed over to the second-order optimizer EARLY. There is no first-order Fe case because there should not be one: whether the first-order solver converges this system depends on the thread count -- 634 Fock builds and converged on four threads, 607 and not converged on one -- and it is the system the second-order machinery exists for in the first place. Paired with the preiter=30 run below, so that agreement tests the handover and the KKT release rather than one trajectory. DIIS is deliberately absent: this is the case with a genuine occupation coordinate (2 fractionally occupied blocks, 1 transfer), and DIIS extrapolates on the assumption that the occupations are fixed. Before the KKT release existed, preiter=20 converged tightly to the pure-state solution 0.032 Eh above the ensemble one.",
       "args": [
         "--Z=Fe",
         "--M=0",
@@ -4504,7 +4504,7 @@
     },
     {
       "name": "aij-secondorder-handover-agrees-Fe",
-      "_why": "the second-order optimizer must land on the same minimum wherever the first-order phase hands over, not merely converge tightly from one lucky starting point. Reference-free. Fe is the discriminating case: an early handover can inherit an occupation pattern with a block frozen on the wrong side of the Fermi level, which is stationary for the restricted problem and so converges to a tiny gradient at a wrong energy. The handover points are chosen from measurement, not from the middle of a range: 22 and 30 both converge for aij AND gensap, while 20 and 28 converge for aij only and 25 fails for both.",
+      "_why": "the second-order optimizer must land on the same minimum wherever the first-order phase hands over, not merely converge tightly from one lucky starting point. Reference-free. Fe is the discriminating case: an early handover can inherit an occupation pattern with a block frozen on the wrong side of the Fermi level, -- a KKT violation, and by Janak's theorem a full block must lie below the Fermi level -- which is stationary for the restricted problem and so converges to a tiny gradient at a wrong energy. The handover points are chosen from measurement, not from the middle of a range: 22 and 30 both converge for aij AND gensap, while 20 and 28 converge for aij only and 25 fails for both.",
       "cases": [
         "aij-Fe-secondorder-early",
         "aij-Fe-secondorder"
