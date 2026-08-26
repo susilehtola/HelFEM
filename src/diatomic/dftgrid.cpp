@@ -557,6 +557,9 @@ namespace helfem {
               if(c_func>0)
                 grid.compute_xc(c_func, c_pars, thr);
 
+              // the assembly contracts a general vector field; build it once
+              grid.build_vgrad();
+
               exc+=grid.eval_Exc();
               grid.eval_Fxc(H);
             }
@@ -599,6 +602,9 @@ namespace helfem {
                 grid.compute_xc(x_func, x_pars, thr);
               if(c_func>0)
                 grid.compute_xc(c_func, c_pars, thr);
+
+              // the assembly contracts a general vector field; build it once
+              grid.build_vgrad();
 
               exc+=grid.eval_Exc();
               grid.eval_Fxc(Ha,Hb,beta);

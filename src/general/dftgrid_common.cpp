@@ -22,6 +22,7 @@
 // unified path stays safe for the sadatom callers).
 
 #include "dftgrid_common.h"
+#include "xckernel_fxc.h"
 #include "dftfuncs.h"
 #include <cmath>
 #include <cstdio>
@@ -255,7 +256,20 @@ namespace helfem {
     }
 
     void DFTGridWorkerBase::init_fxc() {
-      v2rho2 = helfem::Matrix::Zero(polarized ? 3 : 1, wtot.size());
+      const Eigen::Index N = wtot.size();
+      const Eigen::Index n2 = polarized ? 3 : 1;
+      const Eigen::Index n4 = polarized ? 4 : 1;
+      const Eigen::Index n6 = polarized ? 6 : 1;
+      v2rho2 = helfem::Matrix::Zero(n2, N);
+      if (do_grad) {
+        v2rhosigma = helfem::Matrix::Zero(n6, N);
+        v2sigma2   = helfem::Matrix::Zero(n6, N);
+      }
+      if (do_tau) {
+        v2rhotau   = helfem::Matrix::Zero(n4, N);
+        v2tau2     = helfem::Matrix::Zero(n2, N);
+        if (do_grad) v2sigmatau = helfem::Matrix::Zero(n6, N);
+      }
     }
 
     void DFTGridWorkerBase::compute_fxc(int func_id, const helfem::Vector & p,
@@ -292,16 +306,20 @@ namespace helfem {
         throw std::logic_error(oss.str());
       }
 
-      // Only the density-density block is kept; the rest are evaluated
-      // into scratch and discarded. See the header for why an incomplete
-      // GGA / meta-GGA kernel is the right trade here.
-      helfem::Matrix wrk = helfem::Matrix::Zero(v2rho2.rows(), v2rho2.cols());
+      // Every block the functional actually populates is kept; the
+      // laplacian ones are still scratch, as no laplacian response is
+      // assembled yet.
       const Eigen::Index n2 = polarized ? 3 : 1;
       const Eigen::Index n4 = polarized ? 4 : 1;
       const Eigen::Index n6 = polarized ? 6 : 1;
+      helfem::Matrix wrk = helfem::Matrix::Zero(n2, N);
+      helfem::Matrix rs = helfem::Matrix::Zero(n6, N);
+      helfem::Matrix s2 = helfem::Matrix::Zero(n6, N);
+      helfem::Matrix rt = helfem::Matrix::Zero(n4, N);
+      helfem::Matrix st = helfem::Matrix::Zero(n6, N);
+      helfem::Matrix t2 = helfem::Matrix::Zero(n2, N);
       if (mgga_t || mgga_l) {
-        helfem::Matrix rs(n6, N), rl(n4, N), rt(n4, N), s2(n6, N), sl(n6, N),
-            st(n6, N), l2(n2, N), lt(n4, N), t2(n2, N);
+        helfem::Matrix rl(n4, N), sl(n6, N), l2(n2, N), lt(n4, N);
         // libxc dereferences lapl / tau only when the functional asks for
         // them, exactly as compute_xc above relies on.
         double *laplp = mgga_l ? lapl.data() : NULL;
@@ -316,18 +334,67 @@ namespace helfem {
         xc_mgga_fxc(&func, N, rho.data(), sigma.data(), laplp, taup, wrk.data(),
                     rs.data(), rlp, rtp, s2.data(), slp, stp, l2p, ltp, t2p);
       } else if (gga) {
-        helfem::Matrix rs(n6, N), s2(n6, N);
         xc_gga_fxc(&func, N, rho.data(), sigma.data(), wrk.data(), rs.data(),
                    s2.data());
       } else {
         xc_lda_fxc(&func, N, rho.data(), wrk.data());
       }
       v2rho2 += wrk;
+      if (do_grad && (gga || mgga_t || mgga_l)) {
+        v2rhosigma += rs;
+        v2sigma2   += s2;
+      }
+      if (do_tau && mgga_t) {
+        v2rhotau += rt;
+        v2tau2   += t2;
+        if (do_grad) v2sigmatau += st;
+      }
 
       xc_func_end(&func);
     }
 
-    void DFTGridWorkerBase::set_response_potential(const helfem::Matrix & drho) {
+    void DFTGridWorkerBase::build_vgrad(const helfem::Matrix & grho) {
+      if (!do_grad) return;
+      // The number of gradient components is the caller's business: the
+      // radial atomic worker carries one, the three-dimensional workers
+      // three. Everything below is written per component.
+      const Eigen::Index nsp = polarized ? 2 : 1;
+      if (grho.rows() % nsp) {
+        std::ostringstream oss;
+        oss << "Density gradient has " << grho.rows() << " rows, which is "
+            << "not divisible by the " << nsp << " spin channels.\n";
+        throw std::logic_error(oss.str());
+      }
+      const Eigen::Index nc = grho.rows() / nsp;
+      const Eigen::Index N = grho.cols();
+      vgrad = helfem::Matrix::Zero(grho.rows(), N);
+      // The chain rule is GENERATED, not written here: these are
+      // libxckernel's ground-state potential channels (emitters/
+      // helfemwriter.py, from engine/fock.vxc_channels), so the
+      // assembly cannot drift from the kernel it is differentiated
+      // into. The generated kernel is single-component because the
+      // gradient channel of a semilocal functional depends only on its
+      // OWN component -- sigma is a sum of squares -- which is why one
+      // call per component serves the radial worker's single component,
+      // the pure-m worker's two and the three-dimensional workers'
+      // three alike.
+      for (Eigen::Index c = 0; c < nc; c++)
+        for (Eigen::Index i = 0; i < N; i++) {
+          if (!polarized) {
+            helfem::xckernel::xck_helfem_vxc_grad(
+                grho(c, i), vsigma(0, i), vgrad(c, i));
+          } else {
+            helfem::xckernel::xck_helfem_vxc_grad_spin(
+                grho(c, i), grho(nc + c, i), vsigma(0, i), vsigma(1, i),
+                vsigma(2, i), vgrad(c, i), vgrad(nc + c, i));
+          }
+        }
+    }
+
+    void DFTGridWorkerBase::set_response_potential(const helfem::Matrix & drho,
+                                                   const helfem::Matrix & grho,
+                                                   const helfem::Matrix & dgrad_rho,
+                                                   const helfem::Matrix & dtau) {
       if (drho.rows() != rho.rows() || drho.cols() != rho.cols()) {
         std::ostringstream oss;
         oss << "Perturbation density is " << drho.rows() << "x" << drho.cols()
@@ -335,23 +402,121 @@ namespace helfem {
             << rho.cols() << ".\n";
         throw std::logic_error(oss.str());
       }
-
-      if (!polarized) {
-        vxc.row(0) = v2rho2.row(0).array() * drho.row(0).array();
-      } else {
-        // libxc stores the polarized kernel as (uu, ud, dd), so the
-        // response mixes the spin channels: dv_s = sum_t f_st drho_t.
-        vxc.row(0) = v2rho2.row(0).array() * drho.row(0).array() +
-                     v2rho2.row(1).array() * drho.row(1).array();
-        vxc.row(1) = v2rho2.row(1).array() * drho.row(0).array() +
-                     v2rho2.row(2).array() * drho.row(1).array();
+      // A caller that does not supply the perturbed gradient / tau gets
+      // the density-density block alone, i.e. exactly the LDA-shaped
+      // response this routine produced before the other channels
+      // existed. That keeps every existing caller working unchanged
+      // while a caller that does supply them gets the exact kernel.
+      const bool have_grad = do_grad && dgrad_rho.size() > 0 && grho.size() > 0;
+      const bool have_tau  = do_tau && dtau.size() > 0;
+      if (have_grad && (dgrad_rho.rows() != grho.rows() ||
+                        dgrad_rho.cols() != grho.cols()))
+        throw std::logic_error("Perturbed and reference density gradients "
+                               "have different shapes.\n");
+      if (!have_grad || (do_tau && !have_tau)) {
+        if (!polarized) {
+          vxc.row(0) = v2rho2.row(0).array() * drho.row(0).array();
+        } else {
+          vxc.row(0) = v2rho2.row(0).array() * drho.row(0).array() +
+                       v2rho2.row(1).array() * drho.row(1).array();
+          vxc.row(1) = v2rho2.row(1).array() * drho.row(0).array() +
+                       v2rho2.row(2).array() * drho.row(1).array();
+        }
+        do_gga    = false;
+        do_mgga_t = false;
+        do_mgga_l = false;
+        return;
       }
 
-      // The assembly branches on these. The response we assemble is
-      // LDA-shaped whatever the functional is, since only the
-      // density-density kernel block was kept.
-      do_gga    = false;
-      do_mgga_t = false;
+      const Eigen::Index N = wtot.size();
+
+      if (!polarized) {
+        // The chain rule itself is GENERATED, not written here: the
+        // per-point channels come from libxckernel's fxc_channels via
+        // emitters/helfemwriter.py, so the expressions cannot drift from
+        // the ones the generator validates.
+        const Eigen::Index N = wtot.size();
+        const Eigen::Index nc = grho.rows();
+        if (do_grad) vgrad = helfem::Matrix::Zero(nc, N);
+        for (Eigen::Index i = 0; i < N; i++) {
+          double u = 0.0, v_r = 0.0, w_tau = 0.0;
+          if (have_tau)
+            helfem::xckernel::xck_helfem_fxc_mgga_tau(
+                dgrad_rho(0, i), grho(0, i), drho(0, i), dtau(0, i),
+                v2rho2(0, i), v2rhosigma(0, i), v2rhotau(0, i),
+                v2sigma2(0, i), v2sigmatau(0, i), v2tau2(0, i),
+                vsigma(0, i), u, v_r, w_tau);
+          else if (have_grad)
+            helfem::xckernel::xck_helfem_fxc_gga(
+                dgrad_rho(0, i), grho(0, i), drho(0, i), v2rho2(0, i),
+                v2rhosigma(0, i), v2sigma2(0, i), vsigma(0, i), u, v_r);
+          else
+            helfem::xckernel::xck_helfem_fxc_lda(drho(0, i), v2rho2(0, i), u);
+          vxc(0, i) = u;
+          if (do_grad) vgrad(0, i) = v_r;
+          if (have_tau) vtau(0, i) = w_tau;
+        }
+      } else {
+        // Spin-resolved channels, likewise generated: the polarized Libxc
+        // arrays keep their flat packing, and the call sites below were
+        // emitted from the generated signatures rather than ordered by
+        // hand.
+        const Eigen::Index N = wtot.size();
+        if (do_grad) vgrad = helfem::Matrix::Zero(grho.rows(), N);
+        for (Eigen::Index i = 0; i < N; i++) {
+          double u_a = 0.0, v_a_r = 0.0, w_a = 0.0;
+          double u_b = 0.0, v_b_r = 0.0, w_b = 0.0;
+          if (have_tau)
+            helfem::xckernel::xck_helfem_fxc_mgga_tau_spin(
+                dgrad_rho(0, i), grho(0, i), dgrad_rho(1, i),
+                grho(1, i), drho(0, i), drho(1, i),
+                dtau(0, i), dtau(1, i), v2rho2(0, i),
+                v2rho2(1, i), v2rho2(2, i), v2rhosigma(0, i),
+                v2rhosigma(1, i), v2rhosigma(2, i), v2rhosigma(3, i),
+                v2rhosigma(4, i), v2rhosigma(5, i), v2rhotau(0, i),
+                v2rhotau(1, i), v2rhotau(2, i), v2rhotau(3, i),
+                v2sigma2(0, i), v2sigma2(1, i), v2sigma2(2, i),
+                v2sigma2(3, i), v2sigma2(4, i), v2sigma2(5, i),
+                v2sigmatau(0, i), v2sigmatau(1, i), v2sigmatau(2, i),
+                v2sigmatau(3, i), v2sigmatau(4, i), v2sigmatau(5, i),
+                v2tau2(0, i), v2tau2(1, i), v2tau2(2, i),
+                vsigma(0, i), vsigma(1, i), vsigma(2, i),
+                u_a, v_a_r, w_a,
+                u_b, v_b_r, w_b);
+          else if (have_grad)
+            helfem::xckernel::xck_helfem_fxc_gga_spin(
+                dgrad_rho(0, i), grho(0, i), dgrad_rho(1, i),
+                grho(1, i), drho(0, i), drho(1, i),
+                v2rho2(0, i), v2rho2(1, i), v2rho2(2, i),
+                v2rhosigma(0, i), v2rhosigma(1, i), v2rhosigma(2, i),
+                v2rhosigma(3, i), v2rhosigma(4, i), v2rhosigma(5, i),
+                v2sigma2(0, i), v2sigma2(1, i), v2sigma2(2, i),
+                v2sigma2(3, i), v2sigma2(4, i), v2sigma2(5, i),
+                vsigma(0, i), vsigma(1, i), vsigma(2, i),
+                u_a, v_a_r, u_b,
+                v_b_r);
+          else
+            helfem::xckernel::xck_helfem_fxc_lda_spin(
+                drho(0, i), drho(1, i), v2rho2(0, i),
+                v2rho2(1, i), v2rho2(2, i), u_a,
+                u_b);
+          vxc(0, i) = u_a;
+          vxc(1, i) = u_b;
+          if (do_grad) {
+            vgrad(0, i) = v_a_r;
+            vgrad(1, i) = v_b_r;
+          }
+          if (have_tau) {
+            vtau(0, i) = w_a;
+            vtau(1, i) = w_b;
+          }
+        }
+      }
+
+      // Unlike the previous LDA-shaped response, the assembly now sees the
+      // functional's own rungs: the channels above are exact.
+      do_gga    = have_grad;
+      do_mgga_t = have_tau;
       do_mgga_l = false;
     }
 
