@@ -171,8 +171,13 @@ namespace helfem {
     };
 
     class Optimizer {
-      /// Half-inverse overlap, Nfem x Nrad
-      helfem::Matrix Sinvh_;
+      /// Half-inverse overlap of each block, Nfem_b x Norb_b.
+      ///
+      /// Per block, not shared: the spherically averaged atom gives every
+      /// l the same radial basis, but the atomic and diatomic codes
+      /// orthonormalize each symmetry block separately over its own
+      /// basis-function subset, so the blocks differ in both dimensions.
+      std::vector<helfem::Matrix> Sinvh_;
       /// Occupation of a filled orbital in each block
       std::vector<double> maxocc_;
       /// Particle type each block belongs to
@@ -242,8 +247,10 @@ namespace helfem {
       /// Counters
       mutable Result stats_;
 
-      /// Number of radial functions
-      Eigen::Index Nrad() const { return Sinvh_.cols(); }
+      /// Number of orbitals in a block
+      Eigen::Index norb(size_t b) const { return Sinvh_[b].cols(); }
+      /// Number of basis functions in a block
+      Eigen::Index nfem(size_t b) const { return Sinvh_[b].rows(); }
       /// Number of blocks
       size_t nblock() const { return maxocc_.size(); }
 
@@ -307,6 +314,13 @@ namespace helfem {
       /// blocks_per_particle gives the number of blocks belonging to each
       /// particle type, in order; maxocc the occupation of a filled
       /// orbital in each block.
+      Optimizer(const std::vector<helfem::Matrix> &Sinvh,
+                const std::vector<double> &maxocc,
+                const std::vector<size_t> &blocks_per_particle, FockBuilder fock,
+                ResponseBuilder response);
+
+      /// Convenience overload for the case every block shares one basis,
+      /// which is what the spherically averaged atom has.
       Optimizer(const helfem::Matrix &Sinvh, const std::vector<double> &maxocc,
                 const std::vector<size_t> &blocks_per_particle, FockBuilder fock,
                 ResponseBuilder response);

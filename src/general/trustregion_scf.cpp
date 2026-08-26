@@ -173,7 +173,20 @@ namespace helfem {
                          const std::vector<double> &maxocc,
                          const std::vector<size_t> &blocks_per_particle,
                          FockBuilder fock, ResponseBuilder response)
+        : Optimizer(std::vector<helfem::Matrix>(maxocc.size(), Sinvh), maxocc,
+                    blocks_per_particle, fock, response) {}
+
+    Optimizer::Optimizer(const std::vector<helfem::Matrix> &Sinvh,
+                         const std::vector<double> &maxocc,
+                         const std::vector<size_t> &blocks_per_particle,
+                         FockBuilder fock, ResponseBuilder response)
         : Sinvh_(Sinvh), maxocc_(maxocc), fock_(fock), response_(response) {
+      if (Sinvh_.size() != maxocc_.size()) {
+        std::ostringstream oss;
+        oss << "Got " << Sinvh_.size() << " orthonormalizers for "
+            << maxocc_.size() << " blocks.\n";
+        throw std::logic_error(oss.str());
+      }
       size_t b = 0;
       for (size_t p = 0; p < blocks_per_particle.size(); p++) {
         std::vector<size_t> blocks;
@@ -193,7 +206,7 @@ namespace helfem {
 
     void Optimizer::fill_occupations(size_t b, double q, helfem::Vector &f,
                                      Eigen::Index &k) const {
-      const Eigen::Index n = Nrad();
+      const Eigen::Index n = norb(b);
       const double w = maxocc_[b];
       f = helfem::Vector::Zero(n);
       for (Eigen::Index i = 0; i < n; i++)
@@ -227,11 +240,11 @@ namespace helfem {
       C_.resize(nblock());
 
       for (size_t b = 0; b < nblock(); b++) {
-        if (orbs[b].rows() != Nrad() || orbs[b].cols() != Nrad()) {
+        if (orbs[b].rows() != norb(b) || orbs[b].cols() != norb(b)) {
           std::ostringstream oss;
           oss << "Block " << b << " has " << orbs[b].rows() << "x"
-              << orbs[b].cols() << " orbitals, expected " << Nrad() << "x"
-              << Nrad() << ".\n";
+              << orbs[b].cols() << " orbitals, expected " << norb(b) << "x"
+              << norb(b) << ".\n";
           throw std::logic_error(oss.str());
         }
         // The occupations are read only as a block electron count: which
@@ -249,7 +262,7 @@ namespace helfem {
             throw std::logic_error(oss.str());
           }
         fill_occupations(b, q_[b], f_[b], active_[b]);
-        C_[b] = Sinvh_ * U_[b];
+        C_[b] = Sinvh_[b] * U_[b];
       }
     }
 
@@ -258,9 +271,9 @@ namespace helfem {
       pair_j_.assign(nblock(), std::vector<Eigen::Index>());
       koff_.assign(nblock(), 0);
 
-      const Eigen::Index n = Nrad();
       size_t off = 0;
       for (size_t b = 0; b < nblock(); b++) {
+        const Eigen::Index n = norb(b);
         koff_[b] = off;
         const Eigen::Index k = active_[b];
         // A rotation changes the density only if the two orbitals differ
@@ -540,7 +553,9 @@ namespace helfem {
 
     void Optimizer::decode(const double *x, std::vector<helfem::Matrix> &kappa,
                            std::vector<double> &dq) const {
-      kappa.assign(nblock(), helfem::Matrix::Zero(Nrad(), Nrad()));
+      kappa.resize(nblock());
+      for (size_t b = 0; b < nblock(); b++)
+        kappa[b] = helfem::Matrix::Zero(norb(b), norb(b));
       for (size_t b = 0; b < nblock(); b++)
         for (size_t p = 0; p < pair_i_[b].size(); p++) {
           const double v = x[koff_[b] + p];
@@ -578,7 +593,9 @@ namespace helfem {
     void Optimizer::densities(const std::vector<helfem::Matrix> &U,
                               const std::vector<double> &q,
                               helfem::Cube &P) const {
-      P.assign(nblock(), helfem::Matrix::Zero(Sinvh_.rows(), Sinvh_.rows()));
+      P.resize(nblock());
+      for (size_t b = 0; b < nblock(); b++)
+        P[b] = helfem::Matrix::Zero(nfem(b), nfem(b));
       for (size_t b = 0; b < nblock(); b++) {
         helfem::Vector f;
         Eigen::Index k;
@@ -586,7 +603,7 @@ namespace helfem {
         // Only orbitals up to the fractionally occupied one carry any
         // density, so the density build is O(Nfem^2 * nocc), not O(N^3).
         const Eigen::Index nocc = k + 1;
-        const helfem::Matrix Cocc = Sinvh_ * U[b].leftCols(nocc);
+        const helfem::Matrix Cocc = Sinvh_[b] * U[b].leftCols(nocc);
         P[b] = Cocc * f.head(nocc).asDiagonal() * Cocc.transpose();
       }
     }
@@ -634,7 +651,9 @@ namespace helfem {
 
       std::vector<helfem::Cube> probe(nb), resp;
       for (size_t c = 0; c < nb; c++) {
-        probe[c].assign(nb, helfem::Matrix::Zero(Sinvh_.rows(), Sinvh_.rows()));
+        probe[c].resize(nb);
+        for (size_t b = 0; b < nb; b++)
+          probe[c][b] = helfem::Matrix::Zero(nfem(b), nfem(b));
         const helfem::Vector ck = C_[c].col(active_[c]);
         probe[c][c] = ck * ck.transpose();
       }
@@ -816,7 +835,7 @@ namespace helfem {
       for (size_t b = 0; b < nblock(); b++) {
         reorthonormalize(U_[b]);
         fill_occupations(b, q_[b], f_[b], active_[b]);
-        C_[b] = Sinvh_ * U_[b];
+        C_[b] = Sinvh_[b] * U_[b];
       }
 
       helfem::Cube P, F;
