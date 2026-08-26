@@ -116,6 +116,16 @@ namespace helfem {
         /// Update values of density, unrestricted calculation
         void update_density(const helfem::Matrix & Pa, const helfem::Matrix & Pb);
 
+        /// Density of a SECOND density matrix on the current element's
+        /// grid, without disturbing the reference the worker is holding.
+        /// This is the same bilinear form update_density uses, applied to
+        /// the perturbation, and it is all an LDA response kernel needs.
+        /// 1 x Npts restricted, 2 x Npts polarized.
+        helfem::Matrix eval_density(const helfem::Matrix & dP) const;
+        /// Same for a spin-polarized perturbation
+        helfem::Matrix eval_density(const helfem::Matrix & dPa,
+                                     const helfem::Matrix & dPb) const;
+
         // compute_Nel() is inherited from DFTGridWorkerBase.
         /// Compute integral over density laplacian
         double compute_laplsum() const;
@@ -163,6 +173,37 @@ namespace helfem {
         /// Compute Fock matrix, exchange-correlation energy and integrated
         /// electron density, unrestricted case. Eigen-typed public boundary.
         void eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & Pa, const helfem::Matrix & Pb, helfem::Matrix & Ha, helfem::Matrix & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr);
+
+        /// Linear response of the XC matrix to a BATCH of density
+        /// perturbations dP, at the reference density P.
+        ///
+        /// Batched because the expensive parts -- the basis values on the
+        /// grid, the reference density and the libxc kernel -- are shared
+        /// across the perturbations, so a d-dimensional Hessian subspace
+        /// costs far less than d separate response builds.
+        ///
+        /// LDA-shaped: only the density-density block of the kernel is
+        /// used, which is exact for an LDA and an approximation beyond
+        /// it. That is sound here because this builds the model Hessian
+        /// of a trust-region method, never the energy or the gradient --
+        /// an approximate kernel costs iterations, not correctness, since
+        /// the step is validated against the true energy by the ratio
+        /// test. The seam for the gradient and tau channels is
+        /// DFTGridWorkerBase::set_response_potential, which already takes
+        /// them; passing empty matrices selects the LDA-shaped path.
+        void eval_Fxc_response(int x_func, const helfem::Vector & x_pars,
+                                int c_func, const helfem::Vector & c_pars,
+                                const helfem::Matrix & P,
+                                const std::vector<helfem::Matrix> & dP,
+                                std::vector<helfem::Matrix> & dH, double thr);
+        /// Spin-polarized counterpart
+        void eval_Fxc_response(int x_func, const helfem::Vector & x_pars,
+                                int c_func, const helfem::Vector & c_pars,
+                                const helfem::Matrix & Pa, const helfem::Matrix & Pb,
+                                const std::vector<helfem::Matrix> & dPa,
+                                const std::vector<helfem::Matrix> & dPb,
+                                std::vector<helfem::Matrix> & dHa,
+                                std::vector<helfem::Matrix> & dHb, double thr);
 
       };
 
