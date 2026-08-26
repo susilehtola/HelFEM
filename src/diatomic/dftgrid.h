@@ -103,6 +103,16 @@ namespace helfem {
         /// Update values of density, unrestricted calculation
         void update_density(const helfem::Matrix & Paexp, const helfem::Matrix & Pbexp);
 
+        /// Density of a SECOND density matrix on the current grid point,
+        /// without disturbing the reference the worker is holding. The
+        /// same bilinear form update_density uses, applied to the
+        /// perturbation, which is all an LDA response kernel needs.
+        /// dP is expanded to the dummy basis, as update_density's is.
+        helfem::Matrix eval_density(const helfem::Matrix & dPexp) const;
+        /// Same for a spin-polarized perturbation
+        helfem::Matrix eval_density(const helfem::Matrix & dPaexp,
+                                     const helfem::Matrix & dPbexp) const;
+
         // compute_Nel() is inherited from DFTGridWorkerBase.
         /// Compute kinetic energy
         double compute_Ekin() const;
@@ -146,6 +156,31 @@ namespace helfem {
         /// Compute Fock matrix, exchange-correlation energy and integrated
         /// electron density, unrestricted case. Eigen-typed public boundary.
         void eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & Pa, const helfem::Matrix & Pb, helfem::Matrix & Ha, helfem::Matrix & Hb, double & Exc, double & Nel, double & Ekin, bool beta, double thr);
+
+        /// Linear response of the XC matrix to a BATCH of density
+        /// perturbations, at the reference density P. Batched because the
+        /// basis values, the reference density and the libxc kernel are
+        /// shared across the perturbations.
+        ///
+        /// LDA-shaped: only the density-density block of the kernel is
+        /// used. That is exact for an LDA and an approximation beyond it,
+        /// which is sound because this builds the model Hessian of a
+        /// trust-region method, never the energy or the gradient -- the
+        /// step is validated against the true energy by the ratio test,
+        /// so an approximate kernel costs iterations, not correctness.
+        void eval_Fxc_response(int x_func, const helfem::Vector & x_pars,
+                                int c_func, const helfem::Vector & c_pars,
+                                const helfem::Matrix & P,
+                                const std::vector<helfem::Matrix> & dP,
+                                std::vector<helfem::Matrix> & dH, double thr);
+        /// Spin-polarized counterpart
+        void eval_Fxc_response(int x_func, const helfem::Vector & x_pars,
+                                int c_func, const helfem::Vector & c_pars,
+                                const helfem::Matrix & Pa, const helfem::Matrix & Pb,
+                                const std::vector<helfem::Matrix> & dPa,
+                                const std::vector<helfem::Matrix> & dPb,
+                                std::vector<helfem::Matrix> & dHa,
+                                std::vector<helfem::Matrix> & dHb, double thr);
 
       };
 

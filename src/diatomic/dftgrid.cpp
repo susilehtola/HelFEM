@@ -558,6 +558,38 @@ namespace helfem {
         return tasks;
       }
 
+      helfem::Matrix DFTGridWorker::eval_density(const helfem::Matrix & dPexp) const {
+        // The same contraction update_density performs, on a different
+        // density matrix and without touching any member state.
+        helfem::Matrix dP(bf_ind.size(), bf_ind.size());
+        for(size_t i=0;i<bf_ind.size();i++)
+          for(size_t j=0;j<bf_ind.size();j++)
+            dP(i,j)=dPexp(bf_ind[i],bf_ind[j]);
+
+        const helfem::Matrix dPvA(dP*bf_re), dPvB(dP*bf_im);
+        helfem::Matrix drho=helfem::Matrix::Zero(1,wtot.size());
+        for(Eigen::Index ip=0;ip<wtot.size();ip++)
+          drho(0,ip)=dPvA.col(ip).dot(bf_re.col(ip))+dPvB.col(ip).dot(bf_im.col(ip));
+        return drho;
+      }
+
+      helfem::Matrix DFTGridWorker::eval_density(const helfem::Matrix & dPaexp, const helfem::Matrix & dPbexp) const {
+        helfem::Matrix dPa(bf_ind.size(), bf_ind.size()), dPb(bf_ind.size(), bf_ind.size());
+        for(size_t i=0;i<bf_ind.size();i++)
+          for(size_t j=0;j<bf_ind.size();j++) {
+            dPa(i,j)=dPaexp(bf_ind[i],bf_ind[j]);
+            dPb(i,j)=dPbexp(bf_ind[i],bf_ind[j]);
+          }
+        const helfem::Matrix dPavA(dPa*bf_re), dPavB(dPa*bf_im);
+        const helfem::Matrix dPbvA(dPb*bf_re), dPbvB(dPb*bf_im);
+        helfem::Matrix drho=helfem::Matrix::Zero(2,wtot.size());
+        for(Eigen::Index ip=0;ip<wtot.size();ip++) {
+          drho(0,ip)=dPavA.col(ip).dot(bf_re.col(ip))+dPavB.col(ip).dot(bf_im.col(ip));
+          drho(1,ip)=dPbvA.col(ip).dot(bf_re.col(ip))+dPbvB.col(ip).dot(bf_im.col(ip));
+        }
+        return drho;
+      }
+
       void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & P_e, helfem::Matrix & H_e, double & Exc, double & Nel, double & Ekin, double thr) {
         // Eigen flows straight through the worker and remove_boundaries.
         helfem::Matrix H = helfem::Matrix::Zero(basp->Ndummy(),basp->Ndummy());
@@ -702,6 +734,95 @@ namespace helfem {
         // Clean up matrices
         Ha_e=basp->remove_boundaries(Ha);
         Hb_e=basp->remove_boundaries(Hb);
+      }
+
+      void DFTGrid::eval_Fxc_response(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & P_e, const std::vector<helfem::Matrix> & dP_e, std::vector<helfem::Matrix> & dH_e, double thr) {
+        dH_e.assign(dP_e.size(), helfem::Matrix());
+        if(dP_e.empty())
+          return;
+
+        std::vector<helfem::Matrix> dH(dP_e.size(), helfem::Matrix::Zero(basp->Ndummy(),basp->Ndummy()));
+        {
+          DFTGridWorker grid(basp,lang,mang);
+          grid.check_grad_tau_lapl(x_func,c_func);
+
+          // Loop-invariant: expand once, not once per grid point.
+          const helfem::Matrix P_exp(basp->expand_boundaries(P_e));
+          std::vector<helfem::Matrix> dP_exp(dP_e.size());
+          for(size_t ip=0;ip<dP_e.size();ip++)
+            dP_exp[ip]=basp->expand_boundaries(dP_e[ip]);
+
+          for(size_t iel=0;iel<basp->rad_Nel();iel++) {
+            for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
+              grid.compute_bf(iel,irad);
+              grid.update_density(P_exp);
+              // init_xc allocates the potential buffers the response is
+              // written into, and resets the do_gga / do_mgga flags so
+              // the assembly is LDA-shaped.
+              grid.init_xc();
+              grid.init_fxc();
+              if(x_func>0)
+                grid.compute_fxc(x_func, x_pars, thr);
+              if(c_func>0)
+                grid.compute_fxc(c_func, c_pars, thr);
+              for(size_t ip=0;ip<dP_exp.size();ip++) {
+                grid.set_response_potential(grid.eval_density(dP_exp[ip]),
+                                             helfem::Matrix(), helfem::Matrix(),
+                                             helfem::Matrix());
+                grid.eval_Fxc(dH[ip]);
+              }
+            }
+          }
+        }
+        for(size_t ip=0;ip<dH.size();ip++)
+          dH_e[ip]=basp->remove_boundaries(dH[ip]);
+      }
+
+      void DFTGrid::eval_Fxc_response(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & Pa_e, const helfem::Matrix & Pb_e, const std::vector<helfem::Matrix> & dPa_e, const std::vector<helfem::Matrix> & dPb_e, std::vector<helfem::Matrix> & dHa_e, std::vector<helfem::Matrix> & dHb_e, double thr) {
+        dHa_e.assign(dPa_e.size(), helfem::Matrix());
+        dHb_e.assign(dPa_e.size(), helfem::Matrix());
+        if(dPa_e.empty())
+          return;
+        if(dPb_e.size()!=dPa_e.size())
+          throw std::logic_error("Got a different number of alpha and beta perturbations.\n");
+
+        std::vector<helfem::Matrix> dHa(dPa_e.size(), helfem::Matrix::Zero(basp->Ndummy(),basp->Ndummy()));
+        std::vector<helfem::Matrix> dHb(dPa_e.size(), helfem::Matrix::Zero(basp->Ndummy(),basp->Ndummy()));
+        {
+          DFTGridWorker grid(basp,lang,mang);
+          grid.check_grad_tau_lapl(x_func,c_func);
+
+          const helfem::Matrix Pa_exp(basp->expand_boundaries(Pa_e));
+          const helfem::Matrix Pb_exp(basp->expand_boundaries(Pb_e));
+          std::vector<helfem::Matrix> dPa_exp(dPa_e.size()), dPb_exp(dPa_e.size());
+          for(size_t ip=0;ip<dPa_e.size();ip++) {
+            dPa_exp[ip]=basp->expand_boundaries(dPa_e[ip]);
+            dPb_exp[ip]=basp->expand_boundaries(dPb_e[ip]);
+          }
+
+          for(size_t iel=0;iel<basp->rad_Nel();iel++) {
+            for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
+              grid.compute_bf(iel,irad);
+              grid.update_density(Pa_exp,Pb_exp);
+              grid.init_xc();
+              grid.init_fxc();
+              if(x_func>0)
+                grid.compute_fxc(x_func, x_pars, thr);
+              if(c_func>0)
+                grid.compute_fxc(c_func, c_pars, thr);
+              for(size_t ip=0;ip<dPa_exp.size();ip++) {
+                grid.set_response_potential(grid.eval_density(dPa_exp[ip],dPb_exp[ip]),
+                                             helfem::Matrix(), helfem::Matrix(),
+                                             helfem::Matrix());
+                grid.eval_Fxc(dHa[ip],dHb[ip],true);
+              }
+            }
+          }
+        }
+        for(size_t ip=0;ip<dHa.size();ip++) {
+          dHa_e[ip]=basp->remove_boundaries(dHa[ip]);
+          dHb_e[ip]=basp->remove_boundaries(dHb[ip]);
+        }
       }
 
     }

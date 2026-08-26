@@ -131,6 +131,22 @@ namespace helfem {
         /// the analytic phi integration.
         /// Index of the block holding -m, or mlist.size() if none.
         size_t mirror_block(size_t im) const;
+        /// Density of a SECOND density matrix on the current angular
+        /// grid, without disturbing the reference the worker holds. The
+        /// same per-m gather update_density performs, applied to the
+        /// perturbation; all an LDA response kernel needs.
+        ///
+        /// Unlike update_density this never shares a block between
+        /// mirrored +m / -m partners. Sharing is valid only when
+        /// P(+m) == P(-m), which --symmetry=3 guarantees for the density
+        /// but which nothing guarantees for an arbitrary perturbation;
+        /// walking both blocks is correct either way and costs one extra
+        /// product per mirrored block.
+        helfem::Matrix eval_density(const helfem::Matrix & dP) const;
+        /// Same for a spin-polarized perturbation
+        helfem::Matrix eval_density(const helfem::Matrix & dPa,
+                                     const helfem::Matrix & dPb) const;
+
         /// Assemble the gradient coefficient of the assembly from
         /// vsigma and the stored density gradient. Call after
         /// compute_xc and before eval_Fxc.
@@ -164,6 +180,24 @@ namespace helfem {
                        const helfem::Matrix & Pa, const helfem::Matrix & Pb,
                        helfem::Matrix & Ha, helfem::Matrix & Hb,
                        double & Exc, double & Nel, double & Ekin, bool beta, double thr);
+
+        /// Linear response of the XC matrix to a BATCH of density
+        /// perturbations, at the reference density. LDA-shaped, as in the
+        /// general 3D grid: only the density-density kernel block is
+        /// used, which is what a trust-region model Hessian needs.
+        void eval_Fxc_response(int x_func, const helfem::Vector & x_pars,
+                                int c_func, const helfem::Vector & c_pars,
+                                const helfem::Matrix & P,
+                                const std::vector<helfem::Matrix> & dP,
+                                std::vector<helfem::Matrix> & dH, double thr);
+        /// Spin-polarized counterpart
+        void eval_Fxc_response(int x_func, const helfem::Vector & x_pars,
+                                int c_func, const helfem::Vector & c_pars,
+                                const helfem::Matrix & Pa, const helfem::Matrix & Pb,
+                                const std::vector<helfem::Matrix> & dPa,
+                                const std::vector<helfem::Matrix> & dPb,
+                                std::vector<helfem::Matrix> & dHa,
+                                std::vector<helfem::Matrix> & dHb, double thr);
       };
 
     }

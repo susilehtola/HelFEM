@@ -3830,6 +3830,83 @@
         "--preiter=20",
         "--soconvthr=1e-8"
       ]
+    },
+    {
+      "name": "diatomic-H2-lda-r-secondorder",
+      "code": "diatomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "consistency",
+        "secondorder"
+      ],
+      "_why": "H2 through the trust-region optimizer on the pure-m XC path, which is what --symmetry >= 1 runs by default. Ties the diatomic response kernel, the per-block orthonormalizers and the mirrored +m / -m density scatter to the ordinary SCF.",
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=1.4",
+        "--nelem=3",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1",
+        "--purem=1",
+        "--secondorder=1",
+        "--preiter=20",
+        "--soconvthr=1e-8"
+      ]
+    },
+    {
+      "name": "diatomic-H2-lda-r-secondorder-purem-off",
+      "code": "diatomic",
+      "tags": [
+        "restricted",
+        "lda",
+        "consistency",
+        "secondorder"
+      ],
+      "_why": "the same run on the general three-dimensional grid instead. The two XC paths have separate response implementations, so both need tying down; that these agree with each other AND with the first-order energy is the statement.",
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=1.4",
+        "--nelem=3",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=lda_x-lda_c_vwn",
+        "--restricted=1",
+        "--purem=0",
+        "--secondorder=1",
+        "--preiter=20",
+        "--soconvthr=1e-8"
+      ]
+    },
+    {
+      "name": "diatomic-Ne-dummy-lda-absm-secondorder",
+      "code": "diatomic",
+      "tags": [
+        "lda",
+        "consistency",
+        "secondorder",
+        "absm"
+      ],
+      "_why": "the only second-order case with MIRRORED +m / -m symmetry blocks, which --symmetry=3 creates and which nothing else here exercises. Ne has an occupied pi shell, so those blocks carry charge. A mirrored block stands for two degenerate spatial orbitals and its density must be shared equally between them; getting that convention wrong in only one of the two density builds -- the SCF's and the trust-region optimizer's -- is invisible to --sotest, which differentiates one energy expression against itself. Measured with the halving misplaced, this case hands over 5.5 Eh wrong (-122.7116 against -128.2335) and never converges; with it right it takes four Hessian-vector products.",
+      "args": [
+        "--Z1=10",
+        "--Z2=0",
+        "--Rbond=1.0",
+        "--nelem=3",
+        "--lmax=13,9",
+        "--nela=5",
+        "--nelb=5",
+        "--method=lda_x-lda_c_vwn",
+        "--symmetry=3",
+        "--secondorder=1",
+        "--preiter=20",
+        "--soconvthr=1e-8"
+      ]
     }
   ],
   "_invariants_comment": [
@@ -4615,6 +4692,27 @@
       "cases": [
         "atomic-N-lda-u",
         "atomic-N-lda-u-secondorder"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-secondorder-equals-firstorder-H2",
+      "_why": "the second-order optimizer must find the SAME minimum as the ordinary SCF. Reference-free. Both XC paths are included, so the pure-m response and the general 3D response are tied to each other and to first order in one statement.",
+      "cases": [
+        "diatomic-H2-lda-r",
+        "diatomic-H2-lda-r-secondorder",
+        "diatomic-H2-lda-r-secondorder-purem-off"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "diatomic-secondorder-equals-firstorder-Ne-absm",
+      "_why": "the second-order optimizer must reproduce the ordinary SCF on a system with mirrored symmetry blocks. Reference-free, and it is the guard on the +m / -m density-sharing convention: the two density builds have to agree, and only a case with occupied mirrored blocks can tell.",
+      "cases": [
+        "diatomic-Ne-dummy-lda-absm",
+        "diatomic-Ne-dummy-lda-absm-secondorder"
       ],
       "field": "total",
       "tolerance": 1e-08

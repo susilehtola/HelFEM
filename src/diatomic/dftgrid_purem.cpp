@@ -343,6 +343,37 @@ namespace helfem {
         }
       }
 
+      helfem::Matrix PureMDFTGridWorker::eval_density(const helfem::Matrix & dP0) const {
+        const helfem::Matrix dP(basp->expand_boundaries(dP0));
+        const Eigen::Index nang = cth.size();
+        helfem::Matrix drho = helfem::Matrix::Zero(1, nang);
+        // Every m block walked in its own right: see the header for why
+        // the mirrored-partner sharing update_density does is not valid
+        // for an arbitrary perturbation.
+        for (size_t im = 0; im < mlist.size(); im++) {
+          if (bf_ind_m[im].empty()) continue;
+          const helfem::Matrix dPblk = gather_block(dP, bf_ind_m[im]);
+          const helfem::Matrix dPv = dPblk * bf_m[im];
+          drho.row(0) += (dPv.array() * bf_m[im].array()).colwise().sum().matrix();
+        }
+        return drho;
+      }
+
+      helfem::Matrix PureMDFTGridWorker::eval_density(const helfem::Matrix & dPa0, const helfem::Matrix & dPb0) const {
+        const helfem::Matrix dPa(basp->expand_boundaries(dPa0));
+        const helfem::Matrix dPb(basp->expand_boundaries(dPb0));
+        const Eigen::Index nang = cth.size();
+        helfem::Matrix drho = helfem::Matrix::Zero(2, nang);
+        for (size_t im = 0; im < mlist.size(); im++) {
+          if (bf_ind_m[im].empty()) continue;
+          const helfem::Matrix dPav = gather_block(dPa, bf_ind_m[im]) * bf_m[im];
+          const helfem::Matrix dPbv = gather_block(dPb, bf_ind_m[im]) * bf_m[im];
+          drho.row(0) += (dPav.array() * bf_m[im].array()).colwise().sum().matrix();
+          drho.row(1) += (dPbv.array() * bf_m[im].array()).colwise().sum().matrix();
+        }
+        return drho;
+      }
+
       void PureMDFTGridWorker::update_density(const helfem::Matrix & Pa0, const helfem::Matrix & Pb0) {
         if (!Pa0.size() || !Pb0.size())
           throw std::runtime_error("Error - density matrix is empty!\n");
@@ -835,6 +866,83 @@ namespace helfem {
         // assigns unconditionally; the two grids differed in contract, and
         // this one is the default path.
         Hb_e = basp->remove_boundaries(Hb);
+      }
+
+      void PureMDFTGrid::eval_Fxc_response(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars,
+                                            const helfem::Matrix & P,
+                                            const std::vector<helfem::Matrix> & dP,
+                                            std::vector<helfem::Matrix> & dH_e, double thr) {
+        dH_e.assign(dP.size(), helfem::Matrix());
+        if (dP.empty())
+          return;
+        std::vector<helfem::Matrix> dH(dP.size(), helfem::Matrix::Zero(basp->Ndummy(), basp->Ndummy()));
+        {
+          PureMDFTGridWorker grid(basp, lang);
+          grid.check_grad_tau_lapl(x_func, c_func);
+
+          for (size_t iel = 0; iel < basp->rad_Nel(); iel++) {
+            for (size_t irad = 0; irad < (size_t) basp->r(iel).size(); irad++) {
+              grid.compute_bf(iel, irad);
+              grid.update_density(P);
+              // init_xc allocates the potential buffers the response is
+              // written into, and resets the do_gga / do_mgga flags so
+              // the assembly is LDA-shaped.
+              grid.init_xc();
+              grid.init_fxc();
+              if (x_func > 0) grid.compute_fxc(x_func, x_pars, thr);
+              if (c_func > 0) grid.compute_fxc(c_func, c_pars, thr);
+              for (size_t ip = 0; ip < dP.size(); ip++) {
+                grid.set_response_potential(grid.eval_density(dP[ip]),
+                                             helfem::Matrix(), helfem::Matrix(),
+                                             helfem::Matrix());
+                grid.eval_Fxc(dH[ip]);
+              }
+            }
+          }
+        }
+        for (size_t ip = 0; ip < dH.size(); ip++)
+          dH_e[ip] = basp->remove_boundaries(dH[ip]);
+      }
+
+      void PureMDFTGrid::eval_Fxc_response(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars,
+                                            const helfem::Matrix & Pa, const helfem::Matrix & Pb,
+                                            const std::vector<helfem::Matrix> & dPa,
+                                            const std::vector<helfem::Matrix> & dPb,
+                                            std::vector<helfem::Matrix> & dHa_e,
+                                            std::vector<helfem::Matrix> & dHb_e, double thr) {
+        dHa_e.assign(dPa.size(), helfem::Matrix());
+        dHb_e.assign(dPa.size(), helfem::Matrix());
+        if (dPa.empty())
+          return;
+        if (dPb.size() != dPa.size())
+          throw std::logic_error("Got a different number of alpha and beta perturbations.\n");
+        std::vector<helfem::Matrix> dHa(dPa.size(), helfem::Matrix::Zero(basp->Ndummy(), basp->Ndummy()));
+        std::vector<helfem::Matrix> dHb(dPa.size(), helfem::Matrix::Zero(basp->Ndummy(), basp->Ndummy()));
+        {
+          PureMDFTGridWorker grid(basp, lang);
+          grid.check_grad_tau_lapl(x_func, c_func);
+
+          for (size_t iel = 0; iel < basp->rad_Nel(); iel++) {
+            for (size_t irad = 0; irad < (size_t) basp->r(iel).size(); irad++) {
+              grid.compute_bf(iel, irad);
+              grid.update_density(Pa, Pb);
+              grid.init_xc();
+              grid.init_fxc();
+              if (x_func > 0) grid.compute_fxc(x_func, x_pars, thr);
+              if (c_func > 0) grid.compute_fxc(c_func, c_pars, thr);
+              for (size_t ip = 0; ip < dPa.size(); ip++) {
+                grid.set_response_potential(grid.eval_density(dPa[ip], dPb[ip]),
+                                             helfem::Matrix(), helfem::Matrix(),
+                                             helfem::Matrix());
+                grid.eval_Fxc(dHa[ip], dHb[ip], true);
+              }
+            }
+          }
+        }
+        for (size_t ip = 0; ip < dHa.size(); ip++) {
+          dHa_e[ip] = basp->remove_boundaries(dHa[ip]);
+          dHb_e[ip] = basp->remove_boundaries(dHb[ip]);
+        }
       }
 
     }
