@@ -2,7 +2,7 @@ add_library(helfem-common
 general/gaunt.cpp
 general/spherical_harmonics.cpp
 general/timer.cpp general/elements.cpp
-general/angular.cpp general/scf_helpers.cpp general/lcao.cpp
+general/angular.cpp general/scf_helpers.cpp general/lcao.cpp general/lcao_projection.cpp
 general/dftgrid_common.cpp
 general/gsz.cpp general/sap.cpp general/dftfuncs.cpp
 general/atomdb.cpp general/atomdb_data.cpp
@@ -187,6 +187,9 @@ endif()
 
 add_executable(atomic_itest atomic/inttest.cpp)
 target_link_libraries(atomic_itest helfem-common legendre)
+
+add_executable(lcao_projection_test general/lcao_projection_test.cpp)
+target_link_libraries(lcao_projection_test helfem-common legendre)
 
 # Diatomic driver -- OpenOrbitalOptimizer-based (bespoke SCF retired).
 add_executable(diatomic diatomic/main.cpp)
