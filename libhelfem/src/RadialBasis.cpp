@@ -425,6 +425,92 @@ namespace helfem {
       }
 
       template <typename T>
+      std::function<T(T)>
+      FEMRadialBasisT<T>::multipole_potential(const helfem::Mat<T> &D, int k) const {
+        if (k < 0)
+          throw std::logic_error("Multipole order must be non-negative.\n");
+        const size_t nel = Nel();
+        if ((size_t)D.rows() != Nbf() || (size_t)D.cols() != Nbf()) {
+          std::ostringstream oss;
+          oss << "Density is " << D.rows() << "x" << D.cols() << ", expected "
+              << Nbf() << "x" << Nbf() << ".\n";
+          throw std::logic_error(oss.str());
+        }
+
+        // Charge moments of each element:
+        //   in_el  = integral over the element of r^k       rho
+        //   out_el = integral over the element of r^-(k+1)  rho
+        // Same contraction coulomb_screening performs for k = 0.
+        auto contract = [&](const helfem::Mat<T> &M, size_t iel) {
+          size_t ifirst, ilast;
+          idx(iel, ifirst, ilast);
+          const Eigen::Index n = (Eigen::Index)(ilast - ifirst + 1);
+          return (D.block(ifirst, ifirst, n, n) * M).trace();
+        };
+        helfem::Vec<T> in_el(nel), out_el(nel);
+        for (size_t iel = 0; iel < nel; iel++) {
+          in_el(iel) = contract(radial_integral(k, iel), iel);
+          out_el(iel) = contract(radial_integral(-(k + 1), iel), iel);
+        }
+
+        // Running sums over the elements strictly below / strictly above,
+        // so that an evaluation only has to quadrature the element it lands
+        // in. below(iel) is the charge moment of elements < iel, above(iel)
+        // that of elements > iel.
+        helfem::Vec<T> below(nel), above(nel);
+        T acc = T(0);
+        for (size_t iel = 0; iel < nel; iel++) {
+          below(iel) = acc;
+          acc += in_el(iel);
+        }
+        const T total_in = acc;
+        acc = T(0);
+        for (size_t iel = nel; iel-- > 0;) {
+          above(iel) = acc;
+          acc += out_el(iel);
+        }
+        const T total_out = acc;
+
+        const helfem::Vec<T> b = bval();
+        const T rmin = b(0), rmax = b(b.size() - 1);
+
+        // D is captured by value: the closure has to keep the density it
+        // was built from, and the caller must be free to discard theirs.
+        return [this, D, k, below, above, total_in, total_out, b, rmin, rmax,
+                nel](T r) -> T {
+          // Outside the basis every charge is interior, so only the
+          // monopole-like 1/r^(k+1) tail survives.
+          if (r >= rmax)
+            return total_in / std::pow(r, k + 1);
+          // At and below the inner boundary nothing is interior; the r^k
+          // prefactor kills the exterior term unless k = 0.
+          if (r <= rmin)
+            return (k == 0) ? total_out : T(0);
+
+          // Locate the element holding r, then map to the reference
+          // coordinate. The element map is affine, so this inverts exactly.
+          size_t iel = 0;
+          while (iel + 1 < nel && r > b(iel + 1))
+            iel++;
+          const T a = b(iel), c = b(iel + 1);
+          T x = (2 * r - (a + c)) / (c - a);
+          x = std::min(std::max(x, T(-1)), T(1));
+
+          size_t ifirst, ilast;
+          idx(iel, ifirst, ilast);
+          const Eigen::Index nb = (Eigen::Index)(ilast - ifirst + 1);
+          const auto Dsub = D.block(ifirst, ifirst, nb, nb);
+          const T inside =
+              below(iel) +
+              (Dsub * radial_integral(k, iel, T(-1), x)).trace();
+          const T outside =
+              above(iel) +
+              (Dsub * radial_integral(-(k + 1), iel, x, T(1))).trace();
+          return inside / std::pow(r, k + 1) + std::pow(r, k) * outside;
+        };
+      }
+
+      template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::radial_integral(const FEMRadialBasisT<T> &rh, int n,
                                                          bool lhder, bool rhder) const {
         modelpotential::RadialPotentialT<T> rad(n);
