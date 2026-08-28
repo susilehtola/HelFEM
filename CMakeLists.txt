@@ -332,7 +332,7 @@ if(NOT OpenOrbitalOptimizer_FOUND)
     # fixes; pinning to the v0.4.0 tag instead would silently revert them.
     FetchContent_Declare(OpenOrbitalOptimizer
         GIT_REPOSITORY https://github.com/susilehtola/OpenOrbitalOptimizer.git
-        GIT_TAG        a3abae9a2b7b2a3dd591579a7613643574da90c9
+        GIT_TAG        bef468dfb24241ea6e44d73e2d749182d45dce16
         ${_ooo_exclude})
     FetchContent_MakeAvailable(OpenOrbitalOptimizer)
     unset(_ooo_exclude)

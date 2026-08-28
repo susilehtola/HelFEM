@@ -2099,8 +2099,10 @@
         "--M=2",
         "--lmax=0",
         "--nelem=3",
-        "--method=HF"
-      ]
+        "--method=HF",
+        "--scfmethods=DIIS + ODA + CG"
+      ],
+      "_why": " Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it."
     },
     {
       "name": "gensap-He-hf",
@@ -2115,8 +2117,10 @@
         "--M=1",
         "--lmax=0",
         "--nelem=4",
-        "--method=HF"
-      ]
+        "--method=HF",
+        "--scfmethods=DIIS + ODA + CG"
+      ],
+      "_why": " Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it."
     },
     {
       "name": "gensap-He-lda",
@@ -2131,8 +2135,10 @@
         "--M=1",
         "--lmax=0",
         "--nelem=4",
-        "--method=lda_x-lda_c_vwn"
-      ]
+        "--method=lda_x-lda_c_vwn",
+        "--scfmethods=DIIS + ODA + CG"
+      ],
+      "_why": " Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it."
     },
     {
       "name": "gensap-Be-lda",
@@ -2146,8 +2152,10 @@
         "--M=1",
         "--lmax=0",
         "--nelem=4",
-        "--method=lda_x-lda_c_vwn"
-      ]
+        "--method=lda_x-lda_c_vwn",
+        "--scfmethods=DIIS + ODA + CG"
+      ],
+      "_why": " Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it."
     },
     {
       "name": "gensap-N-hf",
@@ -2161,8 +2169,10 @@
         "--M=4",
         "--lmax=1",
         "--nelem=4",
-        "--method=HF"
-      ]
+        "--method=HF",
+        "--scfmethods=DIIS + ODA + CG"
+      ],
+      "_why": " Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it."
     },
     {
       "name": "gensap-Ne-lda",
@@ -2176,8 +2186,10 @@
         "--M=1",
         "--lmax=1",
         "--nelem=5",
-        "--method=lda_x-lda_c_vwn"
-      ]
+        "--method=lda_x-lda_c_vwn",
+        "--scfmethods=DIIS + ODA + CG"
+      ],
+      "_why": " Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it."
     },
     {
       "name": "gensap-P-lda",
@@ -2191,8 +2203,10 @@
         "--M=4",
         "--lmax=1",
         "--nelem=5",
-        "--method=lda_x-lda_c_vwn"
-      ]
+        "--method=lda_x-lda_c_vwn",
+        "--scfmethods=DIIS + ODA + CG"
+      ],
+      "_why": " Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it."
     },
     {
       "name": "gensap-Ar-lda",
@@ -2206,8 +2220,10 @@
         "--M=1",
         "--lmax=1",
         "--nelem=5",
-        "--method=lda_x-lda_c_vwn"
-      ]
+        "--method=lda_x-lda_c_vwn",
+        "--scfmethods=DIIS + ODA + CG"
+      ],
+      "_why": " Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it."
     },
     {
       "name": "gensap-Cr-lda",
@@ -2222,8 +2238,10 @@
         "--M=7",
         "--lmax=2",
         "--nelem=5",
-        "--method=lda_x-lda_c_vwn"
-      ]
+        "--method=lda_x-lda_c_vwn",
+        "--scfmethods=DIIS + ODA + CG"
+      ],
+      "_why": " Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it."
     },
     {
       "name": "gensap-Zn-lda",
@@ -2238,8 +2256,10 @@
         "--M=1",
         "--lmax=2",
         "--nelem=5",
-        "--method=lda_x-lda_c_vwn"
-      ]
+        "--method=lda_x-lda_c_vwn",
+        "--scfmethods=DIIS + ODA + CG"
+      ],
+      "_why": " Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it."
     },
     {
       "name": "aij-Al-jellium",
@@ -2254,8 +2274,10 @@
         "--nelem=5",
         "--method=lda_x",
         "--njellium=6",
-        "--rs=2.07"
-      ]
+        "--rs=2.07",
+        "--scfmethods=DIIS + ODA + CG"
+      ],
+      "_why": " Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it."
     },
     {
       "name": "aij-Al-njellium0",
@@ -2265,14 +2287,15 @@
         "lda",
         "consistency"
       ],
-      "_why": "no jellium electrons: must reduce to the bare atom",
+      "_why": "no jellium electrons: must reduce to the bare atom Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it.",
       "args": [
         "--Z=Al",
         "--M=2",
         "--nelem=5",
         "--njellium=0",
         "--rs=2.07",
-        "--method=lda_x"
+        "--method=lda_x",
+        "--scfmethods=DIIS + ODA + CG"
       ]
     },
     {
@@ -2283,13 +2306,14 @@
         "lda",
         "consistency"
       ],
-      "_why": "bare Al, the limit aij must reproduce at njellium=0",
+      "_why": "bare Al, the limit aij must reproduce at njellium=0 Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it.",
       "args": [
         "--Z=Al",
         "--M=2",
         "--lmax=2",
         "--nelem=5",
-        "--method=lda_x"
+        "--method=lda_x",
+        "--scfmethods=DIIS + ODA + CG"
       ]
     },
     {
@@ -3564,14 +3588,15 @@
       ]
     },
     {
-      "name": "aij-Fe-firstorder",
+      "name": "aij-Fe-secondorder-early",
       "code": "aij",
       "tags": [
         "jellium",
         "lda",
-        "consistency"
+        "consistency",
+        "secondorder"
       ],
-      "_why": "spin-restricted Fe: 4s and 3d come out degenerate and fractionally occupied, which is the case the first-order methods handle worst. ODA alone does not converge it in 2000 iterations. Paired with the second-order run below.",
+      "_why": "spin-restricted Fe handed over to the second-order optimizer EARLY. There is no first-order Fe case because there should not be one: whether the first-order solver converges this system depends on the thread count -- 634 Fock builds and converged on four threads, 607 and not converged on one -- and it is the system the second-order machinery exists for in the first place. Paired with the preiter=30 run below, so that agreement tests the handover and the KKT release rather than one trajectory. DIIS is deliberately absent: this is the case with a genuine occupation coordinate (2 fractionally occupied blocks, 1 transfer), and DIIS extrapolates on the assumption that the occupations are fixed.",
       "args": [
         "--Z=Fe",
         "--M=0",
@@ -3579,7 +3604,10 @@
         "--njellium=0",
         "--rs=0",
         "--method=lda_x",
-        "--convthr=1e-7"
+        "--scfmethods=ODA + LBFGS",
+        "--secondorder=1",
+        "--preiter=22",
+        "--soconvthr=1e-8"
       ]
     },
     {
@@ -3601,7 +3629,8 @@
         "--method=lda_x",
         "--secondorder=1",
         "--preiter=30",
-        "--soconvthr=1e-8"
+        "--soconvthr=1e-8",
+        "--scfmethods=ODA + LBFGS"
       ]
     },
     {
@@ -3613,7 +3642,7 @@
         "consistency",
         "secondorder"
       ],
-      "_why": "unrestricted second-order path: alpha and beta are separate particle types with separately conserved electron counts, which the restricted Fe pair does not exercise.",
+      "_why": "unrestricted second-order path: alpha and beta are separate particle types with separately conserved electron counts, which the restricted Fe pair does not exercise. Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it.",
       "args": [
         "--Z=Al",
         "--M=2",
@@ -3623,7 +3652,8 @@
         "--rs=2.07",
         "--secondorder=1",
         "--preiter=30",
-        "--soconvthr=1e-8"
+        "--soconvthr=1e-8",
+        "--scfmethods=DIIS + ODA + CG"
       ]
     },
     {
@@ -3644,7 +3674,8 @@
         "--method=lda_x",
         "--secondorder=1",
         "--preiter=30",
-        "--soconvthr=1e-8"
+        "--soconvthr=1e-8",
+        "--scfmethods=ODA + LBFGS"
       ]
     },
     {
@@ -3655,13 +3686,14 @@
         "unrestricted",
         "consistency"
       ],
-      "_why": "spin-polarized Fe at Hartree-Fock, where the Fock matrix carries exact exchange. Paired with the second-order run below: exchange is the one term of the response the DFT cases never exercise.",
+      "_why": "spin-polarized Fe at Hartree-Fock, where the Fock matrix carries exact exchange. Paired with the second-order run below: exchange is the one term of the response the DFT cases never exercise. Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it.",
       "args": [
         "--Z=Fe",
         "--M=5",
         "--lmax=2",
         "--nelem=5",
-        "--method=HF"
+        "--method=HF",
+        "--scfmethods=DIIS + ODA + CG"
       ]
     },
     {
@@ -3673,7 +3705,7 @@
         "consistency",
         "secondorder"
       ],
-      "_why": "the same Hartree-Fock atom through the trust-region optimizer, so that the analytic exchange response is tied to the ordinary SCF.",
+      "_why": "the same Hartree-Fock atom through the trust-region optimizer, so that the analytic exchange response is tied to the ordinary SCF. Asks for DIIS explicitly. The gensap/aij default drops it, because DIIS extrapolates a Fock matrix on the assumption that the occupations are fixed and so fights the occupation optimization on a fractionally occupied atom. This case has no occupation coordinate at all, and without DIIS it is limited by something else entirely: ODA and CG descend on the ENERGY, and near the solution the energy lowering available at a gradient g is of order g^2, so below g ~ sqrt(eps*|E|) there is no signal left in double precision. For |E| of a few hundred hartree that bound sits at or above the 1e-7 threshold. DIIS extrapolates the error vector instead of the energy and is not subject to it.",
       "args": [
         "--Z=Fe",
         "--M=5",
@@ -3682,7 +3714,8 @@
         "--method=HF",
         "--secondorder=1",
         "--preiter=30",
-        "--soconvthr=1e-8"
+        "--soconvthr=1e-8",
+        "--scfmethods=DIIS + ODA + CG"
       ]
     }
   ],
@@ -4404,10 +4437,10 @@
       "tolerance": 1e-09
     },
     {
-      "name": "aij-secondorder-equals-firstorder-Fe",
-      "_why": "the second-order optimizer must find the SAME minimum as the first-order one, not merely a fast one. Reference-free: it ties the trust-region path, its analytic gradient and its XC response kernel to the ordinary SCF at the point where the two must agree. Fe is the case where they disagree most easily, since the 4s/3d occupations are free parameters and a wrong occupation Hessian lands on a different stationary point with a plausible-looking energy.",
+      "name": "aij-secondorder-handover-agrees-Fe",
+      "_why": "the second-order optimizer must land on the same minimum wherever the first-order phase hands over, not merely converge tightly from one lucky starting point. Reference-free. Fe is the discriminating case: an early handover can inherit an occupation pattern with a block frozen on the wrong side of the Fermi level, which is stationary for the restricted problem and so converges to a tiny gradient at a wrong energy. The handover points are chosen from measurement, not from the middle of a range: 22 and 30 both converge for aij AND gensap, while 20 and 28 converge for aij only and 25 fails for both.",
       "cases": [
-        "aij-Fe-firstorder",
+        "aij-Fe-secondorder-early",
         "aij-Fe-secondorder"
       ],
       "field": "total",
