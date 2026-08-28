@@ -114,6 +114,36 @@ int main() {
           "a very tight GTO samples V at the nucleus", std::abs(elem - zeta) / zeta);
   }
 
+  // The coulomb() wrapper must reproduce the hand-written matrix_element
+  // call exactly in value -- it only adds the breakpoints, which change how
+  // the quadrature gets there, not where it arrives.
+  {
+    // Diffuse enough that the AO's own range spans several elements of the
+    // reference basis, so interior breakpoints actually exist. With a tight
+    // AO the two routes agree bit-for-bit only because there is nothing to
+    // split on, which would make this test vacuous.
+    const double alpha = 0.05;
+    const lcao::AOBasis ao = lcao::make_ao_basis(lcao::gto_rmax(alpha));
+    const Matrix manual = ao.rad.matrix_element(
+        atomic::basis::FEMRadialBasis::BasisKind::B0,
+        atomic::basis::FEMRadialBasis::BasisKind::B0, V);
+    const Matrix wrapped = ao.rad.coulomb(fem.rad, D, 0);
+    const double dev = (manual - wrapped).cwiseAbs().maxCoeff() /
+                       std::max(1e-30, manual.cwiseAbs().maxCoeff());
+    check(dev < 1e-10, "coulomb() agrees with the explicit matrix_element", dev);
+
+    // And it must be the same physics: contracted with a normalized GTO it
+    // reproduces the element computed the long way round.
+    auto eval_gto2 = [](double r, int l, double a) {
+      return lcao::radial_GTO(r, l, a);
+    };
+    const Vector ca = lcao::ao_coefficients(ao, 0, alpha, eval_gto2);
+    const double e1 = ca.dot(manual * ca), e2 = ca.dot(wrapped * ca);
+    check(std::abs(e1 - e2) / std::abs(e1) < 1e-10,
+          "the contracted Coulomb element is unchanged",
+          std::abs(e1 - e2) / std::abs(e1));
+  }
+
   printf("%s\n", failures ? "FAILURES" : "All tests passed.");
   return failures ? 1 : 0;
 }

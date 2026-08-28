@@ -243,6 +243,16 @@ namespace helfem {
       }
 
       template <typename T>
+      size_t FEMRadialBasisT<T>::noverlap() const {
+        // How many functions two adjacent elements share, i.e. how many
+        // degrees of freedom the continuity conditions tie together: 1 for a
+        // cardinal (LIP, Legendre) basis, 2 for Hermite, 3 and 4 for the
+        // higher Hermite families. Together with the node count this fixes
+        // the polynomial degree per element as poly_nnodes()*noverlap() - 1.
+        return (size_t)fem_.basis(0)->noverlap();
+      }
+
+      template <typename T>
       helfem::Mat<T> FEMRadialBasisT<T>::radial_integral(int Rexp, size_t iel, T x_left, T x_right) const {
         // <R | r^Rexp | R> with the FE-natural dr measure means weight r^(Rexp+2):
         //   integral B(r)^2 r^(Rexp+2) / r^2  dr  =  integral R(r)^2 r^(Rexp+2)  dr
@@ -508,6 +518,237 @@ namespace helfem {
               (Dsub * radial_integral(-(k + 1), iel, x, T(1))).trace();
           return inside / std::pow(r, k + 1) + std::pow(r, k) * outside;
         };
+      }
+
+      template <typename T>
+      helfem::Mat<T> FEMRadialBasisT<T>::coulomb(const FEMRadialBasisT<T> &rh,
+                                                 const helfem::Mat<T> &D,
+                                                 int k) const {
+        // The potential is non-smooth where the density's basis has element
+        // boundaries, so hand those to the quadrature as panel splits.
+        const helfem::Vec<T> b = rh.bval();
+        std::vector<T> breakpoints;
+        breakpoints.reserve((size_t)b.size());
+        for (Eigen::Index i = 0; i < b.size(); i++)
+          breakpoints.push_back(b(i));
+        // poly_degree_f = -1: the potential is not polynomial, so the order
+        // refinement has to discover the order rather than be seeded with it.
+        return matrix_element(BasisKind::B0, BasisKind::B0,
+                              rh.multipole_potential(D, k), breakpoints, -1);
+      }
+
+      /// Common refinement of two element meshes over their shared support:
+      /// the sorted union of both boundary sets. Panels are the intervals
+      /// over which BOTH bases are polynomial, which is what a quadrature
+      /// rule needs in order to converge at its nominal order.
+      template <typename T>
+      static std::vector<T> common_refinement(const helfem::Vec<T> &ba,
+                                              const helfem::Vec<T> &bb) {
+        const T lo = std::max(ba(0), bb(0));
+        const T hi = std::min(ba(ba.size() - 1), bb(bb.size() - 1));
+        std::vector<T> e;
+        for (Eigen::Index i = 0; i < ba.size(); i++)
+          if (ba(i) > lo && ba(i) < hi) e.push_back(ba(i));
+        for (Eigen::Index i = 0; i < bb.size(); i++)
+          if (bb(i) > lo && bb(i) < hi) e.push_back(bb(i));
+        e.push_back(lo);
+        e.push_back(hi);
+        std::sort(e.begin(), e.end());
+        // Drop duplicates: the two meshes usually share at least r = 0.
+        const T tol = std::numeric_limits<T>::epsilon() * std::max(T(1), std::abs(hi)) * 16;
+        std::vector<T> out;
+        for (T v : e)
+          if (out.empty() || v - out.back() > tol) out.push_back(v);
+        return out;
+      }
+
+      /// Index of the element of `b` (a boundary vector) holding [a,c].
+      template <typename T>
+      static size_t owning_element(const helfem::Vec<T> &b, T a, T c) {
+        const T mid = T(0.5) * (a + c);
+        size_t iel = 0;
+        while (iel + 1 < (size_t)b.size() - 1 && mid > b(iel + 1)) iel++;
+        return iel;
+      }
+
+      template <typename T>
+      helfem::Mat<T> FEMRadialBasisT<T>::exchange(const FEMRadialBasisT<T> &rh,
+                                                  const helfem::Mat<T> &C_occ,
+                                                  const helfem::Vec<T> &occ,
+                                                  int k) const {
+        if (k < 0)
+          throw std::logic_error("Multipole order must be non-negative.\n");
+        const Eigen::Index nA = (Eigen::Index)Nbf();
+        const Eigen::Index nB = (Eigen::Index)rh.Nbf();
+        if (C_occ.rows() != nB) {
+          std::ostringstream oss;
+          oss << "Orbital coefficients have " << C_occ.rows() << " rows, but the "
+              << "orbital basis has " << nB << " functions.\n";
+          throw std::logic_error(oss.str());
+        }
+        if (occ.size() != C_occ.cols())
+          throw std::logic_error("Got a different number of occupations and orbitals.\n");
+        const Eigen::Index norb = C_occ.cols();
+
+        const std::vector<T> edge = common_refinement<T>(bval(), rh.bval());
+        const size_t npanel = edge.size() - 1;
+        helfem::Mat<T> K = helfem::Mat<T>::Zero(nA, nA);
+        if (!npanel || !norb)
+          return K;
+
+        // Quadrature order: the moment integrands are B_A * B_B * r^k, so a
+        // rule exact for that degree integrates them exactly. The same-panel
+        // potential is NOT polynomial, so the outer rule is oversampled --
+        // Gauss-Lobatto converges spectrally on a smooth integrand, and the
+        // panels are exactly the intervals on which it is smooth.
+        // Exact polynomial degree per element, so the moment rule is sized
+        // to what it actually has to integrate rather than to an upper bound.
+        const int degA = std::max(0, (int)(poly_nnodes() * noverlap()) - 1);
+        const int degB = std::max(0, (int)(rh.poly_nnodes() * rh.noverlap()) - 1);
+        const int nq = std::min(160, std::max(24, degA + degB + std::abs(k) + 20));
+        helfem::Vec<T> xq, wq;
+        helfem::lobatto::lobatto_compute<T>(nq, xq, wq);
+
+        // Values of the two bases, and of the occupied orbitals, at a set of
+        // real-space points inside one panel.
+        auto eval_panel = [&](T a, T c, const helfem::Vec<T> &x,
+                              helfem::Mat<T> &BA, helfem::Mat<T> &PHI,
+                              size_t &ifirstA, size_t &ilastA) {
+          const T mid = T(0.5) * (a + c), half = T(0.5) * (c - a);
+          const helfem::Vec<T> r = helfem::Vec<T>::Constant(x.size(), mid) + half * x;
+
+          const size_t ielA = owning_element<T>(bval(), a, c);
+          const size_t ielB = owning_element<T>(rh.bval(), a, c);
+          idx(ielA, ifirstA, ilastA);
+          size_t ifirstB, ilastB;
+          rh.idx(ielB, ifirstB, ilastB);
+
+          // Map the panel's points into each element's reference coordinate.
+          auto to_ref = [](const helfem::Vec<T> &rr, T lo_, T hi_) {
+            helfem::Vec<T> xx(rr.size());
+            for (Eigen::Index i = 0; i < rr.size(); i++)
+              xx(i) = (2 * rr(i) - (lo_ + hi_)) / (hi_ - lo_);
+            return xx;
+          };
+          BA = fem().eval_dnf(to_ref(r, bval()(ielA), bval()(ielA + 1)), 0, ielA);
+          const helfem::Mat<T> BB =
+              rh.fem().eval_dnf(to_ref(r, rh.bval()(ielB), rh.bval()(ielB + 1)), 0, ielB);
+          // phi_i on the panel: (npts x norb)
+          PHI = BB * C_occ.block(ifirstB, 0, ilastB - ifirstB + 1, norb);
+        };
+
+        // Panel moments, per orbital: m[i](P, q) = int_P r^k phi_i B_q,
+        // n[i](P, q) = int_P r^-(k+1) phi_i B_q. Stored dense over the whole
+        // basis so the prefix sums below are plain vector arithmetic.
+        std::vector<helfem::Mat<T>> m(norb, helfem::Mat<T>::Zero(npanel, nA));
+        std::vector<helfem::Mat<T>> n(norb, helfem::Mat<T>::Zero(npanel, nA));
+        // Same-panel contribution accumulates straight into K.
+        helfem::Mat<T> Ksame = helfem::Mat<T>::Zero(nA, nA);
+
+        for (size_t P = 0; P < npanel; P++) {
+          const T a = edge[P], c = edge[P + 1], half = T(0.5) * (c - a);
+          if (!(half > T(0))) continue;
+          helfem::Mat<T> BA, PHI;
+          size_t ifA, ilA;
+          eval_panel(a, c, xq, BA, PHI, ifA, ilA);
+          const Eigen::Index nloc = (Eigen::Index)(ilA - ifA + 1);
+          const helfem::Vec<T> r =
+              helfem::Vec<T>::Constant(xq.size(), T(0.5) * (a + c)) + half * xq;
+
+          for (Eigen::Index i = 0; i < norb; i++) {
+            // d_q(r_g) = phi_i(r_g) * B_q(r_g), (npts x nloc)
+            helfem::Mat<T> d = BA;
+            for (Eigen::Index g = 0; g < d.rows(); g++)
+              d.row(g) *= PHI(g, i);
+
+            // Panel moments.
+            for (Eigen::Index g = 0; g < d.rows(); g++) {
+              const T w = wq(g) * half;
+              // Gauss-Lobatto includes its endpoints, so the first node of
+              // the first panel sits exactly at the origin, where
+              // r^-(k+1) is infinite. The density vanishes there faster --
+              // B ~ r^(l+1) for both factors -- so the integrand's limit is
+              // zero, but evaluated naively it is inf * 0. Skip it.
+              if (!(r(g) > T(0))) continue;
+              const T rk = std::pow(r(g), k), rmk = std::pow(r(g), -(k + 1));
+              for (Eigen::Index q = 0; q < nloc; q++) {
+                m[i](P, ifA + q) += w * rk * d(g, q);
+                n[i](P, ifA + q) += w * rmk * d(g, q);
+              }
+            }
+
+            // Same-panel term. The potential at each node is built from the
+            // moments of the sub-intervals between consecutive nodes, which
+            // is the construction quadrature::spherical_potential uses for
+            // the L = 0 in-element case, generalized to arbitrary k and to a
+            // density mixed between the two bases.
+            const Eigen::Index ng = d.rows();
+            helfem::Mat<T> mu = helfem::Mat<T>::Zero(ng, nloc);   // int over [r_{g-1}, r_g]
+            helfem::Mat<T> nu = helfem::Mat<T>::Zero(ng, nloc);   // int over [r_g, r_{g+1}]
+            helfem::Vec<T> xs, ws;
+            helfem::lobatto::lobatto_compute<T>(nq, xs, ws);
+            auto sub_moment = [&](T lo_, T hi_, bool inner, Eigen::Index row,
+                                  helfem::Mat<T> &dest) {
+              if (!(hi_ > lo_)) return;
+              const T mid_ = T(0.5) * (lo_ + hi_), hf = T(0.5) * (hi_ - lo_);
+              const helfem::Vec<T> rr = helfem::Vec<T>::Constant(xs.size(), mid_) + hf * xs;
+              helfem::Mat<T> bA, ph;
+              size_t f_, l_;
+              eval_panel(lo_, hi_, xs, bA, ph, f_, l_);
+              for (Eigen::Index g = 0; g < rr.size(); g++) {
+                if (!(rr(g) > T(0))) continue;   // see the note above
+                const T w = ws(g) * hf *
+                            (inner ? std::pow(rr(g), k) : std::pow(rr(g), -(k + 1)));
+                for (Eigen::Index q = 0; q < nloc; q++)
+                  dest(row, q) += w * ph(g, i) * bA(g, q);
+              }
+            };
+            for (Eigen::Index g = 0; g < ng; g++) {
+              sub_moment(g ? r(g - 1) : a, r(g), true, g, mu);
+              sub_moment(r(g), (g + 1 < ng) ? r(g + 1) : c, false, g, nu);
+            }
+            // V_q(r_g) = r_g^-(k+1) sum_{j<=g} mu_j + r_g^k sum_{j>=g} nu_j
+            helfem::Mat<T> V = helfem::Mat<T>::Zero(ng, nloc);
+            helfem::Vec<T> acc = helfem::Vec<T>::Zero(nloc);
+            for (Eigen::Index g = 0; g < ng; g++) {
+              acc += mu.row(g).transpose();
+              if (r(g) > T(0))
+                V.row(g) += std::pow(r(g), -(k + 1)) * acc.transpose();
+            }
+            acc.setZero();
+            for (Eigen::Index g = ng; g-- > 0;) {
+              acc += nu.row(g).transpose();
+              V.row(g) += std::pow(r(g), k) * acc.transpose();
+            }
+            // K_same += int_P d_p V_q
+            for (Eigen::Index g = 0; g < ng; g++) {
+              const T w = wq(g) * half * occ(i);
+              Ksame.block(ifA, ifA, nloc, nloc) +=
+                  w * d.row(g).transpose() * V.row(g);
+            }
+          }
+        }
+
+        // Disjoint panel pairs: g_k separates, so the double sum over pairs
+        // becomes prefix sums.
+        //   K_pq += sum_P [ m(P)_p * (sum_{Q>P} n(Q))_q
+        //                 + n(P)_p * (sum_{Q<P} m(Q))_q ]
+        for (Eigen::Index i = 0; i < norb; i++) {
+          helfem::Vec<T> above = helfem::Vec<T>::Zero(nA);
+          for (size_t P = 0; P < npanel; P++) above += n[i].row(P).transpose();
+          helfem::Vec<T> below = helfem::Vec<T>::Zero(nA);
+          for (size_t P = 0; P < npanel; P++) {
+            above -= n[i].row(P).transpose();          // strictly above P
+            K += occ(i) * m[i].row(P).transpose() * above.transpose();
+            K += occ(i) * n[i].row(P).transpose() * below.transpose();
+            below += m[i].row(P).transpose();          // strictly below P+1
+          }
+        }
+        K += Ksame;
+        // Symmetrize: the two disjoint halves are transposes of one another
+        // and the same-panel block is symmetric, so this only removes
+        // round-off asymmetry.
+        return T(0.5) * (K + K.transpose());
       }
 
       template <typename T>
