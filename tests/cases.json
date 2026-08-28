@@ -3717,6 +3717,72 @@
         "--soconvthr=1e-8",
         "--scfmethods=DIIS + ODA + CG"
       ]
+    },
+    {
+      "name": "gensap-Cr-firstorder",
+      "code": "gensap",
+      "tags": [
+        "lda",
+        "open-shell",
+        "consistency"
+      ],
+      "_why": "spin-restricted Cr, the case the second-order machinery is for: 3d and 4s come out degenerate and fractionally occupied, and moving density between them costs nothing at first order. Unlike the Ni case below, first order does converge here, which is what makes it usable as the reference half of an invariant on a genuinely hard system -- the existing first-vs-second pairings are all on atoms with no occupation coordinate at all. No DIIS: it extrapolates on the assumption that the occupations are fixed, and costs 534 Fock builds here against 321 without.",
+      "args": [
+        "--Z=Cr",
+        "--M=0",
+        "--lmax=4",
+        "--nelem=5",
+        "--iguess=0",
+        "--method=lda_x",
+        "--scfmethods=ODA + LBFGS",
+        "--maxiter=1024"
+      ]
+    },
+    {
+      "name": "gensap-Cr-secondorder",
+      "code": "gensap",
+      "tags": [
+        "lda",
+        "open-shell",
+        "consistency",
+        "secondorder"
+      ],
+      "_why": "the same Cr through the trust-region optimizer, which optimizes the 3d/4s occupation transfer explicitly. 2 fractionally occupied blocks and 1 occupation transfer, so the occupation coordinates actually exist here -- unlike every other gensap case, where a single fractional block yields none. preiter is 22 rather than 30 from measurement: 30 does not converge this atom.",
+      "args": [
+        "--Z=Cr",
+        "--M=0",
+        "--lmax=4",
+        "--nelem=5",
+        "--iguess=0",
+        "--method=lda_x",
+        "--scfmethods=ODA + LBFGS",
+        "--secondorder=1",
+        "--preiter=22",
+        "--soconvthr=1e-8"
+      ]
+    },
+    {
+      "name": "gensap-Ni-secondorder",
+      "code": "gensap",
+      "tags": [
+        "lda",
+        "open-shell",
+        "consistency",
+        "secondorder"
+      ],
+      "_why": "spin-restricted Ni, the strongest case in the suite for the second-order method: first order does NOT converge it at all, either with DIIS (733 Fock builds) or without (487). The second-order phase reaches the minimum in seconds. It also has the richest occupation structure here -- 2 fractionally occupied blocks with 1 transfer at this handover, and 4 blocks with 3 transfers at preiter=22, which is the regime where the exact occupation-block preconditioner earns itself. preiter is 30 because 22 converges tightly to a DIFFERENT stationary point, 6.4e-8 Eh higher; 30 reproduces the value the first-order sweep independently reached.",
+      "args": [
+        "--Z=Ni",
+        "--M=0",
+        "--lmax=4",
+        "--nelem=5",
+        "--iguess=0",
+        "--method=lda_x",
+        "--scfmethods=ODA + LBFGS",
+        "--secondorder=1",
+        "--preiter=30",
+        "--soconvthr=1e-8"
+      ]
     }
   ],
   "_invariants_comment": [
@@ -4472,6 +4538,16 @@
       "cases": [
         "gensap-Fe-hf-firstorder",
         "gensap-Fe-hf-secondorder"
+      ],
+      "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "gensap-secondorder-equals-firstorder-Cr",
+      "_why": "the second-order optimizer must find the SAME minimum as the ordinary SCF on a system that actually has occupation coordinates. Reference-free. The other first-vs-second pairings here are on atoms with none, so this is the only one where the occupation half of the parametrization is under test rather than merely present.",
+      "cases": [
+        "gensap-Cr-firstorder",
+        "gensap-Cr-secondorder"
       ],
       "field": "total",
       "tolerance": 1e-08
