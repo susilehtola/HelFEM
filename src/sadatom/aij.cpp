@@ -80,7 +80,19 @@ int main(int argc, char **argv) {
   parser.add<double>("Rmax", 0, "Size of vacuum region", false, 40.0);
   parser.add<int>("M", 0, "spin multiplicity", true);
   parser.add<int>("lmax", 0, "maximum angular momentum", false, 4);
-  parser.add<std::string>("scfmethods", 0, "SCF convergence methods: '+' separated subset of DIIS, ODA, CG, LBFGS", false, "DIIS + ODA + CG");
+  // DIIS is deliberately NOT in the default here, though it is
+  // everywhere else in HelFEM. This driver optimizes the occupations
+  // as well as the orbitals, and DIIS extrapolates a Fock matrix on
+  // the assumption that the occupations are fixed -- so on a
+  // fractionally occupied atom it extrapolates along a direction the
+  // solution is free to move in, and fights ODA rather than helping
+  // it. Measured at a matched iteration budget: with DIIS the
+  // spin-restricted Ni atom takes 10334 Fock builds and still does
+  // not converge, against 595 and converged without it; Fe takes 729
+  // against 555 and Cr 658 against 571, to the same energies.
+  // Closed shells pay for it -- Ar goes from 7 builds to 39 -- but an
+  // atomic Fock build is milliseconds, and a wrong answer is not.
+  parser.add<std::string>("scfmethods", 0, "SCF convergence methods: '+' separated subset of DIIS, ODA, CG, LBFGS", false, "ODA + CG");
   parser.add<std::string>("loadfock", 0, "file to load guess fock matrix from", false, "");
   parser.add<std::string>("savefock", 0, "file to save fock matrix to", false, "");
   parser.add<bool>("saveorb", 0, "save radial orbitals to disk?", false, false);
