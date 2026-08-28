@@ -235,6 +235,51 @@ namespace helfem {
         /// element sums having been accumulated up front.
         std::function<T(T)> multipole_potential(const helfem::Mat<T> &D, int k) const;
 
+        /// Coulomb matrix in THIS basis from a density living on `rh`:
+        ///
+        ///   J_pq = int B_p(r) V^k[D](r) B_q(r) dr
+        ///
+        /// A thin wrapper over rh.multipole_potential: the potential is the
+        /// fundamental object -- a matrix cannot be turned back into one --
+        /// and this only spares the caller two things it has no reason to
+        /// know. First, that the weight comes from the OTHER basis. Second,
+        /// and the reason not to leave it to the caller: V^k is non-smooth
+        /// at rh's element boundaries, so those go in as breakpoints. Omit
+        /// them and the quadrature still converges, by raising its order
+        /// until it has paid for the kinks; passing them avoids the kinks
+        /// instead.
+        ///
+        /// Mirrors exchange() below, so that the two halves of a frozen Fock
+        /// build in an arbitrary basis read alike.
+        helfem::Mat<T> coulomb(const FEMRadialBasisT &rh, const helfem::Mat<T> &D,
+                               int k) const;
+
+        /// Exchange matrix in THIS basis from orbitals living on `rh`:
+        ///
+        ///   K_pq = sum_i occ_i <p phi_i | g_k | phi_i q>,
+        ///   g_k(r1,r2) = r_<^k / r_>^(k+1)
+        ///
+        /// with phi_i = sum_u C_occ(u,i) B^rh_u. The caller supplies the
+        /// angular coefficient of each multipole and sums over k.
+        ///
+        /// The two bases keep their own grids: nothing is projected from one
+        /// onto the other, so a basis holding functions the other cannot
+        /// represent -- a Gaussian with alpha ~ 1e9 has support ~1e-5 a0 --
+        /// keeps its norm. The cross densities phi_i * B_q are integrated on
+        /// the COMMON REFINEMENT of the two meshes, whose panels are the
+        /// intervals over which both are smooth; on any coarser partition a
+        /// quadrature rule would be straddling the other basis's element
+        /// boundaries and would converge at low order however many points it
+        /// were given.
+        ///
+        /// Cost is set by the panel count, not by the pair count: for
+        /// disjoint panels g_k separates, so that whole double sum collapses
+        /// into prefix sums over panel moments and costs one outer product
+        /// per panel. Only same-panel pairs need a two-electron evaluation.
+        helfem::Mat<T> exchange(const FEMRadialBasisT &rh,
+                                const helfem::Mat<T> &C_occ,
+                                const helfem::Vec<T> &occ, int k) const;
+
         /// Compute overlap matrix (Eigen-typed; Phase 2a migration).
         helfem::Mat<T> overlap() const override;
         /// Compute overlap matrix in element (Eigen-typed; Phase 2a).
