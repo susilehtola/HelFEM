@@ -74,12 +74,71 @@ option(HELFEM_PYTHON "Build the HelFEM Python (pybind11) bindings" OFF)
 # compiler floor moves unless they ask for it. Everything still builds and runs
 # at double and long double either way.
 include(CheckCXXCompilerFlag)
+include(CheckCXXSourceCompiles)
+
+# Whether the toolchain can actually build the quad path, tested by
+# compiling what the code uses rather than by asking whether the compiler
+# advertises C++23.
+#
+# Those are not the same question, and the difference is a real bug: GCC 11
+# advertises cxx_std_23 (it has partial C++23 via -std=c++2b) while its
+# libstdc++ provides none of the _Float128 support. Defaulting ON there gave
+# hundreds of errors inside libhelfem -- missing operator""f128, ambiguous
+# std::pow/abs/erfc against the legacy __float128 overloads, no
+# numeric_limits -- with nothing to tell the user that a default had enabled
+# an optional feature they never asked for. The feature test arrives a
+# release or two before the feature.
+#
+# Each line below corresponds to one of those failure modes, so a toolchain
+# that passes this compiles the quad instantiation.
+set(_helfem_f128_probe "
+#include <cmath>
+#include <limits>
+int main() {
+  _Float128 x = 1.0f128;               // operator\"\"f128
+  int n = 2;
+  x = std::pow(x, n);                  // ambiguous against __float128 overloads
+  x = std::abs(x);
+  x = std::erfc(x);
+  x = std::exp(x);
+  return std::numeric_limits<_Float128>::is_specialized ? 0 : 1;
+}
+")
+set(HELFEM_FLOAT128_DEFAULT OFF)
 if(cxx_std_23 IN_LIST CMAKE_CXX_COMPILE_FEATURES)
-  set(HELFEM_FLOAT128_DEFAULT ON)
-else()
-  set(HELFEM_FLOAT128_DEFAULT OFF)
+  # Use whichever flag this CMake would give the helfem targets for
+  # cxx_std_23, so the probe is compiled the way the sources will be.
+  set(_helfem_f128_saved_flags "${CMAKE_REQUIRED_FLAGS}")
+  if(DEFINED CMAKE_CXX23_STANDARD_COMPILE_OPTION)
+    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${CMAKE_CXX23_STANDARD_COMPILE_OPTION}")
+  else()
+    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -std=c++23")
+  endif()
+  check_cxx_source_compiles("${_helfem_f128_probe}" HELFEM_FLOAT128_WORKS)
+  set(CMAKE_REQUIRED_FLAGS "${_helfem_f128_saved_flags}")
+  if(HELFEM_FLOAT128_WORKS)
+    set(HELFEM_FLOAT128_DEFAULT ON)
+  else()
+    message(STATUS
+      "Quad precision default OFF: the compiler advertises C++23 but its "
+      "standard library does not provide the _Float128 support the quad "
+      "path needs (literal suffix, <cmath> overloads, numeric_limits). "
+      "GCC 11 is the common case. Everything builds at double and long "
+      "double; -DHELFEM_FLOAT128=ON to override.")
+  endif()
 endif()
 option(HELFEM_FLOAT128 "Instantiate the templated core at _Float128 (needs C++23)" ${HELFEM_FLOAT128_DEFAULT})
+
+# An explicit request on a toolchain that cannot do it fails here, with a
+# reason, instead of a wall of errors a thousand lines into libhelfem.
+if(HELFEM_FLOAT128 AND DEFINED HELFEM_FLOAT128_WORKS AND NOT HELFEM_FLOAT128_WORKS)
+  message(FATAL_ERROR
+    "HELFEM_FLOAT128=ON was requested, but this toolchain cannot compile the "
+    "quad path: the probe using the f128 literal suffix, std::pow/abs/erfc on "
+    "_Float128 and std::numeric_limits<_Float128> does not build. Advertising "
+    "C++23 is not enough -- GCC 11 does, without providing any of it. "
+    "Configure with -DHELFEM_FLOAT128=OFF for double and long double.")
+endif()
 # Route Eigen's dense products (GEMM/GEMV/SYRK/...) through an external
 # BLAS via EIGEN_USE_BLAS, instead of Eigen's own kernels. Vendor BLAS
 # libraries are typically faster for large dense products, and this makes
