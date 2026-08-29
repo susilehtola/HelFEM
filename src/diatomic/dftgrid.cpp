@@ -530,6 +530,34 @@ namespace helfem {
       DFTGrid::~DFTGrid() {
       }
 
+      static inline int helfem_omp_max_threads() {
+#ifdef _OPENMP
+        return omp_get_max_threads();
+#else
+        return 1;
+#endif
+      }
+      static inline int helfem_omp_thread_num() {
+#ifdef _OPENMP
+        return omp_get_thread_num();
+#else
+        return 0;
+#endif
+      }
+
+      /// The (element, radial point) pairs the grid loops over, flattened.
+      /// A molecule has only a handful of radial elements, so parallelising
+      /// the element loop alone would leave most of a machine idle; one task
+      /// per radial point is dozens.
+      static std::vector<std::pair<size_t, size_t>>
+      grid_tasks(const helfem::diatomic::basis::TwoDBasis *basp) {
+        std::vector<std::pair<size_t, size_t>> tasks;
+        for (size_t iel = 0; iel < basp->rad_Nel(); iel++)
+          for (size_t irad = 0; irad < (size_t) basp->r(iel).size(); irad++)
+            tasks.push_back({iel, irad});
+        return tasks;
+      }
+
       void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & P_e, helfem::Matrix & H_e, double & Exc, double & Nel, double & Ekin, double thr) {
         // Eigen flows straight through the worker and remove_boundaries.
         helfem::Matrix H = helfem::Matrix::Zero(basp->Ndummy(),basp->Ndummy());
@@ -538,18 +566,41 @@ namespace helfem {
         double ekin=0.0;
         double nel=0.0;
         {
-          DFTGridWorker grid(basp,lang,mang);
-          grid.check_grad_tau_lapl(x_func,c_func);
-
           // Loop-invariant: expand once, not once per grid point.
           const helfem::Matrix P_exp(basp->expand_boundaries(P_e));
+          const std::vector<std::pair<size_t, size_t>> tasks = grid_tasks(basp);
+          // Each thread accumulates its own Fock matrix and its own energy
+          // sums; the partials are summed afterwards in thread order. The
+          // scatter writes basis
+          // functions that neighbouring radial points share, so no partition
+          // of the tasks makes the writes disjoint -- and summing under a
+          // critical section would make the result depend on which thread
+          // arrived first, since floating-point addition is not associative.
+          // The schedule is left static for the same reason: a dynamic one
+          // hands a different set of points to each thread on every run,
+          // which perturbs the partial sums even at a fixed thread count.
+          const int nthread = helfem_omp_max_threads();
+          std::vector<helfem::Matrix> Hpart(nthread);
+          std::vector<double> excp(nthread, 0.0), ekinp(nthread, 0.0), nelp(nthread, 0.0);
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+          {
+            DFTGridWorker grid(basp,lang,mang);
+            grid.check_grad_tau_lapl(x_func,c_func);
+            const int tid = helfem_omp_thread_num();
+            helfem::Matrix & Hloc = Hpart[tid];
+            Hloc = helfem::Matrix::Zero(basp->Ndummy(), basp->Ndummy());
 
-          for(size_t iel=0;iel<basp->rad_Nel();iel++) {
-            for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
+#ifdef _OPENMP
+#pragma omp for
+#endif
+            for (long it = 0; it < (long) tasks.size(); it++) {
+              const size_t iel = tasks[it].first, irad = tasks[it].second;
               grid.compute_bf(iel,irad);
               grid.update_density(P_exp);
-              nel+=grid.compute_Nel();
-              ekin+=grid.compute_Ekin();
+              nelp[tid]+=grid.compute_Nel();
+              ekinp[tid]+=grid.compute_Ekin();
 
               grid.init_xc();
               if(x_func>0)
@@ -560,10 +611,17 @@ namespace helfem {
               // the assembly contracts a general vector field; build it once
               grid.build_vgrad();
 
-              exc+=grid.eval_Exc();
-              grid.eval_Fxc(H);
+              excp[tid]+=grid.eval_Exc();
+              grid.eval_Fxc(Hloc);
             }
           }
+          for (int t = 0; t < nthread; t++) {
+            exc += excp[t]; ekin += ekinp[t]; nel += nelp[t];
+          }
+          for (int t = 0; t < nthread; t++)
+            if (Hpart[t].size()) {
+              H += Hpart[t];
+            }
         }
 
         // Save outputs
@@ -583,19 +641,38 @@ namespace helfem {
         double nel=0.0;
         double ekin=0.0;
         {
-          DFTGridWorker grid(basp,lang,mang);
-          grid.check_grad_tau_lapl(x_func,c_func);
-
           // Loop-invariant: expand once, not once per grid point.
           const helfem::Matrix Pa_exp(basp->expand_boundaries(Pa_e));
           const helfem::Matrix Pb_exp(basp->expand_boundaries(Pb_e));
 
-          for(size_t iel=0;iel<basp->rad_Nel();iel++) {
-            for(size_t irad=0;irad<(size_t) basp->r(iel).size();irad++) {
+          const std::vector<std::pair<size_t, size_t>> tasks = grid_tasks(basp);
+          // See the restricted driver above for why every partial -- Fock
+          // matrices and energy sums alike -- is summed in thread order
+          // rather than folded in under a critical section.
+          const int nthread = helfem_omp_max_threads();
+          std::vector<helfem::Matrix> Hapart(nthread), Hbpart(nthread);
+          std::vector<double> excp(nthread, 0.0), ekinp(nthread, 0.0), nelp(nthread, 0.0);
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+          {
+            DFTGridWorker grid(basp,lang,mang);
+            grid.check_grad_tau_lapl(x_func,c_func);
+            const int tid = helfem_omp_thread_num();
+            helfem::Matrix & Haloc = Hapart[tid];
+            helfem::Matrix & Hbloc = Hbpart[tid];
+            Haloc = helfem::Matrix::Zero(basp->Ndummy(),basp->Ndummy());
+            Hbloc = helfem::Matrix::Zero(basp->Ndummy(),basp->Ndummy());
+
+#ifdef _OPENMP
+#pragma omp for
+#endif
+            for (long it = 0; it < (long) tasks.size(); it++) {
+              const size_t iel = tasks[it].first, irad = tasks[it].second;
               grid.compute_bf(iel,irad);
               grid.update_density(Pa_exp,Pb_exp);
-              nel+=grid.compute_Nel();
-              ekin+=grid.compute_Ekin();
+              nelp[tid]+=grid.compute_Nel();
+              ekinp[tid]+=grid.compute_Ekin();
 
               grid.init_xc();
               if(x_func>0)
@@ -606,10 +683,15 @@ namespace helfem {
               // the assembly contracts a general vector field; build it once
               grid.build_vgrad();
 
-              exc+=grid.eval_Exc();
-              grid.eval_Fxc(Ha,Hb,beta);
+              excp[tid]+=grid.eval_Exc();
+              grid.eval_Fxc(Haloc,Hbloc,beta);
             }
           }
+          for (int t = 0; t < nthread; t++) {
+            exc += excp[t]; ekin += ekinp[t]; nel += nelp[t];
+          }
+          for (int t = 0; t < nthread; t++)
+            if (Hapart[t].size()) { Ha += Hapart[t]; Hb += Hbpart[t]; }
         }
 
         // Save outputs
