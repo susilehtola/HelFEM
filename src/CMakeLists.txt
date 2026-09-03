@@ -197,6 +197,9 @@ target_link_libraries(multipole_test helfem-common legendre)
 add_executable(exchange_test general/exchange_test.cpp)
 target_link_libraries(exchange_test helfem-common legendre)
 
+add_executable(lip_test general/lip_test.cpp)
+target_link_libraries(lip_test helfem-common legendre)
+
 # Diatomic driver -- OpenOrbitalOptimizer-based (bespoke SCF retired).
 add_executable(diatomic diatomic/main.cpp)
 target_link_libraries(diatomic helfem-common legendre)
