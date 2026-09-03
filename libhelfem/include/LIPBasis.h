@@ -33,6 +33,12 @@ class LIPBasisT : public PolynomialBasisT<T> {
  protected:
   /// Control nodes (sorted ascending; must span the reference element).
   Vec<T> x0_;
+  /// Cached barycentric weights and differentiation matrices for x0_, and for
+  /// the node set with the leftmost node removed that eval_over_r works on.
+  /// Both are fixed at construction; see LIPEvaluator on why nothing here is
+  /// filled lazily.
+  detail::LIPEvaluator<T> ev_;
+  detail::LIPEvaluator<T> ev_reduced_;
 
  public:
   LIPBasisT() = default;
@@ -52,6 +58,10 @@ class LIPBasisT : public PolynomialBasisT<T> {
     this->enabled_  = IVec::LinSpaced(x0_.size(), 0, x0_.size() - 1);
     this->id_       = id;
     this->nnodes_   = static_cast<int>(this->enabled_.size());
+
+    ev_ = detail::LIPEvaluator<T>(x0_);
+    if (x0_.size() > 1)
+      ev_reduced_ = detail::LIPEvaluator<T>(Vec<T>(x0_.segment(1, x0_.size() - 1)));
   }
 
   ~LIPBasisT() override = default;
@@ -74,7 +84,7 @@ class LIPBasisT : public PolynomialBasisT<T> {
   void eval_prim_dnf(const Vec<T> & x, Mat<T> & dnf, int n,
                      T element_length) const override {
     (void)element_length;
-    detail::eval_lip_prim_dnf<T>(x, x0_, dnf, n);
+    ev_.eval(x, dnf, n);
   }
 
   // Pull the base's 3-arg matrix-returning eval_over_r overload back into
@@ -93,9 +103,8 @@ class LIPBasisT : public PolynomialBasisT<T> {
           "eval_over_r requires drop_first(func=true) on LIPBasisT: the shape "
           "function at x=-1 has B(-1) != 0 and B/r is singular at the origin.\n");
 
-    const Vec<T> x0_reduced = x0_.segment(1, x0_.size() - 1);
     Mat<T> dnf_reduced;
-    detail::eval_lip_prim_dnf<T>(x, x0_reduced, dnf_reduced, n);
+    ev_reduced_.eval(x, dnf_reduced, n);
     // dnf_reduced column j_red ∈ [0, n-2] corresponds to full index j_full = j_red + 1.
 
     const T scale = T(1) / std::pow(element_length, n + 1);
