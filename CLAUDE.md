@@ -95,7 +95,7 @@ Higher-level library linking against `helfem`. Contains SCF infrastructure, DFT 
 | `diatomic_dgrid` | `src/diatomic/density_grid.cpp` | Density on 2D grid |
 | `aij` | `src/sadatom/aij.cpp` | Atom in jellium |
 
-## Second-order convergence in `aij` and `gensap`
+## Second-order convergence
 
 The atom-in-jellium problem optimizes the occupations as well as the
 orbitals, and that is what makes it converge badly at first order. When
@@ -205,6 +205,51 @@ somewhere different. On Fe with that guess the energy is right from
 and the convergence line is not printed; with the core guess
 (`--iguess=0`) the same run reaches 4.9e-10. The energy is not what is
 uncertain -- it repeats to all printed digits -- only the flag.
+
+### `atomic` and `diatomic`
+
+The same optimizer drives these two as well. What differs is the basis
+bookkeeping: they orthonormalize each symmetry block separately over its
+own subset of the basis functions, so `trscf::Optimizer` takes one
+`Sinvh` per block rather than one shared radial basis. Each driver splits
+its Fock build into a density-driven core plus the OpenOrbitalOptimizer
+wrapper, so the second-order phase shares the energy expression rather
+than restating it.
+
+**The XC response is LDA-shaped in both.** Only the density-density
+kernel block is used, which is exact for an LDA and an approximation
+beyond it. That costs iterations, not correctness -- every step is
+validated against the true energy by the trust-region ratio test -- and
+`--sotest` reports the deviation instead of failing. Measured: PBE on N
+converges to the same energy as first order at an RMS gradient of 4.9e-9.
+`DFTGridWorkerBase::set_response_potential` already takes the gradient
+and tau channels, so that is the seam when they arrive.
+
+**Occupations are integer in `atomic`**, so the free occupation
+coordinates vanish of their own accord and it reduces to a pure
+orbital-rotation Newton step. Nothing special-cases that. `diatomic` is
+where they can be fractional -- `--symmetry=3` splits pi+ from pi- and
+spreads the occupations over both -- and the same parametrization picks
+them up. Note the arithmetic: it takes TWO fractionally occupied blocks
+before there is any occupation freedom at all, since the sum-zero
+subspace of one free block has dimension zero. Spin-restricted O2 at
+`--symmetry=3` has exactly one (pi*, 2 electrons of a maximum 4) and
+reports `0 occupation transfers among 1 fractionally occupied blocks`.
+
+**Mirrored blocks are the trap.** A +m / -m block stands for two
+degenerate spatial orbitals and its maximum occupation counts both, so
+its density is shared equally between them. That halving must live in the
+scatter, which is the one point BOTH density builds go through -- the
+SCF's and the trust-region optimizer's own. Put it in the SCF's alone and
+the optimizer double-counts every mirrored block: Ne at `--symmetry=3`
+hands over 5.5 Eh wrong and never converges.
+
+That class of mistake is invisible to `--sotest`, which differentiates
+one energy expression against finite differences of *itself* and so
+agrees perfectly with a wrong one. It needs a case with occupied mirrored
+blocks, which is what `diatomic-Ne-dummy-lda-absm-secondorder` is for.
+When adding a second-order path to a new driver, check the handover
+energy against the first-order one before trusting any derivative check.
 
 Occupation coupling is where the exact preconditioner earns itself, and it
 takes two occupation coordinates to see it -- with one the block is 1x1
