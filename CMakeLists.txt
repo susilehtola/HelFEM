@@ -106,16 +106,32 @@ int main() {
 ")
 set(HELFEM_FLOAT128_DEFAULT OFF)
 if(cxx_std_23 IN_LIST CMAKE_CXX_COMPILE_FEATURES)
-  # Use whichever flag this CMake would give the helfem targets for
-  # cxx_std_23, so the probe is compiled the way the sources will be.
-  set(_helfem_f128_saved_flags "${CMAKE_REQUIRED_FLAGS}")
-  if(DEFINED CMAKE_CXX23_STANDARD_COMPILE_OPTION)
-    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${CMAKE_CXX23_STANDARD_COMPILE_OPTION}")
+  # Raise the standard for the probe by setting CMAKE_CXX_STANDARD, NOT by
+  # pushing -std=c++23 into CMAKE_REQUIRED_FLAGS. try_compile() appends the
+  # flag for CMAKE_CXX_STANDARD *after* CMAKE_REQUIRED_FLAGS, so the latter
+  # loses to whatever standard the surrounding project has set: embedded in
+  # a project that asks for C++17, the probe compiled as
+  # "-std=c++23 -std=c++17", C++17 won, 1.0f128 did not exist, and quad was
+  # silently disabled on a toolchain that supports it perfectly. With
+  # HELFEM_FLOAT128=ON cached that turned into the FATAL_ERROR below. A
+  # standalone HelFEM build never saw it, because it sets no
+  # CMAKE_CXX_STANDARD of its own and there was nothing to append.
+  if(DEFINED CMAKE_CXX_STANDARD)
+    set(_helfem_f128_had_std TRUE)
+    set(_helfem_f128_saved_std "${CMAKE_CXX_STANDARD}")
   else()
-    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -std=c++23")
+    set(_helfem_f128_had_std FALSE)
   endif()
+  set(_helfem_f128_saved_req "${CMAKE_CXX_STANDARD_REQUIRED}")
+  set(CMAKE_CXX_STANDARD 23)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
   check_cxx_source_compiles("${_helfem_f128_probe}" HELFEM_FLOAT128_WORKS)
-  set(CMAKE_REQUIRED_FLAGS "${_helfem_f128_saved_flags}")
+  if(_helfem_f128_had_std)
+    set(CMAKE_CXX_STANDARD "${_helfem_f128_saved_std}")
+  else()
+    unset(CMAKE_CXX_STANDARD)
+  endif()
+  set(CMAKE_CXX_STANDARD_REQUIRED "${_helfem_f128_saved_req}")
   if(HELFEM_FLOAT128_WORKS)
     set(HELFEM_FLOAT128_DEFAULT ON)
   else()
