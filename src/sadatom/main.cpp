@@ -159,6 +159,12 @@ int main(int argc, char **argv) {
   parser.add<std::string>("method", 0, "method to use", false, "lda_x");
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 5);
+  parser.add<int>("finitenuc", 0, "finite nuclear model", false, 0);
+  parser.add<double>("Rrms", 0, "finite nuclear rms radius", false, 0.0);
+  parser.add<int>("nelem0", 0, "number of elements in the nuclear sub-grid", false, 0);
+  parser.add<int>("grid0", 0, "type of nuclear sub-grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
+  parser.add<double>("zexp0", 0, "parameter in the nuclear sub-grid", false, 2.0);
+  parser.add<bool>("zeroder", 0, "zero derivative at Rmax?", false, false);
   parser.add<std::string>("x_pars", 0, "file for parameters for exchange functional", false, "");
   parser.add<std::string>("c_pars", 0, "file for parameters for correlation functional", false, "");
 
@@ -216,6 +222,13 @@ int main(int argc, char **argv) {
 
   const int igrid   = parser.get<int>("grid");
   const double zexp = parser.get<double>("zexp");
+  const modelpotential::nuclear_model_t finitenuc =
+      (modelpotential::nuclear_model_t) parser.get<int>("finitenuc");
+  const double Rrms = parser.get<double>("Rrms");
+  const int    Nelem0 = parser.get<int>("nelem0");
+  const int    igrid0 = parser.get<int>("grid0");
+  const double zexp0  = parser.get<double>("zexp0");
+  const bool   zeroder = parser.get<bool>("zeroder");
   const int Nelem   = parser.get<int>("nelem");
   const int Z       = element_Z(parser.get<std::string>("Z"));
         int Q       = parser.get<int>("Q");
@@ -282,8 +295,8 @@ int main(int argc, char **argv) {
     throw std::logic_error("The specified correlation functional is not currently supported in HelFEM.\n");
 
   const helfem::Vector bval = atomic::basis::form_grid(
-      modelpotential::POINT_NUCLEUS, 0.0, Nelem, Rmax, igrid, zexp,
-      0, 0, 0.0, Z, 0, 0, 0.0,
+      finitenuc, Rrms, Nelem, Rmax, igrid, zexp,
+      Nelem0, igrid0, zexp0, Z, 0, 0, 0.0,
       iconf ? add_conf : false, shift_conf);
 
   sadatom::scf::AtomicSCFOptions opts;
@@ -291,6 +304,9 @@ int main(int argc, char **argv) {
   opts.lmax         = lmax;
   opts.poly         = poly;
   opts.Nquad        = Nquad;
+  opts.finitenuc    = finitenuc;
+  opts.Rrms         = Rrms;
+  opts.zeroder      = zeroder;
   opts.bval         = bval;
   opts.nela         = nela;
   opts.nelb         = nelb;
