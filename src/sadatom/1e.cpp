@@ -22,6 +22,8 @@
 #include "utils.h"
 #include "dftgrid.h"
 #include "../atomic/basis.h"
+#include "../general/model_potential.h"
+#include "../general/radial_block_helper.h"
 #include "Matrix.h"
 #include <Eigen/Eigenvalues>
 #include <cfloat>
@@ -111,11 +113,30 @@ int main(int argc, char **argv) {
   const helfem::Matrix Sinvh = scf::form_Sinvh(S, /*chol=*/false);
   const helfem::Matrix T     = radial.kinetic();
   const helfem::Matrix Tl    = radial.kinetic_l();
-  const helfem::Matrix V     = radial.nuclear();
+
+  // Nuclear attraction. radial.nuclear() is the bare -<1/r>, so the point
+  // nucleus scales it by Z; a model potential's V(r) already carries the
+  // charge, so it REPLACES that product rather than scaling it. The
+  // per-element route is the one that splits the element at the nuclear
+  // radius, which the uniform sphere and hollow shell need -- their kink
+  // otherwise refines only algebraically and grinds to the quadrature
+  // order cap.
+  const modelpotential::nuclear_model_t nucmodel =
+      (modelpotential::nuclear_model_t) finitenuc;
+  helfem::Matrix V;
+  if (nucmodel != modelpotential::POINT_NUCLEUS) {
+    modelpotential::ModelPotential *pot =
+        modelpotential::nuclear_model<double>(nucmodel, Z, Rrms);
+    V = helfem::assemble_radial_diagonal(radial,
+        [&](size_t iel) { return radial.model_potential(pot, iel); });
+    delete pot;
+  } else {
+    V = Z * radial.nuclear();
+  }
 
   for (int l = 0; l <= lmax; ++l) {
     const helfem::Matrix H0 =
-        Sinvh.transpose() * (T + Z * V + l * (l + 1) * Tl) * Sinvh;
+        Sinvh.transpose() * (T + V + l * (l + 1) * Tl) * Sinvh;
     Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(H0);
     const helfem::Vector E = es.eigenvalues();
     helfem::Matrix C = Sinvh * es.eigenvectors();
