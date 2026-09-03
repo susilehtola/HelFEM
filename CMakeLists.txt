@@ -387,8 +387,11 @@ if(NOT OpenOrbitalOptimizer_FOUND)
     # dependency. Bump this deliberately, in its own commit, so the bump is
     # bisectable like any other change.
     #
-    # a3abae9 is 83 commits past v0.4.0 and carries the Aufbau/occupation
+    # bef468d is 105 commits past v0.4.0 and carries the Aufbau/occupation
     # fixes; pinning to the v0.4.0 tag instead would silently revert them.
+    # It also fixes the cleanup() segfault on a single-entry orbital
+    # history, which a one-electron ion reaches through the default method
+    # set as soon as the first DIIS error exceeds 1 and DIIS is dropped.
     FetchContent_Declare(OpenOrbitalOptimizer
         GIT_REPOSITORY https://github.com/susilehtola/OpenOrbitalOptimizer.git
         GIT_TAG        bef468dfb24241ea6e44d73e2d749182d45dce16
