@@ -124,10 +124,29 @@ Two habits worth keeping:
   the analytic gradient and Hessian against finite differences of the
   energy, including mixed `d1 . H d2` forms that a single-direction check
   cannot see. Nothing downstream distinguishes a wrong Hessian from a hard
-  problem. For a GGA or meta-GGA the Hessian is *deliberately* approximate
-  -- the kernel keeps only its density-density block -- so `--sotest`
-  measures the deviation (0.14% for PBE, 0.08% for TPSS) instead of
-  failing.
+  problem. The kernel is the functional's own for an LDA, a GGA and a
+  tau-meta-GGA alike; only a *laplacian*-dependent meta-GGA still lacks
+  its kernel channel.
+
+  `--sotest` is nevertheless a pass/fail test only for an LDA on the
+  `atomic` and `diatomic` grids, and a measurement above it. That is a
+  limit of the *reference*, not of the kernel. Those workers evaluate tau
+  from genuine theta/phi derivatives, which carry `1/(r sin theta)` and
+  reach ~1e15 near the axis; the four-point energy polarization has its
+  own truncation there, and it lands at 1e-5 (PBE) to 3e-3 (TPSS) however
+  exact the Hessian is. `gensap`/`aij` gate on the laplacian instead,
+  because a spherically averaged radial grid has no such term.
+
+  To test the kernel itself, use `HELFEM_CHECK_DFOCK` below, which
+  compares the response Fock matrix directly and reaches the same floor
+  for LDA, PBE and TPSS alike.
+
+  Two knobs help when a `d . H d` row disagrees:
+  `HELFEM_CHECK_DFIELDS=1` compares the perturbed density, density
+  gradient and tau against central differences of `update_density`,
+  isolating the field evaluation from the kernel; `HELFEM_CHECK_DFOCK=1`
+  compares the whole response Fock matrix against a central difference of
+  the ground-state one. Both print to stderr.
 - **Read the conditioning report at `--verbosity=1`.** It prints the
   spread of the uncoupled Hessian diagonal and how much of it is
   near-singular. Exact zeros there are not ill-conditioning, they are a

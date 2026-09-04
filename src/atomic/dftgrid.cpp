@@ -612,6 +612,157 @@ namespace helfem {
         return drho;
       }
 
+
+      void DFTGridWorker::eval_response_fields(const helfem::Matrix & dP0,
+                                               helfem::Matrix & drho,
+                                               helfem::Matrix & dgrho,
+                                               helfem::Matrix & dtau) const {
+        // The perturbed fields are the SAME bilinear forms in the density
+        // matrix as the reference ones in update_density; only the matrix
+        // differs. Keeping the two in step is what makes the response
+        // kernel exact, so this mirrors that code deliberately -- the
+        // 1/scale_* of every gradient component and the 1/scale_*^2 of
+        // every kinetic term included.
+        helfem::Matrix dP(bf_ind.size(), bf_ind.size());
+        for(size_t i=0;i<bf_ind.size();i++)
+          for(size_t j=0;j<bf_ind.size();j++)
+            dP(i,j)=dP0(bf_ind[i],bf_ind[j]);
+
+        const helfem::Matrix dPvA(dP*bf_re), dPvB(dP*bf_im);
+
+        drho=helfem::Matrix::Zero(1,wtot.size());
+        for(Eigen::Index ip=0;ip<wtot.size();ip++)
+          drho(0,ip)=dPvA.col(ip).dot(bf_re.col(ip))+dPvB.col(ip).dot(bf_im.col(ip));
+
+        if(do_grad) {
+          dgrho=helfem::Matrix::Zero(3,wtot.size());
+          for(Eigen::Index ip=0;ip<wtot.size();ip++) {
+            dgrho(0,ip)=2.0*(dPvA.col(ip).dot(bf_rho_re.col(ip))+dPvB.col(ip).dot(bf_rho_im.col(ip)))/scale_r(ip);
+            dgrho(1,ip)=2.0*(dPvA.col(ip).dot(bf_theta_re.col(ip))+dPvB.col(ip).dot(bf_theta_im.col(ip)))/scale_theta(ip);
+            dgrho(2,ip)=2.0*(dPvA.col(ip).dot(bf_phi_re.col(ip))+dPvB.col(ip).dot(bf_phi_im.col(ip)))/scale_phi(ip);
+          }
+        } else {
+          dgrho=helfem::Matrix();
+        }
+
+        if(do_tau) {
+          const helfem::Matrix dPvA_rho(dP*bf_rho_re), dPvB_rho(dP*bf_rho_im);
+          const helfem::Matrix dPvA_theta(dP*bf_theta_re), dPvB_theta(dP*bf_theta_im);
+          const helfem::Matrix dPvA_phi(dP*bf_phi_re), dPvB_phi(dP*bf_phi_im);
+          dtau=helfem::Matrix::Zero(1,wtot.size());
+          for(Eigen::Index ip=0;ip<wtot.size();ip++) {
+            double kinrho((dPvA_rho.col(ip).dot(bf_rho_re.col(ip))+dPvB_rho.col(ip).dot(bf_rho_im.col(ip)))/std::pow(scale_r(ip),2));
+            double kintheta((dPvA_theta.col(ip).dot(bf_theta_re.col(ip))+dPvB_theta.col(ip).dot(bf_theta_im.col(ip)))/std::pow(scale_theta(ip),2));
+            double kinphi((dPvA_phi.col(ip).dot(bf_phi_re.col(ip))+dPvB_phi.col(ip).dot(bf_phi_im.col(ip)))/std::pow(scale_phi(ip),2));
+            dtau(0,ip)=0.5*(kinrho + kintheta + kinphi);
+          }
+        } else {
+          dtau=helfem::Matrix();
+        }
+      }
+
+      void DFTGridWorker::eval_response_fields(const helfem::Matrix & dPa0,
+                                               const helfem::Matrix & dPb0,
+                                               helfem::Matrix & drho,
+                                               helfem::Matrix & dgrho,
+                                               helfem::Matrix & dtau) const {
+        helfem::Matrix dPa(bf_ind.size(), bf_ind.size()), dPb(bf_ind.size(), bf_ind.size());
+        for(size_t i=0;i<bf_ind.size();i++)
+          for(size_t j=0;j<bf_ind.size();j++) {
+            dPa(i,j)=dPa0(bf_ind[i],bf_ind[j]);
+            dPb(i,j)=dPb0(bf_ind[i],bf_ind[j]);
+          }
+
+        const helfem::Matrix dPavA(dPa*bf_re), dPavB(dPa*bf_im);
+        const helfem::Matrix dPbvA(dPb*bf_re), dPbvB(dPb*bf_im);
+
+        drho=helfem::Matrix::Zero(2,wtot.size());
+        for(Eigen::Index ip=0;ip<wtot.size();ip++) {
+          drho(0,ip)=dPavA.col(ip).dot(bf_re.col(ip))+dPavB.col(ip).dot(bf_im.col(ip));
+          drho(1,ip)=dPbvA.col(ip).dot(bf_re.col(ip))+dPbvB.col(ip).dot(bf_im.col(ip));
+        }
+
+        if(do_grad) {
+          dgrho=helfem::Matrix::Zero(6,wtot.size());
+          for(Eigen::Index ip=0;ip<wtot.size();ip++) {
+            dgrho(0,ip)=2.0*(dPavA.col(ip).dot(bf_rho_re.col(ip))+dPavB.col(ip).dot(bf_rho_im.col(ip)))/scale_r(ip);
+            dgrho(1,ip)=2.0*(dPavA.col(ip).dot(bf_theta_re.col(ip))+dPavB.col(ip).dot(bf_theta_im.col(ip)))/scale_theta(ip);
+            dgrho(2,ip)=2.0*(dPavA.col(ip).dot(bf_phi_re.col(ip))+dPavB.col(ip).dot(bf_phi_im.col(ip)))/scale_phi(ip);
+
+            dgrho(3,ip)=2.0*(dPbvA.col(ip).dot(bf_rho_re.col(ip))+dPbvB.col(ip).dot(bf_rho_im.col(ip)))/scale_r(ip);
+            dgrho(4,ip)=2.0*(dPbvA.col(ip).dot(bf_theta_re.col(ip))+dPbvB.col(ip).dot(bf_theta_im.col(ip)))/scale_theta(ip);
+            dgrho(5,ip)=2.0*(dPbvA.col(ip).dot(bf_phi_re.col(ip))+dPbvB.col(ip).dot(bf_phi_im.col(ip)))/scale_phi(ip);
+          }
+        } else {
+          dgrho=helfem::Matrix();
+        }
+
+        if(do_tau) {
+          const helfem::Matrix dPavA_rho(dPa*bf_rho_re), dPavB_rho(dPa*bf_rho_im);
+          const helfem::Matrix dPavA_theta(dPa*bf_theta_re), dPavB_theta(dPa*bf_theta_im);
+          const helfem::Matrix dPavA_phi(dPa*bf_phi_re), dPavB_phi(dPa*bf_phi_im);
+          const helfem::Matrix dPbvA_rho(dPb*bf_rho_re), dPbvB_rho(dPb*bf_rho_im);
+          const helfem::Matrix dPbvA_theta(dPb*bf_theta_re), dPbvB_theta(dPb*bf_theta_im);
+          const helfem::Matrix dPbvA_phi(dPb*bf_phi_re), dPbvB_phi(dPb*bf_phi_im);
+          dtau=helfem::Matrix::Zero(2,wtot.size());
+          for(Eigen::Index ip=0;ip<wtot.size();ip++) {
+            double kinar=(dPavA_rho.col(ip).dot(bf_rho_re.col(ip))+dPavB_rho.col(ip).dot(bf_rho_im.col(ip)))/std::pow(scale_r(ip),2);
+            double kinath=(dPavA_theta.col(ip).dot(bf_theta_re.col(ip))+dPavB_theta.col(ip).dot(bf_theta_im.col(ip)))/std::pow(scale_theta(ip),2);
+            double kinaphi=(dPavA_phi.col(ip).dot(bf_phi_re.col(ip))+dPavB_phi.col(ip).dot(bf_phi_im.col(ip)))/std::pow(scale_phi(ip),2);
+
+            double kinbr=(dPbvA_rho.col(ip).dot(bf_rho_re.col(ip))+dPbvB_rho.col(ip).dot(bf_rho_im.col(ip)))/std::pow(scale_r(ip),2);
+            double kinbth=(dPbvA_theta.col(ip).dot(bf_theta_re.col(ip))+dPbvB_theta.col(ip).dot(bf_theta_im.col(ip)))/std::pow(scale_theta(ip),2);
+            double kinbphi=(dPbvA_phi.col(ip).dot(bf_phi_re.col(ip))+dPbvB_phi.col(ip).dot(bf_phi_im.col(ip)))/std::pow(scale_phi(ip),2);
+
+            dtau(0,ip)=0.5*(kinar + kinath + kinaphi);
+            dtau(1,ip)=0.5*(kinbr + kinbth + kinbphi);
+          }
+        } else {
+          dtau=helfem::Matrix();
+        }
+      }
+
+      void DFTGridWorker::check_response_fields(const helfem::Matrix & P,
+                                                const helfem::Matrix & dP,
+                                                const helfem::Matrix & drho,
+                                                const helfem::Matrix & dgrho,
+                                                const helfem::Matrix & dtau) {
+        // The perturbed fields are linear in the perturbation, so they
+        // must equal a central difference of the reference ones. Going
+        // through update_density rather than a second copy of the
+        // formulas above is the point: a dropped metric factor made in
+        // both places would cancel out of any self-consistent check.
+        const double h = 1e-5;
+        update_density(helfem::Matrix(P + h*dP));
+        const helfem::Matrix rp(rho), gp(grho), tp(tau);
+        update_density(helfem::Matrix(P - h*dP));
+        const helfem::Matrix rm(rho), gm(grho), tm(tau);
+        helfem::dftgrid_common::report_dfields("drho", drho, helfem::Matrix((rp-rm)/(2*h)));
+        if(do_grad)
+          helfem::dftgrid_common::report_dfields("dgrho", dgrho, helfem::Matrix((gp-gm)/(2*h)));
+        if(do_tau)
+          helfem::dftgrid_common::report_dfields("dtau", dtau, helfem::Matrix((tp-tm)/(2*h)));
+      }
+
+      void DFTGridWorker::check_response_fields(const helfem::Matrix & Pa,
+                                                const helfem::Matrix & Pb,
+                                                const helfem::Matrix & dPa,
+                                                const helfem::Matrix & dPb,
+                                                const helfem::Matrix & drho,
+                                                const helfem::Matrix & dgrho,
+                                                const helfem::Matrix & dtau) {
+        const double h = 1e-5;
+        update_density(helfem::Matrix(Pa + h*dPa), helfem::Matrix(Pb + h*dPb));
+        const helfem::Matrix rp(rho), gp(grho), tp(tau);
+        update_density(helfem::Matrix(Pa - h*dPa), helfem::Matrix(Pb - h*dPb));
+        const helfem::Matrix rm(rho), gm(grho), tm(tau);
+        helfem::dftgrid_common::report_dfields("drho", drho, helfem::Matrix((rp-rm)/(2*h)));
+        if(do_grad)
+          helfem::dftgrid_common::report_dfields("dgrho", dgrho, helfem::Matrix((gp-gm)/(2*h)));
+        if(do_tau)
+          helfem::dftgrid_common::report_dfields("dtau", dtau, helfem::Matrix((tp-tm)/(2*h)));
+      }
+
       void DFTGrid::eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & P, helfem::Matrix & H, double & Exc, double & Nel, double & Ekin, double thr) {
         // Eigen throughout; the worker now consumes/produces Eigen matrices.
         H=helfem::Matrix::Zero(P.rows(),P.rows());
@@ -763,20 +914,34 @@ namespace helfem {
           grid.update_density(P);
           // init_xc allocates the potential buffers that
           // set_response_potential writes the response into, and resets
-          // the do_gga / do_mgga flags so the assembly is LDA-shaped.
+          // the do_gga / do_mgga flags the assembly reads.
           grid.init_xc();
+          // The gradient channel of the response kernel contains the
+          // GROUND-STATE vsigma (the 2 vsigma grad(drho) term), so the
+          // first derivatives have to be evaluated here as well; only
+          // the second ones were needed while the response was
+          // LDA-shaped.
+          if(x_func>0)
+            grid.compute_xc(x_func, x_pars, thr);
+          if(c_func>0)
+            grid.compute_xc(c_func, c_pars, thr);
           grid.init_fxc();
           if(x_func>0)
             grid.compute_fxc(x_func, x_pars, thr);
           if(c_func>0)
             grid.compute_fxc(c_func, c_pars, thr);
           for(size_t ip=0; ip<dP.size(); ip++) {
-            // Empty gradient / tau arguments select the LDA-shaped
-            // response; see the header for why that is the right kernel
-            // for a model Hessian.
-            grid.set_response_potential(grid.eval_density(dP[ip]),
-                                         helfem::Matrix(), helfem::Matrix(),
-                                         helfem::Matrix());
+            helfem::Matrix drho, dgrho, dtau;
+            grid.eval_response_fields(dP[ip], drho, dgrho, dtau);
+            if(getenv("HELFEM_CHECK_DFIELDS")) {
+              // The perturbed fields are linear in the perturbation, so
+              // they must equal a central difference of the reference
+              // fields. This isolates eval_response_fields from the
+              // kernel and the assembly.
+              grid.check_response_fields(P, dP[ip], drho, dgrho, dtau);
+              grid.update_density(P);
+            }
+            grid.set_response_potential(drho, grid.get_grho(), dgrho, dtau);
             grid.eval_Fxc(dH[ip]);
           }
         };
@@ -802,6 +967,31 @@ namespace helfem {
           for(size_t iel=1;iel<basp->rad_Nel();iel+=2)
             do_element(grid, iel);
         }
+        if(getenv("HELFEM_CHECK_DFOCK")) {
+          // The response Fock matrix must equal a central difference of
+          // the ground-state one: dF = [F(P + h dP) - F(P - h dP)]/2h.
+          // This tests the whole response path -- kernel, channels and
+          // assembly -- against machinery already known to be correct,
+          // which the field check alone cannot do.
+          double worst = 0.0, scale = 0.0;
+          for(size_t ip=0; ip<dP.size(); ip++) {
+            // Scale the step to the perturbation. The directions handed
+            // down are Krylov vectors of arbitrary norm, and a fixed step
+            // on a large one leaves an O(h^2 |dP|^3) truncation that
+            // swamps the thing being measured -- an exact LDA kernel
+            // reported 2.6e-5 that way, which is not a kernel error at all.
+            const double h = 1e-5/std::max(1.0, dP[ip].cwiseAbs().maxCoeff());
+            helfem::Matrix Hp, Hm;
+            double e, n, k;
+            eval_Fxc(x_func, x_pars, c_func, c_pars, helfem::Matrix(P + h*dP[ip]), Hp, e, n, k, thr);
+            eval_Fxc(x_func, x_pars, c_func, c_pars, helfem::Matrix(P - h*dP[ip]), Hm, e, n, k, thr);
+            const helfem::Matrix fd = (Hp-Hm)/(2*h);
+            worst = std::max(worst, (dH[ip]-fd).cwiseAbs().maxCoeff());
+            scale = std::max(scale, fd.cwiseAbs().maxCoeff());
+          }
+          fprintf(stderr, "DFOCK worst |analytic-FD| = %.3e  (scale %.3e, "
+                  "rel %.3e)\n", worst, scale, worst/std::max(1e-30, scale));
+        }
       }
 
       void DFTGrid::eval_Fxc_response(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars, const helfem::Matrix & Pa, const helfem::Matrix & Pb, const std::vector<helfem::Matrix> & dPa, const std::vector<helfem::Matrix> & dPb, std::vector<helfem::Matrix> & dHa, std::vector<helfem::Matrix> & dHb, double thr) {
@@ -817,17 +1007,28 @@ namespace helfem {
           grid.update_density(Pa,Pb);
           // init_xc allocates the potential buffers that
           // set_response_potential writes the response into, and resets
-          // the do_gga / do_mgga flags so the assembly is LDA-shaped.
+          // the do_gga / do_mgga flags the assembly reads.
           grid.init_xc();
+          // The response kernel's gradient channel carries the
+          // ground-state vsigma, so the first derivatives are needed too.
+          if(x_func>0)
+            grid.compute_xc(x_func, x_pars, thr);
+          if(c_func>0)
+            grid.compute_xc(c_func, c_pars, thr);
           grid.init_fxc();
           if(x_func>0)
             grid.compute_fxc(x_func, x_pars, thr);
           if(c_func>0)
             grid.compute_fxc(c_func, c_pars, thr);
           for(size_t ip=0; ip<dPa.size(); ip++) {
-            grid.set_response_potential(grid.eval_density(dPa[ip],dPb[ip]),
-                                         helfem::Matrix(), helfem::Matrix(),
-                                         helfem::Matrix());
+            helfem::Matrix drho, dgrho, dtau;
+            grid.eval_response_fields(dPa[ip], dPb[ip], drho, dgrho, dtau);
+            if(getenv("HELFEM_CHECK_DFIELDS")) {
+              grid.check_response_fields(Pa, Pb, dPa[ip], dPb[ip],
+                                          drho, dgrho, dtau);
+              grid.update_density(Pa,Pb);
+            }
+            grid.set_response_potential(drho, grid.get_grho(), dgrho, dtau);
             grid.eval_Fxc(dHa[ip],dHb[ip],true);
           }
         };
@@ -849,6 +1050,31 @@ namespace helfem {
 #endif
           for(size_t iel=1;iel<basp->rad_Nel();iel+=2)
             do_element(grid, iel);
+        }
+        if(getenv("HELFEM_CHECK_DFOCK")) {
+          double worst = 0.0, scale = 0.0;
+          for(size_t ip=0; ip<dPa.size(); ip++) {
+            // See the restricted overload: the step is scaled to the
+            // perturbation so that its own truncation stays below the
+            // kernel error being looked for.
+            const double h = 1e-5/std::max({1.0, dPa[ip].cwiseAbs().maxCoeff(),
+                                             dPb[ip].cwiseAbs().maxCoeff()});
+            helfem::Matrix Hap, Ham, Hbp, Hbm;
+            double e, n, k;
+            eval_Fxc(x_func, x_pars, c_func, c_pars,
+                     helfem::Matrix(Pa + h*dPa[ip]), helfem::Matrix(Pb + h*dPb[ip]),
+                     Hap, Hbp, e, n, k, true, thr);
+            eval_Fxc(x_func, x_pars, c_func, c_pars,
+                     helfem::Matrix(Pa - h*dPa[ip]), helfem::Matrix(Pb - h*dPb[ip]),
+                     Ham, Hbm, e, n, k, true, thr);
+            const helfem::Matrix fda = (Hap-Ham)/(2*h), fdb = (Hbp-Hbm)/(2*h);
+            worst = std::max(worst, (dHa[ip]-fda).cwiseAbs().maxCoeff());
+            worst = std::max(worst, (dHb[ip]-fdb).cwiseAbs().maxCoeff());
+            scale = std::max(scale, fda.cwiseAbs().maxCoeff());
+            scale = std::max(scale, fdb.cwiseAbs().maxCoeff());
+          }
+          fprintf(stderr, "DFOCK worst |analytic-FD| = %.3e  (scale %.3e, "
+                  "rel %.3e)\n", worst, scale, worst/std::max(1e-30, scale));
         }
       }
 

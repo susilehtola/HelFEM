@@ -548,7 +548,7 @@ int main(int argc, char **argv) {
   // perturbations, at the reference density. The one-electron terms are
   // density-independent and drop out; the Coulomb and exchange halves
   // are linear, so their response is exact and costs one more build of
-  // each; the XC half goes through the LDA-shaped response kernel.
+  // each; the XC half goes through the grid's response kernel.
   auto response_fem = [&](const helfem::Cube & P_blocks,
                           const std::vector<helfem::Cube> & dP_blocks,
                           std::vector<helfem::Cube> & dF_blocks) {
@@ -874,12 +874,27 @@ int main(int argc, char **argv) {
     if (sotest > 0.0) {
       // Derivative check only: the analytic gradient and Hessian are the
       // whole content of the second-order method, and nothing downstream
-      // can tell a wrong Hessian from a hard problem. The response kernel
-      // here is LDA-shaped, so beyond an LDA the Hessian is deliberately
-      // approximate and is measured rather than tested.
+      // can tell a wrong Hessian from a hard problem.
       bool xg=false, xt=false, xl=false, cg=false, ct=false, cl=false;
       if (x_func > 0) ::is_gga_mgga(x_func, xg, xt, xl);
       if (c_func > 0) ::is_gga_mgga(c_func, cg, ct, cl);
+      // The gradient and tau channels of the kernel ARE assembled now,
+      // so the Hessian is exact for a GGA and a tau-meta-GGA as well --
+      // HELFEM_CHECK_DFOCK puts the response Fock matrix within 2.5e-6
+      // of a central difference of the ground-state one for TPSS, the
+      // same floor the exact LDA kernel reaches.
+      //
+      // The gate stays on the rung anyway, because what cannot resolve
+      // that on THESE grids is the finite-difference reference itself.
+      // The four-point energy polarization has its own truncation, and
+      // the three-dimensional workers evaluate tau from genuine
+      // theta/phi derivatives, which carry 1/(r sin theta) and reach
+      // 1e15 near the axis; the higher energy derivatives of a GGA or a
+      // meta-GGA there are large enough that the probe lands at 1e-5
+      // (PBE) to 3e-3 (TPSS) however exact the Hessian is. Making those
+      // rows pass/fail would fail every GGA run for a reason that is not
+      // the Hessian. sadatom's radial grid has no such term, which is
+      // why gensap/aij can and does gate on !(xl||cl) instead.
       const bool exact_kernel = !(xg||xt||xl||cg||ct||cl);
       if (!opt.verify(sotest, 1e-4, verbosity, exact_kernel))
         throw std::runtime_error("The analytic derivatives disagree with "

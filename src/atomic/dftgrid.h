@@ -126,6 +126,46 @@ namespace helfem {
         helfem::Matrix eval_density(const helfem::Matrix & dPa,
                                      const helfem::Matrix & dPb) const;
 
+        /// The reference density gradient, which the response kernel's
+        /// gradient channel needs alongside the perturbed one.
+        /// (3 x Nrho) x Npts, the layout update_density fills.
+        const helfem::Matrix & get_grho() const { return grho; }
+
+        /// Perturbed density, density gradient and kinetic energy density
+        /// of one perturbation: the SAME bilinear forms in the density
+        /// matrix that update_density evaluates for the reference, with
+        /// the perturbed matrix substituted. Keeping the two in step is
+        /// what makes the response kernel exact, so this mirrors that
+        /// code deliberately -- the metric factors in particular.
+        /// drho is 1 x Npts, dgrho 3 x Npts, dtau 1 x Npts; empty
+        /// matrices come back for the channels the functional does not
+        /// use.
+        void eval_response_fields(const helfem::Matrix & dP0,
+                                  helfem::Matrix & drho,
+                                  helfem::Matrix & dgrho,
+                                  helfem::Matrix & dtau) const;
+        /// Spin-resolved perturbed fields: 2, 6 and 2 rows.
+        void eval_response_fields(const helfem::Matrix & dPa0,
+                                  const helfem::Matrix & dPb0,
+                                  helfem::Matrix & drho,
+                                  helfem::Matrix & dgrho,
+                                  helfem::Matrix & dtau) const;
+        /// Debug: check the perturbed fields against central differences
+        /// of the reference fields. Destroys the cached density.
+        void check_response_fields(const helfem::Matrix & P,
+                                   const helfem::Matrix & dP,
+                                   const helfem::Matrix & drho,
+                                   const helfem::Matrix & dgrho,
+                                   const helfem::Matrix & dtau);
+        /// Debug: spin-resolved perturbed fields vs central differences.
+        void check_response_fields(const helfem::Matrix & Pa,
+                                   const helfem::Matrix & Pb,
+                                   const helfem::Matrix & dPa,
+                                   const helfem::Matrix & dPb,
+                                   const helfem::Matrix & drho,
+                                   const helfem::Matrix & dgrho,
+                                   const helfem::Matrix & dtau);
+
         // compute_Nel() is inherited from DFTGridWorkerBase.
         /// Compute integral over density laplacian
         double compute_laplsum() const;
@@ -182,15 +222,15 @@ namespace helfem {
         /// across the perturbations, so a d-dimensional Hessian subspace
         /// costs far less than d separate response builds.
         ///
-        /// LDA-shaped: only the density-density block of the kernel is
-        /// used, which is exact for an LDA and an approximation beyond
-        /// it. That is sound here because this builds the model Hessian
-        /// of a trust-region method, never the energy or the gradient --
-        /// an approximate kernel costs iterations, not correctness, since
-        /// the step is validated against the true energy by the ratio
-        /// test. The seam for the gradient and tau channels is
-        /// DFTGridWorkerBase::set_response_potential, which already takes
-        /// them; passing empty matrices selects the LDA-shaped path.
+        /// The kernel is the functional's own: the density-density block
+        /// for every rung, the gradient channel for a GGA and the tau
+        /// channel for a tau-meta-GGA, assembled from the perturbed
+        /// fields eval_response_fields evaluates. Only the LAPLACIAN
+        /// channel is still missing, so a laplacian-dependent
+        /// meta-GGA still gets an approximate Hessian -- sound in a
+        /// trust-region method, where an approximate model costs
+        /// iterations rather than correctness, since every step is
+        /// validated against the true energy by the ratio test.
         void eval_Fxc_response(int x_func, const helfem::Vector & x_pars,
                                 int c_func, const helfem::Vector & c_pars,
                                 const helfem::Matrix & P,
