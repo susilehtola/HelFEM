@@ -69,6 +69,14 @@ namespace helfem {
         return;
       int noverlap(poly_->noverlap());
 
+      // Continuity tolerance. Unlike the coordinate bound below this IS a
+      // precision assertion -- the residual it judges is round-off in the
+      // shape functions, which is eps(T) -- so it follows T rather than
+      // being pinned to double. The margin improves with precision rather
+      // than merely moving: the residual scales as eps(T) while the
+      // tolerance scales as sqrt(eps(T)).
+      const T contthr = std::sqrt(std::numeric_limits<T>::epsilon());
+
       helfem::Vec<T> dnorm(nelem()-1);
       for(size_t iel=0; iel+1<nelem(); iel++) {
         // Points that correspond to lh and rh elements
@@ -83,11 +91,18 @@ namespace helfem {
         // precision the check is made at, and for _Float128 it is a
         // greater-conversion-rank narrowing (-Wnarrowing).
         const T dr = (rlh - rrh).norm();
-        // Deliberately a DBL_EPSILON-scaled sanity bound rather than eps(T):
-        // this catches a mis-built grid, it is not a precision assertion.
+        // Deliberately a double-precision-scaled sanity bound rather than
+        // eps(T): this catches a mis-built grid, it is not a precision
+        // assertion, and element boundaries come from grid generation that
+        // need not be accurate to eps(T). Taking the LOOSER of the two is
+        // what makes that a sanity bound for any T -- pinned to
+        // DBL_EPSILON alone it would be tighter than the arithmetic itself
+        // for a type less precise than double, and reject every grid.
         // Bound the tolerance once so the diagnostic below reports the same
         // value that was actually applied.
-        const T drtol = T(10)*T(DBL_EPSILON)*(T(1) + rlh.norm());
+        const T drtol = T(10)*std::max(T(DBL_EPSILON),
+                                       std::numeric_limits<T>::epsilon())
+                        *(T(1) + rlh.norm());
         if(dr > drtol) {
           std::cout << "rlh:\n"     << rlh.template cast<double>().transpose()       << "\n";
           std::cout << "rrh:\n"     << rrh.template cast<double>().transpose()       << "\n";
@@ -117,16 +132,52 @@ namespace helfem {
 
         // The function values should go to zero at the boundaries,
         // except the overlaid functions. The derivatives should also
-        // go to zero, except the overlaid ones. The scaling does not
-        // matter.
+        // go to zero, except the overlaid ones.
+        //
+        // The scaling DOES matter, contrary to what this said for as long
+        // as only C^0 bases used it. The ider-th derivative of a shape
+        // function is O(h^-ider) -- measured 1, 1/h, 1/h^2, 1/h^3 for a
+        // 5-node HIP3 across two decades of h -- so an absolute tolerance
+        // on the raw difference tightens as h^ider for no stated reason.
+        // A Hermite basis whose reference-frame residual is a fixed one
+        // ulp then fails on small elements purely for being small: HIP3
+        // on the exponential grid tripped this at nnodes 6, 10, 12 and 20
+        // while passing at 4, 5, 7, 8 and 15, which is the signature of
+        // riding a threshold rather than of a defect.
+        //
+        // Normalising each derivative order by how big that derivative
+        // actually gets on the elements being joined makes the test
+        // scale-free, and it is the quantity that matters physically: a
+        // function expanded in the basis has BOTH its jump and its
+        // derivative carrying the same h^-ider, so its relative
+        // smoothness is what a user sees. Measured on a generic member of
+        // the space, that is 1e-15 for every family through its design
+        // continuity order, independent of h.
+        //
+        // The lower bound of 1 keeps this from ever LOOSENING the test:
+        // for ider = 0 the scale is exactly 1, so values are compared
+        // exactly as before, and a genuine O(1) discontinuity at any
+        // order still registers as O(1).
+        //
         // Note: arma::norm(M, 2) was the spectral norm; Eigen's .norm()
         // is Frobenius. For the noverlap x noverlap matrices here the
-        // two agree to a small constant factor and the threshold
-        // sqrt(DBL_EPSILON) ~ 1.5e-8 is many orders looser than that,
-        // so the change in norm choice is not observable.
-        const helfem::Mat<T> diff = lh - rh;
+        // two agree to a small constant factor and the tolerance
+        // sqrt(eps(T)) -- 1.5e-8 at double -- is many orders looser than
+        // that, so the change in norm choice is not observable.
+        helfem::Mat<T> diff = lh - rh;
+        {
+          // Sample the reference element; under-sampling can only shrink
+          // the scale, which tightens the test rather than loosening it.
+          const helfem::Vec<T> xs = helfem::Vec<T>::LinSpaced(41, T(-1), T(1));
+          for(int ider=0; ider<noverlap; ider++) {
+            const T sl = eval_dnf(xs, ider, iel).cwiseAbs().maxCoeff();
+            const T sr = eval_dnf(xs, ider, iel + 1).cwiseAbs().maxCoeff();
+            const T scale = std::max(T(1), std::max(sl, sr));
+            diff.col(ider) /= scale;
+          }
+        }
         dnorm(iel) = diff.norm();
-        if(dnorm(iel) > sqrt(DBL_EPSILON)) {
+        if(dnorm(iel) > contthr) {
           printf("Discontinuity between elements %i and %i (C indexing)\n",(int) iel,(int) iel+1);
           std::cout << "lh values:\n" << lh.template cast<double>()   << "\n";
           std::cout << "rh values:\n" << rh.template cast<double>()   << "\n";
@@ -137,7 +188,7 @@ namespace helfem {
       }
       Eigen::Index imax;
       dnorm.maxCoeff(&imax);
-      if(dnorm(imax) > sqrt(DBL_EPSILON)) {
+      if(dnorm(imax) > contthr) {
         // Only worth reporting when it is actually discontinuous, which
         // is a hard error: a continuous basis is a precondition, not a
         // result, so announcing "max discontinuity 0.0e+00" on every run
