@@ -439,31 +439,86 @@ namespace helfem {
       }
 
       const Eigen::Index N = wtot.size();
+      const Eigen::Index nsp = polarized ? 2 : 1;
+      // How many gradient components the caller carries is its own
+      // business, and it differs per geometry: one for the spherically
+      // averaged radial worker, two for the diatomic pure-m one (the
+      // azimuthal component of a phi-independent density vanishes
+      // identically), three for the atomic and diatomic 3D workers.
+      // Unlike the ground-state potential, the response cannot be
+      // applied one component at a time: sigma_ab = grad rho_a . grad
+      // rho_b couples them, so the kernel is emitted per component
+      // count and selected here.
+      if (grho.rows() % nsp) {
+        std::ostringstream oss;
+        oss << "Density gradient has " << grho.rows() << " rows, which is "
+            << "not divisible by the " << nsp << " spin channels.\n";
+        throw std::logic_error(oss.str());
+      }
+      const Eigen::Index nc = grho.rows() / nsp;
+      if (nc < 1 || nc > 3) {
+        std::ostringstream oss;
+        oss << "No response kernel is emitted for " << nc << " gradient "
+            << "components.\n";
+        throw std::logic_error(oss.str());
+      }
+      vgrad = helfem::Matrix::Zero(grho.rows(), N);
 
       if (!polarized) {
         // The chain rule itself is GENERATED, not written here: the
         // per-point channels come from libxckernel's fxc_channels via
         // emitters/helfemwriter.py, so the expressions cannot drift from
         // the ones the generator validates.
-        const Eigen::Index N = wtot.size();
-        const Eigen::Index nc = grho.rows();
-        if (do_grad) vgrad = helfem::Matrix::Zero(nc, N);
         for (Eigen::Index i = 0; i < N; i++) {
-          double u = 0.0, v_r = 0.0, w_tau = 0.0;
-          if (have_tau)
-            helfem::xckernel::xck_helfem_fxc_mgga_tau(
-                dgrad_rho(0, i), grho(0, i), drho(0, i), dtau(0, i),
-                v2rho2(0, i), v2rhosigma(0, i), v2rhotau(0, i),
-                v2sigma2(0, i), v2sigmatau(0, i), v2tau2(0, i),
-                vsigma(0, i), u, v_r, w_tau);
-          else if (have_grad)
-            helfem::xckernel::xck_helfem_fxc_gga(
-                dgrad_rho(0, i), grho(0, i), drho(0, i), v2rho2(0, i),
-                v2rhosigma(0, i), v2sigma2(0, i), vsigma(0, i), u, v_r);
-          else
-            helfem::xckernel::xck_helfem_fxc_lda(drho(0, i), v2rho2(0, i), u);
+          double u = 0.0, w_tau = 0.0, vg[3] = {0.0, 0.0, 0.0};
+          if (have_tau) {
+            switch (nc) {
+            case 1:
+              helfem::xckernel::xck_helfem_fxc_mgga_tau(dgrad_rho(0, i),
+                  grho(0, i), drho(0, i), dtau(0, i), v2rho2(0, i),
+                  v2rhosigma(0, i), v2rhotau(0, i), v2sigma2(0, i),
+                  v2sigmatau(0, i), v2tau2(0, i), vsigma(0, i), u, vg[0],
+                  w_tau);
+              break;
+            case 2:
+              helfem::xckernel::xck_helfem_fxc_mgga_tau_2d(dgrad_rho(0, i),
+                  dgrad_rho(1, i), grho(0, i), grho(1, i), drho(0, i),
+                  dtau(0, i), v2rho2(0, i), v2rhosigma(0, i),
+                  v2rhotau(0, i), v2sigma2(0, i), v2sigmatau(0, i),
+                  v2tau2(0, i), vsigma(0, i), u, vg[0], vg[1], w_tau);
+              break;
+            case 3:
+              helfem::xckernel::xck_helfem_fxc_mgga_tau_3d(dgrad_rho(0, i),
+                  dgrad_rho(1, i), dgrad_rho(2, i), grho(0, i), grho(1, i),
+                  grho(2, i), drho(0, i), dtau(0, i), v2rho2(0, i),
+                  v2rhosigma(0, i), v2rhotau(0, i), v2sigma2(0, i),
+                  v2sigmatau(0, i), v2tau2(0, i), vsigma(0, i), u, vg[0],
+                  vg[1], vg[2], w_tau);
+              break;
+            }
+          } else {
+            switch (nc) {
+            case 1:
+              helfem::xckernel::xck_helfem_fxc_gga(dgrad_rho(0, i),
+                  grho(0, i), drho(0, i), v2rho2(0, i), v2rhosigma(0, i),
+                  v2sigma2(0, i), vsigma(0, i), u, vg[0]);
+              break;
+            case 2:
+              helfem::xckernel::xck_helfem_fxc_gga_2d(dgrad_rho(0, i),
+                  dgrad_rho(1, i), grho(0, i), grho(1, i), drho(0, i),
+                  v2rho2(0, i), v2rhosigma(0, i), v2sigma2(0, i),
+                  vsigma(0, i), u, vg[0], vg[1]);
+              break;
+            case 3:
+              helfem::xckernel::xck_helfem_fxc_gga_3d(dgrad_rho(0, i),
+                  dgrad_rho(1, i), dgrad_rho(2, i), grho(0, i), grho(1, i),
+                  grho(2, i), drho(0, i), v2rho2(0, i), v2rhosigma(0, i),
+                  v2sigma2(0, i), vsigma(0, i), u, vg[0], vg[1], vg[2]);
+              break;
+            }
+          }
           vxc(0, i) = u;
-          if (do_grad) vgrad(0, i) = v_r;
+          for (Eigen::Index c = 0; c < nc; c++) vgrad(c, i) = vg[c];
           if (have_tau) vtau(0, i) = w_tau;
         }
       } else {
@@ -471,54 +526,124 @@ namespace helfem {
         // arrays keep their flat packing, and the call sites below were
         // emitted from the generated signatures rather than ordered by
         // hand.
-        const Eigen::Index N = wtot.size();
-        if (do_grad) vgrad = helfem::Matrix::Zero(grho.rows(), N);
         for (Eigen::Index i = 0; i < N; i++) {
-          double u_a = 0.0, v_a_r = 0.0, w_a = 0.0;
-          double u_b = 0.0, v_b_r = 0.0, w_b = 0.0;
-          if (have_tau)
-            helfem::xckernel::xck_helfem_fxc_mgga_tau_spin(
-                dgrad_rho(0, i), grho(0, i), dgrad_rho(1, i),
-                grho(1, i), drho(0, i), drho(1, i),
-                dtau(0, i), dtau(1, i), v2rho2(0, i),
-                v2rho2(1, i), v2rho2(2, i), v2rhosigma(0, i),
-                v2rhosigma(1, i), v2rhosigma(2, i), v2rhosigma(3, i),
-                v2rhosigma(4, i), v2rhosigma(5, i), v2rhotau(0, i),
-                v2rhotau(1, i), v2rhotau(2, i), v2rhotau(3, i),
-                v2sigma2(0, i), v2sigma2(1, i), v2sigma2(2, i),
-                v2sigma2(3, i), v2sigma2(4, i), v2sigma2(5, i),
-                v2sigmatau(0, i), v2sigmatau(1, i), v2sigmatau(2, i),
-                v2sigmatau(3, i), v2sigmatau(4, i), v2sigmatau(5, i),
-                v2tau2(0, i), v2tau2(1, i), v2tau2(2, i),
-                vsigma(0, i), vsigma(1, i), vsigma(2, i),
-                u_a, v_a_r, w_a,
-                u_b, v_b_r, w_b);
-          else if (have_grad)
-            helfem::xckernel::xck_helfem_fxc_gga_spin(
-                dgrad_rho(0, i), grho(0, i), dgrad_rho(1, i),
-                grho(1, i), drho(0, i), drho(1, i),
-                v2rho2(0, i), v2rho2(1, i), v2rho2(2, i),
-                v2rhosigma(0, i), v2rhosigma(1, i), v2rhosigma(2, i),
-                v2rhosigma(3, i), v2rhosigma(4, i), v2rhosigma(5, i),
-                v2sigma2(0, i), v2sigma2(1, i), v2sigma2(2, i),
-                v2sigma2(3, i), v2sigma2(4, i), v2sigma2(5, i),
-                vsigma(0, i), vsigma(1, i), vsigma(2, i),
-                u_a, v_a_r, u_b,
-                v_b_r);
-          else
-            helfem::xckernel::xck_helfem_fxc_lda_spin(
-                drho(0, i), drho(1, i), v2rho2(0, i),
-                v2rho2(1, i), v2rho2(2, i), u_a,
-                u_b);
-          vxc(0, i) = u_a;
-          vxc(1, i) = u_b;
-          if (do_grad) {
-            vgrad(0, i) = v_a_r;
-            vgrad(1, i) = v_b_r;
+          double u[2] = {0.0, 0.0}, w[2] = {0.0, 0.0};
+          double vg[2][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+          if (have_tau) {
+            switch (nc) {
+            case 1:
+              helfem::xckernel::xck_helfem_fxc_mgga_tau_spin(
+                  dgrad_rho(0*nc + 0, i), grho(0*nc + 0, i),
+                  dgrad_rho(1*nc + 0, i), grho(1*nc + 0, i), drho(0, i),
+                  drho(1, i), dtau(0, i), dtau(1, i), v2rho2(0, i),
+                  v2rho2(1, i), v2rho2(2, i), v2rhosigma(0, i),
+                  v2rhosigma(1, i), v2rhosigma(2, i), v2rhosigma(3, i),
+                  v2rhosigma(4, i), v2rhosigma(5, i), v2rhotau(0, i),
+                  v2rhotau(1, i), v2rhotau(2, i), v2rhotau(3, i),
+                  v2sigma2(0, i), v2sigma2(1, i), v2sigma2(2, i),
+                  v2sigma2(3, i), v2sigma2(4, i), v2sigma2(5, i),
+                  v2sigmatau(0, i), v2sigmatau(1, i), v2sigmatau(2, i),
+                  v2sigmatau(3, i), v2sigmatau(4, i), v2sigmatau(5, i),
+                  v2tau2(0, i), v2tau2(1, i), v2tau2(2, i), vsigma(0, i),
+                  vsigma(1, i), vsigma(2, i), u[0], vg[0][0], w[0], u[1],
+                  vg[1][0], w[1]);
+              break;
+            case 2:
+              helfem::xckernel::xck_helfem_fxc_mgga_tau_2d_spin(
+                  dgrad_rho(0*nc + 0, i), dgrad_rho(0*nc + 1, i),
+                  grho(0*nc + 0, i), grho(0*nc + 1, i),
+                  dgrad_rho(1*nc + 0, i), dgrad_rho(1*nc + 1, i),
+                  grho(1*nc + 0, i), grho(1*nc + 1, i), drho(0, i),
+                  drho(1, i), dtau(0, i), dtau(1, i), v2rho2(0, i),
+                  v2rho2(1, i), v2rho2(2, i), v2rhosigma(0, i),
+                  v2rhosigma(1, i), v2rhosigma(2, i), v2rhosigma(3, i),
+                  v2rhosigma(4, i), v2rhosigma(5, i), v2rhotau(0, i),
+                  v2rhotau(1, i), v2rhotau(2, i), v2rhotau(3, i),
+                  v2sigma2(0, i), v2sigma2(1, i), v2sigma2(2, i),
+                  v2sigma2(3, i), v2sigma2(4, i), v2sigma2(5, i),
+                  v2sigmatau(0, i), v2sigmatau(1, i), v2sigmatau(2, i),
+                  v2sigmatau(3, i), v2sigmatau(4, i), v2sigmatau(5, i),
+                  v2tau2(0, i), v2tau2(1, i), v2tau2(2, i), vsigma(0, i),
+                  vsigma(1, i), vsigma(2, i), u[0], vg[0][0], vg[0][1],
+                  w[0], u[1], vg[1][0], vg[1][1], w[1]);
+              break;
+            case 3:
+              helfem::xckernel::xck_helfem_fxc_mgga_tau_3d_spin(
+                  dgrad_rho(0*nc + 0, i), dgrad_rho(0*nc + 1, i),
+                  dgrad_rho(0*nc + 2, i), grho(0*nc + 0, i),
+                  grho(0*nc + 1, i), grho(0*nc + 2, i),
+                  dgrad_rho(1*nc + 0, i), dgrad_rho(1*nc + 1, i),
+                  dgrad_rho(1*nc + 2, i), grho(1*nc + 0, i),
+                  grho(1*nc + 1, i), grho(1*nc + 2, i), drho(0, i),
+                  drho(1, i), dtau(0, i), dtau(1, i), v2rho2(0, i),
+                  v2rho2(1, i), v2rho2(2, i), v2rhosigma(0, i),
+                  v2rhosigma(1, i), v2rhosigma(2, i), v2rhosigma(3, i),
+                  v2rhosigma(4, i), v2rhosigma(5, i), v2rhotau(0, i),
+                  v2rhotau(1, i), v2rhotau(2, i), v2rhotau(3, i),
+                  v2sigma2(0, i), v2sigma2(1, i), v2sigma2(2, i),
+                  v2sigma2(3, i), v2sigma2(4, i), v2sigma2(5, i),
+                  v2sigmatau(0, i), v2sigmatau(1, i), v2sigmatau(2, i),
+                  v2sigmatau(3, i), v2sigmatau(4, i), v2sigmatau(5, i),
+                  v2tau2(0, i), v2tau2(1, i), v2tau2(2, i), vsigma(0, i),
+                  vsigma(1, i), vsigma(2, i), u[0], vg[0][0], vg[0][1],
+                  vg[0][2], w[0], u[1], vg[1][0], vg[1][1], vg[1][2], w[1]);
+              break;
+            }
+          } else {
+            switch (nc) {
+            case 1:
+              helfem::xckernel::xck_helfem_fxc_gga_spin(
+                  dgrad_rho(0*nc + 0, i), grho(0*nc + 0, i),
+                  dgrad_rho(1*nc + 0, i), grho(1*nc + 0, i), drho(0, i),
+                  drho(1, i), v2rho2(0, i), v2rho2(1, i), v2rho2(2, i),
+                  v2rhosigma(0, i), v2rhosigma(1, i), v2rhosigma(2, i),
+                  v2rhosigma(3, i), v2rhosigma(4, i), v2rhosigma(5, i),
+                  v2sigma2(0, i), v2sigma2(1, i), v2sigma2(2, i),
+                  v2sigma2(3, i), v2sigma2(4, i), v2sigma2(5, i),
+                  vsigma(0, i), vsigma(1, i), vsigma(2, i), u[0], vg[0][0],
+                  u[1], vg[1][0]);
+              break;
+            case 2:
+              helfem::xckernel::xck_helfem_fxc_gga_2d_spin(
+                  dgrad_rho(0*nc + 0, i), dgrad_rho(0*nc + 1, i),
+                  grho(0*nc + 0, i), grho(0*nc + 1, i),
+                  dgrad_rho(1*nc + 0, i), dgrad_rho(1*nc + 1, i),
+                  grho(1*nc + 0, i), grho(1*nc + 1, i), drho(0, i),
+                  drho(1, i), v2rho2(0, i), v2rho2(1, i), v2rho2(2, i),
+                  v2rhosigma(0, i), v2rhosigma(1, i), v2rhosigma(2, i),
+                  v2rhosigma(3, i), v2rhosigma(4, i), v2rhosigma(5, i),
+                  v2sigma2(0, i), v2sigma2(1, i), v2sigma2(2, i),
+                  v2sigma2(3, i), v2sigma2(4, i), v2sigma2(5, i),
+                  vsigma(0, i), vsigma(1, i), vsigma(2, i), u[0], vg[0][0],
+                  vg[0][1], u[1], vg[1][0], vg[1][1]);
+              break;
+            case 3:
+              helfem::xckernel::xck_helfem_fxc_gga_3d_spin(
+                  dgrad_rho(0*nc + 0, i), dgrad_rho(0*nc + 1, i),
+                  dgrad_rho(0*nc + 2, i), grho(0*nc + 0, i),
+                  grho(0*nc + 1, i), grho(0*nc + 2, i),
+                  dgrad_rho(1*nc + 0, i), dgrad_rho(1*nc + 1, i),
+                  dgrad_rho(1*nc + 2, i), grho(1*nc + 0, i),
+                  grho(1*nc + 1, i), grho(1*nc + 2, i), drho(0, i),
+                  drho(1, i), v2rho2(0, i), v2rho2(1, i), v2rho2(2, i),
+                  v2rhosigma(0, i), v2rhosigma(1, i), v2rhosigma(2, i),
+                  v2rhosigma(3, i), v2rhosigma(4, i), v2rhosigma(5, i),
+                  v2sigma2(0, i), v2sigma2(1, i), v2sigma2(2, i),
+                  v2sigma2(3, i), v2sigma2(4, i), v2sigma2(5, i),
+                  vsigma(0, i), vsigma(1, i), vsigma(2, i), u[0], vg[0][0],
+                  vg[0][1], vg[0][2], u[1], vg[1][0], vg[1][1], vg[1][2]);
+              break;
+            }
+          }
+          vxc(0, i) = u[0];
+          vxc(1, i) = u[1];
+          for (Eigen::Index c = 0; c < nc; c++) {
+            vgrad(c, i) = vg[0][c];
+            vgrad(nc + c, i) = vg[1][c];
           }
           if (have_tau) {
-            vtau(0, i) = w_a;
-            vtau(1, i) = w_b;
+            vtau(0, i) = w[0];
+            vtau(1, i) = w[1];
           }
         }
       }

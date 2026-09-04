@@ -1236,10 +1236,10 @@ namespace helfem {
       if (verbosity >= 1) {
         printf("  reference energy % .10f\n", E0);
         if (!exact_hessian)
-          printf("  The model Hessian is built from the density-density kernel "
-                 "block alone,\n  and differs from the true one by %.2f%% "
-                 "here. That costs iterations, not\n  correctness: every step "
-                 "is still validated against the exact energy.\n",
+          printf("  The Hessian is measured here rather than tested: %.2f%% "
+                 "is the worst\n  deviation from the finite-difference "
+                 "reference. Only the convergence\n  rate depends on it -- "
+                 "every step is validated against the exact energy.\n",
                  100.0 * worst_hess);
         printf("%s\n", ok ? "  All derivatives agree."
                           : "  DERIVATIVES DISAGREE -- the second-order "

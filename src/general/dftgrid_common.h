@@ -23,6 +23,9 @@
 // compute_Nel, etc.) stay in the derived classes.
 
 #include <Matrix.h>
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
 #include <deque>
 #include <memory>
 #include <vector>
@@ -208,6 +211,34 @@ namespace helfem {
                                   const helfem::Matrix & dgrad_rho,
                                   const helfem::Matrix & dtau);
     };
+
+    /// Worst deviation of an analytic field from its central
+    /// difference, normalised by the LARGEST value the channel takes
+    /// anywhere on the element rather than pointwise.
+    ///
+    /// sadatom can afford a pointwise relative measure: its only
+    /// gradient component is radial and the spherical metric leaves
+    /// h_r = 1, so every value it compares is of the same order. The
+    /// three-dimensional workers cannot. Their theta and phi components
+    /// carry 1/r and 1/(r sin theta), which run over many orders of
+    /// magnitude across one element, and a pointwise relative deviation
+    /// on a component passing through zero reports the
+    /// finite-difference noise floor -- O(1) -- while a genuinely
+    /// dropped metric factor on the large components stays invisible
+    /// next to it. Normalising per channel measures the error against
+    /// the size of the thing being checked.
+    inline void report_dfields(const char * what,
+                               const helfem::Matrix & analytic,
+                               const helfem::Matrix & fd) {
+      double worst = 0.0, scale = 0.0;
+      for(Eigen::Index c=0;c<analytic.rows();c++)
+        for(Eigen::Index i=0;i<analytic.cols();i++) {
+          worst = std::max(worst, std::abs(analytic(c,i)-fd(c,i)));
+          scale = std::max(scale, std::abs(fd(c,i)));
+        }
+      fprintf(stderr, "DFIELDS %-5s worst dev %.3e  scale %.3e  rel %.3e\n",
+              what, worst, scale, worst/std::max(scale, 1e-300));
+    }
 
     /// Same as increment_lda below, but for a basis whose real and
     /// imaginary parts have already been split.

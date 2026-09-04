@@ -339,14 +339,22 @@ namespace helfem {
       /// Compare the analytic gradient and Hessian-vector products
       /// against finite differences of the energy surface.
       ///
-      /// exact_hessian says whether the response kernel behind the
-      /// Hessian is the true one -- it is for an LDA, and deliberately is
-      /// not for a GGA or meta-GGA, where the gradient and tau blocks of
-      /// the kernel are dropped. With it false the Hessian comparison
-      /// stops being a pass/fail test and becomes a measurement of how
-      /// good the model Hessian is, since only the convergence rate
-      /// depends on it; the gradient must be exact either way, and that
-      /// is what the return value then reflects.
+      /// exact_hessian says whether the Hessian comparison is a
+      /// pass/fail test or a measurement. With it false the rows are
+      /// still printed but no longer decide the return value, since only
+      /// the convergence rate depends on the Hessian; the gradient must
+      /// be exact either way, and that is what the return value then
+      /// reflects.
+      ///
+      /// Callers set it from what limits the comparison, which is not
+      /// always the kernel. gensap/aij gate on the laplacian, the one
+      /// channel their kernel lacks. The atomic and diatomic drivers
+      /// gate on the rung instead, because on their grids it is the
+      /// REFERENCE that runs out of accuracy first: the four-point
+      /// energy polarization has its own truncation, and those workers
+      /// build tau from genuine theta/phi derivatives carrying
+      /// 1/(r sin theta). Read the noise column, and vary the step,
+      /// before believing a DISAGREE.
       bool verify(double step, double tol, int verbosity,
                   bool exact_hessian = true);
 

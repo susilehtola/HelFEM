@@ -147,6 +147,46 @@ namespace helfem {
         helfem::Matrix eval_density(const helfem::Matrix & dPa,
                                      const helfem::Matrix & dPb) const;
 
+        /// The reference density gradient, which the response kernel's
+        /// gradient channel needs alongside the perturbed one. Two rows
+        /// per spin channel -- (mu, nu) -- because d rho / d phi is
+        /// identically zero here.
+        const helfem::Matrix & get_grho() const { return grho; }
+
+        /// Perturbed density, density gradient and kinetic energy density
+        /// of one perturbation: the SAME bilinear forms in the density
+        /// matrix that update_density evaluates for the reference, with
+        /// the perturbed matrix substituted -- including the analytic
+        /// m^2 |psi|^2 / h_phi^2 term in tau, which is a bilinear form in
+        /// the block density like any other. Every m block is walked in
+        /// its own right, for the reason eval_density gives above.
+        /// drho is 1 x Nang, dgrho 2 x Nang, dtau 1 x Nang.
+        void eval_response_fields(const helfem::Matrix & dP,
+                                  helfem::Matrix & drho,
+                                  helfem::Matrix & dgrho,
+                                  helfem::Matrix & dtau) const;
+        /// Spin-resolved perturbed fields: 2, 4 and 2 rows.
+        void eval_response_fields(const helfem::Matrix & dPa,
+                                  const helfem::Matrix & dPb,
+                                  helfem::Matrix & drho,
+                                  helfem::Matrix & dgrho,
+                                  helfem::Matrix & dtau) const;
+        /// Debug: check the perturbed fields against central differences
+        /// of the reference fields. Destroys the cached density.
+        void check_response_fields(const helfem::Matrix & P,
+                                   const helfem::Matrix & dP,
+                                   const helfem::Matrix & drho,
+                                   const helfem::Matrix & dgrho,
+                                   const helfem::Matrix & dtau);
+        /// Debug: spin-resolved perturbed fields vs central differences.
+        void check_response_fields(const helfem::Matrix & Pa,
+                                   const helfem::Matrix & Pb,
+                                   const helfem::Matrix & dPa,
+                                   const helfem::Matrix & dPb,
+                                   const helfem::Matrix & drho,
+                                   const helfem::Matrix & dgrho,
+                                   const helfem::Matrix & dtau);
+
         /// Assemble the gradient coefficient of the assembly from
         /// vsigma and the stored density gradient. Call after
         /// compute_xc and before eval_Fxc.
@@ -182,9 +222,9 @@ namespace helfem {
                        double & Exc, double & Nel, double & Ekin, bool beta, double thr);
 
         /// Linear response of the XC matrix to a BATCH of density
-        /// perturbations, at the reference density. LDA-shaped, as in the
-        /// general 3D grid: only the density-density kernel block is
-        /// used, which is what a trust-region model Hessian needs.
+        /// perturbations, at the reference density. As in the general 3D
+        /// grid, the kernel is the functional's own up to the laplacian
+        /// channel, which is not assembled.
         void eval_Fxc_response(int x_func, const helfem::Vector & x_pars,
                                 int c_func, const helfem::Vector & c_pars,
                                 const helfem::Matrix & P,
