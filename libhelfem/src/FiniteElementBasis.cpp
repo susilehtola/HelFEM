@@ -17,7 +17,6 @@
 #include <sstream>
 #include <lobatto.h>
 #include <algorithm>
-#include <cfloat>
 #include <iostream>
 // Scalar formatter that prints a T value at its own precision (no truncation
 // to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.
@@ -91,17 +90,16 @@ namespace helfem {
         // precision the check is made at, and for _Float128 it is a
         // greater-conversion-rank narrowing (-Wnarrowing).
         const T dr = (rlh - rrh).norm();
-        // Deliberately a double-precision-scaled sanity bound rather than
-        // eps(T): this catches a mis-built grid, it is not a precision
-        // assertion, and element boundaries come from grid generation that
-        // need not be accurate to eps(T). Taking the LOOSER of the two is
-        // what makes that a sanity bound for any T -- pinned to
-        // DBL_EPSILON alone it would be tighter than the arithmetic itself
-        // for a type less precise than double, and reject every grid.
-        // Bound the tolerance once so the diagnostic below reports the same
+        // eps(T), not a double-precision constant. This is not comparing
+        // the grid against some intended one, where a fixed sanity bound
+        // could be argued for: both sides come from the SAME bval entry,
+        // mapped through eval_coord as mid +/- halflen, so the difference
+        // is pure round-off in that arithmetic and is eps(T)-scaled by
+        // construction. Pinned to double it left this check eighteen
+        // orders too loose under _Float128, exactly as the continuity
+        // tolerance was. Bound it once so the diagnostic below reports the
         // value that was actually applied.
-        const T drtol = T(10)*std::max(T(DBL_EPSILON),
-                                       std::numeric_limits<T>::epsilon())
+        const T drtol = T(10)*std::numeric_limits<T>::epsilon()
                         *(T(1) + rlh.norm());
         if(dr > drtol) {
           std::cout << "rlh:\n"     << rlh.template cast<double>().transpose()       << "\n";
