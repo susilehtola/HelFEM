@@ -23,6 +23,7 @@
 #include "../general/gaunt.h"
 #include "utils.h"
 #include "../general/scf_helpers.h"
+#include "../general/eigen_io.h"   // fmt_sci, for the residual report
 #include <cassert>
 #include <cfloat>
 #include <algorithm>
@@ -580,6 +581,29 @@ namespace helfem {
         return V;
       }
 
+      namespace {
+        /// Report an incomplete density-fitting factorisation once per
+        /// process. The caller gets the best factorisation achieved
+        /// rather than a hang or a silent claim of success, and is told
+        /// what residual it actually has: no caller can know in advance
+        /// which tolerances a given basis can reach.
+        template <typename T>
+        void warn_df_incomplete(int L, size_t nvec, T achieved, T tol,
+                                const char *why) {
+          static bool warned = false;
+          if (warned)
+            return;
+          warned = true;
+          printf("Warning: TwoDBasis::radial_df_factors stopped at multipole "
+                 "L=%d after %d vectors (%s) with residual %s, above the "
+                 "requested %s; using the factorization obtained.\n",
+                 L, (int) nvec, why,
+                 helfem::io::fmt_sci(achieved).c_str(),
+                 helfem::io::fmt_sci(tol).c_str());
+          fflush(stdout);
+        }
+      }
+
       template <typename T>
       std::vector<std::vector<helfem::Mat<T>>>
       TwoDBasisT<T>::radial_df_factors(T tol) const {
@@ -655,6 +679,32 @@ namespace helfem {
           //    Cholesky vectors, normalises, appends, and updates the
           //    diagonal.
           std::vector<helfem::Mat<T>> B_L_vecs;
+
+          // Two bounds on the loop below. Without them the only exit was
+          // D_pivot < tol, so a tol the metric cannot reach never
+          // terminated -- no error, no output, just spinning. Reported
+          // against a HIP3 basis, where 1000*eps was unattainable.
+          //
+          // The rank bound is the principled one: the residual lives on
+          // the SYMMETRIC pair index, whose dimension is
+          // Nrad(Nrad+1)/2, so the exact factorisation cannot need more
+          // vectors than that and anything beyond it is round-off.
+          //
+          // The stall bound catches the same failure sooner. In exact
+          // arithmetic the pivot diagonal is monotone non-increasing --
+          // each step zeroes the element it consumes -- but in floating
+          // point it settles onto the metric's own round-off floor,
+          // which for an ill-conditioned basis sits well above a tight
+          // tol. Ties are legitimate and systematic here (D is
+          // symmetric, so every off-diagonal pair appears twice), which
+          // is why the window is generous rather than tripping on the
+          // first non-decrease.
+          const size_t maxvec =
+              (size_t) Nrad_e * (size_t) (Nrad_e + 1) / 2;
+          const size_t stall_window = 50;
+          T best_pivot = D.maxCoeff();
+          size_t nstall = 0;
+
           while (true) {
             // Eigen is column-major, so maxCoeff scans in the same order
             // as the old arma index_max column-major flatten -- identical
@@ -662,6 +712,18 @@ namespace helfem {
             Eigen::Index i_star = 0, j_star = 0;
             const T D_pivot = D.maxCoeff(&i_star, &j_star);
             if (D_pivot < tol) break;
+
+            if (B_L_vecs.size() >= maxvec) {
+              warn_df_incomplete(L, B_L_vecs.size(), D_pivot, tol, "rank");
+              break;
+            }
+            if (D_pivot < best_pivot) {
+              best_pivot = D_pivot;
+              nstall = 0;
+            } else if (++nstall >= stall_window) {
+              warn_df_incomplete(L, B_L_vecs.size(), D_pivot, tol, "stalled");
+              break;
+            }
 
             // Build the symmetric pair-density indicator P. For i == j:
             //   P = e_i e_i^T (single 1 on the diagonal).
