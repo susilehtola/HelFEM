@@ -153,6 +153,18 @@ namespace helfem {
         /// SAD databases genuinely need them). occs_a above is their
         /// rounded per-l sum.
         std::vector<helfem::Vector> occs_orb_a, occs_orb_b;
+        /// Per-l, per-orbital orbital energies of the converged
+        /// solution, aligned column-by-column with orbs_a / occs_orb_a
+        /// (and orbs_b / occs_orb_b). Obtained as the diagonal of the
+        /// converged Fock matrix in the converged orbital basis, i.e.
+        /// eps_i = <i|F|i>, which is the Janak derivative dE/dn_i and
+        /// therefore the quantity the occupations are optimized
+        /// against. For a solution converged by the ordinary SCF the
+        /// orbitals diagonalize the Fock matrix and this is the usual
+        /// eigenvalue; the diagonal form is what stays aligned with the
+        /// occupations when the second-order phase hands back orbitals
+        /// that are only stationary, not canonical.
+        std::vector<helfem::Vector> orb_E_a, orb_E_b;
         /// Converged total radial density matrix (alpha+beta),
         /// Nrad x Nrad. Consumed by the gensap effective-potential /
         /// SAP-table output path (basis::coulomb_screening /
