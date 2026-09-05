@@ -24,6 +24,7 @@
 #include "openorbitaloptimizer/scfsolver.hpp"
 
 #include "basis.h"
+#include "orbital_table.h"
 #include "dftgrid.h"
 
 #include <Eigen/Eigenvalues>
@@ -727,63 +728,20 @@ int main(int argc, char **argv) {
     return fockmat;
   };
 
-  // Diagonalize a Fock matrix block to obtain orbital energies and orbital
-  // coefficients in the non-orthonormal basis.
-  auto diagonalize_blocks = [&](const OpenOrbitalOptimizer::FockMatrix<OOO_Real> & fock,
+  // Orbital energies and AO-basis coefficients of the converged solution.
+  // The energies are the diagonal eps_i = <i|F|i> rather than a fresh
+  // diagonalization, so that they stay aligned with the occupations even
+  // when the second-order phase hands back stationary but non-canonical
+  // orbitals; see sadatom/orbital_table.h. The coefficients are then the
+  // converged orbitals themselves, which is also what gets saved.
+  auto converged_orbitals = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm,
+                                const OpenOrbitalOptimizer::FockMatrix<OOO_Real> & fock,
                                 std::vector<helfem::Vector> & Eblock,
                                 std::vector<helfem::Matrix> & Cblock) {
-    Eblock.resize(fock.size());
-    Cblock.resize(fock.size());
-    for(size_t b=0; b<fock.size(); b++) {
-      helfem::Matrix fsym = 0.5*(fock[b] + fock[b].transpose());
-      Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(fsym);
-      Eblock[b] = es.eigenvalues();
-      Cblock[b] = Sinvh * es.eigenvectors();
-    }
-  };
-
-  // Print orbital information (occupation, energy, <r>, r(max)) for the
-  // requested range of blocks. The block index modulo lmax+1 gives l.
-  auto print_orbitals = [&](const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real> & dm,
-                            const std::vector<helfem::Vector> & Eblock,
-                            const std::vector<helfem::Matrix> & Cblock,
-                            const std::vector<std::string> & block_descriptions,
-                            size_t bstart, size_t bend) {
-    static const char shtype[] = "spdfgh";
-    const auto & occupations = dm.second;
-
-    std::vector< std::pair<int, helfem::Matrix> > rmat(basis.Rmatrices());
-
-    for(size_t b=bstart; b<bend; b++) {
-      int l = (int)(b % (lmax+1));
-
-      printf("\n%s orbitals\n", block_descriptions[b].c_str());
-      printf("%3s %8s %16s","nl","occ","E");
-      for(size_t ir=0;ir<rmat.size();ir++) {
-        std::ostringstream oss;
-        oss << "<r>(" << rmat[ir].first << ")";
-        printf(" %12s",oss.str().c_str());
-      }
-      printf(" %12s\n","r(max)");
-
-      for(Eigen::Index io=0;io<Eblock[b].size();io++) {
-        double occ = occupations[b](io);
-        if(std::abs(occ) < savethr)
-          continue;
-
-        helfem::Vector orb = Cblock[b].col(io);
-        helfem::Matrix P = orb*orb.transpose();
-
-        int n = (int)io + l + 1;
-        char ltag = (l < 6) ? shtype[l] : '?';
-        printf("%2i%c % 8.4f % 16.9f", n, ltag, occ, Eblock[b](io));
-        for(size_t ir=0;ir<rmat.size();ir++) {
-          double rpos = std::pow((P*rmat[ir].second).trace(), 1.0/rmat[ir].first);
-          printf(" %12e", rpos);
-        }
-        printf(" %12e\n", basis.electron_density_maximum_radius(P));
-      }
-    }
+    Eblock = helfem::sadatom::orbital_energies(dm.first, fock);
+    Cblock.resize(dm.first.size());
+    for(size_t b=0; b<dm.first.size(); b++)
+      Cblock[b] = Sinvh * dm.first[b];
   };
 
   // Save the radial values of all occupied orbitals from the requested block
@@ -961,9 +919,10 @@ int main(int argc, char **argv) {
     {
       std::vector<helfem::Vector> Eblock;
       std::vector<helfem::Matrix> Cblock;
-      diagonalize_blocks(fock, Eblock, Cblock);
+      converged_orbitals(dm, fock, Eblock, Cblock);
       if(verbosity >= 1)
-        print_orbitals(dm, Eblock, Cblock, block_descriptions, 0, fock.size());
+        helfem::sadatom::print_orbital_table(basis, Cblock, dm.second, Eblock,
+                                             0, fock.size(), "Restricted", savethr);
       if(saveorb)
         save_orbitals(dm, Eblock, Cblock, 0, fock.size(), orb_prefix);
     }
@@ -1044,15 +1003,13 @@ int main(int argc, char **argv) {
     {
       std::vector<helfem::Vector> Eblock;
       std::vector<helfem::Matrix> Cblock;
-      diagonalize_blocks(fock, Eblock, Cblock);
-      if(verbosity >= 1)
-        printf("\nAlpha orbitals\n");
-      if(verbosity >= 1)
-        print_orbitals(dm, Eblock, Cblock, block_descriptions, 0, lmax+1);
-      if(verbosity >= 1)
-        printf("\nBeta orbitals\n");
-      if(verbosity >= 1)
-        print_orbitals(dm, Eblock, Cblock, block_descriptions, lmax+1, 2*lmax+2);
+      converged_orbitals(dm, fock, Eblock, Cblock);
+      if(verbosity >= 1) {
+        helfem::sadatom::print_orbital_table(basis, Cblock, dm.second, Eblock,
+                                             0, lmax+1, "Alpha", savethr);
+        helfem::sadatom::print_orbital_table(basis, Cblock, dm.second, Eblock,
+                                             lmax+1, 2*lmax+2, "Beta", savethr);
+      }
       if(saveorb) {
         save_orbitals(dm, Eblock, Cblock, 0,        lmax+1,   orb_prefix + "_alpha");
         save_orbitals(dm, Eblock, Cblock, lmax+1,   2*lmax+2, orb_prefix + "_beta");

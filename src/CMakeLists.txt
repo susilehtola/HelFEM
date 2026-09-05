@@ -9,7 +9,7 @@ general/atomdb.cpp general/atomdb_data.cpp
 general/checkpoint.cpp general/otr_solver.cpp general/trustregion_scf.cpp atomic/basis.cpp
 atomic/TwoDBasis.cpp
 atomic/dftgrid.cpp sadatom/basis.cpp
-sadatom/dftgrid.cpp sadatom/scf.cpp
+sadatom/dftgrid.cpp sadatom/scf.cpp sadatom/orbital_table.cpp
 diatomic/basis.cpp diatomic/quadrature.cpp
 diatomic/dftgrid.cpp diatomic/dftgrid_purem.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp
