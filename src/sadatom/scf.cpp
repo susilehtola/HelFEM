@@ -14,6 +14,7 @@
  */
 
 #include "scf.h"
+#include "orbital_table.h"
 #include "dftgrid.h"
 #include "../general/dftfuncs.h"
 #include "../general/scf_helpers.h"
@@ -763,29 +764,20 @@ namespace helfem {
         // Orbital energies of the converged solution. OpenOrbitalOptimizer
         // hands back orbitals and occupations but no energies, so rebuild
         // the Fock matrix at the converged density and read off
-        // eps_i = <i|F|i>. One extra build against a whole SCF is
-        // negligible, and the diagonal form -- rather than a fresh
-        // diagonalization -- is what stays aligned with the occupations
-        // when the second-order phase returns stationary but non-canonical
-        // orbitals. It is also the Janak derivative dE/dn_i, which is the
-        // quantity the occupation optimization is about.
+        // eps_i = <i|F|i>; see orbital_table.h for why the diagonal
+        // rather than a fresh diagonalization. One extra build against a
+        // whole SCF is negligible.
         {
           std::string discard;
           const OpenOrbitalOptimizer::DensityMatrix<OOO_Real, OOO_Real>
             dm_final(orbitals, occupations);
           const auto ef = build_fock(dm_final, &discard, nullptr);
           const auto & fock_final = ef.second;
-          auto extract_energies = [&](size_t t, std::vector<helfem::Vector> & E_out) {
-            E_out.assign(nblock, helfem::Vector());
-            for (size_t l = 0; l < nblock; ++l) {
-              const auto & C = orbitals[t * nblock + l];
-              const helfem::Matrix Fmo = C.transpose() * fock_final[t * nblock + l] * C;
-              E_out[l] = Fmo.diagonal();
-            }
-          };
-          extract_energies(0, result.orb_E_a);
+          const std::vector<helfem::Vector> E_all =
+            sadatom::orbital_energies(orbitals, fock_final);
+          result.orb_E_a.assign(E_all.begin(), E_all.begin() + nblock);
           if (!restricted)
-            extract_energies(1, result.orb_E_b);
+            result.orb_E_b.assign(E_all.begin() + nblock, E_all.begin() + 2 * nblock);
         }
 
         auto extract_channel = [&](size_t t, helfem::Cube & orbs_out, Eigen::VectorXi & occs_out,

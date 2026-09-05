@@ -30,6 +30,7 @@
 #include "../general/lcao_projection.h"
 #include "../atomic/basis.h"
 #include "scf.h"
+#include "orbital_table.h"
 #include "../general/otr_solver.h"
 #include "../general/eigen_io.h"
 // std::abs / std::round / std::lround for the --occs integrality check.
@@ -422,78 +423,18 @@ int main(int argc, char **argv) {
   if (parser.get<bool>("completeness"))
     write_profiles(result, Z, lmax);
 
-  // Orbital table: occupation, orbital energy and the radial extents
-  // <r^n>^(1/n) of every occupied orbital, plus the radius at which its
-  // density peaks. This is the summary the bespoke gensap printed from
-  // OrbitalChannel::Print, and aij still prints the same table.
+  // Per-shell summary: occupation, orbital energy, radial extents and
+  // the per-l gap. Shared with aij; see sadatom/orbital_table.h.
   if (verbosity >= 1) {
-    static const char shtype[] = "spdfgh";
-    // An orbital counts as occupied above this; matches the aij --savethr
-    // default, so the two drivers draw the same line.
-    const double occthr = 1e-6;
-    const std::vector< std::pair<int, helfem::Matrix> > rmat(result.basis.Rmatrices());
-
-    auto print_channel = [&](const helfem::Cube & orbs,
-                             const std::vector<helfem::Vector> & occs,
-                             const std::vector<helfem::Vector> & energies,
-                             const char * label) {
-      printf("\n%s orbitals\n", label);
-      printf("%3s %8s %16s", "nl", "occ", "E");
-      for (size_t ir = 0; ir < rmat.size(); ir++) {
-        std::ostringstream oss;
-        oss << "<r>(" << rmat[ir].first << ")";
-        printf(" %12s", oss.str().c_str());
-      }
-      printf(" %12s\n", "r(max)");
-
-      for (size_t l = 0; l < orbs.size(); l++) {
-        if (l >= occs.size() || l >= energies.size()) continue;
-        for (Eigen::Index io = 0; io < occs[l].size(); io++) {
-          const double occ = occs[l](io);
-          // Skip the virtuals: the table is about the occupied shells.
-          if (std::abs(occ) < occthr) continue;
-          const helfem::Vector orb = orbs[l].col(io);
-          const helfem::Matrix P = orb * orb.transpose();
-          const int n = (int) io + (int) l + 1;
-          const char ltag = (l < 6) ? shtype[l] : '?';
-          printf("%2i%c % 8.4f % 16.9f", n, ltag, occ, energies[l](io));
-          for (size_t ir = 0; ir < rmat.size(); ir++)
-            printf(" %12e", std::pow((P * rmat[ir].second).trace(), 1.0 / rmat[ir].first));
-          printf(" %12e\n", result.basis.electron_density_maximum_radius(P));
-        }
-      }
-
-      // Per-l gap between the lowest unoccupied and the highest occupied
-      // orbital of the channel, as the bespoke gensap printed from
-      // OrbitalChannel::GetGap. With no occupied orbital in the channel
-      // the gap is the orbital energy itself.
-      printf("%s HOMO-LUMO gap (eV) per l:", label);
-      for (size_t l = 0; l < orbs.size(); l++) {
-        if (l >= occs.size() || l >= energies.size() || occs[l].size() == 0) {
-          printf("  %s", "n/a");
-          continue;
-        }
-        double gap = 0.0;
-        bool have = false;
-        for (Eigen::Index io = 0; io < occs[l].size(); io++) {
-          if (std::abs(occs[l](io)) >= occthr) continue;
-          gap = (io == 0) ? energies[l](io) : energies[l](io) - energies[l](io - 1);
-          have = true;
-          break;
-        }
-        if (have)
-          printf("  %.4f", gap * HARTREEINEV);
-        else
-          printf("  %s", "n/a");
-      }
-      printf("\n");
-    };
-
+    const size_t nl = result.orbs_a.size();
     if (restricted) {
-      print_channel(result.orbs_a, result.occs_orb_a, result.orb_E_a, "Restricted");
+      sadatom::print_orbital_table(result.basis, result.orbs_a, result.occs_orb_a,
+                                   result.orb_E_a, 0, nl, "Restricted");
     } else {
-      print_channel(result.orbs_a, result.occs_orb_a, result.orb_E_a, "Alpha");
-      print_channel(result.orbs_b, result.occs_orb_b, result.orb_E_b, "Beta");
+      sadatom::print_orbital_table(result.basis, result.orbs_a, result.occs_orb_a,
+                                   result.orb_E_a, 0, nl, "Alpha");
+      sadatom::print_orbital_table(result.basis, result.orbs_b, result.occs_orb_b,
+                                   result.orb_E_b, 0, result.orbs_b.size(), "Beta");
     }
   }
 
