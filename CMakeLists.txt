@@ -551,6 +551,17 @@ install(TARGETS helfem_otr EXPORT helfemTargets)
 # ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
+# enable_testing() has to be called from the top level for `ctest` and
+# `make test` to find anything, and it has to come BEFORE any
+# add_subdirectory() that registers tests of its own -- CMake silently drops
+# add_test() calls made in a directory reached before testing was enabled, so
+# python/'s tests were being generated into nothing. Most registration lives
+# in tests/ (the self-checking unit binaries plus the integration harness);
+# python/ adds its own because those tests only exist when HELFEM_PYTHON=ON.
+# Plain `ctest` stays in the minutes range; the slow tier is opt-in via
+# -DHELFEM_SLOW_TESTS=ON.
+enable_testing()
+
 add_subdirectory(libhelfem)
 add_subdirectory(libhelfemqc)
 if(HELFEM_PYTHON)
@@ -563,12 +574,6 @@ endif()
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-# enable_testing() has to be called from the top level for `ctest` and
-# `make test` to find anything. Registration itself lives in tests/, which
-# adds both the self-checking unit binaries and the Python integration
-# harness. Plain `ctest` stays in the minutes range; the slow tier is
-# opt-in via -DHELFEM_SLOW_TESTS=ON.
-enable_testing()
 add_subdirectory(tests)
 
 # ---------------------------------------------------------------------------
