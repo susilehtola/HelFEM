@@ -36,7 +36,6 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
-#include <armadillo>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -44,39 +43,39 @@
 
 #include "../src/atomic/basis.h"
 #include "../src/atomic/TwoDBasis.h"
+#include "../libhelfem/include/Matrix.h"
 #include "../libhelfem/include/PolynomialBasis.h"
 #include "../libhelfem/include/ModelPotential.h"
-#include "../libhelfem/include/ArmaEigen.h"
 
 namespace py = pybind11;
 
 namespace helfem_py {
 
-  // Copy arma::mat -> C-order numpy. arma is column-major internally;
-  // the loop here transposes implicitly so the resulting numpy array is
-  // C-contiguous (rows-fast).
-  static py::array_t<double> arma_to_numpy(const arma::mat & M) {
-    std::vector<py::ssize_t> shape{(py::ssize_t) M.n_rows, (py::ssize_t) M.n_cols};
+  // Copy helfem::Matrix -> C-order numpy. Eigen is column-major by
+  // default, so the loop transposes implicitly and the resulting numpy
+  // array is C-contiguous (rows-fast).
+  static py::array_t<double> eigen_to_numpy(const helfem::Matrix & M) {
+    std::vector<py::ssize_t> shape{(py::ssize_t) M.rows(), (py::ssize_t) M.cols()};
     py::array_t<double> out(shape);
     double * dst = out.mutable_data();
-    for (arma::uword i = 0; i < M.n_rows; ++i)
-      for (arma::uword j = 0; j < M.n_cols; ++j)
-        dst[i * M.n_cols + j] = M(i, j);
+    for (Eigen::Index i = 0; i < M.rows(); ++i)
+      for (Eigen::Index j = 0; j < M.cols(); ++j)
+        dst[i * M.cols() + j] = M(i, j);
     return out;
   }
 
-  // C-contiguous numpy -> arma::mat (forces double conversion).
-  static arma::mat numpy_to_arma(
+  // C-contiguous numpy -> helfem::Matrix (forces double conversion).
+  static helfem::Matrix numpy_to_eigen(
       py::array_t<double, py::array::c_style | py::array::forcecast> a) {
     if (a.ndim() != 2)
-      throw std::runtime_error("numpy_to_arma: expected 2-D ndarray.");
+      throw std::runtime_error("numpy_to_eigen: expected 2-D ndarray.");
     const py::ssize_t nr = a.shape(0);
     const py::ssize_t nc = a.shape(1);
-    arma::mat M((arma::uword) nr, (arma::uword) nc);
+    helfem::Matrix M((Eigen::Index) nr, (Eigen::Index) nc);
     const double * src = a.data();
     for (py::ssize_t i = 0; i < nr; ++i)
       for (py::ssize_t j = 0; j < nc; ++j)
-        M((arma::uword) i, (arma::uword) j) = src[i * nc + j];
+        M((Eigen::Index) i, (Eigen::Index) j) = src[i * nc + j];
     return M;
   }
 
@@ -93,30 +92,29 @@ namespace helfem_py {
       using namespace helfem;
       // Polynomial primitive (LIP=4, HIP=5, HIP2=8, HIP3=9, Legendre=3).
       poly_ = std::shared_ptr<const polynomial_basis::PolynomialBasis>(
-          polynomial_basis::get_basis(primbas, nnodes));
+          polynomial_basis::make_basis(primbas, nnodes));
       // Angular (l, m) list for shells up to (lmax, mmax).
-      arma::ivec lval, mval;
+      Eigen::VectorXi lval, mval;
       atomic::basis::angular_basis(lmax, mmax, lval, mval);
       // Radial element boundary grid.
-      arma::vec bval = atomic::basis::form_grid(
+      const helfem::Vector bval = atomic::basis::form_grid(
           (modelpotential::nuclear_model_t) finitenuc,
           Rrms, nelem, Rmax, igrid, zexp,
           /*Nelem0=*/0, /*igrid0=*/igrid, /*zexp0=*/zexp,
           Z, /*Zl=*/0, /*Zr=*/0, /*Rhalf=*/0.0);
       // Quadrature density (matches atomic/main.cpp).
-      const int Nquad = 5 * poly_->get_nbf();
+      const int Nquad = 5 * poly_->nbf();
       basis_ = atomic::basis::TwoDBasis(
           Z, (modelpotential::nuclear_model_t) finitenuc, Rrms,
           poly_, /*zeroder=*/false,
-          Nquad, helfem::to_eigen(bval), helfem::to_eigen(lval),
-          helfem::to_eigen(mval), /*Zl=*/0, /*Zr=*/0, /*Rhalf=*/0.0);
+          Nquad, bval, lval, mval, /*Zl=*/0, /*Zr=*/0, /*Rhalf=*/0.0);
     }
 
     int Z() const { return Z_; }
     size_t Nbf()  const { return basis_.Nbf(); }
     size_t Nrad() const { return basis_.Nrad(); }
     size_t Nang() const { return basis_.Nang(); }
-    size_t Nel()  const { return basis_.get_rad_Nel(); }
+    size_t Nel()  const { return basis_.rad_Nel(); }
     /// Return (ifirst, ilast) inclusive radial-function index range
     /// for element iel. Adjacent elements OVERLAP by `noverlap`
     /// (= 1 for LIP, 2 for HIP) at boundary indices.
@@ -125,27 +123,25 @@ namespace helfem_py {
     }
     py::list lvals() const {
       py::list out;
-      arma::ivec lv = basis_.get_lval();
-      for (arma::uword i = 0; i < lv.n_elem; ++i) out.append((int) lv(i));
+      const Eigen::VectorXi lv = basis_.lval();
+      for (Eigen::Index i = 0; i < lv.size(); ++i) out.append((int) lv(i));
       return out;
     }
     py::list mvals() const {
       py::list out;
-      arma::ivec mv = basis_.get_mval();
-      for (arma::uword i = 0; i < mv.n_elem; ++i) out.append((int) mv(i));
+      const Eigen::VectorXi mv = basis_.mval();
+      for (Eigen::Index i = 0; i < mv.size(); ++i) out.append((int) mv(i));
       return out;
     }
 
-    // Phase 3: basis_ SCF surface returns helfem::Matrix; bridge to
-    // arma at the numpy boundary (kept arma_to_numpy for now to
-    // preserve byte-identical Python behavior).
-    py::array_t<double> overlap() const { return arma_to_numpy(helfem::to_arma(basis_.overlap())); }
-    py::array_t<double> kinetic() const { return arma_to_numpy(helfem::to_arma(basis_.kinetic())); }
-    py::array_t<double> nuclear() const { return arma_to_numpy(helfem::to_arma(basis_.nuclear())); }
+    // basis_'s SCF surface is natively helfem::Matrix (Eigen), so these
+    // go straight to numpy -- the Armadillo hop the migration left behind
+    // here is gone.
+    py::array_t<double> overlap() const { return eigen_to_numpy(basis_.overlap()); }
+    py::array_t<double> kinetic() const { return eigen_to_numpy(basis_.kinetic()); }
+    py::array_t<double> nuclear() const { return eigen_to_numpy(basis_.nuclear()); }
     py::array_t<double> hcore()   const {
-      const arma::mat T = helfem::to_arma(basis_.kinetic());
-      const arma::mat V = helfem::to_arma(basis_.nuclear());
-      return arma_to_numpy(arma::mat(T + V));
+      return eigen_to_numpy(helfem::Matrix(basis_.kinetic() + basis_.nuclear()));
     }
 
     /// Build (J, K) from a density matrix. K returned with HF MINUS sign
@@ -156,26 +152,24 @@ namespace helfem_py {
     std::tuple<py::array_t<double>, py::array_t<double>>
     get_jk(py::array_t<double, py::array::c_style | py::array::forcecast> P_in) {
       ensure_tei_();
-      // Phase 3: basis_.coulomb / exchange take/return helfem::Matrix.
-      const helfem::Matrix P_E = helfem::to_eigen(numpy_to_arma(P_in));
-      const arma::mat J = helfem::to_arma(basis_.coulomb(P_E));
-      const arma::mat K = -helfem::to_arma(basis_.exchange(P_E));  // flip sign for PySCF positivity
-      return std::make_tuple(arma_to_numpy(J), arma_to_numpy(K));
+      const helfem::Matrix P_E = numpy_to_eigen(P_in);
+      const helfem::Matrix J = basis_.coulomb(P_E);
+      // flip sign for PySCF positivity
+      const helfem::Matrix K = -basis_.exchange(P_E);
+      return std::make_tuple(eigen_to_numpy(J), eigen_to_numpy(K));
     }
 
     py::array_t<double>
     coulomb(py::array_t<double, py::array::c_style | py::array::forcecast> P_in) {
       ensure_tei_();
-      const helfem::Matrix P_E = helfem::to_eigen(numpy_to_arma(P_in));
-      return arma_to_numpy(helfem::to_arma(basis_.coulomb(P_E)));
+      return eigen_to_numpy(basis_.coulomb(numpy_to_eigen(P_in)));
     }
 
     py::array_t<double>
     exchange(py::array_t<double, py::array::c_style | py::array::forcecast> P_in) {
       ensure_tei_();
-      const helfem::Matrix P_E = helfem::to_eigen(numpy_to_arma(P_in));
       // Match PySCF positive-K convention.
-      return arma_to_numpy(arma::mat(-helfem::to_arma(basis_.exchange(P_E))));
+      return eigen_to_numpy(helfem::Matrix(-basis_.exchange(numpy_to_eigen(P_in))));
     }
 
     /// Density-fitted (Cholesky-factored) BARE radial Slater integrals.

@@ -41,10 +41,50 @@ target_link_libraries(_helfem PRIVATE helfem-common helfem legendre)
 # the __init__.py shim into the same dir at configure time.
 set_target_properties(_helfem PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/helfem")
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/helfem/__init__.py"
-               "${CMAKE_CURRENT_BINARY_DIR}/helfem/__init__.py" COPYONLY)
+foreach(_pyfile __init__.py pyscf_driver.py)
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/helfem/${_pyfile}"
+                 "${CMAKE_CURRENT_BINARY_DIR}/helfem/${_pyfile}" COPYONLY)
+endforeach()
 
 # Install the .so + the Python shim under ${CMAKE_INSTALL_PREFIX}/python/helfem/.
 install(TARGETS _helfem LIBRARY DESTINATION python/helfem)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/helfem/__init__.py"
+              "${CMAKE_CURRENT_SOURCE_DIR}/helfem/pyscf_driver.py"
         DESTINATION python/helfem)
+
+# ---------------------------------------------------------------- tests
+# These bindings rotted unnoticed once already: they were left on Armadillo
+# straight through the Eigen migration, and because HELFEM_PYTHON defaults OFF
+# nothing ever compiled them again. Register the Python tests so that a
+# configure which asks for the bindings also checks them.
+#
+# The scripts are COPIED into the build tree rather than run where they sit.
+# Python puts a script's own directory first on sys.path, so running
+# <src>/python/test_smoke.py makes `import helfem` resolve to the SOURCE
+# helfem/ package -- which holds no extension module -- and the import fails
+# however PYTHONPATH is set. Run them from <build>/python, where helfem/ does
+# contain the .so, and the import needs no environment at all.
+#
+# All three need numpy only: the pyscf imports in helfem.pyscf_driver are
+# deliberately inside the functions that use them, so the tests stay runnable
+# on a machine without pyscf.
+execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy"
+                RESULT_VARIABLE _helfem_numpy_rc
+                OUTPUT_QUIET ERROR_QUIET)
+if(_helfem_numpy_rc EQUAL 0)
+  foreach(_pytest test_smoke test_radial_df_factors test_radial_df_exhaustive)
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${_pytest}.py"
+                   "${CMAKE_CURRENT_BINARY_DIR}/${_pytest}.py" COPYONLY)
+    add_test(NAME python.${_pytest}
+             COMMAND ${Python3_EXECUTABLE}
+                     "${CMAKE_CURRENT_BINARY_DIR}/${_pytest}.py")
+    set_tests_properties(python.${_pytest} PROPERTIES
+        LABELS "python"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+        TIMEOUT 600)
+  endforeach()
+  message(STATUS "HelFEM Python tests: 3 case(s) registered (ctest -L python).")
+else()
+  message(STATUS "numpy is not importable from ${Python3_EXECUTABLE}: "
+                 "HelFEM Python tests not registered.")
+endif()
