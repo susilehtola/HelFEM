@@ -1171,25 +1171,35 @@ namespace helfem {
 
       template <typename T>
       helfem::Vec<T> FEMRadialBasisT<T>::eval_orbs(const helfem::Mat<T> & C, T r) const {
+        // Exactly the n = 0 case: bf(x, iel) is BY DEFINITION
+        // eval_psi_dnf(x, 0, iel), so a second copy of the element lookup here
+        // would only be a second place for it to drift.
+        return eval_dorbs(C, r, 0);
+      }
+
+      template <typename T>
+      helfem::Vec<T> FEMRadialBasisT<T>::eval_dorbs(const helfem::Mat<T> & C, T r,
+                                                    int n) const {
         if(r > fem_.element_end(fem_.nelem()-1)) {
-          // Wave function is zero beyond the practical infinity.
+          // Wave function, and hence every derivative of it, is zero beyond
+          // the practical infinity.
           return helfem::Vec<T>::Zero(C.cols());
         }
-        // Find the element and evaluate the primitive coordinate.
         const size_t iel = fem_.find_element(r);
         helfem::Vec<T> r_e(1); r_e(0) = r;
         const helfem::Vec<T> xe = fem_.eval_prim(r_e, iel);
 
-        // Basis functions in the element -- Eigen throughout after Phase 5.24.
-        const helfem::Mat<T> val = bf(xe, iel);
+        // eval_psi_dnf owns the derivative outright: the quotient rule for
+        // d^n[B/r] away from the origin, and eval_over_r's analytic deflation
+        // of the (x+1) factor at iel == 0. Nothing here knows how to
+        // differentiate anything -- it locates the element and contracts with
+        // the coefficients, which is the whole of the addition.
+        const helfem::Mat<T> val = eval_psi_dnf(xe, n, iel);
 
-        // Slice C over the element's basis-function index range and
-        // return the row-vector product transposed to a column.
         size_t ifirst, ilast;
         idx(iel, ifirst, ilast);
-        const Eigen::Index n = static_cast<Eigen::Index>(ilast - ifirst + 1);
-        const helfem::Mat<T> Csub = C.block(ifirst, 0, n, C.cols());
-        return (val * Csub).transpose();
+        const Eigen::Index nb = static_cast<Eigen::Index>(ilast - ifirst + 1);
+        return (val * C.block(ifirst, 0, nb, C.cols())).transpose();
       }
 
       template <typename T>

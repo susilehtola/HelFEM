@@ -144,6 +144,9 @@ endif()
 add_executable(over_r_test general/over_r_test.cpp)
 target_link_libraries(over_r_test helfem-common legendre)
 
+add_executable(eval_dorbs_test general/eval_dorbs_test.cpp)
+target_link_libraries(eval_dorbs_test helfem-common legendre)
+
 add_executable(cas_integrals_test general/cas_integrals_test.cpp)
 target_link_libraries(cas_integrals_test helfem-common legendre)
 
