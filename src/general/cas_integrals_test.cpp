@@ -44,12 +44,28 @@
 
 #include <Eigen/Eigenvalues>
 #include <cmath>
+#include <complex>
 #include <cstdio>
 #include <vector>
 
 namespace {
 
   int nfail = 0;
+
+  /// exp(A) for a real antisymmetric A -- the same construction as
+  /// trustregion_scf.cpp's expm_skew: i*A is Hermitian, so diagonalizing it
+  /// exponentiates the eigenvalues exactly and the result is orthogonal by
+  /// construction, with no scaling-and-squaring truncation and no dependence
+  /// on Eigen's unsupported modules.
+  helfem::Matrix expm_skew(const helfem::Matrix & A) {
+    const std::complex<double> im(0.0, 1.0);
+    Eigen::MatrixXcd H = im * A.cast<std::complex<double>>();
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(H);
+    Eigen::VectorXcd ph =
+        (-im * es.eigenvalues().cast<std::complex<double>>()).array().exp();
+    return (es.eigenvectors() * ph.asDiagonal() * es.eigenvectors().adjoint())
+        .real();
+  }
 
   void check(const char * what, double got, double ref, double tol) {
     const double err = std::abs(got - ref);
@@ -156,6 +172,83 @@ int main() {
   printf("  %-26s %s\n", "core_occ=0 changes inactive",
          inactive_differs ? "ok" : "FAIL");
   if (!active_same || !inactive_differs) nfail++;
+
+  // --- kappa-kappa Hessian block, against the Python reference
+  printf("\nkappa-kappa Hessian vs the Python reference:\n");
+  helfem::Matrix K1 = helfem::Matrix::Zero(nbf, nbf);
+  for (Eigen::Index m = 0; m < nbf; m++)
+    for (Eigen::Index n2 = m + 1; n2 < nbf; n2++) {
+      const double v = 1.0 / (1.0 + (double) m + (double) n2);
+      K1(m, n2) = v;
+      K1(n2, m) = -v;
+    }
+  K1 /= K1.norm();
+  const helfem::Matrix dF =
+      cas::fock_response_kappa(jk, C, ninact, nact, D, d, K1);
+  check("sum(dF)", dF.sum(), -252.858517673524, 1e-7);
+  check("dF[0,0]", dF(0, 0), 0.397843886155, 1e-9);
+  check("dF[5,2]", dF(5, 2), 0.017758864748, 1e-9);
+  const helfem::Matrix hk =
+      cas::hess_kappa_kappa_raw(jk, C, ninact, nact, D, d, K1);
+  check("norm(hess_kk_raw)", hk.norm(), 273.432663490307, 1e-7);
+  check("hess_kk_raw[0,1]", hk(0, 1), 0.405368937066, 1e-9);
+  check("hess_kk_raw[2,7]", hk(2, 7), 0.092946004178, 1e-9);
+
+  // --- self-contained finite differences. frozen_ci_energy is rebuilt through
+  //     active_hamiltonian and shares no algebra with the gradient or the
+  //     Hessian, so differencing it checks them rather than re-expanding them.
+  //     No CI solver is needed: the RDM pair above is fixed.
+  printf("\nfinite differences of the frozen-CI energy (self-contained):\n");
+  helfem::Matrix K2 = helfem::Matrix::Zero(nbf, nbf);
+  for (Eigen::Index m = 0; m < nbf; m++)
+    for (Eigen::Index n2 = m + 1; n2 < nbf; n2++) {
+      const double v = std::sin(1.0 + 3.0 * (double) m - 2.0 * (double) n2);
+      K2(m, n2) = v;
+      K2(n2, m) = -v;
+    }
+  K2 /= K2.norm();
+
+  const double hstep = 2e-4;
+  auto Eat = [&](double a, double bb) {
+    return cas::frozen_ci_energy(jk, C * expm_skew(a * K1 + bb * K2),
+                                 ninact, nact, D, d);
+  };
+
+  // Gradient: g contracted with K1. A single central difference is
+  // truncation-limited here -- its error is O(h^2 E'''), which at h = 2e-4
+  // lands around 3e-7 and says nothing about the formula. Richardson
+  // extrapolation cancels the h^2 term, and the check that it IS truncation
+  // rather than a wrong gradient is that the error falls fourfold when h
+  // halves. Both are asserted.
+  const double fd_g1 = (Eat(hstep, 0.0) - Eat(-hstep, 0.0)) / (2 * hstep);
+  const double fd_g2 =
+      (Eat(0.5 * hstep, 0.0) - Eat(-0.5 * hstep, 0.0)) / hstep;
+  const double fd_g = fd_g2 + (fd_g2 - fd_g1) / 3.0;
+  const double an_g = 0.5 * (g.cwiseProduct(K1)).sum();
+  const double r_h = std::abs(fd_g1 - an_g), r_h2 = std::abs(fd_g2 - an_g);
+  printf("  %-26s h: %8.2e   h/2: %8.2e   ratio %5.2f (expect ~4)\n",
+         "central-diff error", r_h, r_h2, r_h / r_h2);
+  if (!(r_h2 < r_h)) { printf("    FAIL: error did not fall with h\n"); nfail++; }
+  check("K1 . gradient (Richardson)", fd_g, an_g, 1e-9);
+
+  // Hessian: four-point d^2E/ds dt with the COMBINED exponent
+  const double fd_h =
+      (Eat(hstep, hstep) - Eat(hstep, -hstep) - Eat(-hstep, hstep) +
+       Eat(-hstep, -hstep)) / (4 * hstep * hstep);
+  const double an_h = cas::hess_kappa_kappa(jk, C, ninact, nact, D, d, K1, K2);
+  check("K1 . H_kk . K2", fd_h, an_h, 1e-4);
+
+  // --- the BCH ordering term, predicted rather than assumed
+  printf("\nBCH ordering of the raw derivative:\n");
+  const double a12 =
+      0.5 * (cas::hess_kappa_kappa_raw(jk, C, ninact, nact, D, d, K2)
+                 .cwiseProduct(K1)).sum();
+  const double a21 =
+      0.5 * (cas::hess_kappa_kappa_raw(jk, C, ninact, nact, D, d, K1)
+                 .cwiseProduct(K2)).sum();
+  const helfem::Matrix comm = K2 * K1 - K1 * K2;
+  const double pred = 0.25 * (g.cwiseProduct(comm)).sum();
+  check("raw asymmetry", 0.5 * (a12 - a21), pred, 1e-8);
 
   printf("\n%s\n", nfail ? "CAS INTEGRALS TEST FAILED" : "CAS INTEGRALS TEST PASSED");
   return nfail ? 1 : 0;
