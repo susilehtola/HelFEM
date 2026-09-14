@@ -139,5 +139,105 @@ namespace helfem {
       return 2.0 * (Ff - Ff.transpose());
     }
 
+
+    helfem::Matrix fock_response_kappa(const JKProvider & jk,
+                                       const helfem::Matrix & C,
+                                       Eigen::Index ninact, Eigen::Index nact,
+                                       const helfem::Matrix & D,
+                                       const std::vector<double> & d,
+                                       const helfem::Matrix & dkap) {
+      const Eigen::Index nocc = ninact + nact;
+      const Eigen::Index norb = C.cols();
+      const helfem::Matrix Cx = C * dkap;            // dC/dt
+      const helfem::Matrix Ci = C.leftCols(ninact);
+      const helfem::Matrix Ca = C.middleCols(ninact, nact);
+      const helfem::Matrix Cxi = Cx.leftCols(ninact);
+      const helfem::Matrix Cxa = Cx.middleCols(ninact, nact);
+      const helfem::Matrix zero = helfem::Matrix::Zero(C.rows(), C.rows());
+
+      const helfem::Matrix PI =
+          (ninact > 0) ? helfem::Matrix(2.0 * Ci * Ci.transpose()) : zero;
+      const helfem::Matrix dPI =
+          (ninact > 0)
+              ? helfem::Matrix(2.0 * (Cxi * Ci.transpose() + Ci * Cxi.transpose()))
+              : zero;
+      const helfem::Matrix Vi = jk.hcore() + closed_shell_veff(jk, PI);
+      const helfem::Matrix dVi = closed_shell_veff(jk, dPI);
+      const helfem::Matrix FI = C.transpose() * Vi * C;
+      const helfem::Matrix dFI = Cx.transpose() * Vi * C + C.transpose() * Vi * Cx
+                                 + C.transpose() * dVi * C;
+
+      const helfem::Matrix PA = Ca * D * Ca.transpose();
+      const helfem::Matrix dPA =
+          Cxa * D * Ca.transpose() + Ca * D * Cxa.transpose();
+      const helfem::Matrix Va = closed_shell_veff(jk, PA);
+      const helfem::Matrix dVa = closed_shell_veff(jk, dPA);
+      const helfem::Matrix dFA = Cx.transpose() * Va * C + C.transpose() * Va * Cx
+                                 + C.transpose() * dVa * C;
+
+      helfem::Matrix dF = helfem::Matrix::Zero(norb, nocc);
+      if (ninact > 0)
+        dF.leftCols(ninact) =
+            2.0 * (dFI.leftCols(ninact) + dFA.leftCols(ninact));
+      dF.middleCols(ninact, nact) = dFI.middleCols(ninact, nact) * D;
+
+      helfem::Matrix dtu(nact, nact);
+      for (Eigen::Index t = 0; t < nact; t++) {
+        for (Eigen::Index u = 0; u < nact; u++) {
+          for (Eigen::Index v = 0; v < nact; v++)
+            for (Eigen::Index w = 0; w < nact; w++)
+              dtu(v, w) = d[idx4((size_t) nact, (size_t) t, (size_t) u,
+                                 (size_t) v, (size_t) w)];
+          const helfem::Matrix Ptu = Ca * dtu * Ca.transpose();
+          const helfem::Matrix dPtu =
+              Cxa * dtu * Ca.transpose() + Ca * dtu * Cxa.transpose();
+          const helfem::Matrix J = jk.coulomb(0.5 * (Ptu + Ptu.transpose()));
+          const helfem::Matrix dJ = jk.coulomb(0.5 * (dPtu + dPtu.transpose()));
+          dF.col(ninact + t) += Cx.transpose() * (J * Ca.col(u))
+                                + C.transpose() * (dJ * Ca.col(u))
+                                + C.transpose() * (J * Cxa.col(u));
+        }
+      }
+      return dF;
+    }
+
+    helfem::Matrix hess_kappa_kappa_raw(const JKProvider & jk,
+                                        const helfem::Matrix & C,
+                                        Eigen::Index ninact, Eigen::Index nact,
+                                        const helfem::Matrix & D,
+                                        const std::vector<double> & d,
+                                        const helfem::Matrix & dkap) {
+      const Eigen::Index norb = C.cols();
+      helfem::Matrix dFf = helfem::Matrix::Zero(norb, norb);
+      dFf.leftCols(ninact + nact) =
+          fock_response_kappa(jk, C, ninact, nact, D, d, dkap);
+      return 2.0 * (dFf - dFf.transpose());
+    }
+
+    double hess_kappa_kappa(const JKProvider & jk, const helfem::Matrix & C,
+                            Eigen::Index ninact, Eigen::Index nact,
+                            const helfem::Matrix & D,
+                            const std::vector<double> & d,
+                            const helfem::Matrix & K1, const helfem::Matrix & K2) {
+      const double a =
+          (hess_kappa_kappa_raw(jk, C, ninact, nact, D, d, K2).cwiseProduct(K1)).sum();
+      const double b =
+          (hess_kappa_kappa_raw(jk, C, ninact, nact, D, d, K1).cwiseProduct(K2)).sum();
+      // 1/2 for the symmetrisation, 1/2 because contracting the full
+      // antisymmetric matrices counts every rotation pair twice.
+      return 0.25 * (a + b);
+    }
+
+    double frozen_ci_energy(const JKProvider & jk, const helfem::Matrix & C,
+                            Eigen::Index ninact, Eigen::Index nact,
+                            const helfem::Matrix & D,
+                            const std::vector<double> & d) {
+      const ActiveHamiltonian ah = active_hamiltonian(jk, C, ninact, nact);
+      double E = ah.E_inactive + (ah.h_eff.cwiseProduct(D)).sum();
+      double two = 0.0;
+      for (size_t i = 0; i < d.size(); i++) two += ah.eri[i] * d[i];
+      return E + 0.5 * two;
+    }
+
   } // namespace cas
 } // namespace helfem

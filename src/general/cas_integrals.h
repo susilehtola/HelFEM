@@ -118,6 +118,55 @@ namespace helfem {
                                     const helfem::Matrix & D,
                                     const std::vector<double> & d);
 
+    /// d/dt generalized_fock(C exp(t dkap)) at t = 0, RDMs frozen.
+    ///
+    /// Every piece of the generalized Fock is a coulomb/exchange call on a
+    /// density built from C, so its derivative is the same calls on the
+    /// one-index-transformed densities (dC = C dkap) plus the contraction
+    /// terms. No new integral machinery, exactly as for the gradient.
+    helfem::Matrix fock_response_kappa(const JKProvider & jk,
+                                       const helfem::Matrix & C,
+                                       Eigen::Index ninact, Eigen::Index nact,
+                                       const helfem::Matrix & D,
+                                       const std::vector<double> & d,
+                                       const helfem::Matrix & dkap);
+
+    /// d/dt of the orbital gradient along dkap, square over all orbitals.
+    ///
+    /// This is the orbital-orbital Hessian block PLUS (1/2) g . [dkap, .], and
+    /// the extra term is not negligible bookkeeping. Differentiating the
+    /// gradient walks a PRODUCT of exponentials, exp(t K') exp(s K), whereas
+    /// the Hessian is defined on exp(sK + tK'); Baker-Campbell-Hausdorff
+    /// separates the two by that commutator. They agree only where the
+    /// gradient vanishes. Callers wanting the Hessian must therefore
+    /// SYMMETRISE over the two directions, which removes it exactly.
+    ///
+    /// Measured: the antisymmetric part of this reproduces (1/2) g . [K', K]
+    /// to five significant figures at a non-stationary point.
+    helfem::Matrix hess_kappa_kappa_raw(const JKProvider & jk,
+                                        const helfem::Matrix & C,
+                                        Eigen::Index ninact, Eigen::Index nact,
+                                        const helfem::Matrix & D,
+                                        const std::vector<double> & d,
+                                        const helfem::Matrix & dkap);
+
+    /// The symmetric K1 . H_kk . K2, with the BCH ordering term removed.
+    double hess_kappa_kappa(const JKProvider & jk, const helfem::Matrix & C,
+                            Eigen::Index ninact, Eigen::Index nact,
+                            const helfem::Matrix & D,
+                            const std::vector<double> & d,
+                            const helfem::Matrix & K1, const helfem::Matrix & K2);
+
+    /// The CAS energy at these orbitals with the RDMs held fixed:
+    ///     E = E_inactive + sum_pq h_eff_pq D_pq + sum_pqrs eri_pqrs d_pqrs / 2
+    /// Rebuilt through active_hamiltonian, so it shares no algebra with the
+    /// gradient or the Hessian -- which is what makes finite differences of it
+    /// a real check on either, rather than a re-expansion of them.
+    double frozen_ci_energy(const JKProvider & jk, const helfem::Matrix & C,
+                            Eigen::Index ninact, Eigen::Index nact,
+                            const helfem::Matrix & D,
+                            const std::vector<double> & d);
+
   } // namespace cas
 } // namespace helfem
 
