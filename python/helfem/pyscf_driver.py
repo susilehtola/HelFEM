@@ -44,6 +44,9 @@ __all__ = [
     "active_hamiltonian",
     "helfem_scf",
     "casci",
+    "generalized_fock",
+    "orbital_gradient",
+    "frozen_ci_energy",
 ]
 
 
@@ -185,3 +188,77 @@ def casci(basis, C, ninact, nact, nelecas, ecore_shift=0.0, nroots=1):
         h_eff, eri, nact, nelecas,
         ecore=E_inact + ecore_shift, nroots=nroots)
     return e, civec, h_eff, eri, E_inact
+
+
+def generalized_fock(basis, C, ninact, nact, D, d, hcore=None):
+    """CASSCF generalized Fock matrix F[m][p]: m over all orbitals, p over
+    inactive+active.
+
+        F[m][i] = 2 ( F^I[m][i] + F^A[m][i] )               i inactive
+        F[m][t] = sum_u D_tu F^I[m][u] + Q[m][t]            t active
+        Q[m][t] = sum_uvw d_tuvw (mu|vw)
+
+    with F^I = h + J[P_I] - K[P_I]/2 for P_I = 2 sum_i C_i C_i^T, and
+    F^A = J[P_A] - K[P_A]/2 for P_A = sum_tu D_tu C_t C_u^T.
+
+    Every term is a `coulomb`/`exchange` call on a pair density; Q costs one
+    `coulomb` per active (t, u) pair, contracting the 2-RDM slice
+    sum_vw d_tuvw C_v C_w^T. No AO->MO transform.
+    """
+    h = basis.hcore() if hcore is None else np.asarray(hcore, dtype=float)
+    C = np.asarray(C, dtype=float)
+    D = np.asarray(D, dtype=float)
+    d = np.asarray(d, dtype=float)
+    nocc = ninact + nact
+    Ci = C[:, :ninact]
+    Ca = C[:, ninact:nocc]
+
+    PI = 2.0 * (Ci @ Ci.T)
+    FI = C.T @ (h + basis.coulomb(PI) - 0.5 * basis.exchange(PI)) @ C
+
+    PA = Ca @ D @ Ca.T
+    FA = C.T @ (basis.coulomb(PA) - 0.5 * basis.exchange(PA)) @ C
+
+    F = np.zeros((C.shape[1], nocc))
+    F[:, :ninact] = 2.0 * (FI[:, :ninact] + FA[:, :ninact])
+    # D is symmetric for a real CI vector, so D and D^T are interchangeable.
+    F[:, ninact:nocc] = FI[:, ninact:nocc] @ D
+
+    for t in range(nact):
+        for u in range(nact):
+            Ptu = Ca @ d[t, u] @ Ca.T
+            # (mn|vw) is symmetric in (v, w), so symmetrising the contraction
+            # argument is exact and keeps coulomb() on the symmetric densities
+            # it expects.
+            J = basis.coulomb(0.5 * (Ptu + Ptu.T))
+            F[:, ninact + t] += C.T @ (J @ Ca[:, u])
+    return F
+
+
+def orbital_gradient(basis, C, ninact, nact, D, d, hcore=None):
+    """g[m][n] = 2 (F_mn - F_nm), the CAS energy gradient with respect to an
+    orbital rotation at FIXED CI coefficients, square over all orbitals.
+
+    At a converged CASCI the CI is variational, so this also equals the
+    CI-relaxed gradient; verified to 2.5e-11 on Be CAS(2,3).
+    """
+    norb = np.asarray(C).shape[1]
+    nocc = ninact + nact
+    Ffull = np.zeros((norb, norb))
+    Ffull[:, :nocc] = generalized_fock(basis, C, ninact, nact, D, d, hcore)
+    return 2.0 * (Ffull - Ffull.T)
+
+
+def frozen_ci_energy(basis, C, ninact, nact, D, d):
+    """The CAS energy at these orbitals with the RDMs held fixed.
+
+    Rebuilt from `active_hamiltonian`, so it shares no algebra with
+    `generalized_fock` -- which is what makes central differences of it a real
+    check on the gradient rather than a re-expansion of it. (CLAUDE.md's
+    standing warning: a derivative test that differentiates one expression
+    against finite differences of itself agrees perfectly with a consistently
+    wrong one.)
+    """
+    E0, heff, eri = active_hamiltonian(basis, C, ninact, nact)
+    return (E0 + np.einsum("pq,pq->", heff, np.asarray(D))
+            + 0.5 * np.einsum("pqrs,pqrs->", eri, np.asarray(d)))

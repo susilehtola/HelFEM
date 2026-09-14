@@ -65,26 +65,49 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/helfem/__init__.py"
 # however PYTHONPATH is set. Run them from <build>/python, where helfem/ does
 # contain the .so, and the import needs no environment at all.
 #
-# All three need numpy only: the pyscf imports in helfem.pyscf_driver are
-# deliberately inside the functions that use them, so the tests stay runnable
-# on a machine without pyscf.
+# The tests split by what they import. The DF tests need numpy only -- the
+# pyscf imports in helfem.pyscf_driver are deliberately inside the functions
+# that use them, so those tests stay runnable on a machine without pyscf. The
+# CAS gradient test genuinely needs pyscf (for the CI) and scipy (for the
+# matrix exponential), so it is probed for separately rather than failing on a
+# numpy-only machine.
+function(helfem_add_python_test _name)
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${_name}.py"
+                 "${CMAKE_CURRENT_BINARY_DIR}/${_name}.py" COPYONLY)
+  add_test(NAME python.${_name}
+           COMMAND ${Python3_EXECUTABLE}
+                   "${CMAKE_CURRENT_BINARY_DIR}/${_name}.py")
+  set_tests_properties(python.${_name} PROPERTIES
+      LABELS "python"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+      TIMEOUT 600)
+endfunction()
+
+set(_helfem_npytest 0)
+
 execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy"
-                RESULT_VARIABLE _helfem_numpy_rc
-                OUTPUT_QUIET ERROR_QUIET)
+                RESULT_VARIABLE _helfem_numpy_rc OUTPUT_QUIET ERROR_QUIET)
 if(_helfem_numpy_rc EQUAL 0)
   foreach(_pytest test_smoke test_radial_df_factors test_radial_df_exhaustive)
-    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${_pytest}.py"
-                   "${CMAKE_CURRENT_BINARY_DIR}/${_pytest}.py" COPYONLY)
-    add_test(NAME python.${_pytest}
-             COMMAND ${Python3_EXECUTABLE}
-                     "${CMAKE_CURRENT_BINARY_DIR}/${_pytest}.py")
-    set_tests_properties(python.${_pytest} PROPERTIES
-        LABELS "python"
-        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-        TIMEOUT 600)
+    helfem_add_python_test(${_pytest})
+    math(EXPR _helfem_npytest "${_helfem_npytest}+1")
   endforeach()
-  message(STATUS "HelFEM Python tests: 3 case(s) registered (ctest -L python).")
 else()
   message(STATUS "numpy is not importable from ${Python3_EXECUTABLE}: "
                  "HelFEM Python tests not registered.")
+endif()
+
+execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy, scipy, pyscf"
+                RESULT_VARIABLE _helfem_pyscf_rc OUTPUT_QUIET ERROR_QUIET)
+if(_helfem_pyscf_rc EQUAL 0)
+  helfem_add_python_test(test_cas_gradient)
+  math(EXPR _helfem_npytest "${_helfem_npytest}+1")
+else()
+  message(STATUS "pyscf/scipy not importable from ${Python3_EXECUTABLE}: "
+                 "the CAS gradient test is not registered.")
+endif()
+
+if(_helfem_npytest GREATER 0)
+  message(STATUS "HelFEM Python tests: ${_helfem_npytest} case(s) registered "
+                 "(ctest -L python).")
 endif()
