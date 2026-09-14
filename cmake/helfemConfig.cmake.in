@@ -24,7 +24,7 @@ find_dependency(OpenOrbitalOptimizer)
 
 # OpenMP is carried in helfem-common's INTERFACE_LINK_LIBRARIES, so the
 # consumer must be able to recreate OpenMP::OpenMP_CXX.
-if(@USE_OPENMP@)
+if(@HELFEM_USE_OPENMP@)
     find_dependency(OpenMP COMPONENTS CXX)
 endif()
 
