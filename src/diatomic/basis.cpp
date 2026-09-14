@@ -122,10 +122,21 @@ namespace helfem {
         /// pre-auto-convergence code produced -- quietly. Without it (the
         /// in-element kernel, which IS convergent) a cap is a real anomaly and
         /// gets the one-shot warning + best estimate.
+        /// `nskip` excludes the first `nskip` rows and columns from the
+        /// convergence test (the block itself is returned whole). It exists
+        /// for radial_integral(-1,0): that integrand is 1/sinh(mu), which
+        /// diverges logarithmically at mu=0, so the entries involving the one
+        /// basis function that does not vanish there never converge -- the
+        /// block magnitude GROWS with the quadrature order. Those entries are
+        /// structurally discarded (remove_boundaries drops that function from
+        /// every m != 0 shell, which is the only place the integral is used),
+        /// so judging the block on them reports a failure that cannot happen
+        /// and hides one that could.
         template <typename Fn>
         helfem::Matrix converge_block(const Fn & probe, int nstart,
                                       const char * what, int * nconv = nullptr,
-                                      bool seed_fallback = false) {
+                                      bool seed_fallback = false,
+                                      Eigen::Index nskip = 0) {
           const double eps     = std::numeric_limits<double>::epsilon();
           const double tol     = 8.0 * eps;
           const double sqrteps = std::sqrt(eps);
@@ -148,8 +159,13 @@ namespace helfem {
             if(!have)
               seed = cur;   // the fixed --nquad value, for seed_fallback
             if(have) {
-              const double diff  = (cur - prev).cwiseAbs().maxCoeff();
-              const double scale = cur.cwiseAbs().maxCoeff();
+              const Eigen::Index nk =
+                  (nskip < cur.rows() && nskip < cur.cols()) ? nskip : 0;
+              const Eigen::Index nr = cur.rows() - nk, nc = cur.cols() - nk;
+              const double diff =
+                  (cur - prev).bottomRightCorner(nr, nc).cwiseAbs().maxCoeff();
+              const double scale =
+                  cur.bottomRightCorner(nr, nc).cwiseAbs().maxCoeff();
               // (1) true eps convergence (well-conditioned, polynomial-exact
               // blocks reach this).
               if(diff <= tol * (scale + tol)) {
@@ -199,13 +215,31 @@ namespace helfem {
               // what identifies the problem anyway.
               if(!twoe_cap_warned) {
                 twoe_cap_warned = true;
-                const double scale = cur.cwiseAbs().maxCoeff();
-                const double rel = (scale > 0.0)
-                    ? (cur - prev).cwiseAbs().maxCoeff() / scale : 0.0;
-                printf("Warning: diatomic %s hit the quadrature order cap"
-                       " (n=%d) without converging to eps(double).\n"
-                       "  block magnitude %.3e, relative change still %.3e\n",
-                       what, twoe_nmax, scale, rel);
+                const Eigen::Index nk =
+                    (nskip < cur.rows() && nskip < cur.cols()) ? nskip : 0;
+                const double scale = cur.bottomRightCorner(cur.rows() - nk,
+                                                           cur.cols() - nk)
+                                         .cwiseAbs().maxCoeff();
+                // prevdiff, NOT (cur - prev): prev was overwritten with cur a
+                // few lines above, so that difference is identically zero and
+                // the warning used to report "relative change still 0.000e+00"
+                // however badly the block was actually converging. prevdiff is
+                // the last difference the convergence test itself saw, and is
+                // -1 only if the cap was already reached at the seed order, in
+                // which case no difference exists to report.
+                const double rel = (prevdiff >= 0.0 && scale > 0.0)
+                    ? prevdiff / scale : prevdiff;
+                if(rel >= 0.0)
+                  printf("Warning: diatomic %s hit the quadrature order cap"
+                         " (n=%d) without converging to eps(double).\n"
+                         "  block magnitude %.3e, relative change still %.3e\n",
+                         what, twoe_nmax, scale, rel);
+                else
+                  printf("Warning: diatomic %s was seeded at or above the"
+                         " quadrature order cap (n=%d), so its convergence was"
+                         " never tested.\n"
+                         "  block magnitude %.3e\n",
+                         what, twoe_nmax, scale);
                 if(scale > 1e12)
                   printf("  ** The integrand spans too many orders of magnitude for\n"
                          "     double precision. Results from this run are NOT\n"
@@ -300,7 +334,14 @@ namespace helfem {
               lobatto::lobatto_compute<double>(nq, x, w);
               return fem_.matrix_element(false, false, x, w, chsh);
             },
-            std::max((int) xq_.size(), 5), "radial_integral");
+            std::max((int) xq_.size(), 5), "radial_integral", nullptr, false,
+            // m < 0 is radial_integral(-1,0), the m^2/sinh^2 centrifugal
+            // term. 1/sinh(mu) diverges logarithmically at mu=0, so the row
+            // and column of the basis function that is non-zero there never
+            // converge -- and that function is exactly the one dropped from
+            // every m != 0 shell (see Nbf()), which is the only consumer.
+            // Converge the rest of the block on its own merits.
+            (m < 0) ? 1 : 0);
       }
 
       helfem::Matrix RadialBasis::overlap(const RadialBasis & rh, int n) const {
