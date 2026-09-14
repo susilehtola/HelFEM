@@ -193,7 +193,7 @@ def casci(basis, C, ninact, nact, nelecas, ecore_shift=0.0, nroots=1):
     return e, civec, h_eff, eri, E_inact
 
 
-def generalized_fock(basis, C, ninact, nact, D, d, hcore=None):
+def generalized_fock(basis, C, ninact, nact, D, d, hcore=None, core_occ=2.0):
     """CASSCF generalized Fock matrix F[m][p]: m over all orbitals, p over
     inactive+active.
 
@@ -223,7 +223,14 @@ def generalized_fock(basis, C, ninact, nact, D, d, hcore=None):
     FA = C.T @ (basis.coulomb(PA) - 0.5 * basis.exchange(PA)) @ C
 
     F = np.zeros((C.shape[1], nocc))
-    F[:, :ninact] = 2.0 * (FI[:, :ninact] + FA[:, :ninact])
+    # core_occ is the inactive occupation: 2 for a state density, 0 for a
+    # TRANSITION density. For two states of the same CAS,
+    # <I|E_ij|0> = delta_ij <I|0> = 0 over the inactive block, so the
+    # inactive-Fock contribution to the inactive columns drops out entirely --
+    # while the active columns keep it, their 2-RDM blocks going like
+    # d_tuij ~ D_tu delta_ij. The transition case is not the state case with
+    # different numbers substituted.
+    F[:, :ninact] = core_occ * FI[:, :ninact] + 2.0 * FA[:, :ninact]
     # D is symmetric for a real CI vector, so D and D^T are interchangeable.
     F[:, ninact:nocc] = FI[:, ninact:nocc] @ D
 

@@ -41,7 +41,7 @@ target_link_libraries(_helfem PRIVATE helfem-common helfem legendre)
 # the __init__.py shim into the same dir at configure time.
 set_target_properties(_helfem PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/helfem")
-foreach(_pyfile __init__.py pyscf_driver.py)
+foreach(_pyfile __init__.py pyscf_driver.py casscf_coupled.py)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/helfem/${_pyfile}"
                  "${CMAKE_CURRENT_BINARY_DIR}/helfem/${_pyfile}" COPYONLY)
 endforeach()
@@ -50,6 +50,7 @@ endforeach()
 install(TARGETS _helfem LIBRARY DESTINATION python/helfem)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/helfem/__init__.py"
               "${CMAKE_CURRENT_SOURCE_DIR}/helfem/pyscf_driver.py"
+              "${CMAKE_CURRENT_SOURCE_DIR}/helfem/casscf_coupled.py"
         DESTINATION python/helfem)
 
 # ---------------------------------------------------------------- tests
@@ -100,7 +101,7 @@ endif()
 execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy, scipy, pyscf"
                 RESULT_VARIABLE _helfem_pyscf_rc OUTPUT_QUIET ERROR_QUIET)
 if(_helfem_pyscf_rc EQUAL 0)
-  foreach(_pytest test_cas_gradient test_casscf)
+  foreach(_pytest test_cas_gradient test_casscf test_casscf_coupled)
     helfem_add_python_test(${_pytest})
     math(EXPR _helfem_npytest "${_helfem_npytest}+1")
   endforeach()
