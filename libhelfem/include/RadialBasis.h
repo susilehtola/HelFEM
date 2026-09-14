@@ -18,6 +18,7 @@
 #include "ModelPotential.h"
 #include "FiniteElementBasis.h"
 #include "Matrix.h"
+#include <stdexcept>
 #include <vector>
 
 namespace helfem {
@@ -58,6 +59,24 @@ namespace helfem {
         /// Evaluate orbitals (columns of C) at a given r.
         /// Phase 5.23: Eigen-typed argument + return.
         virtual helfem::Vec<T> eval_orbs(const helfem::Mat<T> & C, T r) const = 0;
+
+        /// Evaluate the n-th r-derivative of the orbitals (columns of C) at r.
+        ///
+        /// n = 0 is eval_orbs. The derivative is of the PHYSICAL radial
+        /// function R(r) = u(r)/r -- the same quantity eval_orbs returns --
+        /// so the two agree at n = 0 by construction rather than by
+        /// convention.
+        ///
+        /// Defaulted rather than pure virtual so that an implementation which
+        /// has no derivatives to offer keeps compiling, and fails only if one
+        /// is actually asked for.
+        virtual helfem::Vec<T> eval_dorbs(const helfem::Mat<T> & C, T r,
+                                          int n) const {
+          if (n == 0)
+            return eval_orbs(C, r);
+          throw std::logic_error("this radial basis does not provide eval_dorbs");
+        }
+
       };
 
       /// The double instantiation, which every existing caller uses.
@@ -418,6 +437,12 @@ namespace helfem {
         helfem::Mat<T> lf(const helfem::Vec<T> & x, size_t iel) const;
         /// Evaluate orbitals at a given point (Phase 5.23: Eigen-typed).
         helfem::Vec<T> eval_orbs(const helfem::Mat<T> & C, T r) const override;
+        /// Evaluate the n-th r-derivative of the orbitals at a given point.
+        /// eval_psi_dnf supplies the derivative of the basis functions; this
+        /// locates the element and contracts with C. eval_orbs is its n = 0
+        /// case and delegates here, so there is one element lookup in total.
+        helfem::Vec<T> eval_dorbs(const helfem::Mat<T> & C, T r,
+                                  int n) const override;
 
         /// Get quadrature weights in element.
         helfem::Vec<T> wrad(size_t iel) const;

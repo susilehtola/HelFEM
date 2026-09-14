@@ -144,6 +144,9 @@ endif()
 add_executable(over_r_test general/over_r_test.cpp)
 target_link_libraries(over_r_test helfem-common legendre)
 
+add_executable(eval_dorbs_test general/eval_dorbs_test.cpp)
+target_link_libraries(eval_dorbs_test helfem-common legendre)
+
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem-common legendre)
 
