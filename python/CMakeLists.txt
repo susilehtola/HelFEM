@@ -68,8 +68,8 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/helfem/__init__.py"
 # The tests split by what they import. The DF tests need numpy only -- the
 # pyscf imports in helfem.pyscf_driver are deliberately inside the functions
 # that use them, so those tests stay runnable on a machine without pyscf. The
-# CAS gradient test genuinely needs pyscf (for the CI) and scipy (for the
-# matrix exponential), so it is probed for separately rather than failing on a
+# CAS tests genuinely need pyscf (for the CI) and scipy (for the matrix
+# exponential), so they are probed for separately rather than failing on a
 # numpy-only machine.
 function(helfem_add_python_test _name)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${_name}.py"
@@ -100,11 +100,13 @@ endif()
 execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy, scipy, pyscf"
                 RESULT_VARIABLE _helfem_pyscf_rc OUTPUT_QUIET ERROR_QUIET)
 if(_helfem_pyscf_rc EQUAL 0)
-  helfem_add_python_test(test_cas_gradient)
-  math(EXPR _helfem_npytest "${_helfem_npytest}+1")
+  foreach(_pytest test_cas_gradient test_casscf)
+    helfem_add_python_test(${_pytest})
+    math(EXPR _helfem_npytest "${_helfem_npytest}+1")
+  endforeach()
 else()
   message(STATUS "pyscf/scipy not importable from ${Python3_EXECUTABLE}: "
-                 "the CAS gradient test is not registered.")
+                 "the CAS tests are not registered.")
 endif()
 
 if(_helfem_npytest GREATER 0)
