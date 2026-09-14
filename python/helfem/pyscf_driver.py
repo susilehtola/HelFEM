@@ -47,6 +47,9 @@ __all__ = [
     "generalized_fock",
     "orbital_gradient",
     "frozen_ci_energy",
+    "nonredundant_pairs",
+    "rotation_matrix",
+    "casscf",
 ]
 
 
@@ -262,3 +265,113 @@ def frozen_ci_energy(basis, C, ninact, nact, D, d):
     E0, heff, eri = active_hamiltonian(basis, C, ninact, nact)
     return (E0 + np.einsum("pq,pq->", heff, np.asarray(D))
             + 0.5 * np.einsum("pqrs,pqrs->", eri, np.asarray(d)))
+
+
+def nonredundant_pairs(ninact, nact, norb):
+    """Orbital-rotation pairs a CAS energy actually depends on:
+    inactive->active, inactive->virtual, active->virtual.
+
+    Excluded by construction: inactive-inactive and virtual-virtual, which
+    leave the energy exactly invariant, and **active-active**, which is
+    redundant for a CAS because the CI absorbs it. Dropping active-active is
+    not an optimization -- keeping it makes the orbital Hessian singular by
+    construction, and HelFEM's own conditioning diagnostic treats exact zeros
+    in the Hessian diagonal as a bug (it is, for an SCF; it is expected here).
+    """
+    nocc = ninact + nact
+    pairs = [(i, p) for i in range(ninact) for p in range(ninact, norb)]
+    pairs += [(t, v) for t in range(ninact, nocc) for v in range(nocc, norb)]
+    return pairs
+
+
+def rotation_matrix(x, pairs, norb):
+    """exp(kappa) for the antisymmetric kappa built from amplitudes `x`."""
+    from scipy.linalg import expm
+
+    K = np.zeros((norb, norb))
+    for (m, n), v in zip(pairs, x):
+        K[m, n], K[n, m] = v, -v
+    return expm(K)
+
+
+def _casscf_precond(basis, C, ninact, nact, D, pairs, floor=0.05):
+    """2 |n_p - n_q| (F^I_qq - F^I_pp), floored -- the CAS analogue of the RHF
+    (eps_a - eps_i) denominator. The floor stops a near-degenerate pair from
+    producing an enormous step."""
+    nocc = ninact + nact
+    FI_ao, _ = inactive_fock(basis, C, ninact)
+    FI = np.diag(C.T @ FI_ao @ C)
+    occ = np.zeros(C.shape[1])
+    occ[:ninact] = 2.0
+    occ[ninact:nocc] = np.clip(np.diag(np.asarray(D)), 0.0, 2.0)
+    h = np.array([2.0 * abs(occ[m] - occ[n]) * (FI[n] - FI[m])
+                  for (m, n) in pairs])
+    return np.maximum(np.abs(h), floor)
+
+
+def casscf(basis, C, ninact, nact, nelecas, tol=1e-7, maxmacro=300,
+           trust=0.2, verbose=False):
+    """Two-step CASSCF: CI solved at fixed orbitals, orbitals stepped on the
+    resulting RDMs, repeat. Returns (E, C, info).
+
+    Each macroiteration works at x = 0 relative to the current orbitals and
+    folds the accepted step back into C. That re-referencing is not a detail:
+    dE/dx equals the generalized-Fock gradient ONLY at x = 0, because away
+    from it the Frechet derivative of the matrix exponential enters. An
+    optimizer handed the gradient from a rotated point under a frozen-reference
+    parametrization gets an inconsistent objective/gradient pair and thrashes
+    -- measured, on Be CAS(2,3): it crawled to -14.56062 while the true
+    minimum is -14.56385.
+
+    The step is preconditioned steepest descent with a backtracking line search
+    on the true energy, so the energy decreases monotonically. That converges
+    reliably but only linearly; the quadratic convergence is the business of
+    the second-order path, not of this reference implementation.
+    """
+    from pyscf import fci
+
+    C = np.array(C, dtype=float, copy=True)
+    norb = C.shape[1]
+    pairs = nonredundant_pairs(ninact, nact, norb)
+
+    def solve(Cx):
+        E0, heff, eri = active_hamiltonian(basis, Cx, ninact, nact)
+        e, civec = fci.direct_spin1.kernel(heff, eri, nact, nelecas, ecore=E0)
+        Dx, dx = fci.direct_spin1.make_rdm12(civec, nact, nelecas)
+        return e, Dx, dx
+
+    E, D, d = solve(C)
+    nci = 1
+    gnorm = np.inf
+    for macro in range(maxmacro):
+        g = orbital_gradient(basis, C, ninact, nact, D, d)
+        gvec = np.array([g[m, n] for (m, n) in pairs])
+        gnorm = np.linalg.norm(gvec)
+        if verbose:
+            print(f"   macro {macro:3d}  E = {E:.12f}  |g| = {gnorm:.3e}")
+        if gnorm < tol:
+            return E, C, {"converged": True, "macro": macro,
+                          "grad_norm": gnorm, "ci_solves": nci}
+
+        step = -gvec / _casscf_precond(basis, C, ninact, nact, D, pairs)
+        step *= min(1.0, trust / max(np.abs(step).max(), 1e-30))
+
+        for _ in range(20):
+            Ct = C @ rotation_matrix(step, pairs, norb)
+            Et, Dt, dt = solve(Ct)
+            nci += 1
+            if Et < E - 1e-14:
+                C, E, D, d = Ct, Et, Dt, dt
+                trust = min(trust * 1.3, 1.0)
+                break
+            step *= 0.4
+            trust *= 0.4
+        else:
+            # No downhill step remains along the preconditioned direction.
+            # At a small gradient that IS convergence, to line-search
+            # resolution; at a large one it is a genuine failure.
+            return E, C, {"converged": bool(gnorm < 1e-5), "macro": macro,
+                          "grad_norm": gnorm, "ci_solves": nci,
+                          "note": "line search exhausted"}
+    return E, C, {"converged": False, "macro": maxmacro,
+                  "grad_norm": gnorm, "ci_solves": nci}
