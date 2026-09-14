@@ -83,8 +83,8 @@ int main(int argc, char **argv) {
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 5);
   parser.add<int>("finitenuc", 0, "finite nuclear model: 0 point, 1 Gaussian, 2 spherical, 3 hollow, 4 regularized", false, 0);
-  parser.add<double>("Rrms1", 0, "nucleus 1 finite rms radius", false, 0.0);
-  parser.add<double>("Rrms2", 0, "nucleus 2 finite rms radius", false, 0.0);
+  parser.add<double>("Rrms1", 0, "nucleus 1 size parameter: rms radius for models 1-3, regularization parameter a for model 4", false, 0.0);
+  parser.add<double>("Rrms2", 0, "nucleus 2 size parameter: rms radius for models 1-3, regularization parameter a for model 4", false, 0.0);
   parser.add<int>("restricted", 0, "spin-restricted: 1 restricted, 0 unrestricted, -1 auto from nela/nelb", false, -1);
   parser.add<int>("symmetry", 0, "orbital symmetry: 0 none, 1 per-m, 2 per-(m,parity) (homonuclear only), 3 per-|m| (imposes the +|m|/-|m| degeneracy on the occupations too)", false, 1);
   parser.add<int>("verbosity", 0, "output detail: 0 silent, 1 setup and energies, 5 also per-iteration Fock timings; also passed to the SCF solver", false, 5);

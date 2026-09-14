@@ -84,6 +84,13 @@ function(helfem_add_python_test _name)
       TIMEOUT 600)
 endfunction()
 
+# Registration is additionally gated on HELFEM_BUILD_TESTS: python/ is reached
+# before tests/ and adds its own cases, so without this a consumer building the
+# bindings with tests off would still inherit them.
+if(NOT HELFEM_BUILD_TESTS)
+  return()
+endif()
+
 set(_helfem_npytest 0)
 
 execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy"

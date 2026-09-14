@@ -18,6 +18,16 @@
 cmake_minimum_required(VERSION 3.20)
 project(helfem CXX)
 
+# Is HelFEM the top-level project, or is it being consumed by another build?
+# PROJECT_IS_TOP_LEVEL would say, but it arrived in CMake 3.21 and we require
+# 3.20, so derive it. Used to keep choices that are reasonable for a standalone
+# build from being imposed on a parent project.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(HELFEM_IS_TOP_LEVEL TRUE)
+else()
+    set(HELFEM_IS_TOP_LEVEL FALSE)
+endif()
+
 # All in-tree static archives are built PIC so they can be linked into a
 # shared object (the pybind11 _helfem module, or a downstream shared
 # libatomscf) without `ld -shared` rejecting them.
@@ -39,15 +49,21 @@ endif()
 # ---------------------------------------------------------------------------
 # Options
 # ---------------------------------------------------------------------------
-# - USE_OPENMP:  build the OpenMP-parallel version. On macOS this needs a
-#   real OpenMP runtime (`brew install libomp`); AppleClang ships none by
-#   default. If find_package(OpenMP) fails the build errors with a hint.
+# - HELFEM_USE_OPENMP: build the OpenMP-parallel version. On macOS this
+#   needs a real OpenMP runtime (`brew install libomp`); AppleClang ships
+#   none by default. If find_package(OpenMP) fails the build errors with a
+#   hint. (Formerly USE_OPENMP, still honoured for a standalone build.)
 #
 # - HELFEM_BINARIES: build the executables under src/ (atomic, diatomic,
 #   gensap, ...). OFF builds only libhelfem, avoiding the HDF5 and libxc
 #   dependencies.
 #
 # - HELFEM_PYTHON: build the pybind11 `_helfem` module.
+#
+# - HELFEM_BUILD_TESTS: build and register the test suite. Defaults to ON for
+#   a standalone build and OFF when HelFEM is consumed, so a parent project
+#   neither has enable_testing() called on its behalf nor inherits HelFEM's
+#   test names in its own ctest.
 #
 # - HELFEM_EIGEN_BLAS: route Eigen's dense products through an external
 #   BLAS (see the option definition below). ON by default, with a
@@ -56,7 +72,22 @@ endif()
 #   (There is no ILP64 knob any more: Eigen indexes with a 64-bit type
 #   unconditionally, and the optional BLAS backend requires a 32-bit
 #   LP64 BLAS.)
-option(USE_OPENMP "Build the OpenMP-parallel version" ON)
+# USE_OPENMP was the historical spelling. An unprefixed name in the cache is a
+# collision waiting to happen once HelFEM is consumed by another build -- the
+# parent may well have its own USE_OPENMP, meaning something else entirely.
+#
+# The old name is still honoured, but ONLY for a standalone HelFEM build. Inside
+# a consuming project it is deliberately ignored: honouring it there would
+# reintroduce exactly the collision this rename exists to remove.
+set(_helfem_openmp_default ON)
+if(HELFEM_IS_TOP_LEVEL AND DEFINED USE_OPENMP AND NOT DEFINED HELFEM_USE_OPENMP)
+    message(DEPRECATION
+        "USE_OPENMP is deprecated and will be removed; use HELFEM_USE_OPENMP. "
+        "Honouring USE_OPENMP=${USE_OPENMP} for this standalone build.")
+    set(_helfem_openmp_default ${USE_OPENMP})
+endif()
+option(HELFEM_USE_OPENMP "Build the OpenMP-parallel version" ${_helfem_openmp_default})
+unset(_helfem_openmp_default)
 option(HELFEM_BINARIES "Build the HelFEM executables under src/" ON)
 option(HELFEM_PYTHON "Build the HelFEM Python (pybind11) bindings" OFF)
 
@@ -421,7 +452,7 @@ endif()
 # OpenMP -- consumed as the OpenMP::OpenMP_CXX imported target, which
 # carries the right flags on every compiler (crucially AppleClang, which
 # needs -Xpreprocessor -fopenmp plus libomp rather than a bare -fopenmp).
-if(USE_OPENMP)
+if(HELFEM_USE_OPENMP)
     find_package(OpenMP REQUIRED COMPONENTS CXX)
     message(STATUS "OpenMP enabled (${OpenMP_CXX_VERSION})")
 endif()
@@ -526,6 +557,18 @@ if(HELFEM_OPENTRUSTREGION)
             # Force the LP64 build; OpenTrustRegion's own autodetection falls
             # back to ILP64 when it cannot find a 32-bit BLAS, which is the
             # one outcome we cannot consume.
+            # INTEGER_SIZE is OpenTrustRegion's option, not ours, and it is
+            # unprefixed -- so FORCEing it writes a name we do not own into
+            # the consumer's cache, permanently and over any explicit -D they
+            # set. HelFEM genuinely does need LP64 here (see above), so save
+            # whatever was there and put it back once OpenTrustRegion has been
+            # configured with the value it needs.
+            if(DEFINED CACHE{INTEGER_SIZE})
+                set(_helfem_saved_intsize "${INTEGER_SIZE}")
+                set(_helfem_had_intsize TRUE)
+            else()
+                set(_helfem_had_intsize FALSE)
+            endif()
             set(INTEGER_SIZE 4 CACHE STRING "OpenTrustRegion integer size" FORCE)
             set(OpenTrustRegion_BUILD_TESTING OFF CACHE INTERNAL "")
             FetchContent_Declare(OpenTrustRegion
@@ -533,6 +576,17 @@ if(HELFEM_OPENTRUSTREGION)
                 GIT_TAG        v2.0.0
                 ${_otr_exclude})
             FetchContent_MakeAvailable(OpenTrustRegion)
+            # OpenTrustRegion's targets are configured by the call above, so the
+            # integer width is already baked into them; restoring the cache now
+            # cannot change what was built.
+            if(_helfem_had_intsize)
+                set(INTEGER_SIZE "${_helfem_saved_intsize}" CACHE STRING
+                    "OpenTrustRegion integer size" FORCE)
+            else()
+                unset(INTEGER_SIZE CACHE)
+            endif()
+            unset(_helfem_saved_intsize)
+            unset(_helfem_had_intsize)
             unset(_otr_exclude)
             target_link_libraries(helfem_otr INTERFACE opentrustregion)
             set(HELFEM_OPENTRUSTREGION_ACTIVE ON)
@@ -551,16 +605,27 @@ install(TARGETS helfem_otr EXPORT helfemTargets)
 # ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
-# enable_testing() has to be called from the top level for `ctest` and
-# `make test` to find anything, and it has to come BEFORE any
-# add_subdirectory() that registers tests of its own -- CMake silently drops
-# add_test() calls made in a directory reached before testing was enabled, so
-# python/'s tests were being generated into nothing. Most registration lives
-# in tests/ (the self-checking unit binaries plus the integration harness);
-# python/ adds its own because those tests only exist when HELFEM_PYTHON=ON.
+# Testing is gated, because none of it is HelFEM's to do unasked when another
+# build consumes us: enable_testing() acts on the TOP-LEVEL project rather than
+# on us, and the registration below would put some two hundred HelFEM cases
+# into the consumer's `ctest` under names indistinguishable from their own.
+# HELFEM_IS_TOP_LEVEL as the default leaves a standalone build exactly as it was.
+#
+# enable_testing() also has to come BEFORE any add_subdirectory() that registers
+# tests of its own -- CMake silently drops add_test() calls made in a directory
+# reached before testing was enabled, which is how python/'s tests came to be
+# generated into nothing. Most registration lives in tests/ (the self-checking
+# unit binaries plus the integration harness); python/ adds its own, because
+# those tests exist only when HELFEM_PYTHON=ON.
+#
 # Plain `ctest` stays in the minutes range; the slow tier is opt-in via
 # -DHELFEM_SLOW_TESTS=ON.
-enable_testing()
+option(HELFEM_BUILD_TESTS
+       "Build and register HelFEM's own test suite"
+       ${HELFEM_IS_TOP_LEVEL})
+if(HELFEM_BUILD_TESTS)
+    enable_testing()
+endif()
 
 add_subdirectory(libhelfem)
 add_subdirectory(libhelfemqc)
@@ -574,7 +639,9 @@ endif()
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-add_subdirectory(tests)
+if(HELFEM_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
 
 # ---------------------------------------------------------------------------
 # Export an installed CMake package

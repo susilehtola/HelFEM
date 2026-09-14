@@ -160,8 +160,8 @@ int main(int argc, char **argv) {
   parser.add<std::string>("method", 0, "method to use", false, "lda_x");
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 5);
-  parser.add<int>("finitenuc", 0, "finite nuclear model", false, 0);
-  parser.add<double>("Rrms", 0, "finite nuclear rms radius", false, 0.0);
+  parser.add<int>("finitenuc", 0, "finite nuclear model: 0 point, 1 Gaussian, 2 spherical, 3 hollow, 4 regularized", false, 0);
+  parser.add<double>("Rrms", 0, "nuclear size parameter: rms radius for models 1-3, regularization parameter a for model 4", false, 0.0);
   parser.add<int>("nelem0", 0, "number of elements in the nuclear sub-grid", false, 0);
   parser.add<int>("grid0", 0, "type of nuclear sub-grid: 1 for linear, 2 for quadratic, 3 for polynomial, 4 for exponential", false, 4);
   parser.add<double>("zexp0", 0, "parameter in the nuclear sub-grid", false, 2.0);
