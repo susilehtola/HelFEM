@@ -147,6 +147,9 @@ target_link_libraries(over_r_test helfem-common legendre)
 add_executable(cas_integrals_test general/cas_integrals_test.cpp)
 target_link_libraries(cas_integrals_test helfem-common legendre)
 
+add_executable(cas_diatomic_test diatomic/cas_diatomic_test.cpp)
+target_link_libraries(cas_diatomic_test helfem-common legendre)
+
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem-common legendre)
 
