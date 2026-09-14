@@ -6,7 +6,7 @@ general/angular.cpp general/scf_helpers.cpp general/lcao.cpp general/lcao_projec
 general/dftgrid_common.cpp
 general/gsz.cpp general/sap.cpp general/dftfuncs.cpp
 general/atomdb.cpp general/atomdb_data.cpp
-general/checkpoint.cpp general/otr_solver.cpp general/trustregion_scf.cpp atomic/basis.cpp
+general/checkpoint.cpp general/otr_solver.cpp general/trustregion_scf.cpp general/cas_integrals.cpp atomic/basis.cpp
 atomic/TwoDBasis.cpp
 atomic/dftgrid.cpp sadatom/basis.cpp
 sadatom/dftgrid.cpp sadatom/scf.cpp sadatom/orbital_table.cpp
@@ -143,6 +143,9 @@ endif()
 # Checks that psi(r) = B_u(r)/r is handled correctly as r -> 0 by EVERY basis.
 add_executable(over_r_test general/over_r_test.cpp)
 target_link_libraries(over_r_test helfem-common legendre)
+
+add_executable(cas_integrals_test general/cas_integrals_test.cpp)
+target_link_libraries(cas_integrals_test helfem-common legendre)
 
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem-common legendre)
