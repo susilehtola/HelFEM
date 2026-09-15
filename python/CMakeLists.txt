@@ -41,10 +41,83 @@ target_link_libraries(_helfem PRIVATE helfem-common helfem legendre)
 # the __init__.py shim into the same dir at configure time.
 set_target_properties(_helfem PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/helfem")
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/helfem/__init__.py"
-               "${CMAKE_CURRENT_BINARY_DIR}/helfem/__init__.py" COPYONLY)
+foreach(_pyfile __init__.py pyscf_driver.py casscf_coupled.py)
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/helfem/${_pyfile}"
+                 "${CMAKE_CURRENT_BINARY_DIR}/helfem/${_pyfile}" COPYONLY)
+endforeach()
 
 # Install the .so + the Python shim under ${CMAKE_INSTALL_PREFIX}/python/helfem/.
 install(TARGETS _helfem LIBRARY DESTINATION python/helfem)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/helfem/__init__.py"
+              "${CMAKE_CURRENT_SOURCE_DIR}/helfem/pyscf_driver.py"
+              "${CMAKE_CURRENT_SOURCE_DIR}/helfem/casscf_coupled.py"
         DESTINATION python/helfem)
+
+# ---------------------------------------------------------------- tests
+# These bindings rotted unnoticed once already: they were left on Armadillo
+# straight through the Eigen migration, and because HELFEM_PYTHON defaults OFF
+# nothing ever compiled them again. Register the Python tests so that a
+# configure which asks for the bindings also checks them.
+#
+# The scripts are COPIED into the build tree rather than run where they sit.
+# Python puts a script's own directory first on sys.path, so running
+# <src>/python/test_smoke.py makes `import helfem` resolve to the SOURCE
+# helfem/ package -- which holds no extension module -- and the import fails
+# however PYTHONPATH is set. Run them from <build>/python, where helfem/ does
+# contain the .so, and the import needs no environment at all.
+#
+# The tests split by what they import. The DF tests need numpy only -- the
+# pyscf imports in helfem.pyscf_driver are deliberately inside the functions
+# that use them, so those tests stay runnable on a machine without pyscf. The
+# CAS tests genuinely need pyscf (for the CI) and scipy (for the matrix
+# exponential), so they are probed for separately rather than failing on a
+# numpy-only machine.
+function(helfem_add_python_test _name)
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${_name}.py"
+                 "${CMAKE_CURRENT_BINARY_DIR}/${_name}.py" COPYONLY)
+  add_test(NAME python.${_name}
+           COMMAND ${Python3_EXECUTABLE}
+                   "${CMAKE_CURRENT_BINARY_DIR}/${_name}.py")
+  set_tests_properties(python.${_name} PROPERTIES
+      LABELS "python"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+      TIMEOUT 600)
+endfunction()
+
+# Registration is additionally gated on HELFEM_BUILD_TESTS: python/ is reached
+# before tests/ and adds its own cases, so without this a consumer building the
+# bindings with tests off would still inherit them.
+if(NOT HELFEM_BUILD_TESTS)
+  return()
+endif()
+
+set(_helfem_npytest 0)
+
+execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy"
+                RESULT_VARIABLE _helfem_numpy_rc OUTPUT_QUIET ERROR_QUIET)
+if(_helfem_numpy_rc EQUAL 0)
+  foreach(_pytest test_smoke test_radial_df_factors test_radial_df_exhaustive)
+    helfem_add_python_test(${_pytest})
+    math(EXPR _helfem_npytest "${_helfem_npytest}+1")
+  endforeach()
+else()
+  message(STATUS "numpy is not importable from ${Python3_EXECUTABLE}: "
+                 "HelFEM Python tests not registered.")
+endif()
+
+execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy, scipy, pyscf"
+                RESULT_VARIABLE _helfem_pyscf_rc OUTPUT_QUIET ERROR_QUIET)
+if(_helfem_pyscf_rc EQUAL 0)
+  foreach(_pytest test_cas_gradient test_casscf test_casscf_coupled)
+    helfem_add_python_test(${_pytest})
+    math(EXPR _helfem_npytest "${_helfem_npytest}+1")
+  endforeach()
+else()
+  message(STATUS "pyscf/scipy not importable from ${Python3_EXECUTABLE}: "
+                 "the CAS tests are not registered.")
+endif()
+
+if(_helfem_npytest GREATER 0)
+  message(STATUS "HelFEM Python tests: ${_helfem_npytest} case(s) registered "
+                 "(ctest -L python).")
+endif()
