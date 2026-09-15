@@ -49,17 +49,27 @@ namespace helfem {
       std::vector<double> eri((size_t) (n * n * n * n), 0.0);
       for (Eigen::Index t = 0; t < n; t++) {
         for (Eigen::Index u = t; u < n; u++) {
-          // P + P^T is the symmetric density coulomb() expects. For t == u
-          // that is 2 C_t C_t^T, so the 0.5 below is right in both cases and
-          // needs no special case.
-          const helfem::Matrix P = Ca.col(t) * Ca.col(u).transpose();
+          // The pair density C_t C_u^T is passed BARE. It is not symmetric for
+          // t != u, and that is the point: coulomb() is exactly linear and does
+          // not symmetrise its input, so this returns (vw|tu) = (tu|vw) itself.
+          //
+          // Symmetrising to P + P^T instead -- which looks harmless, since a
+          // physical density IS symmetric -- stores ((tu|vw) + (ut|vw))/2. For
+          // REAL orbitals the two agree and nothing is lost, which is why every
+          // m = 0 check passed. For COMPLEX orbitals, i.e. any m != 0, they
+          // differ: a real antisymmetric density is a purely IMAGINARY density
+          // (rho* = -rho), a channel the symmetrised call discards entirely.
+          // Measured on an atomic lmax=1 basis, the antisymmetric part of
+          // coulomb(C_t C_u^T) is as large as the symmetric part.
           const helfem::Matrix blk =
-              0.5 * (Ca.transpose() * jk.coulomb(P + P.transpose()) * Ca);
+              Ca.transpose() * jk.coulomb(Ca.col(t) * Ca.col(u).transpose()) * Ca;
           for (Eigen::Index v = 0; v < n; v++)
             for (Eigen::Index w = 0; w < n; w++) {
               eri[idx4((size_t) n, (size_t) t, (size_t) u, (size_t) v, (size_t) w)] =
                   blk(v, w);
-              eri[idx4((size_t) n, (size_t) u, (size_t) t, (size_t) v, (size_t) w)] =
+              // (ab|cd) = (ba|dc), so the (u,t) block is this one transposed in
+              // (v,w) -- no second Fock build, and the cost stays n(n+1)/2.
+              eri[idx4((size_t) n, (size_t) u, (size_t) t, (size_t) w, (size_t) v)] =
                   blk(v, w);
             }
         }
