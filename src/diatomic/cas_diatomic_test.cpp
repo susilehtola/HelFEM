@@ -40,6 +40,7 @@
 #include "../../libhelfem/include/PolynomialBasis.h"
 
 #include <Eigen/Eigenvalues>
+#include <complex>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -60,6 +61,18 @@ namespace {
     if (!ok) nfail++;
     printf("  %-44s %16.10f vs %16.10f  err %8.2e  %s\n",
            what, got, ref, err, ok ? "ok" : "FAIL");
+  }
+
+  /// exp(A) for a real antisymmetric A, as in trustregion_scf.cpp: i*A is
+  /// Hermitian, so diagonalising exponentiates the eigenvalues exactly.
+  helfem::Matrix expm_skew(const helfem::Matrix & A) {
+    const std::complex<double> im(0.0, 1.0);
+    Eigen::MatrixXcd H = im * A.cast<std::complex<double>>();
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(H);
+    Eigen::VectorXcd ph =
+        (-im * es.eigenvalues().cast<std::complex<double>>()).array().exp();
+    return (es.eigenvectors() * ph.asDiagonal() * es.eigenvectors().adjoint())
+        .real();
   }
 
 } // namespace
@@ -272,6 +285,61 @@ int main() {
       report("the shortcut is exact when the density IS m-symmetric",
              dq < 1e-10 * std::max(Kq_general.cwiseAbs().maxCoeff(), 1e-30));
     }
+  }
+
+  printf("\n5  orbital gradient against finite differences, in a COMPLEX basis\n");
+  {
+    // The atomic gradient/Hessian checks run at lmax = 0, where the orbitals
+    // are real and index ordering, conjugation and symmetrisation all
+    // coincide -- so they cannot see a real-orbital assumption. Here the pi
+    // shells carry m = +-1, which is the point.
+    //
+    // The RDM pair is fixed, so no CI solver is needed, and
+    //     d[p][q][r][s] = D(p,q) D(r,s) - D(p,s) D(r,q) / 2
+    // is deliberately NOT symmetric in (r, s): that asymmetry is exactly what
+    // a symmetrised contraction argument would throw away.
+    const Eigen::Index nact2 = 3, ninact2 = 1;
+    helfem::Matrix D(nact2, nact2);
+    D << 1.80, 0.05, 0.01,
+         0.05, 0.15, 0.02,
+         0.01, 0.02, 0.05;
+    const size_t na2 = (size_t) nact2;
+    std::vector<double> dr(na2*na2*na2*na2);
+    for (Eigen::Index p = 0; p < nact2; p++)
+      for (Eigen::Index q = 0; q < nact2; q++)
+        for (Eigen::Index r = 0; r < nact2; r++)
+          for (Eigen::Index t2 = 0; t2 < nact2; t2++)
+            dr[(((size_t)p*na2 + (size_t)q)*na2 + (size_t)r)*na2 + (size_t)t2] =
+                D(p,q)*D(r,t2) - 0.5*D(p,t2)*D(r,q);
+
+    const helfem::Matrix g =
+        cas::orbital_gradient(jk, C, ninact2, nact2, D, dr);
+
+    helfem::Matrix K1 = helfem::Matrix::Zero(nbf, nbf);
+    for (Eigen::Index a = 0; a < nbf; a++)
+      for (Eigen::Index b2 = a + 1; b2 < nbf; b2++) {
+        const double v = std::sin(0.4 + 2.0*(double)a - 1.3*(double)b2);
+        K1(a, b2) = v; K1(b2, a) = -v;
+      }
+    K1 /= K1.norm();
+
+    const double hstep = 2e-4;
+    auto Eat = [&](double x) {
+      return cas::frozen_ci_energy(jk, C * expm_skew(x * K1),
+                                   ninact2, nact2, D, dr);
+    };
+    const double fd1 = (Eat(hstep) - Eat(-hstep)) / (2*hstep);
+    const double fd2 = (Eat(0.5*hstep) - Eat(-0.5*hstep)) / hstep;
+    const double fd  = fd2 + (fd2 - fd1)/3.0;            // Richardson
+    const double an  = 0.5 * (g.cwiseProduct(K1)).sum();
+    const double e1 = std::abs(fd1 - an), e2 = std::abs(fd2 - an);
+    printf("  central-diff error   h: %8.2e   h/2: %8.2e   ratio %5.2f (expect ~4)\n",
+           e1, e2, e2 > 0.0 ? e1/e2 : 0.0);
+    report("error falls with h (so it is truncation)", e2 < e1);
+    const double err = std::abs(fd - an);
+    printf("  %-44s %8.2e %s\n", "K . gradient, Richardson vs analytic", err,
+           err < 1e-8 ? "ok" : "FAIL");
+    if (err >= 1e-8) nfail++;
   }
 
   printf("\n%s\n", nfail ? "DIATOMIC CAS TEST FAILED" : "DIATOMIC CAS TEST PASSED");

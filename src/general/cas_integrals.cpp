@@ -127,11 +127,13 @@ namespace helfem {
               dtu(v, w) = d[idx4((size_t) nact, (size_t) t, (size_t) u,
                                  (size_t) v, (size_t) w)];
           const helfem::Matrix Ptu = Ca * dtu * Ca.transpose();
-          // (mn|vw) is symmetric in (v, w), so symmetrising the contraction
-          // argument is exact and keeps coulomb() on the symmetric densities
-          // it expects.
-          const helfem::Matrix J =
-              jk.coulomb(0.5 * (Ptu + Ptu.transpose()));
+          // Passed BARE. An earlier version symmetrised this, on the grounds
+          // that "(mn|vw) is symmetric in (v, w)" -- but that is a REAL-orbital
+          // symmetry. For complex orbitals (any m != 0) the symmetrisation
+          // silently drops sum_vw (d_tuvw - d_tuwv)(mu|vw)/2. coulomb() takes
+          // arbitrary square input and is exactly linear, so nothing here
+          // needs a symmetric argument. See active_eri for the same trap.
+          const helfem::Matrix J = jk.coulomb(Ptu);
           F.col(ninact + t) += C.transpose() * (J * Ca.col(u));
         }
       }
@@ -201,8 +203,10 @@ namespace helfem {
           const helfem::Matrix Ptu = Ca * dtu * Ca.transpose();
           const helfem::Matrix dPtu =
               Cxa * dtu * Ca.transpose() + Ca * dtu * Cxa.transpose();
-          const helfem::Matrix J = jk.coulomb(0.5 * (Ptu + Ptu.transpose()));
-          const helfem::Matrix dJ = jk.coulomb(0.5 * (dPtu + dPtu.transpose()));
+          // Bare, for the reason given in generalized_fock: the (v, w)
+          // symmetry of (mn|vw) holds only for real orbitals.
+          const helfem::Matrix J = jk.coulomb(Ptu);
+          const helfem::Matrix dJ = jk.coulomb(dPtu);
           dF.col(ninact + t) += Cx.transpose() * (J * Ca.col(u))
                                 + C.transpose() * (dJ * Ca.col(u))
                                 + C.transpose() * (J * Cxa.col(u));
