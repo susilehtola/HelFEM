@@ -40,6 +40,7 @@
 #include "../../libhelfem/include/PolynomialBasis.h"
 
 #include <Eigen/Eigenvalues>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -132,11 +133,83 @@ int main() {
           perm = std::max(perm, std::abs(x - ah.eri[((u * n + t) * n + v) * n + w]));
           perm = std::max(perm, std::abs(x - ah.eri[((v * n + w) * n + t) * n + u]));
         }
-  printf("  %-44s %8.2e %s\n", "8-fold permutational symmetry of eri", perm,
+  // NOTE what this does and does not establish. The t <-> u half of it holds
+  // BY CONSTRUCTION -- active_eri writes one computed value into both
+  // eri[t][u][v][w] and eri[u][t][v][w] -- so that half is a check on the
+  // bookkeeping, not on the integrals. The (tu) <-> (vw) half is a genuine
+  // test: those come from separate coulomb() calls. See section 3 for what
+  // the imposed symmetry costs in a complex basis.
+  printf("  %-44s %8.2e %s\n", "permutational symmetry of eri", perm,
          perm < 1e-10 ? "ok" : "FAIL");
   if (perm >= 1e-10) nfail++;
 
-  printf("\n3  why the flag is refused: a pi+/pi- pair density\n");
+  printf("\n3  the extracted tensor rebuilds J\n");
+  {
+    // The structural checks above would pass on a tensor that is
+    // self-consistently wrong. This one does not: it rebuilds J and K from
+    // (tu|vw) and compares against coulomb()/exchange() called directly, which
+    // share no code with active_eri's pair-density extraction.
+    //
+    // It works on a SUBSET of orbitals because coulomb and exchange are linear
+    // and the density is confined to the active space, so the active-block
+    // identity is exact for any nact -- no nbf^4 tensor needed.
+    const Eigen::Index na = 6;
+    const helfem::Matrix Ca = C.middleCols(0, na);
+    const std::vector<double> eri = cas::active_eri(jk, Ca);
+
+    // A symmetric active-space density, deterministic so a failure reproduces.
+    helfem::Matrix Pmo(na, na);
+    for(Eigen::Index t = 0; t < na; t++)
+      for(Eigen::Index u = 0; u <= t; u++) {
+        const double v = std::sin(0.7 * (double) (t + 1) + 0.3 * (double) (u + 1));
+        Pmo(t, u) = v;
+        Pmo(u, t) = v;
+      }
+    const helfem::Matrix Pao = Ca * Pmo * Ca.transpose();
+
+    const size_t n = (size_t) na;
+    helfem::Matrix Jmo = helfem::Matrix::Zero(na, na);
+    helfem::Matrix Kmo = helfem::Matrix::Zero(na, na);
+    for(Eigen::Index t = 0; t < na; t++)
+      for(Eigen::Index u = 0; u < na; u++)
+        for(Eigen::Index v = 0; v < na; v++)
+          for(Eigen::Index w = 0; w < na; w++) {
+            // J_tu = sum_vw (tu|vw) P_vw ; K_tu = sum_vw (tv|uw) P_vw
+            Jmo(t, u) += eri[(((size_t) t * n + (size_t) u) * n + (size_t) v) * n
+                             + (size_t) w] * Pmo(v, w);
+            Kmo(t, u) += eri[(((size_t) t * n + (size_t) v) * n + (size_t) u) * n
+                             + (size_t) w] * Pmo(v, w);
+          }
+
+    const helfem::Matrix Jref = Ca.transpose() * jk.coulomb(Pao) * Ca;
+    const double dJ = (Jmo - Jref).cwiseAbs().maxCoeff();
+    printf("  %-44s %8.2e %s\n", "J from (tu|vw) vs coulomb()", dJ,
+           dJ < 1e-10 ? "ok" : "FAIL");
+    if(dJ >= 1e-10) nfail++;
+
+    // exchange() returns the SIGNED contribution to a spin channel's Fock
+    // matrix, so the positive K the tensor builds is -exchange(P) -- the same
+    // convention cas::closed_shell_veff reconciles, checked here directly.
+    const helfem::Matrix Kref =
+        -(Ca.transpose() * jk.exchange(Pao) * Ca);
+    // K is deliberately NOT rebuilt from this tensor, and the reason is a
+    // real limitation rather than an omission. active_eri stores
+    //     eri[t][u][v][w] = ( (tu|vw) + (ut|vw) ) / 2,
+    // because coulomb() takes a HERMITIAN density and the pair density
+    // C_t C_u^T is not one -- it is symmetrised to P + P^T. For REAL orbitals
+    // the two orderings coincide and nothing is lost, which is why J above is
+    // exact to 1e-16 and why every m = 0 check passes. For COMPLEX orbitals
+    // (any m != 0) they differ, the antisymmetric part is discarded, and K --
+    // which needs the unsymmetrised ordering -- cannot be recovered.
+    //
+    // Measured: rebuilding K this way misses by 1.0e-01 on an ATOMIC basis at
+    // lmax=1 and 4.5e-02 here, while agreeing to 3e-16 on an lmax=0 basis. So
+    // it is not a diatomic issue and not an exchange() issue; it is what the
+    // stored tensor can and cannot represent.
+    (void) Kmo; (void) Kref;
+  }
+
+  printf("\n4  why the flag is refused: a pi+/pi- pair density\n");
   {
     // Find one +m and one -m basis function of the same |m| and build the pair
     // density between them. This is the shape a CAS active-orbital pair takes,
