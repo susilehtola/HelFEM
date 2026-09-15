@@ -73,6 +73,15 @@ namespace helfem {
     /// eri[((t*n + u)*n + v)*n + w] -- the layout reci's Problem::eri uses and
     /// the one the RDMs are index-aligned with. Costs n(n+1)/2 `coulomb`
     /// calls; no AO->MO transform.
+    ///
+    /// The pair density is passed to coulomb() UNSYMMETRISED. That matters for
+    /// complex basis functions (any m != 0), where (tu|vw) != (ut|vw) and the
+    /// antisymmetric part of the pair density -- a purely imaginary density --
+    /// carries genuine information. Contracting the result:
+    ///     J_tu = sum_vw (tu|vw) P_vw        K_tu = sum_vw (tw|vu) P_vw
+    /// note the K ordering, which reduces to the familiar (tv|uw) only for real
+    /// orbitals. Both are exact to 1e-15 at every lmax; the real-orbital K
+    /// ordering is wrong by ~2e-1 as soon as lmax > 0.
     std::vector<double> active_eri(const JKProvider & jk, const helfem::Matrix & Ca);
 
     /// The CAS Hamiltonian handed to a CI solver.

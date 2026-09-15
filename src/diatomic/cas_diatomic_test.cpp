@@ -122,28 +122,35 @@ int main() {
   const double dh = (ah.h_eff - Ca.transpose() * jk.hcore() * Ca)
                         .cwiseAbs().maxCoeff();
   report("h_eff == C^T h C at ninact=0", dh < 1e-12);
-  // (tu|vw) must carry the 8-fold permutational symmetry.
+  // Which permutational symmetries (tu|vw) carries depends on whether the
+  // orbitals are real. These two hold in ANY basis:
+  //     (ab|cd) = (cd|ab)   electron swap
+  //     (ab|cd) = (ba|dc)   conjugation, the tensor being real
+  // The remaining halves of the familiar 8-fold set -- (ab|cd) = (ba|cd) and
+  // (ab|cd) = (ab|dc) -- are REAL-orbital symmetries and must NOT hold here,
+  // where the pi shells carry m = +-1. They held in an earlier version of this
+  // engine only because active_eri symmetrised the pair density, which is the
+  // bug this file now guards against: asserting them would re-impose it.
   const size_t n = (size_t) nact;
-  double perm = 0.0;
+  double perm = 0.0, realonly = 0.0;
   for (size_t t = 0; t < n; t++)
     for (size_t u = 0; u < n; u++)
       for (size_t v = 0; v < n; v++)
         for (size_t w = 0; w < n; w++) {
           const double x = ah.eri[((t * n + u) * n + v) * n + w];
-          perm = std::max(perm, std::abs(x - ah.eri[((u * n + t) * n + v) * n + w]));
           perm = std::max(perm, std::abs(x - ah.eri[((v * n + w) * n + t) * n + u]));
+          perm = std::max(perm, std::abs(x - ah.eri[((u * n + t) * n + w) * n + v]));
+          realonly = std::max(realonly,
+                              std::abs(x - ah.eri[((u * n + t) * n + v) * n + w]));
         }
-  // NOTE what this does and does not establish. The t <-> u half of it holds
-  // BY CONSTRUCTION -- active_eri writes one computed value into both
-  // eri[t][u][v][w] and eri[u][t][v][w] -- so that half is a check on the
-  // bookkeeping, not on the integrals. The (tu) <-> (vw) half is a genuine
-  // test: those come from separate coulomb() calls. See section 3 for what
-  // the imposed symmetry costs in a complex basis.
-  printf("  %-44s %8.2e %s\n", "permutational symmetry of eri", perm,
+  printf("  %-44s %8.2e %s\n", "(ab|cd)=(cd|ab) and (ab|cd)=(ba|dc)", perm,
          perm < 1e-10 ? "ok" : "FAIL");
   if (perm >= 1e-10) nfail++;
+  printf("  %-44s %8.2e %s\n", "(ab|cd)=(ba|cd) is ABSENT, as it must be",
+         realonly, realonly > 1e-10 ? "ok" : "FAIL");
+  if (realonly <= 1e-10) nfail++;
 
-  printf("\n3  the extracted tensor rebuilds J\n");
+  printf("\n3  the extracted tensor rebuilds J and K\n");
   {
     // The structural checks above would pass on a tensor that is
     // self-consistently wrong. This one does not: it rebuilds J and K from
@@ -167,7 +174,7 @@ int main() {
       }
     const helfem::Matrix Pao = Ca * Pmo * Ca.transpose();
 
-    const size_t n = (size_t) na;
+    const size_t nn = (size_t) na;
     helfem::Matrix Jmo = helfem::Matrix::Zero(na, na);
     helfem::Matrix Kmo = helfem::Matrix::Zero(na, na);
     for(Eigen::Index t = 0; t < na; t++)
@@ -175,10 +182,11 @@ int main() {
         for(Eigen::Index v = 0; v < na; v++)
           for(Eigen::Index w = 0; w < na; w++) {
             // J_tu = sum_vw (tu|vw) P_vw ; K_tu = sum_vw (tv|uw) P_vw
-            Jmo(t, u) += eri[(((size_t) t * n + (size_t) u) * n + (size_t) v) * n
+            Jmo(t, u) += eri[(((size_t) t * nn + (size_t) u) * nn + (size_t) v) * nn
                              + (size_t) w] * Pmo(v, w);
-            Kmo(t, u) += eri[(((size_t) t * n + (size_t) v) * n + (size_t) u) * n
-                             + (size_t) w] * Pmo(v, w);
+            // (tw|vu) -- see the note below on why this ordering.
+            Kmo(t, u) += eri[(((size_t) t * nn + (size_t) w) * nn + (size_t) v) * nn
+                             + (size_t) u] * Pmo(v, w);
           }
 
     const helfem::Matrix Jref = Ca.transpose() * jk.coulomb(Pao) * Ca;
@@ -192,21 +200,17 @@ int main() {
     // convention cas::closed_shell_veff reconciles, checked here directly.
     const helfem::Matrix Kref =
         -(Ca.transpose() * jk.exchange(Pao) * Ca);
-    // K is deliberately NOT rebuilt from this tensor, and the reason is a
-    // real limitation rather than an omission. active_eri stores
-    //     eri[t][u][v][w] = ( (tu|vw) + (ut|vw) ) / 2,
-    // because coulomb() takes a HERMITIAN density and the pair density
-    // C_t C_u^T is not one -- it is symmetrised to P + P^T. For REAL orbitals
-    // the two orderings coincide and nothing is lost, which is why J above is
-    // exact to 1e-16 and why every m = 0 check passes. For COMPLEX orbitals
-    // (any m != 0) they differ, the antisymmetric part is discarded, and K --
-    // which needs the unsymmetrised ordering -- cannot be recovered.
-    //
-    // Measured: rebuilding K this way misses by 1.0e-01 on an ATOMIC basis at
-    // lmax=1 and 4.5e-02 here, while agreeing to 3e-16 on an lmax=0 basis. So
-    // it is not a diatomic issue and not an exchange() issue; it is what the
-    // stored tensor can and cannot represent.
-    (void) Kmo; (void) Kref;
+    // K, with the ordering complex orbitals actually require:
+    //     K_tu = sum_vw (tw|vu) P_vw,
+    // NOT the familiar (tv|uw), which is a REAL-orbital form. The two coincide
+    // at m = 0 and diverge as soon as any orbital carries m != 0 -- measured
+    // 2e-1 on an atomic lmax=1 basis. This is the check that pins the
+    // antisymmetric channel: it fails by ~5e-2 here if active_eri symmetrises
+    // the pair density, while J stays exact at 1e-16 either way.
+    const double dK = (Kmo - Kref).cwiseAbs().maxCoeff();
+    printf("  %-44s %8.2e %s\n", "K from (tw|vu) vs -exchange()", dK,
+           dK < 1e-10 ? "ok" : "FAIL");
+    if(dK >= 1e-10) nfail++;
   }
 
   printf("\n4  why the flag is refused: a pi+/pi- pair density\n");
