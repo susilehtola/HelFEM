@@ -13,12 +13,12 @@
  * for the full license text.
  */
 #include "TwoDBasis.h"
-#include <CoulombExchangeFE.h>
+#include <helfem/CoulombExchangeFE.h>
 #include "../general/radial_block_helper.h"
 #include "../general/angular_index_helpers.h"
 #include "basis.h"
 #include "quadrature.h"
-#include "chebyshev.h"
+#include <helfem/chebyshev.h>
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
 #include "utils.h"
@@ -31,7 +31,7 @@
 #include <string>
 #include <limits>
 #include <type_traits>
-#include <helfem.h>
+#include <helfem/helfem.h>
 
 #ifdef _OPENMP
 #include <omp.h>

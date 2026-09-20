@@ -15,9 +15,9 @@
 #ifndef SADATOM_BASIS_H
 #define SADATOM_BASIS_H
 
-#include <Matrix.h>
+#include <helfem/Matrix.h>
 #include "../atomic/basis.h"
-#include <NAORadialBasis.h>
+#include <helfem/NAORadialBasis.h>
 
 namespace helfem {
   namespace sadatom {

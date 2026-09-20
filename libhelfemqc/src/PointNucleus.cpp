@@ -12,7 +12,7 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#include "PointNucleus.h"
+#include <helfem/PointNucleus.h>
 #include <cmath>
 
 namespace helfem {

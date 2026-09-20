@@ -15,8 +15,8 @@
 #ifndef ATOMIC_BASIS_NAORADIALBASIS_H
 #define ATOMIC_BASIS_NAORADIALBASIS_H
 
-#include "RadialBasis.h"
-#include "CoulombExchangeFE.h"
+#include <helfem/RadialBasis.h>
+#include <helfem/CoulombExchangeFE.h>
 #include <memory>
 #include <sstream>
 #include <stdexcept>

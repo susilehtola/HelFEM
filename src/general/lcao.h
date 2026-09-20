@@ -17,7 +17,7 @@
 
 // Phase 5.18: lcao migrated arma -> Eigen. The vector overloads have
 // no in-tree callers; all callers use the scalar overloads.
-#include <Matrix.h>
+#include <helfem/Matrix.h>
 
 namespace helfem {
   namespace lcao {

@@ -15,7 +15,7 @@
 #ifndef HELFEM_FEM_POLYNOMIALBASIS_H
 #define HELFEM_FEM_POLYNOMIALBASIS_H
 
-#include <types.h>
+#include <helfem/types.h>
 #include <cmath>
 #include <stdexcept>
 #include <string>

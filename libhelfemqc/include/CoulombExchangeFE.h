@@ -15,7 +15,7 @@
 #ifndef ATOMIC_BASIS_COULOMB_EXCHANGE_FE_H
 #define ATOMIC_BASIS_COULOMB_EXCHANGE_FE_H
 
-#include "RadialBasis.h"
+#include <helfem/RadialBasis.h>
 #include <functional>
 
 namespace helfem {

@@ -18,9 +18,9 @@
 #include <functional>
 #include <memory>
 #include <vector>
-#include "PolynomialBasis.h"
-#include "Matrix.h"
-#include <types.h>
+#include <helfem/PolynomialBasis.h>
+#include <helfem/Matrix.h>
+#include <helfem/types.h>
 
 namespace helfem {
   namespace polynomial_basis {

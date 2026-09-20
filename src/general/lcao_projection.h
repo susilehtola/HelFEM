@@ -21,7 +21,7 @@
 // headers that only the projection needs.
 
 #include "lcao.h"
-#include <RadialBasis.h>
+#include <helfem/RadialBasis.h>
 #include <functional>
 
 namespace helfem {

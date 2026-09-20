@@ -12,7 +12,7 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include <iostream>
 
 using namespace std;

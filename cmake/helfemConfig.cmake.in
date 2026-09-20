@@ -19,8 +19,13 @@ include(CMakeFindDependencyMacro)
 find_dependency(Eigen3 3.4...99 CONFIG)
 find_dependency(wignernj 0.7.0)
 # OpenOrbitalOptimizer's header-only imported target is carried in
-# helfem-common's INTERFACE_LINK_LIBRARIES.
-find_dependency(OpenOrbitalOptimizer)
+# helfem-common's INTERFACE_LINK_LIBRARIES -- and ONLY there. A
+# HELFEM_BINARIES=OFF install ships helfem-fem / legendre without
+# helfem-common, so requiring OOO unconditionally makes find_package(helfem)
+# fail for a consumer that needs neither it nor the DFT half.
+if(@HELFEM_BINARIES@)
+    find_dependency(OpenOrbitalOptimizer)
+endif()
 
 # OpenMP is carried in helfem-common's INTERFACE_LINK_LIBRARIES, so the
 # consumer must be able to recreate OpenMP::OpenMP_CXX.

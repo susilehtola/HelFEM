@@ -15,7 +15,7 @@
 #ifndef MODELPOTENTIAL_REGULARIZEDNUCLEUS_H
 #define MODELPOTENTIAL_REGULARIZEDNUCLEUS_H
 
-#include <ModelPotential.h>
+#include <helfem/ModelPotential.h>
 
 namespace helfem {
   namespace modelpotential {

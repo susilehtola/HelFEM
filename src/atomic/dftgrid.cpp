@@ -14,7 +14,7 @@
  */
 
 #include <cfloat>
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include <cmath>
 #include <cstdio>
 // LibXC

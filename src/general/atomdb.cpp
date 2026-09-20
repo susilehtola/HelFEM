@@ -15,7 +15,7 @@
 
 #include "atomdb.h"
 #include "dftfuncs.h"
-#include <lobatto.h>
+#include <helfem/lobatto.h>
 #include <xc.h>
 #include <utility>
 #include <sstream>

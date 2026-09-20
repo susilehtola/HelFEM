@@ -15,7 +15,7 @@
 #ifndef HELFEM_FEM_MATH_H
 #define HELFEM_FEM_MATH_H
 
-#include <types.h>
+#include <helfem/types.h>
 #include <cmath>
 #include <algorithm>
 #include <limits>

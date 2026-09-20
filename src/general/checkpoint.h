@@ -18,7 +18,7 @@
 
 #include "../atomic/basis.h"
 #include "../diatomic/basis.h"
-#include "Matrix.h"
+#include <helfem/Matrix.h>
 
 // Use C routines, since C++ routines don't seem to add any ease of use.
 extern "C" {

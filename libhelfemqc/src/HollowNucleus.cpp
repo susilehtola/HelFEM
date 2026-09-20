@@ -12,7 +12,7 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#include "HollowNucleus.h"
+#include <helfem/HollowNucleus.h>
 #include <cmath>
 
 namespace helfem {

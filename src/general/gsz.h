@@ -15,7 +15,7 @@
 #ifndef GSZ_H
 #define GSZ_H
 
-#include <Matrix.h>
+#include <helfem/Matrix.h>
 
 namespace helfem {
   namespace GSZ {

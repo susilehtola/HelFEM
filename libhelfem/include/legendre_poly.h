@@ -15,7 +15,7 @@
 #ifndef HELFEM_FEM_LEGENDRE_POLY_H
 #define HELFEM_FEM_LEGENDRE_POLY_H
 
-#include <types.h>
+#include <helfem/types.h>
 
 namespace helfem {
 namespace legendre {

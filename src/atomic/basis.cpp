@@ -14,7 +14,7 @@
  */
 #include "basis.h"
 #include "quadrature.h"
-#include "chebyshev.h"
+#include <helfem/chebyshev.h>
 #include "../general/spherical_harmonics.h"
 #include "../general/gaunt.h"
 #include "utils.h"
@@ -23,7 +23,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cfloat>
-#include <helfem.h>
+#include <helfem/helfem.h>
 
 #ifdef _OPENMP
 #include <omp.h>

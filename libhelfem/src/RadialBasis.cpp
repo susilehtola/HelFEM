@@ -12,12 +12,12 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#include "RadialBasis.h"
+#include <helfem/RadialBasis.h>
 #include "RadialPotential.h"
 #include "quadrature.h"
 #include "utils.h"
-#include <chebyshev.h>
-#include <lobatto.h>
+#include <helfem/chebyshev.h>
+#include <helfem/lobatto.h>
 #include <limits>
 // Scalar formatter that prints a T value at its own precision (no truncation
 // to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.

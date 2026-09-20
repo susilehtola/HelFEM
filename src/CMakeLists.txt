@@ -1,20 +1,104 @@
+# ---------------------------------------------------------------------------
+# Dependency-light targets, built unconditionally.
+#
+# These carry the finite-element geometry machinery -- the diatomic prolate
+# spheroidal basis and its Coulomb/exchange builders above all -- and need
+# NEITHER HDF5 NOR libxc. They used to sit inside helfem-common, which is one
+# library mixing basis machinery with DFT and checkpointing, so its heaviest
+# member set everyone's requirements: a consumer wanting only a TwoDBasis had
+# to set HELFEM_BINARIES=ON and acquire HDF5 + libxc to get it.
+#
+# What is NOT here, and why: general/model_potential.cpp uses libxc's
+# XC_LDA_X for the SAP potential, and atomic/TwoDBasis.h includes it, so the
+# ATOMIC basis cannot join this set until that use is made optional. The
+# diatomic basis has no such coupling.
+# ---------------------------------------------------------------------------
+add_library(legendre
+  legendre/Legendre.cpp)
+target_compile_features(legendre PUBLIC cxx_std_17)
+# Legendre.h is header-only templates over helfem::Vec/Mat, so legendre
+# needs the libhelfem (Matrix.h) and Eigen include paths the `helfem`
+# target carries.
+target_link_libraries(legendre PUBLIC helfem)
+add_library(helfem::legendre ALIAS legendre)
+
+add_library(helfem-fem
+  general/gaunt.cpp
+  general/spherical_harmonics.cpp
+  general/timer.cpp
+  general/elements.cpp
+  general/angular.cpp
+  general/gsz.cpp
+  general/scf_helpers.cpp
+  diatomic/basis.cpp
+  diatomic/quadrature.cpp
+)
+target_link_libraries(helfem-fem PUBLIC helfem helfemqc wignernj::wignernj legendre)
+if(TARGET OpenMP::OpenMP_CXX)
+    target_link_libraries(helfem-fem PUBLIC OpenMP::OpenMP_CXX)
+endif()
+target_include_directories(helfem-fem
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../libhelfem/src/>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/general>
+        $<INSTALL_INTERFACE:include>
+)
+target_compile_features(helfem-fem PUBLIC cxx_std_17)
+add_library(helfem::fem ALIAS helfem-fem)
+# The export set namespaces by target name, which would publish this as
+# helfem::helfem-fem. EXPORT_NAME gives consumers the same helfem::fem the
+# in-tree alias uses, while the archive stays libhelfem-fem.a.
+set_target_properties(helfem-fem PROPERTIES EXPORT_NAME fem)
+set_target_properties(legendre PROPERTIES EXPORT_NAME legendre)
+
+install(TARGETS helfem-fem legendre
+    EXPORT helfemTargets
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+    INCLUDES DESTINATION include)
+
+# The diatomic public surface. basis.h includes "quadrature.h" and
+# "../general/gaunt.h" by relative path, so the installed layout mirrors the
+# source layout and the relative-include chain resolves unchanged.
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/diatomic/basis.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/diatomic/quadrature.h"
+    DESTINATION include/helfem/diatomic)
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/general/gaunt.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/general/gsz.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/general/timer.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/general/angular.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/general/elements.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/general/scf_helpers.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/general/spherical_harmonics.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/general/angular_index_helpers.h"
+    DESTINATION include/helfem/general)
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/legendre/Legendre.h"
+    DESTINATION include/helfem/legendre)
+
+if(NOT HELFEM_BINARIES)
+    return()
+endif()
+
 add_library(helfem-common
-general/gaunt.cpp
-general/spherical_harmonics.cpp
-general/timer.cpp general/elements.cpp
-general/angular.cpp general/scf_helpers.cpp general/lcao.cpp general/lcao_projection.cpp
+general/lcao.cpp general/lcao_projection.cpp
 general/dftgrid_common.cpp
-general/gsz.cpp general/sap.cpp general/dftfuncs.cpp
+general/sap.cpp general/dftfuncs.cpp
 general/atomdb.cpp general/atomdb_data.cpp
 general/checkpoint.cpp general/otr_solver.cpp general/trustregion_scf.cpp atomic/basis.cpp
 atomic/TwoDBasis.cpp
 atomic/dftgrid.cpp sadatom/basis.cpp
 sadatom/dftgrid.cpp sadatom/scf.cpp sadatom/orbital_table.cpp
-diatomic/basis.cpp diatomic/quadrature.cpp
 diatomic/dftgrid.cpp diatomic/dftgrid_purem.cpp diatomic/twodquadrature.cpp
 general/model_potential.cpp
 )
-target_link_libraries(helfem-common PUBLIC helfem helfemqc wignernj::wignernj)
+# helfem-fem carries the dependency-light basis machinery (and, through it,
+# helfem, helfemqc, wignernj and legendre).
+target_link_libraries(helfem-common PUBLIC helfem-fem)
 # HDF5 (checkpoint.cpp) and libxc (dftfuncs / dftgrid) are consumed here.
 # helfem::hdf5 and PkgConfig::LIBXC are defined by the root CMakeLists
 # under HELFEM_BINARIES, which is the only configuration that builds src/.
@@ -103,20 +187,6 @@ target_link_libraries(diatomic_teirank helfem-common legendre)
 # Same measurement for the atomic in-element integrals.
 add_executable(atomic_teirank atomic/teirank.cpp)
 target_link_libraries(atomic_teirank helfem-common legendre)
-
-add_library(legendre
-  legendre/Legendre.cpp)
-target_compile_features(legendre PUBLIC cxx_std_17)
-# Legendre.h is header-only templates over helfem::Vec/Mat, so legendre
-# needs the libhelfem (Matrix.h) and Eigen include paths the `helfem`
-# target carries.
-target_link_libraries(legendre PUBLIC helfem)
-
-# helfem-common calls the Legendre recurrences directly (the diatomic 2e
-# build evaluates them per |M| group), so a consumer linking only
-# helfem-common needs legendre transitively. Declared after `legendre` is
-# defined so the target reference resolves.
-target_link_libraries(helfem-common PUBLIC legendre)
 
 add_executable(legendre_test legendre/legendre_test.cpp)
 target_link_libraries(legendre_test helfem-common legendre)

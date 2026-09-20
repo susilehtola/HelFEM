@@ -13,8 +13,8 @@
  * for the full license text.
  */
 #include "angular.h"
-#include "chebyshev.h"
-#include "lobatto.h"
+#include <helfem/chebyshev.h>
+#include <helfem/lobatto.h>
 
 namespace helfem {
   namespace angular {

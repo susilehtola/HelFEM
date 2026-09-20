@@ -31,8 +31,8 @@
 // l_j^(k) loses accuracy quickly with order, which is what bounds the usable
 // node count per element.
 
-#include <PolynomialBasis.h>
-#include <lobatto.h>
+#include <helfem/PolynomialBasis.h>
+#include <helfem/lobatto.h>
 #include <cmath>
 #include <cstdio>
 #include <vector>

@@ -12,7 +12,7 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#include "GaussianNucleus.h"
+#include <helfem/GaussianNucleus.h>
 #include "utils.h"
 #include <cmath>
 #include <limits>

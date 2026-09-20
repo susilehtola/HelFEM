@@ -53,10 +53,10 @@
 // wrong formula leaves an O(1) residual that refinement cannot touch. The
 // absolute bar is kept only as a loose sanity floor.
 
-#include "PolynomialBasis.h"
-#include "FiniteElementBasis.h"
-#include "RadialBasis.h"
-#include "Matrix.h"
+#include <helfem/PolynomialBasis.h>
+#include <helfem/FiniteElementBasis.h>
+#include <helfem/RadialBasis.h>
+#include <helfem/Matrix.h>
 
 #include <Eigen/Eigenvalues>
 #include <cmath>

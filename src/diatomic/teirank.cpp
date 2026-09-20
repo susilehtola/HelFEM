@@ -30,7 +30,7 @@
 // A rank r replaces the O(Nprim^4) storage and contraction by O(Nprim^2 * r).
 
 #include "../general/cmdline.h"
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include "basis.h"
 #include "utils.h"
 #include "../atomic/basis.h"

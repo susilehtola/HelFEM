@@ -14,7 +14,7 @@
  */
 #include "lcao_projection.h"
 
-#include <PolynomialBasis.h>
+#include <helfem/PolynomialBasis.h>
 #include <cmath>
 #include <memory>
 #include <sstream>

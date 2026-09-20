@@ -15,9 +15,9 @@
 #ifndef ATOMIC_BASIS_RADIALBASIS_H
 #define ATOMIC_BASIS_RADIALBASIS_H
 
-#include "ModelPotential.h"
-#include "FiniteElementBasis.h"
-#include "Matrix.h"
+#include <helfem/ModelPotential.h>
+#include <helfem/FiniteElementBasis.h>
+#include <helfem/Matrix.h>
 #include <stdexcept>
 #include <vector>
 

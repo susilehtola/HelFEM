@@ -19,8 +19,8 @@
 #include <limits>
 #include "../general/model_potential.h"
 #include "../general/sap.h"
-#include <Matrix.h>
-#include <RadialBasis.h>
+#include <helfem/Matrix.h>
+#include <helfem/RadialBasis.h>
 
 namespace helfem {
   namespace atomic {

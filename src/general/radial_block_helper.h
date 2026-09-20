@@ -15,8 +15,8 @@
 #ifndef HELFEM_RADIAL_BLOCK_HELPER_H
 #define HELFEM_RADIAL_BLOCK_HELPER_H
 
-#include <Matrix.h>
-#include <RadialBasis.h>
+#include <helfem/Matrix.h>
+#include <helfem/RadialBasis.h>
 #include <type_traits>
 
 namespace helfem {

@@ -20,8 +20,8 @@
 // the Gauss-Lobatto node generator. This translation unit only holds the
 // factory that constructs the concrete bases by primitive ID.
 
-#include "PolynomialBasis.h"
-#include <helfem.h>
+#include <helfem/PolynomialBasis.h>
+#include <helfem/helfem.h>
 #include <cmath>
 
 // (GeneralHIPBasis was removed when its callers were either rerouted to

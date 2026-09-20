@@ -15,7 +15,7 @@
 #ifndef HELFEM_TRUSTREGION_SCF_H
 #define HELFEM_TRUSTREGION_SCF_H
 
-#include <Matrix.h>
+#include <helfem/Matrix.h>
 #include "otr_solver.h"
 
 #include <functional>
