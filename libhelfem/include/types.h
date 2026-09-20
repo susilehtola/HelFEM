@@ -21,7 +21,7 @@
 // the signed index vector IVec -- and re-exports the shorthand via Matrix.h
 // so the templated basis / quadrature / grid headers keep a single include.
 
-#include <Matrix.h>
+#include <helfem/Matrix.h>
 
 namespace helfem {
 

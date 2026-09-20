@@ -15,11 +15,11 @@
 #ifndef ATOMIC_BASIS_GTO_H
 #define ATOMIC_BASIS_GTO_H
 
-#include "RadialBasis.h"
-#include "NAORadialBasis.h"
-#include "FiniteElementBasis.h"
-#include "PolynomialBasis.h"
-#include <chebyshev.h>
+#include <helfem/RadialBasis.h>
+#include <helfem/NAORadialBasis.h>
+#include <helfem/FiniteElementBasis.h>
+#include <helfem/PolynomialBasis.h>
+#include <helfem/chebyshev.h>
 #include <Eigen/Cholesky>
 #include <cmath>
 #include <memory>

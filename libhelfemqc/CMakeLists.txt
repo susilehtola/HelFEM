@@ -28,7 +28,7 @@ list(APPEND LIBHELFEMQC_PUBLIC_HEADERS
     "STO.h"
 )
 foreach(header IN LISTS LIBHELFEMQC_PUBLIC_HEADERS)
-    configure_file("include/${header}" "include/${header}" COPYONLY)
+    configure_file("include/${header}" "include/helfem/${header}" COPYONLY)
 endforeach()
 
 add_library(helfemqc

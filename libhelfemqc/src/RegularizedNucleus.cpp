@@ -12,13 +12,13 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#include "RegularizedNucleus.h"
-#include "Matrix.h"
+#include <helfem/RegularizedNucleus.h>
+#include <helfem/Matrix.h>
 #include "utils.h"
 // Scalar formatter that prints a_ T value at its own precision (no truncation
 // to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.
 #include "../../src/general/eigen_io.h"
-#include <chebyshev.h>
+#include <helfem/chebyshev.h>
 #include <cmath>
 #include <functional>
 #include <limits>

@@ -15,7 +15,7 @@
 #ifndef HELFEM_FEM_GRID_H
 #define HELFEM_FEM_GRID_H
 
-#include <types.h>
+#include <helfem/types.h>
 #include <cmath>
 #include <cstdio>
 #include <stdexcept>

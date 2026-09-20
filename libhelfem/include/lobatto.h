@@ -15,7 +15,7 @@
 #ifndef HELFEM_FEM_LOBATTO_H
 #define HELFEM_FEM_LOBATTO_H
 
-#include <types.h>
+#include <helfem/types.h>
 #include <cmath>
 #include <limits>
 #include <sstream>

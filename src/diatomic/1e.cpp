@@ -14,7 +14,7 @@
  */
 
 #include "../general/cmdline.h"
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include "../general/checkpoint.h"
 #include "../general/constants.h"
 #include "../general/dftfuncs.h"

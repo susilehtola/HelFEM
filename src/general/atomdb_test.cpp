@@ -28,7 +28,7 @@
 #include "elements.h"
 #include "sap.h"
 #include "../sadatom/basis.h"
-#include <lobatto.h>
+#include <helfem/lobatto.h>
 #include <xc_funcs.h>
 #include <cstdio>
 #include <cmath>

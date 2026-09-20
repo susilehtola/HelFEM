@@ -31,7 +31,7 @@
 // what pins down the binary128 field parameters in h5_native_float.
 
 #include "checkpoint.h"
-#include "Matrix.h"
+#include <helfem/Matrix.h>
 #include <cmath>
 #include <cstdio>
 #include <cstring>

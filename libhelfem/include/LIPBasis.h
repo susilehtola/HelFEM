@@ -15,8 +15,8 @@
 #ifndef HELFEM_FEM_LIPBASIS_H
 #define HELFEM_FEM_LIPBASIS_H
 
-#include <PolynomialBasisT.h>
-#include <LIPBasis_eval.h>
+#include <helfem/PolynomialBasisT.h>
+#include <helfem/LIPBasis_eval.h>
 #include <algorithm>
 #include <cmath>
 #include <limits>

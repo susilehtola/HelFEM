@@ -15,9 +15,9 @@
 #ifndef HELFEM_FEM_HIP2BASIS_H
 #define HELFEM_FEM_HIP2BASIS_H
 
-#include <LIPBasis.h>
-#include <HIP2Basis_eval.h>
-#include <HIP2Basis_over_r.h>
+#include <helfem/LIPBasis.h>
+#include <helfem/HIP2Basis_eval.h>
+#include <helfem/HIP2Basis_over_r.h>
 #include <cmath>
 #include <sstream>
 #include <stdexcept>

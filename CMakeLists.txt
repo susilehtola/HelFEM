@@ -600,7 +600,13 @@ endif()
 if(HELFEM_OPENTRUSTREGION_ACTIVE)
     target_compile_definitions(helfem_otr INTERFACE HELFEM_HAVE_OPENTRUSTREGION)
 endif()
-install(TARGETS helfem_otr EXPORT helfemTargets)
+# Exported only alongside helfem-common, the sole consumer (otr_solver.cpp).
+# helfem_otr's INTERFACE carries OpenTrustRegion::opentrustregion, which the
+# export set does not define, so exporting it in a HELFEM_BINARIES=OFF install
+# leaves find_package(helfem) referencing a target that does not exist.
+if(HELFEM_BINARIES)
+    install(TARGETS helfem_otr EXPORT helfemTargets)
+endif()
 
 # ---------------------------------------------------------------------------
 # Build
@@ -610,9 +616,10 @@ add_subdirectory(libhelfemqc)
 if(HELFEM_PYTHON)
     add_subdirectory(python)
 endif()
-if(HELFEM_BINARIES)
-    add_subdirectory(src)
-endif()
+# src/ is entered unconditionally: it defines the dependency-light
+# helfem-fem / legendre targets as well as the binaries, and gates the
+# HDF5/libxc-dependent half on HELFEM_BINARIES itself.
+add_subdirectory(src)
 
 # ---------------------------------------------------------------------------
 # Tests

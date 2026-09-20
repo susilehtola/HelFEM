@@ -13,12 +13,12 @@
  * for the full license text.
  */
 
-#include "PolynomialBasis.h"
-#include <helfem.h>
-#include "FiniteElementBasis.h"
-#include "Matrix.h"
+#include <helfem/PolynomialBasis.h>
+#include <helfem/helfem.h>
+#include <helfem/FiniteElementBasis.h>
+#include <helfem/Matrix.h>
 #include "../general/eigen_io.h"
-#include <chebyshev.h>
+#include <helfem/chebyshev.h>
 #include <Eigen/Eigenvalues>
 #include <algorithm>
 #include <cmath>

@@ -18,8 +18,8 @@
 // compatibility shim that keeps the libhelfem public API (declared in
 // helfem.source.h) source-compatible during the migration.
 
-#include <helfem.h>
-#include <grid.h>
+#include <helfem/helfem.h>
+#include <helfem/grid.h>
 #include <cstring>
 
 helfem::Vector helfem::utils::make_grid(double rmax, int num_el, int igrid,

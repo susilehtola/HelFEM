@@ -26,7 +26,7 @@
 // Laplacian built from the arbitrary-point evaluator eval_bf(mu,cth,phi).
 
 #include "../general/cmdline.h"
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include "../general/constants.h"
 #include "../general/dftfuncs.h"
 #include "../general/elements.h"

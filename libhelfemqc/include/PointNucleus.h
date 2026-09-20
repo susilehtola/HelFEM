@@ -15,7 +15,7 @@
 #ifndef MODELPOTENTIAL_POINTNUCLEUS_H
 #define MODELPOTENTIAL_POINTNUCLEUS_H
 
-#include <ModelPotential.h>
+#include <helfem/ModelPotential.h>
 
 namespace helfem {
   namespace modelpotential {

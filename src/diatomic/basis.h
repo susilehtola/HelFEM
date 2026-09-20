@@ -16,7 +16,7 @@
 #define DIATOMIC_BASIS_H
 
 #include <string>
-#include "FiniteElementBasis.h"
+#include <helfem/FiniteElementBasis.h>
 #include "../general/gaunt.h"
 #include "quadrature.h"
 

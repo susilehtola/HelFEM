@@ -14,9 +14,9 @@
  */
 
 #include "../general/cmdline.h"
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include "../general/checkpoint.h"
-#include "Matrix.h"
+#include <helfem/Matrix.h>
 #include "../general/constants.h"
 #include "../general/spherical_harmonics.h"
 #include "../general/timer.h"

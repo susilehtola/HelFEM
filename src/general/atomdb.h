@@ -17,8 +17,8 @@
 
 // Only libhelfem headers: model_potential.h includes this one, and it is
 // itself pulled in early by src/atomic/basis.h.
-#include <RadialBasis.h>
-#include <PolynomialBasis.h>
+#include <helfem/RadialBasis.h>
+#include <helfem/PolynomialBasis.h>
 #include <memory>
 #include <vector>
 

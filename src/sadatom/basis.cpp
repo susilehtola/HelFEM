@@ -13,7 +13,7 @@
  * for the full license text.
  */
 #include "basis.h"
-#include <CoulombExchangeFE.h>
+#include <helfem/CoulombExchangeFE.h>
 #include "../general/radial_block_helper.h"
 #include "../general/gaunt.h"
 #include "utils.h"

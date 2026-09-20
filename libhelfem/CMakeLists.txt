@@ -12,7 +12,7 @@ set(LIBHELFEM_VERSION "v0.0.1-alpha")
 # configure time so incremental rebuilds into pre-existing build
 # directories just work.
 file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/helfem.h")
-configure_file("include/helfem.source.h" "include/helfem.h")
+configure_file("include/helfem.source.h" "include/helfem/helfem.h")
 list(APPEND LIBHELFEM_PUBLIC_HEADERS
     "ModelPotential.h"
     "PolynomialBasis.h"
@@ -44,7 +44,7 @@ list(APPEND LIBHELFEM_PUBLIC_HEADERS
     "LegendreBasis.h"
 )
 foreach(header IN LISTS LIBHELFEM_PUBLIC_HEADERS)
-    configure_file("include/${header}" "include/${header}" COPYONLY)
+    configure_file("include/${header}" "include/helfem/${header}" COPYONLY)
 endforeach()
 
 add_library(helfem
@@ -61,7 +61,6 @@ add_library(helfem
 )
 target_include_directories(helfem
     PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )

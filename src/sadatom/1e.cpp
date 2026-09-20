@@ -13,7 +13,7 @@
  * for the full license text.
  */
 #include "../general/cmdline.h"
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include "../general/checkpoint.h"
 #include "../general/constants.h"
 #include "../general/dftfuncs.h"
@@ -24,7 +24,7 @@
 #include "../atomic/basis.h"
 #include "../general/model_potential.h"
 #include "../general/radial_block_helper.h"
-#include "Matrix.h"
+#include <helfem/Matrix.h>
 #include <Eigen/Eigenvalues>
 #include <cfloat>
 

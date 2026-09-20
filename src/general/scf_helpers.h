@@ -14,8 +14,8 @@
  */
 #ifndef SCF_HELPERS_H
 #define SCF_HELPERS_H
-#include <helfem.h>
-#include <Matrix.h>
+#include <helfem/helfem.h>
+#include <helfem/Matrix.h>
 
 namespace helfem {
   namespace scf {

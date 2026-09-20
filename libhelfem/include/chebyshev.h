@@ -15,7 +15,7 @@
 #ifndef HELFEM_FEM_CHEBYSHEV_H
 #define HELFEM_FEM_CHEBYSHEV_H
 
-#include <types.h>
+#include <helfem/types.h>
 #include <cmath>
 
 namespace helfem {

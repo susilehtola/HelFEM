@@ -34,9 +34,9 @@
 // A basis that merely THROWS from eval_over_r would fail loudly; the dangerous
 // case is one that returns plausible-looking garbage.
 
-#include "PolynomialBasis.h"
-#include "FiniteElementBasis.h"
-#include "Matrix.h"
+#include <helfem/PolynomialBasis.h>
+#include <helfem/FiniteElementBasis.h>
+#include <helfem/Matrix.h>
 #include <cstdio>
 #include <cmath>
 #include <memory>

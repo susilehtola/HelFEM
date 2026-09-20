@@ -13,14 +13,14 @@
  * for the full license text.
  */
 #include "../general/cmdline.h"
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include "../general/checkpoint.h"
 #include "../general/constants.h"
 #include "../general/timer.h"
 #include "../general/lcao.h"
 #include "basis.h"
 #include "twodquadrature.h"
-#include "Matrix.h"
+#include <helfem/Matrix.h>
 #include "../general/eigen_io.h"
 #include <Eigen/Eigenvalues>
 #include <algorithm>

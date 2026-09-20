@@ -14,7 +14,7 @@
  */
 
 #include "checkpoint.h"
-#include "PolynomialBasis.h"
+#include <helfem/PolynomialBasis.h>
 #include <istream>
 
 // Helper macros

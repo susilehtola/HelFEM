@@ -15,9 +15,9 @@
 #ifndef HELFEM_FEM_HIPBASIS_H
 #define HELFEM_FEM_HIPBASIS_H
 
-#include <LIPBasis.h>
-#include <HIPBasis_eval.h>
-#include <HIPBasis_over_r.h>
+#include <helfem/LIPBasis.h>
+#include <helfem/HIPBasis_eval.h>
+#include <helfem/HIPBasis_over_r.h>
 
 namespace helfem {
 namespace polynomial_basis {
