@@ -302,7 +302,9 @@ target_link_libraries(diatomic_dgrid helfem-common legendre)
 # set so external consumers doing find_package(helfem) pick up the
 # transitive linkage automatically.
 install (TARGETS atomic diatomic diatomic_cbasis diatomic_cpl gensap DESTINATION bin OPTIONAL)
-install (TARGETS helfem-common legendre
+# legendre is exported with helfem-fem above; a target may appear in an
+# export set only once.
+install (TARGETS helfem-common
     EXPORT helfemTargets
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
