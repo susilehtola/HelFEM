@@ -13,9 +13,9 @@
  * for the full license text.
  */
 
-#include "FiniteElementBasis.h"
+#include <helfem/FiniteElementBasis.h>
 #include <sstream>
-#include <lobatto.h>
+#include <helfem/lobatto.h>
 #include <algorithm>
 #include <iostream>
 // Scalar formatter that prints a T value at its own precision (no truncation

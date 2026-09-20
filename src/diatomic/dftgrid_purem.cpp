@@ -13,9 +13,9 @@
  * for the full license text.
  */
 #include "dftgrid_purem.h"
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include "dftgrid.h"     // increment_gga
-#include "chebyshev.h"
+#include <helfem/chebyshev.h>
 #include "../general/spherical_harmonics.h"
 #include <algorithm>
 #include <cmath>

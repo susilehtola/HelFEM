@@ -55,10 +55,10 @@
 #include "basis.h"
 #include "../general/model_potential.h"
 #include "../general/gaunt.h"
-#include "PolynomialBasis.h"
-#include "Matrix.h"
+#include <helfem/PolynomialBasis.h>
+#include <helfem/Matrix.h>
 #include "utils.h"
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include <Eigen/Eigenvalues>
 #include <cmath>
 #include <cstdio>

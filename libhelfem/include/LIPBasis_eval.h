@@ -10,7 +10,7 @@
 #ifndef HELFEM_FEM_LIPBASIS_EVAL_H
 #define HELFEM_FEM_LIPBASIS_EVAL_H
 
-#include <types.h>
+#include <helfem/types.h>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>

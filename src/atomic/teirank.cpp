@@ -31,12 +31,12 @@
 // must go through RI rather than compressing the exchange-ordered tensor.
 
 #include "../general/cmdline.h"
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include "basis.h"
 #include "utils.h"
-#include "FiniteElementBasis.h"
-#include "RadialBasis.h"
-#include "PolynomialBasis.h"
+#include <helfem/FiniteElementBasis.h>
+#include <helfem/RadialBasis.h>
+#include <helfem/PolynomialBasis.h>
 #include <Eigen/Eigenvalues>
 #include <Eigen/SVD>
 #include <cstdio>

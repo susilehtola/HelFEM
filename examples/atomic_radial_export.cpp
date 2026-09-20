@@ -49,9 +49,9 @@
  */
 
 #include <helfem/atomic/TwoDBasis.h>
-#include <Matrix.h>
-#include <PolynomialBasis.h>
-#include <helfem.h>
+#include <helfem/Matrix.h>
+#include <helfem/PolynomialBasis.h>
+#include <helfem/helfem.h>
 #include <Eigen/Eigenvalues>
 
 #include <cmath>

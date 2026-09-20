@@ -17,7 +17,7 @@
 
 #include "../general/model_potential.h"
 #include "../general/sap.h"
-#include <RadialBasis.h>
+#include <helfem/RadialBasis.h>
 #include "TwoDBasis.h"
 
 namespace helfem {

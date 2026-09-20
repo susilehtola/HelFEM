@@ -15,11 +15,11 @@
 #ifndef QUADRATURE_H
 #define QUADRATURE_H
 
-#include <Matrix.h>
+#include <helfem/Matrix.h>
 #include <memory>
 #include <functional>
-#include <ModelPotential.h>
-#include <PolynomialBasis.h>
+#include <helfem/ModelPotential.h>
+#include <helfem/PolynomialBasis.h>
 
 // Phase 5.7: quadrature API migrated to Eigen.
 //

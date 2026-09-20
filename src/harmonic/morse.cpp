@@ -14,11 +14,11 @@
  */
 
 #include "../general/cmdline.h"
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include "../general/checkpoint.h"
-#include "PolynomialBasis.h"
-#include "FiniteElementBasis.h"
-#include "chebyshev.h"
+#include <helfem/PolynomialBasis.h>
+#include <helfem/FiniteElementBasis.h>
+#include <helfem/chebyshev.h>
 
 #include <Eigen/Eigenvalues>
 

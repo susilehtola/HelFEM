@@ -13,13 +13,13 @@
  * for the full license text.
  */
 #include "quadrature.h"
-#include <helfem.h>
-#include "PolynomialBasis.h"
-#include "LIPBasis.h"
-#include "Matrix.h"
+#include <helfem/helfem.h>
+#include <helfem/PolynomialBasis.h>
+#include <helfem/LIPBasis.h>
+#include <helfem/Matrix.h>
 #include "../general/eigen_io.h"
-#include <chebyshev.h>
-#include <lobatto.h>
+#include <helfem/chebyshev.h>
+#include <helfem/lobatto.h>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>

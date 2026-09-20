@@ -15,8 +15,8 @@
 #ifndef HELFEM_FEM_LEGENDREBASIS_H
 #define HELFEM_FEM_LEGENDREBASIS_H
 
-#include <PolynomialBasisT.h>
-#include <legendre_poly.h>
+#include <helfem/PolynomialBasisT.h>
+#include <helfem/legendre_poly.h>
 #include <cmath>
 #include <sstream>
 #include <stdexcept>

@@ -15,12 +15,12 @@
 #ifndef INTEGRALS_H
 #define INTEGRALS_H
 
-#include <Matrix.h>
+#include <helfem/Matrix.h>
 #include <memory>
 #include "../legendre/Legendre.h"
 #include <unordered_map>
 #include <cmath>
-#include "PolynomialBasis.h"
+#include <helfem/PolynomialBasis.h>
 #include <vector>
 
 namespace helfem {

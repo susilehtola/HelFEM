@@ -15,7 +15,7 @@
 
 #include "twodquadrature.h"
 #include "../general/atomdb.h"
-#include "chebyshev.h"
+#include <helfem/chebyshev.h>
 #include "../general/lcao.h"
 #include "../general/spherical_harmonics.h"
 #include "../general/model_potential.h"

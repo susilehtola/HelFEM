@@ -12,7 +12,7 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-#include <ModelPotential.h>
+#include <helfem/ModelPotential.h>
 
 namespace helfem {
   namespace modelpotential {

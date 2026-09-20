@@ -46,7 +46,7 @@
 #include "utils.h"
 #include <cstdio>
 #include <cmath>
-#include <helfem.h>
+#include <helfem/helfem.h>
 
 using namespace helfem;
 

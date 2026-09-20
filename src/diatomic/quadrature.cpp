@@ -13,7 +13,7 @@
  * for the full license text.
  */
 #include "quadrature.h"
-#include "chebyshev.h"
+#include <helfem/chebyshev.h>
 #include <sstream>
 
 namespace helfem {

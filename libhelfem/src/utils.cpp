@@ -13,8 +13,8 @@
  * for the full license text.
  */
 #include "utils.h"
-#include <helfem.h>
-#include <math.h>
+#include <helfem/helfem.h>
+#include <helfem/math.h>
 // Scalar formatter that prints a T value at its own precision (no truncation
 // to double). Header-only, needs only Matrix.h + std; see src/general/eigen_io.h.
 #include "../../src/general/eigen_io.h"

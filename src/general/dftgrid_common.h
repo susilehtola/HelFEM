@@ -22,7 +22,7 @@
 // geometry-specific bits (compute_bf, update_density, eval_Fxc,
 // compute_Nel, etc.) stay in the derived classes.
 
-#include <Matrix.h>
+#include <helfem/Matrix.h>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>

@@ -15,7 +15,7 @@
 #ifndef __HELFEM__
 #define __HELFEM__
 
-#include <Matrix.h>
+#include <helfem/Matrix.h>
 #include <string>
 
 #define __HELFEM_VERSION__ "${LIBHELFEM_VERSION}"
@@ -63,9 +63,9 @@ namespace helfem {
   } // namespace utils
 } // namespace helfem
 
-#include "ModelPotential.h"
-#include "PolynomialBasis.h"
-#include "RadialBasis.h"
+#include <helfem/ModelPotential.h>
+#include <helfem/PolynomialBasis.h>
+#include <helfem/RadialBasis.h>
 
 namespace helfem {
   namespace polynomial_basis {

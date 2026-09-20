@@ -14,7 +14,7 @@
  */
 
 #include <string>
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include <sstream>
 #include <stdexcept>
 #include <cstring>

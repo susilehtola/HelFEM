@@ -14,8 +14,8 @@
 #ifndef LIB1DFEM_HIP2BASIS_EVAL_H
 #define LIB1DFEM_HIP2BASIS_EVAL_H
 
-#include <types.h>
-#include <LIPBasis_eval.h>
+#include <helfem/types.h>
+#include <helfem/LIPBasis_eval.h>
 #include <sstream>
 #include <stdexcept>
 

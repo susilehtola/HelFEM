@@ -15,7 +15,7 @@
 #ifndef HELFEM_EIGEN_IO_H
 #define HELFEM_EIGEN_IO_H
 
-#include "Matrix.h"
+#include <helfem/Matrix.h>
 #include <charconv>
 #include <fstream>
 #include <iostream>

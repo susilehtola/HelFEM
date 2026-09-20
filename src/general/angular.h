@@ -15,7 +15,7 @@
 #ifndef ANGULAR_H
 #define ANGULAR_H
 
-#include <Matrix.h>
+#include <helfem/Matrix.h>
 
 namespace helfem {
   namespace angular {

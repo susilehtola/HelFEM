@@ -26,7 +26,7 @@
 // same object and any disagreement is the implementation's.
 
 #include "lcao_projection.h"
-#include <lobatto.h>
+#include <helfem/lobatto.h>
 #include <cmath>
 #include <cstdio>
 

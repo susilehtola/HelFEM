@@ -13,7 +13,7 @@
  * for the full license text.
  */
 #include "../general/cmdline.h"
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include "../general/constants.h"
 #include "../general/timer.h"
 #include "../general/elements.h"

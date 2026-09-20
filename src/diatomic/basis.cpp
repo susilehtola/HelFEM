@@ -13,11 +13,11 @@
  * for the full license text.
  */
 #include "basis.h"
-#include <helfem.h>
+#include <helfem/helfem.h>
 #include "quadrature.h"
-#include "PolynomialBasis.h"
-#include "chebyshev.h"
-#include "lobatto.h"
+#include <helfem/PolynomialBasis.h>
+#include <helfem/chebyshev.h>
+#include <helfem/lobatto.h>
 #include <Eigen/Eigenvalues>
 #include "../general/angular_index_helpers.h"
 #include <cstring>

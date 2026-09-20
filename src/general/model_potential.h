@@ -1,12 +1,12 @@
 #ifndef NUCLEAR_MODEL_H
 #define NUCLEAR_MODEL_H
 
-#include <ModelPotential.h>
-#include <PointNucleus.h>
-#include <HollowNucleus.h>
-#include <SphericalNucleus.h>
-#include <GaussianNucleus.h>
-#include <RegularizedNucleus.h>
+#include <helfem/ModelPotential.h>
+#include <helfem/PointNucleus.h>
+#include <helfem/HollowNucleus.h>
+#include <helfem/SphericalNucleus.h>
+#include <helfem/GaussianNucleus.h>
+#include <helfem/RegularizedNucleus.h>
 #include "RadialPotential.h"
 #include "atomdb.h"
 

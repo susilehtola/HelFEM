@@ -38,11 +38,11 @@
 // different T. Everything below them (PolynomialBasisT<T>, LIPBasisT<T>,
 // lobatto_compute<T>) was already generic.
 
-#include "PolynomialBasis.h"
-#include <helfem.h>
-#include "FiniteElementBasis.h"
-#include "Matrix.h"
-#include <chebyshev.h>
+#include <helfem/PolynomialBasis.h>
+#include <helfem/helfem.h>
+#include <helfem/FiniteElementBasis.h>
+#include <helfem/Matrix.h>
+#include <helfem/chebyshev.h>
 #include <Eigen/Eigenvalues>
 #include <cstdio>
 #include <cstdlib>

@@ -24,13 +24,13 @@
 // callers spell `polynomial_basis::PolynomialBasis`, `::LIPBasis`, ... and
 // compile unchanged.
 
-#include <PolynomialBasisT.h>
-#include <LIPBasis.h>
-#include <HIPBasis.h>
-#include <HIP2Basis.h>
-#include <HIP3Basis.h>
-#include <LegendreBasis.h>
-#include <lobatto.h>
+#include <helfem/PolynomialBasisT.h>
+#include <helfem/LIPBasis.h>
+#include <helfem/HIPBasis.h>
+#include <helfem/HIP2Basis.h>
+#include <helfem/HIP3Basis.h>
+#include <helfem/LegendreBasis.h>
+#include <helfem/lobatto.h>
 #include <stdexcept>
 
 namespace helfem {

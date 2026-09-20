@@ -1,6 +1,6 @@
 #include "Legendre.h"
 #include "../general/spherical_harmonics.h"
-#include <Matrix.h>
+#include <helfem/Matrix.h>
 
 void get_coord(double Rh, double mu, double eta, double phi, double & x, double & y, double & z) {
   x=Rh*sinh(mu)*sin(eta)*cos(phi);
