@@ -217,6 +217,9 @@ target_link_libraries(over_r_test helfem-common legendre)
 add_executable(eval_dorbs_test general/eval_dorbs_test.cpp)
 target_link_libraries(eval_dorbs_test helfem-common legendre)
 
+add_executable(converge_block_test diatomic/converge_block_test.cpp)
+target_link_libraries(converge_block_test helfem-fem)
+
 add_executable(cas_integrals_test general/cas_integrals_test.cpp)
 target_link_libraries(cas_integrals_test helfem-common legendre)
 
