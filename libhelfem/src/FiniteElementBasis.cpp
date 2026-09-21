@@ -14,6 +14,10 @@
  */
 
 #include <helfem/FiniteElementBasis.h>
+#include "adaptive_quadrature.h"
+#include <cstdio>
+#include <string>
+#include <atomic>
 #include <sstream>
 #include <helfem/lobatto.h>
 #include <algorithm>
@@ -540,12 +544,14 @@ namespace helfem {
     // refinement stalls across a cusp (see docs/autoconv_prototype.cpp).
     // ----------------------------------------------------------------------
     namespace {
-      // Warn at most once per process if a panel hits the order cap.
-      bool auto_matel_cap_warned = false;
+      // Warn at most once per process if a panel hits the order cap. Atomic:
+      // converge_panel runs per element inside an OpenMP parallel for, and a
+      // plain bool written there was a data race.
+      std::atomic<bool> auto_matel_cap_warned{false};
 
       // Refine one smooth sub-panel [x_left,x_right] (reference coordinates in
-      // [-1,1]) until the block is stable to 8*eps(T), doubling the Gauss-
-      // Lobatto order from nstart up to nmax.
+      // [-1,1]) until the block is stable, doubling the Gauss-Lobatto order
+      // from nstart up to nmax. The stopping rule is adaptive::refine's.
       template<typename T>
       helfem::Mat<T> converge_panel(const helfem::polynomial_basis::FiniteElementBasisT<T> & fe,
                                     size_t iel,
@@ -553,52 +559,30 @@ namespace helfem {
                                     const std::function<helfem::Mat<T>(helfem::Vec<T>,size_t)> & eval_rh,
                                     const std::function<T(T)> & f,
                                     T x_left, T x_right, int nstart, int nmax) {
-        const T tol = T(8) * std::numeric_limits<T>::epsilon();
-        const T sqrteps = std::sqrt(std::numeric_limits<T>::epsilon());
-
-        helfem::Vec<T> x, w;
-        helfem::Mat<T> prev, cur;
-        bool have = false;
-        T prevdiff = T(-1), prevprevdiff = T(-1);
-        int n = std::max(nstart, 2);
-        for (;;) {
-          helfem::lobatto::lobatto_compute<T>(n, x, w);
-          cur = fe.matrix_element(iel, eval_lh, eval_rh, x, w, f, x_left, x_right);
-          if (have) {
-            const T diff  = (cur - prev).cwiseAbs().maxCoeff();
-            const T scale = cur.cwiseAbs().maxCoeff();
-            // (1) true eps convergence
-            if (diff <= tol * (scale + tol))
-              return cur;
-            // (2) roundoff-floor stall: blocks with internal cancellation
-            // have a summation-noise floor above 8*eps(T) relative; once
-            // the diff is deep in the asymptotic regime and no longer
-            // improves by at least 2x per doubling, it is noise.
-            if (prevdiff >= T(0) && diff <= sqrteps * (scale + tol) &&
-                diff > T(0.5) * prevdiff)
-              return cur;
-            // (3) two-doubling stall: floor noise can accidentally keep
-            // halving and dodge (2). Genuine quadrature convergence gains
-            // far more than 8x over two doublings; noise stays flat.
-            if (prevprevdiff >= T(0) && diff <= sqrteps * (scale + tol) &&
-                diff > T(0.125) * prevprevdiff)
-              return cur;
-            prevprevdiff = prevdiff;
-            prevdiff = diff;
-          }
-          prev = cur;
-          have = true;
-          if (n >= nmax) {
-            if (!auto_matel_cap_warned) {
-              auto_matel_cap_warned = true;
-              printf("Warning: FiniteElementBasis::matrix_element hit the Gauss-Lobatto"
-                     " order cap (n=%d) without converging to eps(T); using best estimate.\n", nmax);
-              fflush(stdout);
-            }
-            return cur;
-          }
-          n = std::min(2 * n, nmax);
-        }
+        helfem::adaptive::Options opt;
+        opt.nstart = nstart;
+        opt.nmax = nmax;
+        return helfem::adaptive::refine<T>(
+            [&](int n) {
+              helfem::Vec<T> x, w;
+              helfem::lobatto::lobatto_compute<T>(n, x, w);
+              return fe.matrix_element(iel, eval_lh, eval_rh, x, w, f, x_left, x_right);
+            },
+            opt,
+            // Only evaluated when the warning prints. This path serves EVERY
+            // one-electron matrix element, and its label used to be a
+            // hardcoded string naming no element, panel or range -- so a cap
+            // here left nothing to trace.
+            [&]() {
+              char buf[192];
+              snprintf(buf, sizeof(buf),
+                       "FiniteElementBasis::matrix_element (element %zu,"
+                       " r in [%.6g, %.6g], reference panel [%.4g, %.4g])",
+                       iel, (double) fe.element_begin(iel), (double) fe.element_end(iel),
+                       (double) x_left, (double) x_right);
+              return std::string(buf);
+            },
+            auto_matel_cap_warned);
       }
     }
 
