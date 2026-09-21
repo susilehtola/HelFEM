@@ -220,6 +220,9 @@ target_link_libraries(eval_dorbs_test helfem-common legendre)
 add_executable(converge_block_test diatomic/converge_block_test.cpp)
 target_link_libraries(converge_block_test helfem-fem)
 
+add_executable(adaptive_quadrature_test general/adaptive_quadrature_test.cpp)
+target_link_libraries(adaptive_quadrature_test helfem-fem)
+
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem-common legendre)
 

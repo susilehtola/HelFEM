@@ -15,6 +15,9 @@
 #include <helfem/RadialBasis.h>
 #include "RadialPotential.h"
 #include "quadrature.h"
+#include "adaptive_quadrature.h"
+#include <string>
+#include <atomic>
 #include "utils.h"
 #include <helfem/chebyshev.h>
 #include <helfem/lobatto.h>
@@ -79,7 +82,8 @@ namespace helfem {
         /// Order cap for the refinement loop.
         const int twoe_nmax = 512;
         /// Warn at most once per process if a primitive hits the order cap.
-        bool twoe_cap_warned = false;
+        /// Atomic: the primitives are built from inside OpenMP regions.
+        std::atomic<bool> twoe_cap_warned{false};
 
         /// Refine `eval(n)` -- which must build its own n-point Lobatto
         /// rule -- by doubling n from nstart until the returned block is
@@ -113,52 +117,17 @@ namespace helfem {
         /// pathological non-convergence, not the common high-degree case.
         template <typename T, typename Fn>
         helfem::Mat<T> converge_rule(const Fn & eval, int nstart, const char * what) {
-          const T eps  = std::numeric_limits<T>::epsilon();
-          const T tol  = T(8) * eps;
-          const T sqrteps = std::sqrt(eps);
-
-          helfem::Mat<T> prev, cur;
-          bool have = false;
-          T prevdiff = T(-1), prevprevdiff = T(-1);
-          int n = std::max(nstart, 2);
-          for (;;) {
-            cur = eval(n);
-            if (have) {
-              const T diff  = (cur - prev).cwiseAbs().maxCoeff();
-              const T scale = cur.cwiseAbs().maxCoeff();
-              // (1) true eps convergence
-              if (diff <= tol * (scale + tol))
-                return cur;
-              // (2) roundoff-floor stall: deep in the asymptotic regime and no
-              // longer improving by at least 2x per doubling.
-              if (prevdiff >= T(0) && diff <= sqrteps * (scale + tol) &&
-                  diff > T(0.5) * prevdiff)
-                return cur;
-              // (3) two-doubling stall: consecutive diffs at the roundoff
-              // floor are noise and can accidentally keep halving, dodging
-              // (2). Over TWO doublings genuine quadrature convergence
-              // gains far more than 8x (geometric convergence squares the
-              // error per doubling), while noise stays flat.
-              if (prevprevdiff >= T(0) && diff <= sqrteps * (scale + tol) &&
-                  diff > T(0.125) * prevprevdiff)
-                return cur;
-              prevprevdiff = prevdiff;
-              prevdiff = diff;
-            }
-            prev = cur;
-            have = true;
-            if (n >= twoe_nmax) {
-              if (!twoe_cap_warned) {
-                twoe_cap_warned = true;
-                printf("Warning: FEMRadialBasis::%s hit the Gauss-Lobatto order"
-                       " cap (n=%d) without converging to eps(T); using best"
-                       " estimate.\n", what, twoe_nmax);
-                fflush(stdout);
-              }
-              return cur;
-            }
-            n = std::min(2 * n, twoe_nmax);
-          }
+          helfem::adaptive::Options opt;
+          opt.nstart = nstart;
+          opt.nmax = twoe_nmax;
+          // The stopping rule is adaptive::refine's. It used to be a private
+          // copy here that reported NO numbers on hitting the cap -- neither
+          // the magnitude nor the change -- so a near miss and a wildly
+          // unconverged block printed the same line.
+          return helfem::adaptive::refine<T>(
+              eval, opt,
+              [what]() { return std::string("FEMRadialBasis::") + what; },
+              twoe_cap_warned);
         }
       }
 
