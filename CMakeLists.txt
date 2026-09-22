@@ -611,6 +611,28 @@ endif()
 # ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
+# Testing is gated, because none of it is HelFEM's to do unasked when another
+# build consumes us: enable_testing() acts on the TOP-LEVEL project rather than
+# on us, and the registration below would put some two hundred HelFEM cases
+# into the consumer's `ctest` under names indistinguishable from their own.
+# HELFEM_IS_TOP_LEVEL as the default leaves a standalone build exactly as it was.
+#
+# enable_testing() also has to come BEFORE any add_subdirectory() that registers
+# tests of its own -- CMake silently drops add_test() calls made in a directory
+# reached before testing was enabled, which is how python/'s tests came to be
+# generated into nothing. Most registration lives in tests/ (the self-checking
+# unit binaries plus the integration harness); python/ adds its own, because
+# those tests exist only when HELFEM_PYTHON=ON.
+#
+# Plain `ctest` stays in the minutes range; the slow tier is opt-in via
+# -DHELFEM_SLOW_TESTS=ON.
+option(HELFEM_BUILD_TESTS
+       "Build and register HelFEM's own test suite"
+       ${HELFEM_IS_TOP_LEVEL})
+if(HELFEM_BUILD_TESTS)
+    enable_testing()
+endif()
+
 add_subdirectory(libhelfem)
 add_subdirectory(libhelfemqc)
 if(HELFEM_PYTHON)
@@ -624,24 +646,7 @@ add_subdirectory(src)
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-# enable_testing() has to be called from the top level for `ctest` and
-# `make test` to find anything. Registration itself lives in tests/, which
-# adds both the self-checking unit binaries and the Python integration
-# harness. Plain `ctest` stays in the minutes range; the slow tier is
-# opt-in via -DHELFEM_SLOW_TESTS=ON.
-#
-# Both of these are gated, because neither is HelFEM's to do unasked when it
-# is consumed by another build. enable_testing() acts on the TOP-LEVEL project,
-# not on us, so calling it from inside a consumer turns on test infrastructure
-# they did not ask for; and add_subdirectory(tests) would register some two
-# hundred HelFEM cases into their `ctest`, where the names would be
-# indistinguishable from their own. Defaulting to HELFEM_IS_TOP_LEVEL leaves a
-# standalone build exactly as it was.
-option(HELFEM_BUILD_TESTS
-       "Build and register HelFEM's own test suite"
-       ${HELFEM_IS_TOP_LEVEL})
 if(HELFEM_BUILD_TESTS)
-    enable_testing()
     add_subdirectory(tests)
 endif()
 
