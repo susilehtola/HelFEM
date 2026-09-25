@@ -32,6 +32,10 @@ add_library(helfem-fem
   general/scf_helpers.cpp
   diatomic/basis.cpp
   diatomic/quadrature.cpp
+  # The libxc-free halves of the DFT-grid worker: filling and contracting a
+  # grid from potentials already evaluated, whatever produced them.
+  general/dftgrid_core.cpp
+  diatomic/dftgrid_worker.cpp
 )
 target_link_libraries(helfem-fem PUBLIC helfem helfemqc wignernj::wignernj legendre)
 if(TARGET OpenMP::OpenMP_CXX)
