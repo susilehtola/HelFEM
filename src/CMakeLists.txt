@@ -36,6 +36,10 @@ add_library(helfem-fem
   # grid from potentials already evaluated, whatever produced them.
   general/dftgrid_core.cpp
   diatomic/dftgrid_worker.cpp
+  # Geometry-agnostic CAS algebra: needs only Matrix.h, and serves the
+  # diatomic engine above as much as the atomic one, so it lives with the
+  # dependency-light half rather than behind HDF5 + libxc.
+  general/cas_integrals.cpp
 )
 target_link_libraries(helfem-fem PUBLIC helfem helfemqc wignernj::wignernj legendre)
 if(TARGET OpenMP::OpenMP_CXX)
@@ -226,6 +230,12 @@ target_link_libraries(converge_block_test helfem-fem)
 
 add_executable(adaptive_quadrature_test general/adaptive_quadrature_test.cpp)
 target_link_libraries(adaptive_quadrature_test helfem-fem)
+
+add_executable(cas_integrals_test general/cas_integrals_test.cpp)
+target_link_libraries(cas_integrals_test helfem-common legendre)
+
+add_executable(cas_diatomic_test diatomic/cas_diatomic_test.cpp)
+target_link_libraries(cas_diatomic_test helfem-fem)
 
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem-common legendre)
