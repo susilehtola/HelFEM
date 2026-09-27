@@ -47,8 +47,15 @@ endif()
 # looked up when HelFEM was built with its binaries (HELFEM_BINARIES).
 if(@HELFEM_HAS_HDF5@)
     find_dependency(HDF5 COMPONENTS CXX)
-    find_dependency(PkgConfig)
-    pkg_check_modules(LIBXC REQUIRED IMPORTED_TARGET libxc)
+    # Re-find libxc the way the build did. A libxc HelFEM fetched was
+    # installed into this same prefix with its own CMake package, so the
+    # "config" and "fetched" cases are the same lookup here.
+    if("@HELFEM_LIBXC_PROVIDER@" STREQUAL "pkgconfig")
+        find_dependency(PkgConfig)
+        pkg_check_modules(LIBXC REQUIRED IMPORTED_TARGET libxc)
+    else()
+        find_dependency(Libxc CONFIG)
+    endif()
 endif()
 
 # Bring in the imported targets: helfem::helfem, helfem::helfemqc,
