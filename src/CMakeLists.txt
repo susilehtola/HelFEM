@@ -104,9 +104,9 @@ general/model_potential.cpp
 # helfem, helfemqc, wignernj and legendre).
 target_link_libraries(helfem-common PUBLIC helfem-fem)
 # HDF5 (checkpoint.cpp) and libxc (dftfuncs / dftgrid) are consumed here.
-# helfem::hdf5 and PkgConfig::LIBXC are defined by the root CMakeLists
+# helfem::hdf5 and helfem::libxc are defined by the root CMakeLists
 # under HELFEM_BINARIES, which is the only configuration that builds src/.
-target_link_libraries(helfem-common PUBLIC helfem::hdf5 PkgConfig::LIBXC)
+target_link_libraries(helfem-common PUBLIC helfem::hdf5 helfem::libxc)
 # sadatom/scf.cpp uses OOO's header-only SCFSolver both from the
 # gensap driver and from diatomic/twodquadrature.cpp's atomic-orbital
 # guess. Propagate the header include path via the PUBLIC link.

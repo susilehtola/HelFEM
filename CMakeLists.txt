@@ -498,12 +498,118 @@ if(HELFEM_BINARIES)
 
     install(TARGETS helfem_hdf5 EXPORT helfemTargets)
 
-    # libxc ships pkg-config metadata (.pc) rather than a CMake package on
-    # most installs; pkg_check_modules honours CMAKE_PREFIX_PATH so a
-    # non-standard libxc prefix is found the same way as everything else.
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(LIBXC REQUIRED IMPORTED_TARGET libxc)
-    message(STATUS "libxc ${LIBXC_VERSION}")
+    # libxc, tried in order:
+    #
+    #   1. libxc's own CMake package (LibxcConfig.cmake, target Libxc::xc),
+    #      which every CMake-built libxc installs;
+    #   2. pkg-config metadata (libxc.pc), which the Autotools build and most
+    #      distribution packages ship;
+    #   3. with HELFEM_FETCH_LIBXC (default ON), fetching and building libxc
+    #      HELFEM_LIBXC_FETCH_TAG from gitlab.com/libxc/libxc.
+    #
+    # Only (2) used to exist, and both of its steps were REQUIRED, so a
+    # machine without a pkg-config binary -- common on HPC module systems --
+    # failed at the first line even with libxc installed, and one without
+    # libxc.pc failed at the second even with a CMake-built libxc on
+    # CMAKE_PREFIX_PATH.
+    #
+    # Whichever supplies it is wrapped in helfem::libxc, so the exported
+    # target set references a name HelFEM controls; helfemConfig.cmake
+    # re-finds it the same way (HELFEM_LIBXC_PROVIDER records which).
+    option(HELFEM_FETCH_LIBXC
+           "Fetch and build libxc if no installed copy is found" ON)
+    set(HELFEM_LIBXC_FETCH_TAG "7.1.2" CACHE STRING
+        "libxc git tag to fetch when HELFEM_FETCH_LIBXC falls back to it")
+    add_library(helfem_libxc INTERFACE)
+    add_library(helfem::libxc ALIAS helfem_libxc)
+    set(HELFEM_LIBXC_PROVIDER "")
+
+    find_package(Libxc CONFIG QUIET)
+    if(Libxc_FOUND AND TARGET Libxc::xc)
+        target_link_libraries(helfem_libxc INTERFACE Libxc::xc)
+        set(HELFEM_LIBXC_PROVIDER "config")
+        message(STATUS "libxc ${Libxc_VERSION} (CMake package in ${Libxc_DIR})")
+    else()
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(LIBXC QUIET IMPORTED_TARGET libxc)
+        endif()
+        if(LIBXC_FOUND)
+            target_link_libraries(helfem_libxc INTERFACE PkgConfig::LIBXC)
+            set(HELFEM_LIBXC_PROVIDER "pkgconfig")
+            message(STATUS "libxc ${LIBXC_VERSION} (pkg-config)")
+        elseif(HELFEM_FETCH_LIBXC)
+            # libxc's own CMakeLists requires 3.21; HelFEM requires only 3.20.
+            if(CMAKE_VERSION VERSION_LESS 3.21)
+                message(FATAL_ERROR
+                    "libxc was not found, and building it from source needs "
+                    "CMake >= 3.21 (this is ${CMAKE_VERSION}). Install libxc "
+                    "and put its prefix on CMAKE_PREFIX_PATH, or use a newer "
+                    "CMake.")
+            endif()
+            message(STATUS "libxc not found; fetching ${HELFEM_LIBXC_FETCH_TAG} "
+                           "from gitlab.com/libxc/libxc")
+            include(FetchContent)
+            # By git tag, not by archive: GitLab's generated tarballs are not
+            # guaranteed byte-stable, so a pinned hash on one can break with
+            # no upstream change. On a compute node without network access,
+            # point FETCHCONTENT_SOURCE_DIR_LIBXC at a checkout instead.
+            FetchContent_Declare(libxc
+                GIT_REPOSITORY https://gitlab.com/libxc/libxc.git
+                GIT_TAG        ${HELFEM_LIBXC_FETCH_TAG}
+                GIT_SHALLOW    TRUE)
+            # libxc reads these as options/cache defaults; set them as plain
+            # variables for its configure only, and restore ours after, so
+            # nothing leaks into the including project.
+            foreach(_v BUILD_SHARED_LIBS MAXORDER)
+                if(DEFINED ${_v})
+                    set(_helfem_saved_${_v} "${${_v}}")
+                    set(_helfem_had_${_v} TRUE)
+                else()
+                    set(_helfem_had_${_v} FALSE)
+                endif()
+            endforeach()
+            # Static: no runtime search path to manage on the compute nodes.
+            # libxc keeps position-independent code on (BUILD_FPIC) by
+            # default, so the archive still links into shared consumers.
+            set(BUILD_SHARED_LIBS OFF)
+            # Energy, potential and kernel: HelFEM calls the *_fxc family for
+            # the exact XC response. 2 is libxc 7's default; pinned so a stray
+            # cache value cannot drop the kernel.
+            set(MAXORDER 2)
+            FetchContent_MakeAvailable(libxc)
+            foreach(_v BUILD_SHARED_LIBS MAXORDER)
+                if(_helfem_had_${_v})
+                    set(${_v} "${_helfem_saved_${_v}}")
+                else()
+                    unset(${_v})
+                endif()
+                unset(_helfem_saved_${_v})
+                unset(_helfem_had_${_v})
+            endforeach()
+            # libxc publishes its include directory only as INSTALL_INTERFACE,
+            # so an in-tree consumer of `xc` gets no path to its headers.
+            # Supply the build-tree locations: xc.h is rewritten into the
+            # binary src/, xc_version.h is generated at the binary top, and
+            # xc_funcs.h stays in the source src/.
+            target_include_directories(helfem_libxc INTERFACE
+                $<BUILD_INTERFACE:${libxc_BINARY_DIR}/src>
+                $<BUILD_INTERFACE:${libxc_BINARY_DIR}>
+                $<BUILD_INTERFACE:${libxc_SOURCE_DIR}/src>)
+            # `xc` is installed by libxc's own rules into the same prefix,
+            # exported as Libxc::xc, so the installed helfem package finds it
+            # exactly as it would a system libxc.
+            target_link_libraries(helfem_libxc INTERFACE xc)
+            set(HELFEM_LIBXC_PROVIDER "fetched")
+        else()
+            message(FATAL_ERROR
+                "libxc not found: neither a CMake package (LibxcConfig.cmake) "
+                "nor pkg-config metadata (libxc.pc). Put its prefix on "
+                "CMAKE_PREFIX_PATH, or set -DHELFEM_FETCH_LIBXC=ON to build "
+                "${HELFEM_LIBXC_FETCH_TAG} from source.")
+        endif()
+    endif()
+    install(TARGETS helfem_libxc EXPORT helfemTargets)
 endif()
 
 # OpenTrustRegion -- second-order trust-region orbital optimizer, used by
