@@ -101,7 +101,8 @@ endif()
 execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy, scipy, pyscf"
                 RESULT_VARIABLE _helfem_pyscf_rc OUTPUT_QUIET ERROR_QUIET)
 if(_helfem_pyscf_rc EQUAL 0)
-  foreach(_pytest test_cas_gradient test_casscf test_casscf_coupled)
+  foreach(_pytest test_cas_gradient test_casscf test_casscf_coupled
+                  test_real_orbital_guard)
     helfem_add_python_test(${_pytest})
     math(EXPR _helfem_npytest "${_helfem_npytest}+1")
   endforeach()

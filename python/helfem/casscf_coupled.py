@@ -111,6 +111,12 @@ def fock_response_kappa(basis, C, ninact, nact, D, d, dkap, hcore=None):
         for u in range(nact):
             Ptu = Ca @ d[t, u] @ Ca.T
             dPtu = Cxa @ d[t, u] @ Ca.T + Ca @ d[t, u] @ Cxa.T
+            # Symmetrised: exact for REAL orbitals only (pyscf_driver.py,
+            # REAL ORBITALS ONLY). Ptu spans only ACTIVE pairs, exactly the
+            # ones build_active_eri checks, and casscf / coupled_casscf only
+            # ever reach here with orbitals that passed it (every accepted
+            # step goes through active_hamiltonian first). A caller invoking
+            # this directly on unchecked orbitals gets no such guarantee.
             J = basis.coulomb(0.5 * (Ptu + Ptu.T))
             dJ = basis.coulomb(0.5 * (dPtu + dPtu.T))
             dF[:, ninact + t] += (Cx.T @ (J @ Ca[:, u])

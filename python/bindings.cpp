@@ -43,9 +43,9 @@
 
 #include "../src/atomic/basis.h"
 #include "../src/atomic/TwoDBasis.h"
-#include "../libhelfem/include/Matrix.h"
-#include "../libhelfem/include/PolynomialBasis.h"
-#include "../libhelfem/include/ModelPotential.h"
+#include <helfem/Matrix.h>
+#include <helfem/PolynomialBasis.h>
+#include <helfem/ModelPotential.h>
 
 namespace py = pybind11;
 

@@ -24,6 +24,7 @@ Verified against HelFEM's own contractions and against PySCF on He
 (Nbf=14, lmax=0, nelem=3, nnodes=6, Rmax=20):
 
     J, K rebuilt from the extracted tensor vs coulomb()/exchange()  2e-16, 5e-16
+                                      (lmax = 0 only -- see REAL ORBITALS ONLY)
     8-fold permutational symmetry of the extracted tensor           2e-16
     PySCF RHF on these integrals vs HelFEM's own `atomic` binary    all 10 digits
                                       (-2.859592542390 vs -2.8595925424)
@@ -53,6 +54,36 @@ __all__ = [
 ]
 
 
+class ComplexOrbitalError(ValueError):
+    """An orbital pair whose product density is not a real function."""
+
+
+# REAL ORBITALS ONLY
+#
+# Everything in this module stores (tu|vw) as a real tensor with the 8-fold
+# symmetry PySCF's ao2mo and FCI machinery assume -- in particular
+# (tu|vw) = (ut|vw). That holds for real orbitals. HelFEM's atomic basis uses
+# COMPLEX spherical harmonics, so any orbital carrying m != 0 is complex, and
+# for it (tu|vw) != (ut|vw): the antisymmetric part of the pair density is a
+# purely imaginary density that a real 8-fold tensor cannot hold. The C++ CAS
+# engine (src/general/cas_integrals.cpp) keeps that channel; this route cannot,
+# because PySCF cannot take it. Measured on an atomic lmax=1 basis, K rebuilt
+# from a symmetrised tensor is off by 1e-1 -- and with C = I that is the whole
+# AO tensor install_full_eri hands PySCF, so even its RHF exchange would be
+# wrong, not just the CAS part.
+#
+# So build_active_eri REFUSES such pairs instead of silently symmetrising
+# them. Every CASSCF entry point in this package goes through it for the
+# current orbitals, so the whole pipeline is guarded.
+#
+# The test costs nothing extra: with a real tensor,
+# coulomb(P^T) = coulomb(P)^T, so J = coulomb(C_t C_u^T) is symmetric iff the
+# pair density is a real function. Its antisymmetric part measures precisely
+# what symmetrising would throw away (6.5e-19 at lmax = 0, as large as the
+# symmetric part at lmax = 1).
+_REAL_TOL = 1e-10
+
+
 def build_active_eri(basis, C):
     """Chemist-notation (tu|vw) over the columns of `C`.
 
@@ -60,6 +91,9 @@ def build_active_eri(basis, C):
     (n, n, n, n). Costs n(n+1)/2 `coulomb` calls and no AO->MO transform.
 
     Pass C = np.eye(Nbf) to extract the full AO tensor.
+
+    Raises ComplexOrbitalError if any pair of columns has a complex product
+    density -- see REAL ORBITALS ONLY above.
     """
     C = np.asarray(C, dtype=float)
     if C.ndim != 2:
@@ -68,12 +102,24 @@ def build_active_eri(basis, C):
     eri = np.empty((n, n, n, n))
     for t in range(n):
         for u in range(t, n):
-            # P + P^T is what coulomb() expects (a symmetric density). For
-            # t == u that is 2 C_t C_t^T, so the 0.5 below is right in both
-            # cases and needs no special case.
-            P = np.outer(C[:, t], C[:, u])
-            J = basis.coulomb(P + P.T)
-            blk = 0.5 * (C.T @ J @ C)
+            J = basis.coulomb(np.outer(C[:, t], C[:, u]))
+            # See REAL ORBITALS ONLY above. 0.5 (J + J^T) equals the old
+            # coulomb(P + P^T) / 2 by linearity -- but only up to rounding,
+            # since coulomb() is evaluated on a different argument (measured
+            # 5.6e-17 on Be lmax=1). What is new is refusing the case where
+            # J and J^T genuinely differ.
+            scale = np.max(np.abs(J))
+            if scale > 0.0:
+                asym = np.max(np.abs(J - J.T))
+                if asym > _REAL_TOL * scale:
+                    raise ComplexOrbitalError(
+                        f"build_active_eri: orbitals {t} and {u} have a complex "
+                        f"product density (antisymmetric part {asym / scale:.1e} "
+                        f"of the symmetric). This PySCF route stores a real "
+                        f"8-fold tensor and cannot represent it; restrict the "
+                        f"active space to m = 0 orbitals, or use the C++ CAS "
+                        f"engine, which can.")
+            blk = 0.5 * (C.T @ (J + J.T) @ C)
             eri[t, u] = blk
             eri[u, t] = blk
     return eri
@@ -240,6 +286,12 @@ def generalized_fock(basis, C, ninact, nact, D, d, hcore=None, core_occ=2.0):
             # (mn|vw) is symmetric in (v, w), so symmetrising the contraction
             # argument is exact and keeps coulomb() on the symmetric densities
             # it expects.
+            # Symmetrised: exact for REAL orbitals only (pyscf_driver.py,
+            # REAL ORBITALS ONLY). Ptu spans only ACTIVE pairs, exactly the
+            # ones build_active_eri checks, and casscf / coupled_casscf only
+            # ever reach here with orbitals that passed it (every accepted
+            # step goes through active_hamiltonian first). A caller invoking
+            # this directly on unchecked orbitals gets no such guarantee.
             J = basis.coulomb(0.5 * (Ptu + Ptu.T))
             F[:, ninact + t] += C.T @ (J @ Ca[:, u])
     return F
