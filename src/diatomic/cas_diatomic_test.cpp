@@ -37,7 +37,7 @@
 
 #include "cas_engine.h"
 #include "../general/cas_integrals.h"
-#include "../../libhelfem/include/PolynomialBasis.h"
+#include <helfem/PolynomialBasis.h>
 
 #include <Eigen/Eigenvalues>
 #include <complex>

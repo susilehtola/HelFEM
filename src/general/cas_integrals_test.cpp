@@ -39,8 +39,8 @@
 #include "cas_integrals.h"
 #include "../atomic/cas_engine.h"
 #include "../atomic/basis.h"
-#include "../../libhelfem/include/PolynomialBasis.h"
-#include "../../libhelfem/include/ModelPotential.h"
+#include <helfem/PolynomialBasis.h>
+#include <helfem/ModelPotential.h>
 
 #include <Eigen/Eigenvalues>
 #include <cmath>

@@ -15,7 +15,7 @@
 #ifndef HELFEM_CAS_INTEGRALS_H
 #define HELFEM_CAS_INTEGRALS_H
 
-#include "../../libhelfem/include/Matrix.h"
+#include <helfem/Matrix.h>
 #include <vector>
 
 namespace helfem {
