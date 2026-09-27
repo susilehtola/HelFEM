@@ -14,17 +14,38 @@
 
 include(CMakeFindDependencyMacro)
 
-# Header-only / config-package dependencies. The range form `3.4...99`
-# accepts any Eigen >= 3.4 (a bare `3.4` is read as [3.4, 3.5)).
-find_dependency(Eigen3 3.4...99 CONFIG)
-find_dependency(wignernj 0.7.0)
+# A dependency HelFEM fetched was installed with it, into a private subtree
+# find_package does not search by default (see helfem_fetch_privately in the
+# top-level CMakeLists.txt); look for it there and nowhere else. One found
+# on the system is looked for the ordinary way.
+set(_helfem_deps "${PACKAGE_PREFIX_DIR}/@HELFEM_DEPS_SUBDIR@")
+macro(_helfem_find_dep _name _fetched)
+    if(${_fetched})
+        find_dependency(${_name} CONFIG PATHS "${_helfem_deps}" NO_DEFAULT_PATH)
+    else()
+        find_dependency(${_name} ${ARGN})
+    endif()
+endmacro()
+
+# Eigen first: OpenOrbitalOptimizer's own config asks for Eigen3 again, and
+# gets the copy found here through the cached Eigen3_DIR. The range form
+# `3.4...99` accepts any Eigen >= 3.4 (a bare `3.4` is read as [3.4, 3.5)).
+_helfem_find_dep(Eigen3 @HELFEM_FETCHED_Eigen3@ 3.4...99 CONFIG)
+_helfem_find_dep(wignernj @HELFEM_FETCHED_wignernj@ 0.7.0)
 # OpenOrbitalOptimizer's header-only imported target is carried in
 # helfem-common's INTERFACE_LINK_LIBRARIES -- and ONLY there. A
 # HELFEM_BINARIES=OFF install ships helfem-fem / legendre without
 # helfem-common, so requiring OOO unconditionally makes find_package(helfem)
 # fail for a consumer that needs neither it nor the DFT half.
 if(@HELFEM_BINARIES@)
-    find_dependency(OpenOrbitalOptimizer)
+    _helfem_find_dep(OpenOrbitalOptimizer @HELFEM_FETCHED_OpenOrbitalOptimizer@)
+    # helfem::otr carries OpenTrustRegion when the second-order path was
+    # built. It was never looked for here, so an installed HelFEM with it
+    # failed with "imported targets referenced but missing".
+    if(@HELFEM_OPENTRUSTREGION_ACTIVE@)
+        _helfem_find_dep(OpenTrustRegion @HELFEM_FETCHED_OpenTrustRegion@
+                         COMPONENTS int32)
+    endif()
 endif()
 
 # OpenMP is carried in helfem-common's INTERFACE_LINK_LIBRARIES, so the
@@ -47,14 +68,12 @@ endif()
 # looked up when HelFEM was built with its binaries (HELFEM_BINARIES).
 if(@HELFEM_HAS_HDF5@)
     find_dependency(HDF5 COMPONENTS CXX)
-    # Re-find libxc the way the build did. A libxc HelFEM fetched was
-    # installed into this same prefix with its own CMake package, so the
-    # "config" and "fetched" cases are the same lookup here.
+    # Re-find libxc the way the build did.
     if("@HELFEM_LIBXC_PROVIDER@" STREQUAL "pkgconfig")
         find_dependency(PkgConfig)
         pkg_check_modules(LIBXC REQUIRED IMPORTED_TARGET libxc)
     else()
-        find_dependency(Libxc CONFIG)
+        _helfem_find_dep(Libxc @HELFEM_FETCHED_libxc@ CONFIG)
     endif()
 endif()
 

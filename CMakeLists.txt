@@ -289,6 +289,112 @@ endif()
 
 install(TARGETS helfem_blas EXPORT helfemTargets)
 
+# ---------------------------------------------------------------------------
+# Fetched dependencies install into a HelFEM-private subtree
+# ---------------------------------------------------------------------------
+# Any dependency HelFEM fetches must ship with an installed HelFEM, because
+# helfemTargets.cmake references its targets: leave one out and
+# find_package(helfem) fails for every consumer of the install. But it must
+# NOT install where find_package looks by default, or the next configure
+# against the same prefix -- ./compile.sh, say -- finds that installed copy
+# instead of fetching, and the dependency silently freezes at whatever
+# snapshot was installed first, however the pin in this file moves.
+#
+# Before this, each fetch site traded one of those for the other: OOO and
+# OpenTrustRegion were excluded from the install (so an installed HelFEM was
+# unusable by any consumer), while Eigen, wignernj and libxc installed at
+# their default locations (so they froze).
+#
+# Both are met by installing into <prefix>/${HELFEM_DEPS_SUBDIR}: none of
+# find_package's default search patterns reach it, and helfemConfig.cmake
+# looks there explicitly with NO_DEFAULT_PATH. Every one of these projects
+# takes its install locations from GNUInstallDirs, so pointing the three
+# relevant variables at the private tree for the duration of the fetch
+# covers them all without knowing each one's own variable names -- which
+# matters, since libxc for one sets its config directory with a plain set()
+# that cannot be overridden.
+set(HELFEM_DEPS_SUBDIR "lib/helfem-deps")
+foreach(_dep Eigen3 wignernj OpenOrbitalOptimizer OpenTrustRegion libxc)
+    set(HELFEM_FETCHED_${_dep} FALSE)
+endforeach()
+# Create the GNUInstallDirs cache entries now. A subproject whose own
+# include(GNUInstallDirs) CREATES one would, under the pre-3.21 behaviour of
+# policy CMP0126 its cmake_minimum_required may select, drop the normal
+# variable set below and install to the default location after all.
+include(GNUInstallDirs)
+#
+# Fetched dependencies are also built STATIC and position-independent. They
+# are private implementation details installed off the search path, and a
+# shared library there would need a runtime path managed on every node it
+# runs on. More to the point, wignernj, libxc and OpenTrustRegion each
+# declare BUILD_SHARED_LIBS as their own option() -- defaulting to ON, ON
+# and OFF -- and option() writes a GLOBAL cache entry. Left alone, whichever
+# was fetched first fixed the library type for every later one AND for the
+# project including HelFEM: fetching wignernj made OpenTrustRegion shared,
+# and would have made a consumer's own libraries shared too.
+#
+# So the macro takes, after the name, the cache variables a dependency is
+# known to create under names it does not own. Any of them that did not
+# exist before the fetch is removed after it -- the dependency re-creates it
+# on every configure, so nothing is lost -- while one that DID exist, say an
+# explicit -DBUILD_SHARED_LIBS from whoever is building, is left untouched.
+macro(helfem_fetch_privately _dep)
+    set(_helfem_fp_scrub BUILD_SHARED_LIBS ${ARGN})
+    foreach(_v IN LISTS _helfem_fp_scrub)
+        if(DEFINED CACHE{${_v}})
+            set(_helfem_fp_hadcache_${_v} TRUE)
+        else()
+            set(_helfem_fp_hadcache_${_v} FALSE)
+        endif()
+    endforeach()
+    # Normal variables, which a project including HelFEM may have set in the
+    # scope it handed us: saved exactly and put back exactly.
+    foreach(_v BUILD_SHARED_LIBS CMAKE_POSITION_INDEPENDENT_CODE
+               CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_DATADIR CMAKE_INSTALL_INCLUDEDIR
+               CMAKE_EXPORT_NO_PACKAGE_REGISTRY CMAKE_EXPORT_PACKAGE_REGISTRY)
+        if(DEFINED ${_v})
+            set(_helfem_fp_had_${_v} TRUE)
+            set(_helfem_fp_saved_${_v} "${${_v}}")
+        else()
+            set(_helfem_fp_had_${_v} FALSE)
+        endif()
+    endforeach()
+    set(BUILD_SHARED_LIBS OFF)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    set(CMAKE_INSTALL_LIBDIR     "${HELFEM_DEPS_SUBDIR}/lib")
+    set(CMAKE_INSTALL_DATADIR    "${HELFEM_DEPS_SUBDIR}/share")
+    set(CMAKE_INSTALL_INCLUDEDIR "${HELFEM_DEPS_SUBDIR}/include")
+    # No export(PACKAGE) into the user package registry (~/.cmake/packages).
+    # Eigen's does, under its cmake_minimum_required(3.10) policies, and the
+    # entry names THIS build tree: every later configure on the machine, of
+    # any project, then finds the fetched Eigen there instead of fetching --
+    # the same freeze as installing it to a default location, only harder to
+    # see, and dangling once the build tree is deleted. Both spellings, since
+    # which one applies depends on the subproject's policy CMP0090.
+    set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ON)
+    set(CMAKE_EXPORT_PACKAGE_REGISTRY OFF)
+    FetchContent_MakeAvailable(${_dep})
+    foreach(_v BUILD_SHARED_LIBS CMAKE_POSITION_INDEPENDENT_CODE
+               CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_DATADIR CMAKE_INSTALL_INCLUDEDIR
+               CMAKE_EXPORT_NO_PACKAGE_REGISTRY CMAKE_EXPORT_PACKAGE_REGISTRY)
+        if(_helfem_fp_had_${_v})
+            set(${_v} "${_helfem_fp_saved_${_v}}")
+        else()
+            unset(${_v})
+        endif()
+        unset(_helfem_fp_had_${_v})
+        unset(_helfem_fp_saved_${_v})
+    endforeach()
+    foreach(_v IN LISTS _helfem_fp_scrub)
+        if(NOT _helfem_fp_hadcache_${_v})
+            unset(${_v} CACHE)
+        endif()
+        unset(_helfem_fp_hadcache_${_v})
+    endforeach()
+    unset(_helfem_fp_scrub)
+    set(HELFEM_FETCHED_${_dep} TRUE)
+endmacro()
+
 # Eigen3 (>= 3.4) -- header-only. Prefer a system install, else fetch the
 # latest stable release (5.0.1). The range form `3.4...99` accepts any
 # >= 3.4 (a bare `3.4` is read as the exclusive [3.4, 3.5) by Eigen's
@@ -308,6 +414,16 @@ if(NOT Eigen3_FOUND)
         GIT_TAG        ${_eigen_fetch_version})
     set(EIGEN_BUILD_DOC       OFF CACHE INTERNAL "")
     set(EIGEN_BUILD_PKGCONFIG OFF CACHE INTERNAL "")
+    # BUILD_TESTING is CTest's global switch, not Eigen's: it has to be a
+    # cache entry for Eigen's option() to honour it, but it must not outlive
+    # Eigen's configure, or an including project's include(CTest) finds it
+    # already OFF and never registers its own tests. Removed below unless
+    # whoever is building had set it.
+    if(DEFINED CACHE{BUILD_TESTING})
+        set(_helfem_had_build_testing TRUE)
+    else()
+        set(_helfem_had_build_testing FALSE)
+    endif()
     set(BUILD_TESTING         OFF CACHE INTERNAL "")
     # Eigen assigns its target to the Eigen3Targets export set
     # unconditionally but only *installs* that set when
@@ -319,7 +435,11 @@ if(NOT Eigen3_FOUND)
     # headers include <Eigen/...> and nothing would have installed them.
     # If we vendor Eigen we have to ship it.
     set(EIGEN_BUILD_CMAKE_PACKAGE ON CACHE INTERNAL "")
-    FetchContent_MakeAvailable(Eigen3)
+    helfem_fetch_privately(Eigen3)
+    if(NOT _helfem_had_build_testing)
+        unset(BUILD_TESTING CACHE)
+    endif()
+    unset(_helfem_had_build_testing)
 
     # Eigen's *build* tree exports no config package -- only its install
     # tree does -- so a nested find_package(Eigen3 NO_MODULE) fails even
@@ -403,7 +523,7 @@ if(NOT wignernj_FOUND)
     # option was renamed BUILD_QUADMATH -> WIGNERNJ_BUILD_QUADMATH and defaults
     # OFF, so it must be set explicitly here or ::gaunt_q fails to link.
     set(WIGNERNJ_BUILD_QUADMATH ON CACHE INTERNAL "")
-    FetchContent_MakeAvailable(wignernj)
+    helfem_fetch_privately(wignernj)
     if(NOT TARGET wignernj::wignernj)
         add_library(wignernj::wignernj ALIAS wignernj)
     endif()
@@ -417,16 +537,11 @@ find_package(OpenOrbitalOptimizer QUIET)
 if(NOT OpenOrbitalOptimizer_FOUND)
     message(STATUS "OpenOrbitalOptimizer not found; fetching from GitHub")
     include(FetchContent)
-    # EXCLUDE_FROM_ALL keeps the fetched copy's install() rules out of our
-    # install tree. Without it `cmake --install` deposits OOO in
-    # CMAKE_INSTALL_PREFIX, which the next configure's find_package then
-    # picks up -- freezing the dependency at that snapshot and making
-    # ./compile.sh non-idempotent. Only honoured from CMake 3.28; we
-    # require 3.20, so apply it conditionally.
-    set(_ooo_exclude "")
-    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
-        set(_ooo_exclude EXCLUDE_FROM_ALL)
-    endif()
+    # Installed with HelFEM, but into the private subtree; see
+    # helfem_fetch_privately. It used to be excluded from the install
+    # altogether (EXCLUDE_FROM_ALL), which kept the snapshot from freezing
+    # but left every installed HelFEM referencing a target no consumer could
+    # find.
     # Pinned to an explicit commit, NOT to master. With a floating branch two
     # builds of identical HelFEM source can link different OOO and produce
     # different numbers, with nothing in the HelFEM history to explain it --
@@ -441,10 +556,8 @@ if(NOT OpenOrbitalOptimizer_FOUND)
     # set as soon as the first DIIS error exceeds 1 and DIIS is dropped.
     FetchContent_Declare(OpenOrbitalOptimizer
         GIT_REPOSITORY https://github.com/susilehtola/OpenOrbitalOptimizer.git
-        GIT_TAG        bef468dfb24241ea6e44d73e2d749182d45dce16
-        ${_ooo_exclude})
-    FetchContent_MakeAvailable(OpenOrbitalOptimizer)
-    unset(_ooo_exclude)
+        GIT_TAG        bef468dfb24241ea6e44d73e2d749182d45dce16)
+    helfem_fetch_privately(OpenOrbitalOptimizer)
 else()
     message(STATUS "Using system OpenOrbitalOptimizer")
 endif()
@@ -561,7 +674,7 @@ if(HELFEM_BINARIES)
             # libxc reads these as options/cache defaults; set them as plain
             # variables for its configure only, and restore ours after, so
             # nothing leaks into the including project.
-            foreach(_v BUILD_SHARED_LIBS MAXORDER)
+            foreach(_v MAXORDER)
                 if(DEFINED ${_v})
                     set(_helfem_saved_${_v} "${${_v}}")
                     set(_helfem_had_${_v} TRUE)
@@ -569,16 +682,19 @@ if(HELFEM_BINARIES)
                     set(_helfem_had_${_v} FALSE)
                 endif()
             endforeach()
-            # Static: no runtime search path to manage on the compute nodes.
-            # libxc keeps position-independent code on (BUILD_FPIC) by
-            # default, so the archive still links into shared consumers.
-            set(BUILD_SHARED_LIBS OFF)
             # Energy, potential and kernel: HelFEM calls the *_fxc family for
             # the exact XC response. 2 is libxc 7's default; pinned so a stray
             # cache value cannot drop the kernel.
             set(MAXORDER 2)
-            FetchContent_MakeAvailable(libxc)
-            foreach(_v BUILD_SHARED_LIBS MAXORDER)
+            # libxc's own options live under generic names -- ENABLE_FORTRAN
+            # in particular would silently pre-empt an including project's
+            # option(ENABLE_FORTRAN ... ON) -- so they are scoped to its
+            # configure like BUILD_SHARED_LIBS.
+            helfem_fetch_privately(libxc
+                MAXORDER ENABLE_FORTRAN ENABLE_PYTHON BUILD_FPIC DISABLE_FHC
+                XC_CHECK_NUMERICS XC_PROFILING NAMESPACE_INSTALL_INCLUDEDIR
+                FORTRAN_MODULE_INSTALL_DIR)
+            foreach(_v MAXORDER)
                 if(_helfem_had_${_v})
                     set(${_v} "${_helfem_saved_${_v}}")
                 else()
@@ -596,9 +712,9 @@ if(HELFEM_BINARIES)
                 $<BUILD_INTERFACE:${libxc_BINARY_DIR}/src>
                 $<BUILD_INTERFACE:${libxc_BINARY_DIR}>
                 $<BUILD_INTERFACE:${libxc_SOURCE_DIR}/src>)
-            # `xc` is installed by libxc's own rules into the same prefix,
-            # exported as Libxc::xc, so the installed helfem package finds it
-            # exactly as it would a system libxc.
+            # `xc` is installed by libxc's own rules, into the private
+            # subtree (helfem_fetch_privately), and exported as Libxc::xc;
+            # helfemConfig.cmake finds it there.
             target_link_libraries(helfem_libxc INTERFACE xc)
             set(HELFEM_LIBXC_PROVIDER "fetched")
         else()
@@ -652,14 +768,9 @@ if(HELFEM_OPENTRUSTREGION)
             enable_language(Fortran)
             enable_language(C)
             include(FetchContent)
-            # Same reasoning as OpenOrbitalOptimizer above: keep the fetched
-            # copy's install() rules out of our install tree, and pin the
-            # commit so two builds of identical HelFEM source cannot link
-            # different optimizers.
-            set(_otr_exclude "")
-            if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
-                set(_otr_exclude EXCLUDE_FROM_ALL)
-            endif()
+            # Pinned, so two builds of identical HelFEM source cannot link
+            # different optimizers, and installed privately with HelFEM; see
+            # helfem_fetch_privately.
             # Force the LP64 build; OpenTrustRegion's own autodetection falls
             # back to ILP64 when it cannot find a 32-bit BLAS, which is the
             # one outcome we cannot consume.
@@ -679,9 +790,8 @@ if(HELFEM_OPENTRUSTREGION)
             set(OpenTrustRegion_BUILD_TESTING OFF CACHE INTERNAL "")
             FetchContent_Declare(OpenTrustRegion
                 GIT_REPOSITORY https://github.com/eriksen-lab/opentrustregion.git
-                GIT_TAG        v2.0.0
-                ${_otr_exclude})
-            FetchContent_MakeAvailable(OpenTrustRegion)
+                GIT_TAG        v2.0.0)
+            helfem_fetch_privately(OpenTrustRegion)
             # OpenTrustRegion's targets are configured by the call above, so the
             # integer width is already baked into them; restoring the cache now
             # cannot change what was built.
@@ -693,7 +803,6 @@ if(HELFEM_OPENTRUSTREGION)
             endif()
             unset(_helfem_saved_intsize)
             unset(_helfem_had_intsize)
-            unset(_otr_exclude)
             target_link_libraries(helfem_otr INTERFACE opentrustregion)
             set(HELFEM_OPENTRUSTREGION_ACTIVE ON)
         else()
