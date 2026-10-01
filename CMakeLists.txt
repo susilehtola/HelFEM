@@ -396,13 +396,23 @@ macro(helfem_fetch_privately _dep)
 endmacro()
 
 # Eigen3 (>= 3.4) -- header-only. Prefer a system install, else fetch the
-# latest stable release (5.0.1). The range form `3.4...99` accepts any
-# >= 3.4 (a bare `3.4` is read as the exclusive [3.4, 3.5) by Eigen's
-# ConfigVersion and would reject e.g. Fedora's Eigen 5). The system Eigen
-# is used verbatim -- no patching -- which is why HELFEM_EIGEN_BLAS is
-# restricted to LP64, where stock Eigen's 32-bit BLAS backend already
-# matches the linked BLAS.
-find_package(Eigen3 3.4...99 QUIET NO_MODULE)
+# latest stable release (5.0.1). The system Eigen is used verbatim -- no
+# patching -- which is why HELFEM_EIGEN_BLAS is restricted to LP64, where
+# stock Eigen's 32-bit BLAS backend already matches the linked BLAS.
+#
+# TWO REQUESTS, because no single version argument admits both series.
+# Eigen 3.4's ConfigVersion declares SameMajorVersion, under which a bare
+# `3.4` accepts every 3.x >= 3.4, but a range is accepted only if BOTH ends
+# have major version 3 -- so `3.4...99` rejects every Eigen 3, and on RHEL
+# 10 (EPEL eigen3 3.4.0) the configure reported "Eigen3 >= 3.4 not found"
+# and fetched 5.0.1 over the installed package. Eigen 5's ConfigVersion
+# reads a bare `3.4` as the exclusive [3.4, 3.5) and so needs the range.
+# A version-rejected find_package loads no targets, so the second request
+# starts clean.
+find_package(Eigen3 3.4 QUIET NO_MODULE)
+if(NOT Eigen3_FOUND)
+    find_package(Eigen3 3.4...99 QUIET NO_MODULE)
+endif()
 if(NOT Eigen3_FOUND)
     # One place for the fetched version: it names the tag, the status
     # line and the version the shim config below reports.
