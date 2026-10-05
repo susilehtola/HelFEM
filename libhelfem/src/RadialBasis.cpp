@@ -901,11 +901,14 @@ namespace helfem {
       helfem::Mat<T> FEMRadialBasisT<T>::model_potential(const modelpotential::ModelPotentialT<T> *model,
                                                          size_t iel) const {
         // Non-polynomial weight -> order-refine (poly_degree_f = -1). Smooth
-        // models (point, Gaussian, GSZ) converge to eps(T) by refinement.
+        // models (point, GSZ) converge to eps(T) by refinement.
         // Models with a hard boundary -- the uniform sphere and hollow shell
         // have a kink at the nuclear radius, a tabulated potential has one at
         // every knot -- report those radii through
         // ModelPotentialT::breakpoints(), and the element is split there.
+        // So does the Gaussian nucleus, which is smooth but varies on a scale
+        // (~1e-4 bohr) far below the first element's: smoothness alone is
+        // not enough, the panels must also match the scale.
         // Without the split a kink inside an element refines only
         // algebraically and grinds to the order cap.
         return matrix_element(iel, BasisKind::B0, BasisKind::B0,

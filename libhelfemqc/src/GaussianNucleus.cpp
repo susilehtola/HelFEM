@@ -51,6 +51,22 @@ namespace helfem {
       mu_=mu;
       // Update Taylor series cutoff: sixth-order term is epsilon
       Rcut = std::pow(T(42)*std::numeric_limits<T>::epsilon(), T(1)/T(6))/mu_;
+      // Quadrature splits: 2^k/mu until the erf tail is below eps(T)
+      splits_.clear();
+      for (T x = T(1); ; x *= T(2)) {
+        splits_.push_back(x/mu_);
+        if (std::erfc(x) < std::numeric_limits<T>::epsilon())
+          break;
+      }
+    }
+
+    template <typename T>
+    std::vector<T> GaussianNucleusT<T>::breakpoints(T a, T b) const {
+      std::vector<T> out;
+      for (T r : splits_)
+        if (r > a && r < b)
+          out.push_back(r);
+      return out;
     }
 
     template class GaussianNucleusT<double>;
