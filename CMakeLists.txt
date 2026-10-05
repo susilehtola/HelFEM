@@ -338,8 +338,25 @@ include(GNUInstallDirs)
 # exist before the fetch is removed after it -- the dependency re-creates it
 # on every configure, so nothing is lost -- while one that DID exist, say an
 # explicit -DBUILD_SHARED_LIBS from whoever is building, is left untouched.
+#
+# After the keyword INSTALL_DIRS come the dependency's CACHED install
+# locations -- OpenOrbitalOptimizer_INSTALL_CMAKEDIR, Eigen's
+# INCLUDE_INSTALL_DIR and friends -- which it derives from
+# CMAKE_INSTALL_<dir> the first time and then reads back from the cache.
+# Those are cleared BEFORE the fetch as well as after it, unconditionally.
+# Otherwise a value cached once wins over the private layout set below: a
+# build tree first configured before that layout existed kept installing
+# OpenOrbitalOptimizer's package config to lib64/cmake, where
+# helfemConfig.cmake never looks, and find_package(helfem) failed for every
+# consumer of the install. Overriding one of these by hand is not supported:
+# a fetched dependency's install location is HelFEM's to choose.
 macro(helfem_fetch_privately _dep)
-    set(_helfem_fp_scrub BUILD_SHARED_LIBS ${ARGN})
+    cmake_parse_arguments(_helfem_fp "" "" "INSTALL_DIRS" ${ARGN})
+    set(_helfem_fp_scrub BUILD_SHARED_LIBS ${_helfem_fp_UNPARSED_ARGUMENTS})
+    foreach(_v IN LISTS _helfem_fp_INSTALL_DIRS)
+        unset(${_v} CACHE)
+        unset(${_v})
+    endforeach()
     foreach(_v IN LISTS _helfem_fp_scrub)
         if(DEFINED CACHE{${_v}})
             set(_helfem_fp_hadcache_${_v} TRUE)
@@ -391,7 +408,12 @@ macro(helfem_fetch_privately _dep)
         endif()
         unset(_helfem_fp_hadcache_${_v})
     endforeach()
+    foreach(_v IN LISTS _helfem_fp_INSTALL_DIRS)
+        unset(${_v} CACHE)
+    endforeach()
     unset(_helfem_fp_scrub)
+    unset(_helfem_fp_INSTALL_DIRS)
+    unset(_helfem_fp_UNPARSED_ARGUMENTS)
     set(HELFEM_FETCHED_${_dep} TRUE)
 endmacro()
 
@@ -445,7 +467,8 @@ if(NOT Eigen3_FOUND)
     # headers include <Eigen/...> and nothing would have installed them.
     # If we vendor Eigen we have to ship it.
     set(EIGEN_BUILD_CMAKE_PACKAGE ON CACHE INTERNAL "")
-    helfem_fetch_privately(Eigen3)
+    helfem_fetch_privately(Eigen3
+        INSTALL_DIRS INCLUDE_INSTALL_DIR CMAKEPACKAGE_INSTALL_DIR PKGCONFIG_INSTALL_DIR)
     if(NOT _helfem_had_build_testing)
         unset(BUILD_TESTING CACHE)
     endif()
@@ -567,7 +590,8 @@ if(NOT OpenOrbitalOptimizer_FOUND)
     FetchContent_Declare(OpenOrbitalOptimizer
         GIT_REPOSITORY https://github.com/susilehtola/OpenOrbitalOptimizer.git
         GIT_TAG        bef468dfb24241ea6e44d73e2d749182d45dce16)
-    helfem_fetch_privately(OpenOrbitalOptimizer)
+    helfem_fetch_privately(OpenOrbitalOptimizer
+        INSTALL_DIRS OpenOrbitalOptimizer_INSTALL_CMAKEDIR)
 else()
     message(STATUS "Using system OpenOrbitalOptimizer")
 endif()
@@ -703,7 +727,7 @@ if(HELFEM_BINARIES)
             helfem_fetch_privately(libxc
                 MAXORDER ENABLE_FORTRAN ENABLE_PYTHON BUILD_FPIC DISABLE_FHC
                 XC_CHECK_NUMERICS XC_PROFILING NAMESPACE_INSTALL_INCLUDEDIR
-                FORTRAN_MODULE_INSTALL_DIR)
+                INSTALL_DIRS FORTRAN_MODULE_INSTALL_DIR)
             foreach(_v MAXORDER)
                 if(_helfem_had_${_v})
                     set(${_v} "${_helfem_saved_${_v}}")
