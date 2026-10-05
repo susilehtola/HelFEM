@@ -16,6 +16,7 @@
 #define MODELPOTENTIAL_GAUSSIANNUCLEUS_H
 
 #include <helfem/ModelPotential.h>
+#include <vector>
 
 namespace helfem {
   namespace modelpotential {
@@ -29,6 +30,8 @@ namespace helfem {
 
       /// Cutoff for Taylor series
       T Rcut;
+      /// Quadrature split radii, set with mu_; see breakpoints()
+      std::vector<T> splits_;
     public:
       /// Constructor
       GaussianNucleusT(int Z, T Rrms);
@@ -36,6 +39,16 @@ namespace helfem {
       ~GaussianNucleusT();
       /// Potential
       T V(T r) const override;
+      /// The potential has no kink, but it has a scale: -Z erf(mu r)/r turns
+      /// from constant to Coulomb around r ~ 1/mu, which for a real nucleus
+      /// (1/mu ~ 1e-4 bohr) is a thousand times smaller than the first
+      /// element. Plain order-refinement then resolves it only by brute
+      /// order and hits the cap (Ne, Visscher-Dyall Rrms: n=512, relative
+      /// change still 2e-12). Splitting at 2^k/mu, doubling until
+      /// erfc(2^k) < eps(T), gives panels matched to the turnover, and
+      /// beyond the last one V = -Z/r to working precision, so the integrand
+      /// is polynomial there again -- {1, 2, 4, 8}/mu in double.
+      std::vector<T> breakpoints(T a, T b) const override;
       /// Get mu_
       T mu() const;
       /// Set mu_
