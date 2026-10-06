@@ -70,8 +70,9 @@ namespace helfem {
                                  Eigen::Index ninact, double & E_inactive);
 
     /// Chemist-notation (tu|vw) over the columns of Ca, stored row-major as
-    /// eri[((t*n + u)*n + v)*n + w] -- the layout reci's Problem::eri uses and
-    /// the one the RDMs are index-aligned with. Costs n(n+1)/2 `coulomb`
+    /// eri[((t*n + u)*n + v)*n + w] -- the layout the RDMs here are
+    /// index-aligned with. NOT reci's: reci takes physicist <pq|rs> = (pr|qs),
+    /// and cas_ci.cpp converts at that boundary and nowhere else. Costs n(n+1)/2 `coulomb`
     /// calls; no AO->MO transform.
     ///
     /// The pair density is passed to coulomb() UNSYMMETRISED. That matters for

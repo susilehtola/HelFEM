@@ -857,6 +857,40 @@ if(HELFEM_BINARIES)
     install(TARGETS helfem_otr EXPORT helfemTargets)
 endif()
 
+# reci -- determinant/CSF CI engine (strings, sigma vectors, RDMs and
+# transition RDMs), the CI half of a CASSCF whose orbital half lives in
+# src/general/cas_integrals.cpp. Optional and off by default: the repository
+# is not public yet, so fetching it needs SSH access to it.
+#
+# Only reci's core is used (RECI_CORE_ONLY): no Fortran, TREXIO, diaglib,
+# molpro or GTest. The core does bring Kokkos (found, or fetched by reci) and
+# C++20, which is why its one consumer, helfem-reci, is a separate target:
+# nothing else in HelFEM is compiled as C++20 or sees a Kokkos header.
+option(HELFEM_WITH_RECI "Build the reci-backed CASCI (helfem-reci)" OFF)
+set(HELFEM_FETCHED_reci FALSE)
+if(HELFEM_WITH_RECI)
+    find_package(reci CONFIG QUIET COMPONENTS core)
+    if(reci_FOUND)
+        message(STATUS "Using installed reci (${reci_DIR})")
+    else()
+        message(STATUS "reci not found; fetching from github.com:philipmnel/reci")
+        include(FetchContent)
+        # git protocol, not https: the repository is private, and SSH is
+        # how anyone with access to it already authenticates.
+        FetchContent_Declare(reci
+            GIT_REPOSITORY git@github.com:philipmnel/reci.git
+            GIT_TAG        a08ff969d096c6a2cec37abf79758436e9355a9d)
+        set(RECI_CORE_ONLY ON)
+        set(RECI_BUILD_TESTS OFF)
+        helfem_fetch_privately(reci RECI_BUILD_TESTS)
+        unset(RECI_CORE_ONLY)
+        unset(RECI_BUILD_TESTS)
+    endif()
+    if(NOT TARGET reci::core)
+        message(FATAL_ERROR "reci was found but provides no reci::core target")
+    endif()
+endif()
+
 # ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
