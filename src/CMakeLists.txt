@@ -36,6 +36,10 @@ add_library(helfem-fem
   # grid from potentials already evaluated, whatever produced them.
   general/dftgrid_core.cpp
   diatomic/dftgrid_worker.cpp
+  # Geometry-agnostic CAS algebra: needs only Matrix.h, and serves the
+  # diatomic engine above as much as the atomic one, so it lives with the
+  # dependency-light half rather than behind HDF5 + libxc.
+  general/cas_integrals.cpp
 )
 target_link_libraries(helfem-fem PUBLIC helfem helfemqc wignernj::wignernj legendre)
 if(TARGET OpenMP::OpenMP_CXX)
@@ -62,6 +66,17 @@ install(TARGETS helfem-fem legendre
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
     INCLUDES DESTINATION include)
+
+# The reci-backed CASCI (HELFEM_WITH_RECI). Its own target because reci's core
+# needs C++20 and Kokkos, and those stay confined to cas_ci.cpp: cas_ci.h
+# includes no reci header, so linking reci PRIVATE keeps both off every
+# consumer. Not installed or exported yet -- neither is cas_integrals.h; the
+# CAS API joins the installed surface together with a driver that uses it.
+if(TARGET reci::core)
+    add_library(helfem-reci STATIC general/cas_ci.cpp)
+    add_library(helfem::reci ALIAS helfem-reci)
+    target_link_libraries(helfem-reci PUBLIC helfem-fem PRIVATE reci::core)
+endif()
 
 # The diatomic public surface. basis.h includes "quadrature.h" and
 # "../general/gaunt.h" by relative path, so the installed layout mirrors the
@@ -226,6 +241,17 @@ target_link_libraries(converge_block_test helfem-fem)
 
 add_executable(adaptive_quadrature_test general/adaptive_quadrature_test.cpp)
 target_link_libraries(adaptive_quadrature_test helfem-fem)
+
+add_executable(cas_integrals_test general/cas_integrals_test.cpp)
+target_link_libraries(cas_integrals_test helfem-common legendre)
+
+add_executable(cas_diatomic_test diatomic/cas_diatomic_test.cpp)
+target_link_libraries(cas_diatomic_test helfem-fem)
+
+if(TARGET helfem-reci)
+    add_executable(cas_ci_test general/cas_ci_test.cpp)
+    target_link_libraries(cas_ci_test helfem-reci helfem-common legendre)
+endif()
 
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem-common legendre)
