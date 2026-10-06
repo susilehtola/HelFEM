@@ -860,6 +860,27 @@ endif()
 # ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
+# Testing is gated, because none of it is HelFEM's to do unasked when another
+# build consumes us: enable_testing() acts on the TOP-LEVEL project rather than
+# on us, and the registration below would put some two hundred HelFEM cases
+# into the consumer's `ctest` under names indistinguishable from their own.
+# HELFEM_IS_TOP_LEVEL as the default leaves a standalone build exactly as it was.
+#
+# enable_testing() also has to come BEFORE any add_subdirectory() that registers
+# tests of its own -- CMake silently drops add_test() calls made in a directory
+# reached before testing was enabled. python/ registers its own tests, and with
+# enable_testing() further down they were generated into nothing: configure
+# reported them registered, and `ctest -L python` found none.
+#
+# Plain `ctest` stays in the minutes range; the slow tier is opt-in via
+# -DHELFEM_SLOW_TESTS=ON.
+option(HELFEM_BUILD_TESTS
+       "Build and register HelFEM's own test suite"
+       ${HELFEM_IS_TOP_LEVEL})
+if(HELFEM_BUILD_TESTS)
+    enable_testing()
+endif()
+
 add_subdirectory(libhelfem)
 add_subdirectory(libhelfemqc)
 if(HELFEM_PYTHON)
@@ -886,11 +907,9 @@ add_subdirectory(src)
 # hundred HelFEM cases into their `ctest`, where the names would be
 # indistinguishable from their own. Defaulting to HELFEM_IS_TOP_LEVEL leaves a
 # standalone build exactly as it was.
-option(HELFEM_BUILD_TESTS
-       "Build and register HelFEM's own test suite"
-       ${HELFEM_IS_TOP_LEVEL})
+# HELFEM_BUILD_TESTS and enable_testing() are set up before the first
+# add_subdirectory() above; see there for why the order matters.
 if(HELFEM_BUILD_TESTS)
-    enable_testing()
     add_subdirectory(tests)
 endif()
 
