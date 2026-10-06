@@ -39,7 +39,7 @@ find_package(Python3 COMPONENTS Interpreter)
 foreach(t legendre_test legendre_unit_test gaunt_test sphtest over_r_test
           eval_dorbs_test converge_block_test adaptive_quadrature_test
           atomdb_test diatomic_projection_test checkpoint_precision_test
-          cas_integrals_test cas_diatomic_test)
+          cas_integrals_test cas_diatomic_test cas_ci_test)
   if(TARGET ${t})
     add_test(NAME unit.${t} COMMAND ${t})
     set_tests_properties(unit.${t} PROPERTIES LABELS "unit")

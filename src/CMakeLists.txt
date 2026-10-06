@@ -67,6 +67,17 @@ install(TARGETS helfem-fem legendre
     RUNTIME DESTINATION bin
     INCLUDES DESTINATION include)
 
+# The reci-backed CASCI (HELFEM_WITH_RECI). Its own target because reci's core
+# needs C++20 and Kokkos, and those stay confined to cas_ci.cpp: cas_ci.h
+# includes no reci header, so linking reci PRIVATE keeps both off every
+# consumer. Not installed or exported yet -- neither is cas_integrals.h; the
+# CAS API joins the installed surface together with a driver that uses it.
+if(TARGET reci::core)
+    add_library(helfem-reci STATIC general/cas_ci.cpp)
+    add_library(helfem::reci ALIAS helfem-reci)
+    target_link_libraries(helfem-reci PUBLIC helfem-fem PRIVATE reci::core)
+endif()
+
 # The diatomic public surface. basis.h includes "quadrature.h" and
 # "../general/gaunt.h" by relative path, so the installed layout mirrors the
 # source layout and the relative-include chain resolves unchanged.
@@ -236,6 +247,11 @@ target_link_libraries(cas_integrals_test helfem-common legendre)
 
 add_executable(cas_diatomic_test diatomic/cas_diatomic_test.cpp)
 target_link_libraries(cas_diatomic_test helfem-fem)
+
+if(TARGET helfem-reci)
+    add_executable(cas_ci_test general/cas_ci_test.cpp)
+    target_link_libraries(cas_ci_test helfem-reci helfem-common legendre)
+endif()
 
 add_executable(gaunt_test general/gaunt_test.cpp)
 target_link_libraries(gaunt_test helfem-common legendre)

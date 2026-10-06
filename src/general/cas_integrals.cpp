@@ -21,7 +21,8 @@ namespace helfem {
 
     namespace {
       /// Row-major index into an (n,n,n,n) tensor, matching numpy C order and
-      /// reci's Problem::eri.
+      /// reci's storage order -- though not reci's index MEANING, which is
+      /// physicist; see cas_ci.cpp.
       inline size_t idx4(size_t n, size_t t, size_t u, size_t v, size_t w) {
         return ((t * n + u) * n + v) * n + w;
       }
