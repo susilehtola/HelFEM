@@ -51,6 +51,7 @@
 #include "twodquadrature.h"
 #include "../atomic/basis.h"
 #include <Eigen/Eigenvalues>
+#include <limits>
 #include <cfloat>
 #include <climits>
 #include <sstream>
@@ -1010,6 +1011,44 @@ int main(int argc, char **argv) {
              "Hessian-vector products in %i response builds\n",
              (int) res.n_update, (int) res.n_objective,
              (int) res.n_hessian, (int) res.n_response);
+      fflush(stdout);
+    }
+
+    if (verbosity >= 1) {
+      // Aufbau, checked independently of the optimizer's own bookkeeping:
+      // the Fock matrix of the final density from the driver's energy
+      // expression, diagonalized block by block, with each block's
+      // electrons filled in eigenvalue order. The solution is aufbau if,
+      // within each particle type, no occupied orbital lies above an
+      // orbital that is not full.
+      const auto & U = opt.orbitals();
+      const auto & f = opt.occupations();
+      helfem::Cube P(U.size()), F;
+      for (size_t b = 0; b < U.size(); b++) {
+        const helfem::Matrix C = Sinvh_blocks[b] * U[b];
+        P[b] = C * f[b].asDiagonal() * C.transpose();
+      }
+      fock_fem(P, F, false);
+      for (size_t t = 0; t < nparttype; t++) {
+        double eocc = -std::numeric_limits<double>::infinity();
+        double eopen = std::numeric_limits<double>::infinity();
+        for (size_t k = 0; k < nsym; k++) {
+          const size_t b = t * nsym + k;
+          const helfem::Matrix Fo = Sinvh_blocks[b].transpose() * F[b] * Sinvh_blocks[b];
+          Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(Fo);
+          double q = f[b].sum();
+          for (Eigen::Index i = 0; i < es.eigenvalues().size(); i++) {
+            const double occ = std::min(std::max(q, 0.0), maxocc[b]);
+            q -= occ;
+            if (occ > 1e-8) eocc = std::max(eocc, es.eigenvalues()(i));
+            if (occ < maxocc[b] - 1e-8) eopen = std::min(eopen, es.eigenvalues()(i));
+          }
+        }
+        printf("Aufbau check from the final Fock matrix, particle type %i: "
+               "highest occupied % .8f, lowest not full % .8f: %s\n",
+               (int) t, eocc, eopen,
+               eocc <= eopen + 1e-6 ? "aufbau" : "NOT AUFBAU");
+      }
       fflush(stdout);
     }
   }
