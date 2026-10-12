@@ -977,9 +977,34 @@ namespace helfem {
       // change of pattern, not of coordinates. So the solve runs inside a
       // loop that rebuilds the parametrization around whatever pattern the
       // reference has arrived at.
+      //
+      // That loop ends when a pattern comes back without a lower energy:
+      // a revisit at the same energy can only repeat what happened last
+      // time. Each pattern -- the fractional orbital of every block and
+      // which blocks are free -- is recorded with its entry energy.
       const otr::Settings otrset = opts.otr;
+      std::vector<std::pair<std::vector<Eigen::Index>, double>> visited;
       for (int pass = 0;; pass++) {
         build_layout();
+
+        std::vector<Eigen::Index> pattern(active_);
+        for (const auto &fp : free_)
+          for (size_t b : fp)
+            pattern.push_back((Eigen::Index)b);
+        bool cycle = false;
+        for (const auto &v : visited)
+          if (v.first == pattern &&
+              energy_ >= v.second - 1e-10 * std::abs(energy_))
+            cycle = true;
+        if (cycle) {
+          if (opts.verbosity >= 1) {
+            printf("\nThe occupation pattern recurs without a lower energy; "
+                   "stopping.\n");
+            fflush(stdout);
+          }
+          break;
+        }
+        visited.emplace_back(pattern, energy_);
 
         if (opts.verbosity >= 1) {
           size_t nfree = 0;
@@ -1070,8 +1095,11 @@ namespace helfem {
         // Before giving up on a pass, ask whether the point it reached is
         // a KKT point at all. If a frozen block is pinned on the wrong side
         // of the Fermi level, release it and go again: the restricted
-        // problem it solved is not the problem.
+        // problem it solved is not the problem. The orbital energies are
+        // the multipliers of those conditions, and far from convergence
+        // they are noise, so the question waits for a small gradient.
         if (!pattern_changed_ && pass < opts.max_restarts &&
+            gpass_rms <= std::max(otrset.conv_tol, kkt_gate) &&
             release_kkt_violation(opts.verbosity)) {
           std::vector<helfem::Matrix> U = U_;
           std::vector<double> q = q_;
