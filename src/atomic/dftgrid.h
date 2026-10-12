@@ -131,32 +131,42 @@ namespace helfem {
         /// (3 x Nrho) x Npts, the layout update_density fills.
         const helfem::Matrix & get_grho() const { return grho; }
 
+        /// Paramagnetic current density (r, theta, phi) of the density
+        /// matrix behind the helpers PvA = P Re(bf), PvB = P Im(bf).
+        helfem::Matrix current_density(const helfem::Matrix & PvA, const helfem::Matrix & PvB) const;
+        /// Accumulate the current term of the XC matrix for one spin
+        /// channel's current coefficient y (3 x Npts).
+        void increment_current(helfem::Matrix & H, const helfem::Matrix & y) const;
+
         /// Perturbed density, density gradient and kinetic energy density
         /// of one perturbation: the SAME bilinear forms in the density
         /// matrix that update_density evaluates for the reference, with
         /// the perturbed matrix substituted. Keeping the two in step is
         /// what makes the response kernel exact, so this mirrors that
         /// code deliberately -- the metric factors in particular.
-        /// drho is 1 x Npts, dgrho 3 x Npts, dtau 1 x Npts; empty
-        /// matrices come back for the channels the functional does not
-        /// use.
+        /// drho is 1 x Npts, dgrho 3 x Npts, dtau 1 x Npts and the
+        /// perturbed current djp 3 x Npts; empty matrices come back for
+        /// the channels the functional does not use.
         void eval_response_fields(const helfem::Matrix & dP0,
                                   helfem::Matrix & drho,
                                   helfem::Matrix & dgrho,
-                                  helfem::Matrix & dtau) const;
-        /// Spin-resolved perturbed fields: 2, 6 and 2 rows.
+                                  helfem::Matrix & dtau,
+                                  helfem::Matrix & djp) const;
+        /// Spin-resolved perturbed fields: 2, 6, 2 and 6 rows.
         void eval_response_fields(const helfem::Matrix & dPa0,
                                   const helfem::Matrix & dPb0,
                                   helfem::Matrix & drho,
                                   helfem::Matrix & dgrho,
-                                  helfem::Matrix & dtau) const;
+                                  helfem::Matrix & dtau,
+                                  helfem::Matrix & djp) const;
         /// Debug: check the perturbed fields against central differences
         /// of the reference fields. Destroys the cached density.
         void check_response_fields(const helfem::Matrix & P,
                                    const helfem::Matrix & dP,
                                    const helfem::Matrix & drho,
                                    const helfem::Matrix & dgrho,
-                                   const helfem::Matrix & dtau);
+                                   const helfem::Matrix & dtau,
+                                   const helfem::Matrix & djp);
         /// Debug: spin-resolved perturbed fields vs central differences.
         void check_response_fields(const helfem::Matrix & Pa,
                                    const helfem::Matrix & Pb,
@@ -164,7 +174,8 @@ namespace helfem {
                                    const helfem::Matrix & dPb,
                                    const helfem::Matrix & drho,
                                    const helfem::Matrix & dgrho,
-                                   const helfem::Matrix & dtau);
+                                   const helfem::Matrix & dtau,
+                                   const helfem::Matrix & djp);
 
         // compute_Nel() is inherited from DFTGridWorkerBase.
         /// Compute integral over density laplacian
@@ -196,6 +207,8 @@ namespace helfem {
         const helfem::atomic::basis::TwoDBasis * basp;
         /// Angular rule
         int lang, mang;
+        /// Current-corrected tau~ for meta-GGAs?
+        bool current = false;
 
       public:
         /// Dummy constructor
@@ -204,6 +217,10 @@ namespace helfem {
         DFTGrid(const helfem::atomic::basis::TwoDBasis * basp, int lang, int mang);
         /// Destructor
         ~DFTGrid();
+
+        /// Evaluate tau-dependent functionals at the current-corrected
+        /// tau~ = tau - |j_p|^2 / (2 rho); see DFTGridWorkerBase::do_current.
+        void set_current(bool c) { current = c; }
 
         /// Compute Fock matrix, exchange-correlation energy and integrated
         /// electron density, restricted case. Eigen-typed public boundary

@@ -81,6 +81,7 @@ int main(int argc, char **argv) {
   parser.add<int>("mdft", 0, "phi rule for dft quadrature (0 for auto; unused by the pure-m path)", false, 0);
   parser.add<int>("purem", 0, "pure-m XC fast path (analytic phi): -1 auto (on when symmetry>=1), 0 off, 1 force on", false, -1);
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
+  parser.add<bool>("current", 0, "evaluate tau-dependent meta-GGAs at the gauge-invariant, current-corrected tau - j_p^2/(2 rho)", false, false);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 5);
   parser.add<int>("finitenuc", 0, "finite nuclear model: 0 point, 1 Gaussian, 2 spherical, 3 hollow, 4 regularized", false, 0);
   parser.add<double>("Rrms1", 0, "nucleus 1 size parameter: rms radius for models 1-3, regularization parameter a for model 4", false, 0.0);
@@ -162,6 +163,7 @@ int main(int argc, char **argv) {
   const int mdft_arg  = parser.get<int>("mdft");
   const int purem_arg = parser.get<int>("purem");
   const double dftthr = parser.get<double>("dftthr");
+  const bool current = parser.get<bool>("current");
   const int primbas   = parser.get<int>("primbas");
   const int finitenuc = parser.get<int>("finitenuc");
   const double Rrms1  = parser.get<double>("Rrms1");
@@ -341,6 +343,8 @@ int main(int argc, char **argv) {
     throw std::logic_error("The pure-m XC path requires --symmetry >= 1: with symmetry=0 the orbitals may mix m and the density is no longer phi-independent.\n");
   auto grid   = helfem::diatomic::dftgrid::DFTGrid(&basis, lang, mang);
   auto pmgrid = helfem::diatomic::dftgrid_purem::PureMDFTGrid(&basis, lang);
+  grid.set_current(current);
+  pmgrid.set_current(current);
   // --symmetry=3 makes every density +-m symmetric by construction, so
   // exchange() may build only the m >= 0 output blocks and mirror.
   basis.set_absm_symmetric(symm == 3);

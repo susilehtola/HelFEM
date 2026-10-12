@@ -66,6 +66,8 @@ namespace helfem {
         /// 1 / h_phi^2, h_phi = Rhalf sinh(mu) sin(nu). Only needed for the
         /// analytic m^2 term in tau.
         helfem::Vector inv_scale_phi2;
+        /// 1 / h_phi, for the azimuthal current
+        helfem::Vector inv_scale_phi;
 
         /// The m values present in the basis
         std::vector<int> mlist;
@@ -160,24 +162,28 @@ namespace helfem {
         /// m^2 |psi|^2 / h_phi^2 term in tau, which is a bilinear form in
         /// the block density like any other. Every m block is walked in
         /// its own right, for the reason eval_density gives above.
-        /// drho is 1 x Nang, dgrho 2 x Nang, dtau 1 x Nang.
+        /// drho is 1 x Nang, dgrho 2 x Nang, dtau 1 x Nang and the
+        /// perturbed azimuthal current djp 1 x Nang.
         void eval_response_fields(const helfem::Matrix & dP,
                                   helfem::Matrix & drho,
                                   helfem::Matrix & dgrho,
-                                  helfem::Matrix & dtau) const;
-        /// Spin-resolved perturbed fields: 2, 4 and 2 rows.
+                                  helfem::Matrix & dtau,
+                                  helfem::Matrix & djp) const;
+        /// Spin-resolved perturbed fields: 2, 4, 2 and 2 rows.
         void eval_response_fields(const helfem::Matrix & dPa,
                                   const helfem::Matrix & dPb,
                                   helfem::Matrix & drho,
                                   helfem::Matrix & dgrho,
-                                  helfem::Matrix & dtau) const;
+                                  helfem::Matrix & dtau,
+                                  helfem::Matrix & djp) const;
         /// Debug: check the perturbed fields against central differences
         /// of the reference fields. Destroys the cached density.
         void check_response_fields(const helfem::Matrix & P,
                                    const helfem::Matrix & dP,
                                    const helfem::Matrix & drho,
                                    const helfem::Matrix & dgrho,
-                                   const helfem::Matrix & dtau);
+                                   const helfem::Matrix & dtau,
+                                   const helfem::Matrix & djp);
         /// Debug: spin-resolved perturbed fields vs central differences.
         void check_response_fields(const helfem::Matrix & Pa,
                                    const helfem::Matrix & Pb,
@@ -185,12 +191,21 @@ namespace helfem {
                                    const helfem::Matrix & dPb,
                                    const helfem::Matrix & drho,
                                    const helfem::Matrix & dgrho,
-                                   const helfem::Matrix & dtau);
+                                   const helfem::Matrix & dtau,
+                                   const helfem::Matrix & djp);
 
         /// Assemble the gradient coefficient of the assembly from
         /// vsigma and the stored density gradient. Call after
         /// compute_xc and before eval_Fxc.
         void build_vgrad() { DFTGridWorkerBase::build_vgrad(grho); }
+        /// The paramagnetic current of a set of per-m block densities:
+        /// j_phi = sum_m m rho_m / h_phi, the only component a pure-m
+        /// density has.
+        helfem::Vector azimuthal_current(const std::vector<helfem::Vector> & rhom) const;
+        /// The current term of block im's XC matrix for spin channel
+        /// spin, as built for +m: odd in m, so a mirrored -m block takes
+        /// it negated. Zero unless the current is being assembled.
+        helfem::Matrix current_block(size_t im, Eigen::Index spin) const;
         /// Accumulate the XC Fock contribution, restricted
         void eval_Fxc(helfem::Matrix & H) const;
         /// Accumulate the XC Fock contribution, unrestricted
@@ -205,11 +220,17 @@ namespace helfem {
         const helfem::diatomic::basis::TwoDBasis * basp;
         /// Order of the nu (angular) rule. There is no phi rule.
         int lang;
+        /// Current-corrected tau~ for meta-GGAs?
+        bool current = false;
 
       public:
         PureMDFTGrid();
         PureMDFTGrid(const helfem::diatomic::basis::TwoDBasis * basp, int lang);
         ~PureMDFTGrid();
+
+        /// Evaluate tau-dependent functionals at the current-corrected
+        /// tau~ = tau - |j_p|^2 / (2 rho); see DFTGridWorkerBase::do_current.
+        void set_current(bool c) { current = c; }
 
         /// Restricted
         void eval_Fxc(int x_func, const helfem::Vector & x_pars, int c_func, const helfem::Vector & c_pars,

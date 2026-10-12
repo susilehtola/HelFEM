@@ -87,6 +87,55 @@ namespace helfem {
       /// Functional derivative wrt kinetic energy density
       helfem::Matrix vtau;
 
+      /// Evaluate tau-dependent functionals at the current-corrected
+      /// kinetic energy density tau~ = tau - |j_p|^2 / (2 rho), per spin?
+      ///
+      /// HelFEM's basis functions are complex, chi = f exp(i m phi), and
+      /// its density matrices real, so an open shell with unequal +m and
+      /// -m occupations carries a paramagnetic current
+      ///   j_p = sum_uv P_uv Im(chi_u^* grad chi_v).
+      /// Plain tau is not gauge invariant and rises with |j_p|, so a
+      /// tau-meta-GGA sees two degenerate M_L components of one term as
+      /// different densities; tau~ removes exactly that (Dobson; Becke;
+      /// Tao and Perdew). Opt-in, and only meaningful when do_tau.
+      bool do_current = false;
+      /// Paramagnetic current density, (ncur x Nrho) x Npts, alpha rows
+      /// first. ncur is the worker's business: three physical components
+      /// for the 3D workers, one (phi) for the pure-m worker.
+      helfem::Matrix jp;
+      /// tau~, the kinetic energy density libxc is evaluated at when
+      /// do_current; tau itself stays the true one, since the kinetic
+      /// energy is read from it.
+      helfem::Matrix tau_xc;
+      /// Coefficient of the pair's current density Im(chi_u^* d_c chi_v),
+      /// symmetrized; same layout as jp.
+      helfem::Matrix vcur;
+      /// The ground-state vtau, kept for the response:
+      /// set_response_potential overwrites vtau with the response's own
+      /// tau channel, but the current channels of the kernel need the
+      /// ground-state one.
+      helfem::Matrix vtau0;
+      /// Assemble the current term? Set by build_vcurrent and by
+      /// set_response_potential, cleared by init_xc.
+      bool do_cur = false;
+      /// The density threshold the functionals were last evaluated with.
+      /// Below it a spin channel's current is dropped -- from tau~, the
+      /// potential and the kernel alike, so that the energy and its
+      /// derivatives stay consistent -- since j / rho there is 0 / 0 for
+      /// an empty channel such as the beta one of a hydrogen atom.
+      double cur_thr = 0.0;
+
+      /// Form tau~ for the density threshold thr; called by compute_xc
+      /// and compute_fxc, which hand it to libxc instead of tau.
+      helfem::Matrix & current_tau(double thr);
+      /// Set the current-density response channels; the tail of
+      /// set_response_potential when needs_current().
+      void set_response_current(const helfem::Matrix & drho,
+                                const helfem::Matrix & grho,
+                                const helfem::Matrix & dgrad_rho,
+                                const helfem::Matrix & dtau,
+                                const helfem::Matrix & djp);
+
       /// Coefficient of the basis-function gradient pair, i.e. the
       /// vector V of  K = sum_g w [ u chi chi + V . grad(chi chi) ].
       /// 3 x Npts unpolarized, 6 x Npts polarized (alpha rows first).
@@ -155,6 +204,12 @@ namespace helfem {
       bool needs_grad() const { return do_grad; }
       bool needs_lapl() const { return do_lapl; }
 
+      /// Switch the current-corrected tau~ on or off; see do_current.
+      void set_current(bool current) { do_current = current; }
+      /// Does the functional actually see the current? Only a
+      /// tau-dependent one does.
+      bool needs_current() const { return do_current && do_tau; }
+
       /// Initialise vxc / vsigma / vtau / vlapl buffers with the
       /// correct shape and zero exc.
       void init_xc();
@@ -182,6 +237,18 @@ namespace helfem {
       /// libxc has the entry point in every case.
       void compute_fxc(int func_id, const helfem::Vector & params, double thr);
 
+      /// Store the paramagnetic current of the density update_density
+      /// just evaluated, and form tau~ from it. Workers call this at the
+      /// end of update_density whenever needs_current().
+      void set_current_density(const helfem::Matrix & jp);
+
+      /// Turn the tau-meta-GGA potential into the current-corrected one:
+      /// vrho is replaced by u = vrho + vtau |j|^2 / (2 rho^2) and the
+      /// current channel y = -vtau j / rho is formed (per spin). Call
+      /// after compute_xc, alongside build_vgrad; a no-op unless
+      /// needs_current().
+      void build_vcurrent();
+
       /// Build the ground-state gradient coefficient V from vsigma and
       /// the density gradient, so that every assembly site contracts a
       /// general vector field rather than reconstructing it from vsigma.
@@ -199,6 +266,10 @@ namespace helfem {
       /// gradient channel needs alongside the perturbed one. Pass empty
       /// matrices for the channels a given functional does not use.
       ///
+      /// djp is the perturbed paramagnetic current, in the layout of jp;
+      /// it is required when needs_current(), since a real symmetric
+      /// perturbation of a complex basis moves the current.
+      ///
       /// The chain rule assembled here is exact for every rung: the
       /// gradient channel is
       ///   V = 2 vsigma grad(drho)
@@ -209,7 +280,8 @@ namespace helfem {
       void set_response_potential(const helfem::Matrix & drho,
                                   const helfem::Matrix & grho,
                                   const helfem::Matrix & dgrad_rho,
-                                  const helfem::Matrix & dtau);
+                                  const helfem::Matrix & dtau,
+                                  const helfem::Matrix & djp = helfem::Matrix());
     };
 
     /// Worst deviation of an analytic field from its central
@@ -296,6 +368,56 @@ namespace helfem {
       for(Eigen::Index j=0;j<fhlp.cols();j++)
         fhlp.col(j) *= vxc(j);
       H += (fhlp * f.adjoint()).real();
+    }
+
+    /// Paramagnetic current density of a real symmetric density matrix P
+    /// in a complex basis f = a + i b:
+    ///   j_c = sum_uv P_uv Im(f_u^* d_c f_v) / h_c
+    ///       = [ (P a) . gb_c - (P b) . ga_c ] / h_c   per point,
+    /// with PvA = P a and PvB = P b the helpers the density build already
+    /// forms, ga/gb the real and imaginary parts of the component
+    /// derivatives and h the scale factors. ncomp x Npts.
+    inline helfem::Matrix current_density_split(const helfem::Matrix & PvA, const helfem::Matrix & PvB,
+                                                const std::vector<const helfem::Matrix *> & ga,
+                                                const std::vector<const helfem::Matrix *> & gb,
+                                                const std::vector<const helfem::Vector *> & scale) {
+      if(gb.size() != ga.size() || scale.size() != ga.size())
+        throw std::logic_error("Current density: component counts do not match.\n");
+      helfem::Matrix j(ga.size(), PvA.cols());
+      for(size_t c=0;c<ga.size();c++)
+        for(Eigen::Index ip=0;ip<PvA.cols();ip++)
+          j((Eigen::Index) c,ip)=(PvA.col(ip).dot(gb[c]->col(ip))-PvB.col(ip).dot(ga[c]->col(ip)))/(*scale[c])(ip);
+      return j;
+    }
+
+    /// Current-density accumulation for a complex basis f = a + i b with
+    /// component derivatives g_c = ga_c + i gb_c:
+    ///   H += sum_g y_c Im(f_u^* g_c,v), symmetrized over (u, v),
+    /// the derivative of sum_g y . j_p with respect to a real symmetric
+    /// P. Im(f_u^* g_v) = a_u gb_v - b_u ga_v, so with yn (npts x ncomp)
+    /// holding the weights,
+    ///   X = a (sum_c yn_c gb_c)^T - b (sum_c yn_c ga_c)^T,
+    ///   H += (X + X^T) / 2.
+    inline void increment_current_split(helfem::Matrix & H, const helfem::Matrix & yn,
+                                        const helfem::Matrix & a, const helfem::Matrix & b,
+                                        const std::vector<const helfem::Matrix *> & ga,
+                                        const std::vector<const helfem::Matrix *> & gb) {
+      if(yn.cols() != (Eigen::Index) ga.size() || gb.size() != ga.size())
+        throw std::runtime_error("Current weights and basis derivative components do not match!\n");
+      if(H.rows() != a.rows() || H.cols() != a.rows())
+        throw std::runtime_error("Sizes of basis function and Fock matrices doesn't match!\n");
+
+      helfem::Matrix GA(helfem::Matrix::Zero(a.rows(), a.cols()));
+      helfem::Matrix GB(helfem::Matrix::Zero(a.rows(), a.cols()));
+      for(size_t c=0;c<ga.size();c++)
+        for(Eigen::Index j=0;j<GA.cols();j++) {
+          GA.col(j) += yn(j,(Eigen::Index) c) * ga[c]->col(j);
+          GB.col(j) += yn(j,(Eigen::Index) c) * gb[c]->col(j);
+        }
+      helfem::Matrix X(a * GB.transpose());
+      X.noalias() -= b * GA.transpose();
+      H += 0.5 * X;
+      H += 0.5 * X.transpose();
     }
 
     /// GGA accumulation, shared by all three geometries.

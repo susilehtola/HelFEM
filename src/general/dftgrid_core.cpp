@@ -64,6 +64,7 @@ namespace helfem {
       do_gga    = false;
       do_mgga_l = false;
       do_mgga_t = false;
+      do_cur    = false;
     }
 
     double DFTGridWorkerBase::eval_Exc() const {
@@ -100,6 +101,104 @@ namespace helfem {
         v2tau2     = helfem::Matrix::Zero(n2, N);
         if (do_grad) v2sigmatau = helfem::Matrix::Zero(n6, N);
       }
+      // compute_xc has run by now and the response is about to overwrite
+      // vtau; the current channels need the ground-state one.
+      if (needs_current()) vtau0 = vtau;
+    }
+
+    namespace {
+      /// Number of current components per spin channel, checked against
+      /// the density's layout.
+      Eigen::Index current_components(const helfem::Matrix & jp, Eigen::Index nsp) {
+        if (jp.rows() == 0 || jp.rows() % nsp) {
+          std::ostringstream oss;
+          oss << "Current density has " << jp.rows() << " rows, which does "
+              << "not fit " << nsp << " spin channels.\n";
+          throw std::logic_error(oss.str());
+        }
+        const Eigen::Index nj = jp.rows() / nsp;
+        if (nj != 1 && nj != 3) {
+          std::ostringstream oss;
+          oss << "No current-density kernel is emitted for " << nj
+              << " current components.\n";
+          throw std::logic_error(oss.str());
+        }
+        return nj;
+      }
+    }
+
+    void DFTGridWorkerBase::set_current_density(const helfem::Matrix & j) {
+      const Eigen::Index nsp = polarized ? 2 : 1;
+      current_components(j, nsp);
+      if (j.cols() != rho.cols())
+        throw std::logic_error("Current density and density have different numbers of points.\n");
+      jp = j;
+    }
+
+    helfem::Matrix & DFTGridWorkerBase::current_tau(double thr) {
+      const Eigen::Index nsp = polarized ? 2 : 1;
+      const Eigen::Index nj = current_components(jp, nsp);
+      cur_thr = thr;
+      tau_xc = tau;
+      for (Eigen::Index s = 0; s < nsp; s++)
+        for (Eigen::Index i = 0; i < tau_xc.cols(); i++) {
+          if (!(rho(s, i) >= thr) || rho(s, i) <= 0.0) continue;
+          double j2 = 0.0;
+          for (Eigen::Index c = 0; c < nj; c++)
+            j2 += jp(s*nj + c, i) * jp(s*nj + c, i);
+          tau_xc(s, i) -= 0.5 * j2 / rho(s, i);
+        }
+      return tau_xc;
+    }
+
+    void DFTGridWorkerBase::build_vcurrent() {
+      do_cur = false;
+      if (!needs_current()) return;
+      const Eigen::Index nsp = polarized ? 2 : 1;
+      const Eigen::Index nj = current_components(jp, nsp);
+      const Eigen::Index N = rho.cols();
+      vcur = helfem::Matrix::Zero(jp.rows(), N);
+      // The chain rule is generated (libxckernel's helfemwriter,
+      // engine/current_channels): tau~ enters every Libxc array, and the
+      // potential's dependence on it is the u correction and y alone.
+      // A spin channel below the density threshold keeps its plain
+      // tau-meta-GGA potential, matching current_tau.
+      for (Eigen::Index i = 0; i < N; i++) {
+        double r[2], j[2][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+        for (Eigen::Index s = 0; s < nsp; s++) {
+          const bool live = rho(s, i) >= cur_thr && rho(s, i) > 0.0;
+          r[s] = live ? rho(s, i) : 1.0;
+          for (Eigen::Index c = 0; c < nj; c++)
+            j[s][c] = live ? jp(s*nj + c, i) : 0.0;
+        }
+        if (!polarized) {
+          double u, y[3] = {0.0, 0.0, 0.0};
+          if (nj == 3)
+            helfem::xckernel::xck_helfem_vxc_cmgga_tau_3d(r[0], j[0][0],
+                j[0][1], j[0][2], vxc(0, i), vtau(0, i), u, y[0], y[1], y[2]);
+          else
+            helfem::xckernel::xck_helfem_vxc_cmgga_tau_2d(r[0], j[0][0],
+                vxc(0, i), vtau(0, i), u, y[0]);
+          vxc(0, i) = u;
+          for (Eigen::Index c = 0; c < nj; c++) vcur(c, i) = y[c];
+        } else {
+          double u[2], y[2][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+          if (nj == 3)
+            helfem::xckernel::xck_helfem_vxc_cmgga_tau_3d_spin(r[0], r[1],
+                j[0][0], j[0][1], j[0][2], j[1][0], j[1][1], j[1][2],
+                vxc(0, i), vxc(1, i), vtau(0, i), vtau(1, i), u[0],
+                y[0][0], y[0][1], y[0][2], u[1], y[1][0], y[1][1], y[1][2]);
+          else
+            helfem::xckernel::xck_helfem_vxc_cmgga_tau_2d_spin(r[0], r[1],
+                j[0][0], j[1][0], vxc(0, i), vxc(1, i), vtau(0, i),
+                vtau(1, i), u[0], y[0][0], u[1], y[1][0]);
+          for (Eigen::Index s = 0; s < 2; s++) {
+            vxc(s, i) = u[s];
+            for (Eigen::Index c = 0; c < nj; c++) vcur(s*nj + c, i) = y[s][c];
+          }
+        }
+      }
+      do_cur = true;
     }
 
     void DFTGridWorkerBase::build_vgrad(const helfem::Matrix & grho) {
@@ -143,7 +242,9 @@ namespace helfem {
     void DFTGridWorkerBase::set_response_potential(const helfem::Matrix & drho,
                                                    const helfem::Matrix & grho,
                                                    const helfem::Matrix & dgrad_rho,
-                                                   const helfem::Matrix & dtau) {
+                                                   const helfem::Matrix & dtau,
+                                                   const helfem::Matrix & djp) {
+      do_cur = false;
       if (drho.rows() != rho.rows() || drho.cols() != rho.cols()) {
         std::ostringstream oss;
         oss << "Perturbation density is " << drho.rows() << "x" << drho.cols()
@@ -202,6 +303,11 @@ namespace helfem {
         throw std::logic_error(oss.str());
       }
       vgrad = helfem::Matrix::Zero(grho.rows(), N);
+
+      if (needs_current() && have_tau) {
+        set_response_current(drho, grho, dgrad_rho, dtau, djp);
+        return;
+      }
 
       if (!polarized) {
         // The chain rule itself is GENERATED, not written here: the
@@ -392,6 +498,129 @@ namespace helfem {
       do_gga    = have_grad;
       do_mgga_t = have_tau;
       do_mgga_l = false;
+    }
+
+    void DFTGridWorkerBase::set_response_current(const helfem::Matrix & drho,
+                                                 const helfem::Matrix & grho,
+                                                 const helfem::Matrix & dgrad_rho,
+                                                 const helfem::Matrix & dtau,
+                                                 const helfem::Matrix & djp) {
+      const Eigen::Index N = wtot.size();
+      const Eigen::Index nsp = polarized ? 2 : 1;
+      const Eigen::Index nc = grho.rows() / nsp;
+      const Eigen::Index nj = current_components(jp, nsp);
+      // A real symmetric perturbation of a complex basis moves the
+      // current, so a caller that leaves it out would get a silently
+      // wrong kernel rather than an approximate one.
+      if (djp.rows() != jp.rows() || djp.cols() != jp.cols())
+        throw std::logic_error("The current-corrected response needs the "
+                               "perturbed current in the layout of the "
+                               "reference one.\n");
+      // The emitted kernels pair three gradient components with three
+      // current ones (3D) and two with the azimuthal one alone (pure-m).
+      if (!((nc == 3 && nj == 3) || (nc == 2 && nj == 1))) {
+        std::ostringstream oss;
+        oss << "No current-corrected kernel is emitted for " << nc
+            << " gradient and " << nj << " current components.\n";
+        throw std::logic_error(oss.str());
+      }
+      vcur = helfem::Matrix::Zero(jp.rows(), N);
+
+      for (Eigen::Index i = 0; i < N; i++) {
+        // A channel below the density threshold carries no current, as
+        // in current_tau and build_vcurrent; with j = dj = 0 every 1/rho
+        // term of the kernel drops out, so the placeholder density is
+        // never seen.
+        double r[2], j[2][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+        double dj[2][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+        for (Eigen::Index s = 0; s < nsp; s++) {
+          const bool live = rho(s, i) >= cur_thr && rho(s, i) > 0.0;
+          r[s] = live ? rho(s, i) : 1.0;
+          for (Eigen::Index c = 0; c < nj; c++) {
+            j[s][c]  = live ? jp(s*nj + c, i) : 0.0;
+            dj[s][c] = live ? djp(s*nj + c, i) : 0.0;
+          }
+        }
+        if (!polarized) {
+          double u = 0.0, w = 0.0, vg[3] = {0.0, 0.0, 0.0}, y[3] = {0.0, 0.0, 0.0};
+          if (nc == 3)
+            helfem::xckernel::xck_helfem_fxc_cmgga_tau_3d(dgrad_rho(0, i),
+                dgrad_rho(1, i), dgrad_rho(2, i), grho(0, i), grho(1, i),
+                grho(2, i), drho(0, i), dtau(0, i), dj[0][0], dj[0][1],
+                dj[0][2], j[0][0], j[0][1], j[0][2], r[0], v2rho2(0, i),
+                v2rhosigma(0, i), v2rhotau(0, i), v2sigma2(0, i),
+                v2sigmatau(0, i), v2tau2(0, i), vsigma(0, i), vtau0(0, i),
+                u, vg[0], vg[1], vg[2], w, y[0], y[1], y[2]);
+          else
+            helfem::xckernel::xck_helfem_fxc_cmgga_tau_2d(dgrad_rho(0, i),
+                dgrad_rho(1, i), grho(0, i), grho(1, i), drho(0, i),
+                dtau(0, i), dj[0][0], j[0][0], r[0], v2rho2(0, i),
+                v2rhosigma(0, i), v2rhotau(0, i), v2sigma2(0, i),
+                v2sigmatau(0, i), v2tau2(0, i), vsigma(0, i), vtau0(0, i),
+                u, vg[0], vg[1], w, y[0]);
+          vxc(0, i) = u;
+          vtau(0, i) = w;
+          for (Eigen::Index c = 0; c < nc; c++) vgrad(c, i) = vg[c];
+          for (Eigen::Index c = 0; c < nj; c++) vcur(c, i) = y[c];
+        } else {
+          double u[2] = {0.0, 0.0}, w[2] = {0.0, 0.0};
+          double vg[2][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+          double y[2][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+          if (nc == 3)
+            helfem::xckernel::xck_helfem_fxc_cmgga_tau_3d_spin(
+                dgrad_rho(0, i), dgrad_rho(1, i), dgrad_rho(2, i),
+                grho(0, i), grho(1, i), grho(2, i),
+                dgrad_rho(3, i), dgrad_rho(4, i), dgrad_rho(5, i),
+                grho(3, i), grho(4, i), grho(5, i),
+                drho(0, i), drho(1, i), dtau(0, i), dtau(1, i),
+                dj[0][0], dj[0][1], dj[0][2], dj[1][0], dj[1][1], dj[1][2],
+                j[0][0], j[0][1], j[0][2], j[1][0], j[1][1], j[1][2],
+                r[0], r[1],
+                v2rho2(0, i), v2rho2(1, i), v2rho2(2, i),
+                v2rhosigma(0, i), v2rhosigma(1, i), v2rhosigma(2, i),
+                v2rhosigma(3, i), v2rhosigma(4, i), v2rhosigma(5, i),
+                v2rhotau(0, i), v2rhotau(1, i), v2rhotau(2, i), v2rhotau(3, i),
+                v2sigma2(0, i), v2sigma2(1, i), v2sigma2(2, i),
+                v2sigma2(3, i), v2sigma2(4, i), v2sigma2(5, i),
+                v2sigmatau(0, i), v2sigmatau(1, i), v2sigmatau(2, i),
+                v2sigmatau(3, i), v2sigmatau(4, i), v2sigmatau(5, i),
+                v2tau2(0, i), v2tau2(1, i), v2tau2(2, i),
+                vsigma(0, i), vsigma(1, i), vsigma(2, i),
+                vtau0(0, i), vtau0(1, i),
+                u[0], vg[0][0], vg[0][1], vg[0][2], w[0], y[0][0], y[0][1], y[0][2],
+                u[1], vg[1][0], vg[1][1], vg[1][2], w[1], y[1][0], y[1][1], y[1][2]);
+          else
+            helfem::xckernel::xck_helfem_fxc_cmgga_tau_2d_spin(
+                dgrad_rho(0, i), dgrad_rho(1, i), grho(0, i), grho(1, i),
+                dgrad_rho(2, i), dgrad_rho(3, i), grho(2, i), grho(3, i),
+                drho(0, i), drho(1, i), dtau(0, i), dtau(1, i),
+                dj[0][0], dj[1][0], j[0][0], j[1][0], r[0], r[1],
+                v2rho2(0, i), v2rho2(1, i), v2rho2(2, i),
+                v2rhosigma(0, i), v2rhosigma(1, i), v2rhosigma(2, i),
+                v2rhosigma(3, i), v2rhosigma(4, i), v2rhosigma(5, i),
+                v2rhotau(0, i), v2rhotau(1, i), v2rhotau(2, i), v2rhotau(3, i),
+                v2sigma2(0, i), v2sigma2(1, i), v2sigma2(2, i),
+                v2sigma2(3, i), v2sigma2(4, i), v2sigma2(5, i),
+                v2sigmatau(0, i), v2sigmatau(1, i), v2sigmatau(2, i),
+                v2sigmatau(3, i), v2sigmatau(4, i), v2sigmatau(5, i),
+                v2tau2(0, i), v2tau2(1, i), v2tau2(2, i),
+                vsigma(0, i), vsigma(1, i), vsigma(2, i),
+                vtau0(0, i), vtau0(1, i),
+                u[0], vg[0][0], vg[0][1], w[0], y[0][0],
+                u[1], vg[1][0], vg[1][1], w[1], y[1][0]);
+          for (Eigen::Index s = 0; s < 2; s++) {
+            vxc(s, i) = u[s];
+            vtau(s, i) = w[s];
+            for (Eigen::Index c = 0; c < nc; c++) vgrad(s*nc + c, i) = vg[s][c];
+            for (Eigen::Index c = 0; c < nj; c++) vcur(s*nj + c, i) = y[s][c];
+          }
+        }
+      }
+
+      do_gga    = true;
+      do_mgga_t = true;
+      do_mgga_l = false;
+      do_cur    = true;
     }
 
   }
