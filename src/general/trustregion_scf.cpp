@@ -109,46 +109,6 @@ namespace helfem {
                  es.eigenvectors().transpose());
       }
 
-      /// Euclidean projection onto the simplex {q >= 0, sum q = total}.
-      void project_simplex(std::vector<double> &q, double total) {
-        const size_t n = q.size();
-        if (n == 0)
-          return;
-
-        // A feasible point is its own projection, so return it untouched
-        // rather than round-tripping it through the arithmetic below: the
-        // sum is conserved by construction, but only to rounding, and the
-        // shift that leaks out of that is applied to every filling on
-        // every objective evaluation. The steps this guards are almost
-        // never needed -- a free block leaving q >= 0 is a pattern change,
-        // not a normal step -- so the common path should be exactly the
-        // identity, not the identity plus 1e-16.
-        bool feasible = true;
-        for (size_t i = 0; i < n; i++)
-          if (q[i] < 0.0) {
-            feasible = false;
-            break;
-          }
-        if (feasible)
-          return;
-
-        std::vector<double> u(q);
-        std::sort(u.begin(), u.end(), std::greater<double>());
-        double csum = 0.0, theta = 0.0;
-        size_t rho = 0;
-        for (size_t j = 0; j < n; j++) {
-          csum += u[j];
-          const double t = (csum - total) / (double)(j + 1);
-          if (u[j] - t > 0.0) {
-            rho = j + 1;
-            theta = t;
-          }
-        }
-        if (rho == 0)
-          theta = (csum - total) / (double)n;
-        for (size_t i = 0; i < n; i++)
-          q[i] = std::max(q[i] - theta, 0.0);
-      }
 
       /// Orthonormal basis of the sum-zero subspace of R^n (Helmert).
       /// Column m has m ones, then -m, then zeros. Orthonormal, so the
@@ -313,8 +273,8 @@ namespace helfem {
       // the next has not started, and an empty block sits on q = 0; in
       // neither case is the filling a smooth coordinate, and in neither
       // case should a local second-order step be the thing that decides
-      // to open a closed shell. That decision belongs to the first-order
-      // phase that hands over the occupation pattern.
+      // to open a closed shell. That decision is made by the KKT check
+      // in run(), from the orbital energies.
       sumzero_.assign(pblocks_.size(), helfem::Matrix());
       free_.assign(pblocks_.size(), std::vector<size_t>());
       for (size_t p = 0; p < pblocks_.size(); p++) {
@@ -529,26 +489,45 @@ namespace helfem {
         }
     }
 
-    void Optimizer::project_fillings(std::vector<double> &q) const {
-      // Only the free fillings are projected. They are the only ones a
-      // step can move, and they conserve their own sum, so the frozen
-      // blocks must come through untouched -- projecting over all of them
-      // would let a clamp on one free block shift charge into a frozen
-      // one, which changes an occupation nobody is watching: pattern_stale
-      // would not see it, because the block has no parameter to have moved.
+    bool Optimizer::truncate_at_kinks(std::vector<double> &q) const {
+      // E(q) has a kink wherever a free block's fractional orbital fills or
+      // empties: the gradient jumps from eps_k to eps_{k+1}, and the
+      // quadratic model does not hold across it. A step that crosses one
+      // from a poor starting point overshoots the shell closing, leaves a
+      // sliver of charge (~1e-4) in the next orbital, and the next step
+      // drains it and overshoots back -- each crossing a pattern change,
+      // without end. So the occupation part of the step stops at the first
+      // kink: scaled as a whole, which keeps the electron count, with the
+      // block that reaches it put exactly on it. q >= 0 is the lower kink
+      // of the first orbital, so this is also what keeps the fillings
+      // feasible. Only the free fillings move; the frozen ones have no
+      // parameter, and no charge can leak into them.
+      bool kink = false;
       for (size_t p = 0; p < pblocks_.size(); p++) {
-        if (free_[p].empty())
-          continue;
-        double total = 0.0;
-        std::vector<double> sub;
+        double t = 1.0, qkink = 0.0;
+        size_t bkink = 0;
         for (size_t b : free_[p]) {
-          sub.push_back(q[b]);
-          total += q_[b];
+          const double lo = (double)active_[b] * maxocc_[b];
+          const double hi = lo + maxocc_[b];
+          const double d = q[b] - q_[b];
+          const double bound = (d < 0.0) ? lo : hi;
+          if ((d < 0.0 && q[b] < lo) || (d > 0.0 && q[b] > hi)) {
+            const double tb = (bound - q_[b]) / d;
+            if (tb < t) {
+              t = tb;
+              bkink = b;
+              qkink = bound;
+            }
+          }
         }
-        project_simplex(sub, total);
-        for (size_t i = 0; i < free_[p].size(); i++)
-          q[free_[p][i]] = sub[i];
+        if (t < 1.0) {
+          for (size_t b : free_[p])
+            q[b] = q_[b] + t * (q[b] - q_[b]);
+          q[bkink] = qkink;
+          kink = true;
+        }
       }
+      return kink;
     }
 
     void Optimizer::decode(const double *x, std::vector<helfem::Matrix> &kappa,
@@ -577,7 +556,7 @@ namespace helfem {
       }
     }
 
-    void Optimizer::displace(const std::vector<helfem::Matrix> &kappa,
+    bool Optimizer::displace(const std::vector<helfem::Matrix> &kappa,
                              const std::vector<double> &dq,
                              std::vector<helfem::Matrix> &U,
                              std::vector<double> &q) const {
@@ -587,7 +566,7 @@ namespace helfem {
         U[b] = apply_kappa(U_[b], kappa[b], active_[b] + 1);
         q[b] = q_[b] + dq[b];
       }
-      project_fillings(q);
+      return truncate_at_kinks(q);
     }
 
     void Optimizer::densities(const std::vector<helfem::Matrix> &U,
@@ -927,11 +906,21 @@ namespace helfem {
         decode(x, kappa, dq);
         std::vector<helfem::Matrix> U;
         std::vector<double> q;
-        displace(kappa, dq, U, q);
+        const bool kink = displace(kappa, dq, U, q);
         helfem::Cube P, F;
         densities(U, q, P);
         func = fock_(P, F);
         stats_.n_objective++;
+        // A step cut short at a kink that still lowers the energy is where
+        // to restart: the block that reached the kink is now integer, and
+        // the parametrization has to be rebuilt around it. Failing the
+        // callback is the clean way out of OpenTrustRegion, the same one
+        // the Hessian-product ceiling takes; run() treats it as a stop.
+        if (kink && func < energy_) {
+          kink_stop_ = true;
+          kink_step_ = Eigen::Map<const helfem::Vector>(x, (Eigen::Index)nparam_);
+          return false;
+        }
         // Remember the best point offered. A stalling solve is not failing
         // to FIND a good step, it is refusing to accept one: the step it
         // discards was measured lowering the energy by 5.3e-4 and landing
@@ -1009,17 +998,35 @@ namespace helfem {
         }
 
         budget_spent_ = false;
+        kink_stop_ = false;
         try {
           otr::solve((int)nparam_, cb, otrset);
         } catch (std::exception &) {
-          // A spent budget comes back as a callback failure, which the
-          // library turns into an error return. Any other failure is real
-          // and is left to propagate. The reference is whatever the last
-          // accepted step installed either way, so the energy and gradient
-          // reported below are a real point on the surface -- just not a
-          // converged one.
-          if (!budget_spent_)
+          // A spent budget or a stop at a kink comes back as a callback
+          // failure, which the library turns into an error return. Any
+          // other failure is real and is left to propagate. The reference
+          // is whatever the last accepted step installed either way, so
+          // the energy and gradient reported below are a real point on
+          // the surface -- just not a converged one.
+          if (!budget_spent_ && !kink_stop_)
             throw;
+        }
+        if (kink_stop_ && pass < opts.max_restarts) {
+          std::vector<helfem::Matrix> kappa;
+          std::vector<double> dq;
+          decode(kink_step_.data(), kappa, dq);
+          std::vector<helfem::Matrix> U;
+          std::vector<double> q;
+          displace(kappa, dq, U, q);
+          adopt(U, q, nullptr, nullptr);
+          if (opts.verbosity >= 1) {
+            printf("\nA step filled or emptied a fractional orbital, lowering "
+                   "the energy to %.10f;\n         restarting at the shell "
+                   "closing.\n", energy_);
+            fflush(stdout);
+          }
+          stats_.n_restart++;
+          continue;
         }
         // A stalled solve gets its own step back. Retrying was tried twice
         // and failed twice -- a fresh subspace reproduced the stall
@@ -1038,8 +1045,8 @@ namespace helfem {
         // still at 1.2e-3.
         helfem::Vector gpass((Eigen::Index)nparam_);
         gradient(gpass.data());
-        const bool pass_converged =
-            gpass.norm() / std::sqrt((double)nparam_) <= otrset.conv_tol;
+        const double gpass_rms = gpass.norm() / std::sqrt((double)nparam_);
+        const bool pass_converged = gpass_rms <= otrset.conv_tol;
         if (!pass_converged && best_step_.size() &&
             best_energy_ < energy_ - 1e-12 * std::abs(energy_) &&
             pass < opts.max_restarts) {
