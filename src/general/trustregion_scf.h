@@ -48,18 +48,28 @@ namespace helfem {
   ///
   /// with w_b the occupation of a filled orbital. That is the same "one
   /// fractional orbital per block" statement with the bookkeeping removed:
-  /// when the fractional occupation runs past w_b the next orbital simply
-  /// starts filling, continuously, and no re-indexing happens mid-solve.
-  /// E(q) does have a kink where an orbital fills exactly -- the gradient
-  /// jumps from eps_k to eps_{k+1} -- but that is a measure-zero set and
-  /// the solutions of interest sit strictly inside a shell.
+  /// which orbital is fractional follows from q_b alone.
+  ///
+  /// E(q) has a kink where an orbital fills or empties exactly -- the
+  /// gradient jumps from eps_k to eps_{k+1} -- and the quadratic model does
+  /// not hold across it. A step is therefore never carried past one: the
+  /// occupation part of the step is cut short at the first kink, with the
+  /// block that reaches it put exactly on it. Without that, a step from a
+  /// poor starting point overshoots a shell closing, leaves ~1e-4
+  /// electrons in the next orbital, and the next step drains it and
+  /// overshoots back, each crossing a pattern change, until the restarts
+  /// run out (ERKALE's port of this optimizer stopped Fe2 70 mEh above
+  /// the minimum that way). A cut step that lowers the energy stops the
+  /// solve, which restarts from there with that block integer and frozen; whether it opens again is decided
+  /// by the KKT check below.
   ///
   /// The electron count of each particle type is conserved, so the free
   /// occupation parameters span the sum-zero subspace of its blocks:
   /// n_blocks - 1 of them, in an orthonormal (Helmert) basis so that the
   /// parameter metric stays isotropic rather than singling out one block.
-  /// q >= 0 is imposed by Euclidean projection onto the simplex, which
-  /// preserves the electron count exactly.
+  /// q >= 0 needs nothing of its own: it is the lower kink of a block's
+  /// first orbital, and cutting a step short scales its whole occupation
+  /// part, which keeps the electron count.
   ///
   /// PRECONDITIONING. The uncoupled Hessian diagonal, 2(f_i-f_j)(F_jj-F_ii),
   /// is *identically zero* along every occupation direction -- the formal
@@ -229,6 +239,10 @@ namespace helfem {
       size_t hess_budget_ = 0;
       size_t hess_this_macro_ = 0;
       bool budget_spent_ = false;
+      /// Did an objective evaluation stop the solve at a kink, and the
+      /// step that reached it
+      bool kink_stop_ = false;
+      helfem::Vector kink_step_;
       /// Best point any objective evaluation has reached since the last
       /// accepted step, and its energy. When the solve stalls, this is the
       /// step it kept declining.
@@ -259,16 +273,19 @@ namespace helfem {
       /// Occupations and active index of one block from its filling
       void fill_occupations(size_t b, double q, helfem::Vector &f,
                             Eigen::Index &k) const;
-      /// Project the block fillings of every particle type back onto
-      /// {q >= 0, sum q = N}
-      void project_fillings(std::vector<double> &q) const;
+      /// Cut the occupation part of a step short at the first kink of
+      /// E(q), where a free block's fractional orbital fills or empties,
+      /// putting that block exactly on it. q holds the reference fillings
+      /// plus the full step on entry. Returns whether it was cut.
+      bool truncate_at_kinks(std::vector<double> &q) const;
       /// Decode a parameter vector into per-block rotations and the
       /// change in the block fillings
       void decode(const double *x, std::vector<helfem::Matrix> &kappa,
                   std::vector<double> &dq) const;
       /// Apply rotations and filling changes to the reference, without
-      /// adopting the result
-      void displace(const std::vector<helfem::Matrix> &kappa,
+      /// adopting the result. Returns whether the filling change was cut
+      /// short at a kink.
+      bool displace(const std::vector<helfem::Matrix> &kappa,
                     const std::vector<double> &dq,
                     std::vector<helfem::Matrix> &U,
                     std::vector<double> &q) const;
