@@ -124,6 +124,9 @@ namespace helfem {
 
         if(do_lapl)
           throw std::logic_error("Laplacian not implemented!\n");
+
+        if(needs_current())
+          set_current_density(current_density(PvA,PvB));
       }
 
       void DFTGridWorker::update_density(const helfem::Matrix & Paexp, const helfem::Matrix & Pbexp) {
@@ -226,6 +229,32 @@ namespace helfem {
           if(do_lapl)
             throw std::logic_error("Laplacian not implemented!\n");
         }
+
+        if(needs_current()) {
+          helfem::Matrix j(6,wtot.size());
+          j.topRows(3)=current_density(PavA,PavB);
+          j.bottomRows(3)=current_density(PbvA,PbvB);
+          set_current_density(j);
+        }
+      }
+
+      helfem::Matrix DFTGridWorker::current_density(const helfem::Matrix & PvA_, const helfem::Matrix & PvB_) const {
+        return helfem::dftgrid_common::current_density_split(PvA_,PvB_,
+            {&bf_rho_re,&bf_theta_re,&bf_phi_re},{&bf_rho_im,&bf_theta_im,&bf_phi_im},
+            {&scale_r,&scale_theta,&scale_phi});
+      }
+
+      void DFTGridWorker::increment_current(helfem::Matrix & H, const helfem::Matrix & y) const {
+        // y . j_p with j_p's own metric: the weights carry 1/h_c exactly
+        // as the gradient channel's do.
+        helfem::Matrix yn=y.transpose();
+        for(Eigen::Index i=0;i<yn.rows();i++) {
+          yn(i,0)*=wtot(i)/scale_r(i);
+          yn(i,1)*=wtot(i)/scale_theta(i);
+          yn(i,2)*=wtot(i)/scale_phi(i);
+        }
+        helfem::dftgrid_common::increment_current_split(H,yn,bf_re,bf_im,
+            {&bf_rho_re,&bf_theta_re,&bf_phi_re},{&bf_rho_im,&bf_theta_im,&bf_phi_im});
       }
 
 
@@ -310,6 +339,9 @@ namespace helfem {
           increment_gga_split(H,gr,bf_re,bf_im,{&bf_rho_re,&bf_theta_re,&bf_phi_re},{&bf_rho_im,&bf_theta_im,&bf_phi_im});
         }
 
+        if(do_cur)
+          increment_current(H,vcur.topRows(3));
+
         if(do_mgga_t) {
           helfem::Vector vt = vtau.row(0).transpose();
           vt = vt.array() * wtot.array() * 0.5;
@@ -377,6 +409,12 @@ namespace helfem {
             }
             increment_gga_split(Hb,gr_b,bf_re,bf_im,{&bf_rho_re,&bf_theta_re,&bf_phi_re},{&bf_rho_im,&bf_theta_im,&bf_phi_im});
           }
+        }
+
+        if(do_cur) {
+          increment_current(Ha,vcur.topRows(3));
+          if(beta)
+            increment_current(Hb,vcur.bottomRows(3));
         }
 
 
@@ -552,7 +590,8 @@ namespace helfem {
       void DFTGridWorker::eval_response_fields(const helfem::Matrix & dPexp,
                                                helfem::Matrix & drho,
                                                helfem::Matrix & dgrho,
-                                               helfem::Matrix & dtau) const {
+                                               helfem::Matrix & dtau,
+                                               helfem::Matrix & djp) const {
         // The perturbed fields are the SAME bilinear forms in the density
         // matrix as the reference ones in update_density; only the matrix
         // differs. Keeping the two in step is what makes the response
@@ -596,13 +635,16 @@ namespace helfem {
         } else {
           dtau=helfem::Matrix();
         }
+
+        djp = needs_current() ? current_density(dPvA,dPvB) : helfem::Matrix();
       }
 
       void DFTGridWorker::eval_response_fields(const helfem::Matrix & dPaexp,
                                                const helfem::Matrix & dPbexp,
                                                helfem::Matrix & drho,
                                                helfem::Matrix & dgrho,
-                                               helfem::Matrix & dtau) const {
+                                               helfem::Matrix & dtau,
+                                               helfem::Matrix & djp) const {
         helfem::Matrix dPa(bf_ind.size(), bf_ind.size()), dPb(bf_ind.size(), bf_ind.size());
         for(size_t i=0;i<bf_ind.size();i++)
           for(size_t j=0;j<bf_ind.size();j++) {
@@ -657,13 +699,22 @@ namespace helfem {
         } else {
           dtau=helfem::Matrix();
         }
+
+        if(needs_current()) {
+          djp.resize(6,wtot.size());
+          djp.topRows(3)=current_density(dPavA,dPavB);
+          djp.bottomRows(3)=current_density(dPbvA,dPbvB);
+        } else {
+          djp=helfem::Matrix();
+        }
       }
 
       void DFTGridWorker::check_response_fields(const helfem::Matrix & P,
                                                 const helfem::Matrix & dP,
                                                 const helfem::Matrix & drho,
                                                 const helfem::Matrix & dgrho,
-                                                const helfem::Matrix & dtau) {
+                                                const helfem::Matrix & dtau,
+                                                const helfem::Matrix & djp) {
         // The perturbed fields are linear in the perturbation, so they
         // must equal a central difference of the reference ones. Going
         // through update_density rather than a second copy of the
@@ -671,14 +722,16 @@ namespace helfem {
         // both places would cancel out of any self-consistent check.
         const double h = 1e-5;
         update_density(helfem::Matrix(P + h*dP));
-        const helfem::Matrix rp(rho), gp(grho), tp(tau);
+        const helfem::Matrix rp(rho), gp(grho), tp(tau), jpp(jp);
         update_density(helfem::Matrix(P - h*dP));
-        const helfem::Matrix rm(rho), gm(grho), tm(tau);
+        const helfem::Matrix rm(rho), gm(grho), tm(tau), jpm(jp);
         helfem::dftgrid_common::report_dfields("drho", drho, helfem::Matrix((rp-rm)/(2*h)));
         if(do_grad)
           helfem::dftgrid_common::report_dfields("dgrho", dgrho, helfem::Matrix((gp-gm)/(2*h)));
         if(do_tau)
           helfem::dftgrid_common::report_dfields("dtau", dtau, helfem::Matrix((tp-tm)/(2*h)));
+        if(needs_current())
+          helfem::dftgrid_common::report_dfields("djp", djp, helfem::Matrix((jpp-jpm)/(2*h)));
       }
 
       void DFTGridWorker::check_response_fields(const helfem::Matrix & Pa,
@@ -687,17 +740,20 @@ namespace helfem {
                                                 const helfem::Matrix & dPb,
                                                 const helfem::Matrix & drho,
                                                 const helfem::Matrix & dgrho,
-                                                const helfem::Matrix & dtau) {
+                                                const helfem::Matrix & dtau,
+                                                const helfem::Matrix & djp) {
         const double h = 1e-5;
         update_density(helfem::Matrix(Pa + h*dPa), helfem::Matrix(Pb + h*dPb));
-        const helfem::Matrix rp(rho), gp(grho), tp(tau);
+        const helfem::Matrix rp(rho), gp(grho), tp(tau), jpp(jp);
         update_density(helfem::Matrix(Pa - h*dPa), helfem::Matrix(Pb - h*dPb));
-        const helfem::Matrix rm(rho), gm(grho), tm(tau);
+        const helfem::Matrix rm(rho), gm(grho), tm(tau), jpm(jp);
         helfem::dftgrid_common::report_dfields("drho", drho, helfem::Matrix((rp-rm)/(2*h)));
         if(do_grad)
           helfem::dftgrid_common::report_dfields("dgrho", dgrho, helfem::Matrix((gp-gm)/(2*h)));
         if(do_tau)
           helfem::dftgrid_common::report_dfields("dtau", dtau, helfem::Matrix((tp-tm)/(2*h)));
+        if(needs_current())
+          helfem::dftgrid_common::report_dfields("djp", djp, helfem::Matrix((jpp-jpm)/(2*h)));
       }
 
     }

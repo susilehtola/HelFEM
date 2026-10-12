@@ -106,6 +106,10 @@ namespace helfem {
 
       const size_t N = (size_t) wtot.size();
 
+      // The current-corrected functional is the same functional of tau~.
+      helfem::Matrix & tau = (mgga_t && needs_current())
+        ? current_tau(thr) : this->tau;
+
       helfem::Vector exc_wrk;
       helfem::Matrix vxc_wrk, vsigma_wrk, vlapl_wrk, vtau_wrk;
 
@@ -266,6 +270,8 @@ namespace helfem {
       helfem::Matrix rt = helfem::Matrix::Zero(n4, N);
       helfem::Matrix st = helfem::Matrix::Zero(n6, N);
       helfem::Matrix t2 = helfem::Matrix::Zero(n2, N);
+      helfem::Matrix & tau = (mgga_t && needs_current())
+        ? current_tau(thr) : this->tau;
       if (mgga_t || mgga_l) {
         helfem::Matrix rl(n4, N), sl(n6, N), l2(n2, N), lt(n4, N);
         // libxc dereferences lapl / tau only when the functional asks for

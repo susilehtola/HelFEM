@@ -104,6 +104,7 @@ namespace helfem {
           {
             DFTGridWorker grid(basp,lang,mang);
             grid.check_grad_tau_lapl(x_func,c_func);
+            grid.set_current(current);
             const int tid = helfem_omp_thread_num();
             helfem::Matrix & Hloc = Hpart[tid];
             Hloc = helfem::Matrix::Zero(basp->Ndummy(), basp->Ndummy());
@@ -126,6 +127,7 @@ namespace helfem {
 
               // the assembly contracts a general vector field; build it once
               grid.build_vgrad();
+              grid.build_vcurrent();
 
               excp[tid]+=grid.eval_Exc();
               grid.eval_Fxc(Hloc);
@@ -174,6 +176,7 @@ namespace helfem {
           {
             DFTGridWorker grid(basp,lang,mang);
             grid.check_grad_tau_lapl(x_func,c_func);
+            grid.set_current(current);
             const int tid = helfem_omp_thread_num();
             helfem::Matrix & Haloc = Hapart[tid];
             helfem::Matrix & Hbloc = Hbpart[tid];
@@ -198,6 +201,7 @@ namespace helfem {
 
               // the assembly contracts a general vector field; build it once
               grid.build_vgrad();
+              grid.build_vcurrent();
 
               excp[tid]+=grid.eval_Exc();
               grid.eval_Fxc(Haloc,Hbloc,beta);
@@ -229,6 +233,7 @@ namespace helfem {
         {
           DFTGridWorker grid(basp,lang,mang);
           grid.check_grad_tau_lapl(x_func,c_func);
+          grid.set_current(current);
 
           // Loop-invariant: expand once, not once per grid point.
           const helfem::Matrix P_exp(basp->expand_boundaries(P_e));
@@ -259,17 +264,17 @@ namespace helfem {
               if(c_func>0)
                 grid.compute_fxc(c_func, c_pars, thr);
               for(size_t ip=0;ip<dP_exp.size();ip++) {
-                helfem::Matrix drho, dgrho, dtau;
-                grid.eval_response_fields(dP_exp[ip], drho, dgrho, dtau);
+                helfem::Matrix drho, dgrho, dtau, djp;
+                grid.eval_response_fields(dP_exp[ip], drho, dgrho, dtau, djp);
                 if(getenv("HELFEM_CHECK_DFIELDS")) {
                   // The perturbed fields are linear in the perturbation,
                   // so they must equal a central difference of the
                   // reference ones. This isolates eval_response_fields
                   // from the kernel and the assembly.
-                  grid.check_response_fields(P_exp, dP_exp[ip], drho, dgrho, dtau);
+                  grid.check_response_fields(P_exp, dP_exp[ip], drho, dgrho, dtau, djp);
                   grid.update_density(P_exp);
                 }
-                grid.set_response_potential(drho, grid.get_grho(), dgrho, dtau);
+                grid.set_response_potential(drho, grid.get_grho(), dgrho, dtau, djp);
                 grid.eval_Fxc(dH[ip]);
               }
             }
@@ -314,6 +319,7 @@ namespace helfem {
         {
           DFTGridWorker grid(basp,lang,mang);
           grid.check_grad_tau_lapl(x_func,c_func);
+          grid.set_current(current);
 
           const helfem::Matrix Pa_exp(basp->expand_boundaries(Pa_e));
           const helfem::Matrix Pb_exp(basp->expand_boundaries(Pb_e));
@@ -341,14 +347,14 @@ namespace helfem {
               if(c_func>0)
                 grid.compute_fxc(c_func, c_pars, thr);
               for(size_t ip=0;ip<dPa_exp.size();ip++) {
-                helfem::Matrix drho, dgrho, dtau;
-                grid.eval_response_fields(dPa_exp[ip], dPb_exp[ip], drho, dgrho, dtau);
+                helfem::Matrix drho, dgrho, dtau, djp;
+                grid.eval_response_fields(dPa_exp[ip], dPb_exp[ip], drho, dgrho, dtau, djp);
                 if(getenv("HELFEM_CHECK_DFIELDS")) {
                   grid.check_response_fields(Pa_exp, Pb_exp, dPa_exp[ip], dPb_exp[ip],
-                                              drho, dgrho, dtau);
+                                              drho, dgrho, dtau, djp);
                   grid.update_density(Pa_exp,Pb_exp);
                 }
-                grid.set_response_potential(drho, grid.get_grho(), dgrho, dtau);
+                grid.set_response_potential(drho, grid.get_grho(), dgrho, dtau, djp);
                 grid.eval_Fxc(dHa[ip],dHb[ip],true);
               }
             }

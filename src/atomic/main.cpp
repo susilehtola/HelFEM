@@ -72,6 +72,7 @@ int main(int argc, char **argv) {
   parser.add<int>("ldft", 0, "theta rule for dft quadrature (0 for auto)", false, 0);
   parser.add<int>("mdft", 0, "phi rule for dft quadrature (0 for auto)", false, 0);
   parser.add<double>("dftthr", 0, "density threshold for dft", false, 1e-12);
+  parser.add<bool>("current", 0, "evaluate tau-dependent meta-GGAs at the gauge-invariant, current-corrected tau - j_p^2/(2 rho)", false, false);
   parser.add<int>("primbas", 0, "primitive radial basis", false, 5);
   parser.add<int>("finitenuc", 0, "finite nuclear model: 0 point, 1 Gaussian, 2 spherical, 3 hollow, 4 regularized", false, 0);
   parser.add<double>("Rrms", 0, "nuclear size parameter: rms radius for models 1-3, regularization parameter a for model 4", false, 0.0);
@@ -167,6 +168,7 @@ int main(int argc, char **argv) {
   const int    ldft_arg   = parser.get<int>("ldft");
   const int    mdft_arg   = parser.get<int>("mdft");
   const double dftthr     = parser.get<double>("dftthr");
+  const bool   current    = parser.get<bool>("current");
   const int    primbas    = parser.get<int>("primbas");
   const int    finitenuc  = parser.get<int>("finitenuc");
   const double Rrms       = parser.get<double>("Rrms");
@@ -341,6 +343,7 @@ int main(int argc, char **argv) {
   const int ldft = ldft_arg > 0 ? ldft_arg : 4 * lmax + 12;
   const int mdft = mdft_arg > 0 ? mdft_arg : 4 * mmax + 12;
   auto grid = helfem::atomic::dftgrid::DFTGrid(&basis, ldft, mdft);
+  grid.set_current(current);
   basis.compute_tei(have_exx);
   // Precompute the range-separated exchange kernel if the functional uses
   // one. Yukawa (screened Coulomb) and erfc (complementary error-function)

@@ -102,6 +102,7 @@ namespace helfem {
         scale_r.resize(nang);
         inv_scale_r2.resize(nang);
         inv_scale_phi2.resize(nang);
+        inv_scale_phi.resize(nang);
         wtot = helfem::Vector::Zero(nang);
         for (Eigen::Index ia = 0; ia < nang; ia++) {
           // sin(nu) written to avoid cancellation near |cth| = 1
@@ -113,6 +114,7 @@ namespace helfem {
           scale_r(ia)        = hmu;
           inv_scale_r2(ia)   = (hmu  > 0.0) ? 1.0 / (hmu * hmu)   : 0.0;
           inv_scale_phi2(ia) = (hphi > 0.0) ? 1.0 / (hphi * hphi) : 0.0;
+          inv_scale_phi(ia)  = (hphi > 0.0) ? 1.0 / hphi : 0.0;
           // sin(nu) is already contained in wang; the 2*pi is the analytic
           // phi integral.
           wtot(ia) = 2.0 * M_PI * wang(ia) * wr * std::pow(Rhalf, 3) * shmu
@@ -341,6 +343,23 @@ namespace helfem {
             lapl.row(0) += 2.0 * kin.transpose();
           }
         }
+
+        if (needs_current())
+          set_current_density(azimuthal_current(rho_m).transpose());
+      }
+
+      helfem::Vector PureMDFTGridWorker::azimuthal_current(const std::vector<helfem::Vector> & rhom) const {
+        // An exp(i m phi) orbital carries Im(psi^* d_phi psi) / h_phi =
+        // m |psi|^2 / h_phi, so the current is the m-weighted sum of the
+        // block densities: purely azimuthal and phi-independent. A +m /
+        // -m pair occupied equally -- what --symmetry=3 enforces, and
+        // what update_density's block sharing then copies -- cancels to
+        // zero here, as it must.
+        helfem::Vector j = helfem::Vector::Zero(cth.size());
+        for (size_t im = 0; im < mlist.size(); im++)
+          if (mlist[im] != 0 && rhom[im].size() == j.size())
+            j += (double) mlist[im] * rhom[im];
+        return j.cwiseProduct(inv_scale_phi);
       }
 
       helfem::Matrix PureMDFTGridWorker::eval_density(const helfem::Matrix & dP0) const {
@@ -378,7 +397,8 @@ namespace helfem {
       void PureMDFTGridWorker::eval_response_fields(const helfem::Matrix & dP0,
                                                     helfem::Matrix & drho,
                                                     helfem::Matrix & dgrho,
-                                                    helfem::Matrix & dtau) const {
+                                                    helfem::Matrix & dtau,
+                                                    helfem::Matrix & djp) const {
         // The perturbed fields are the SAME bilinear forms in the density
         // matrix as the reference ones in update_density; only the matrix
         // differs. That includes the analytic azimuthal term of tau: it
@@ -395,6 +415,7 @@ namespace helfem {
         if (do_grad) dgrho = helfem::Matrix::Zero(2, nang);
         else         dgrho = helfem::Matrix();
         helfem::Vector dkin = helfem::Vector::Zero(nang);
+        std::vector<helfem::Vector> drhom(nm);
 
         for (size_t im = 0; im < nm; im++) {
           if (bf_ind_m[im].empty()) continue;
@@ -403,6 +424,7 @@ namespace helfem {
           const helfem::Vector drho_m =
             (dPv.array() * bf_m[im].array()).colwise().sum().transpose();
           drho.row(0) += drho_m.transpose();
+          drhom[im] = drho_m;
 
           if (do_grad) {
             dgrho.row(0) += 2.0 * (dPv.array() * dr_m[im].array()).colwise().sum().matrix();
@@ -435,13 +457,21 @@ namespace helfem {
         } else {
           dtau = helfem::Matrix();
         }
+
+        // The current is linear in the block densities, so its
+        // perturbation is the m-weighted sum of the perturbed ones.
+        if (needs_current())
+          djp = azimuthal_current(drhom).transpose();
+        else
+          djp = helfem::Matrix();
       }
 
       void PureMDFTGridWorker::eval_response_fields(const helfem::Matrix & dPa0,
                                                     const helfem::Matrix & dPb0,
                                                     helfem::Matrix & drho,
                                                     helfem::Matrix & dgrho,
-                                                    helfem::Matrix & dtau) const {
+                                                    helfem::Matrix & dtau,
+                                                    helfem::Matrix & djp) const {
         const helfem::Matrix dPa(basp->expand_boundaries(dPa0));
         const helfem::Matrix dPb(basp->expand_boundaries(dPb0));
         const Eigen::Index nang = cth.size();
@@ -453,6 +483,7 @@ namespace helfem {
         else         dgrho = helfem::Matrix();
         helfem::Vector dkina = helfem::Vector::Zero(nang);
         helfem::Vector dkinb = helfem::Vector::Zero(nang);
+        std::vector<helfem::Vector> drhoam(nm), drhobm(nm);
 
         for (size_t im = 0; im < nm; im++) {
           if (bf_ind_m[im].empty()) continue;
@@ -466,6 +497,8 @@ namespace helfem {
             (dPbv.array() * bf_m[im].array()).colwise().sum().transpose();
           drho.row(0) += drhoa_m.transpose();
           drho.row(1) += drhob_m.transpose();
+          drhoam[im] = drhoa_m;
+          drhobm[im] = drhob_m;
 
           if (do_grad) {
             dgrho.row(0) += 2.0 * (dPav.array() * dr_m[im].array()).colwise().sum().matrix();
@@ -505,13 +538,22 @@ namespace helfem {
         } else {
           dtau = helfem::Matrix();
         }
+
+        if (needs_current()) {
+          djp.resize(2, nang);
+          djp.row(0) = azimuthal_current(drhoam).transpose();
+          djp.row(1) = azimuthal_current(drhobm).transpose();
+        } else {
+          djp = helfem::Matrix();
+        }
       }
 
       void PureMDFTGridWorker::check_response_fields(const helfem::Matrix & P,
                                                      const helfem::Matrix & dP,
                                                      const helfem::Matrix & drho,
                                                      const helfem::Matrix & dgrho,
-                                                     const helfem::Matrix & dtau) {
+                                                     const helfem::Matrix & dtau,
+                                                     const helfem::Matrix & djp) {
         // The perturbed fields are linear in the perturbation, so they
         // must equal a central difference of the reference ones. Going
         // through update_density rather than a second copy of the
@@ -519,14 +561,16 @@ namespace helfem {
         // both places would cancel out of any self-consistent check.
         const double h = 1e-5;
         update_density(helfem::Matrix(P + h*dP));
-        const helfem::Matrix rp(rho), gp(grho), tp(tau);
+        const helfem::Matrix rp(rho), gp(grho), tp(tau), jpp(jp);
         update_density(helfem::Matrix(P - h*dP));
-        const helfem::Matrix rm(rho), gm(grho), tm(tau);
+        const helfem::Matrix rm(rho), gm(grho), tm(tau), jpm(jp);
         helfem::dftgrid_common::report_dfields("drho", drho, helfem::Matrix((rp-rm)/(2*h)));
         if(do_grad)
           helfem::dftgrid_common::report_dfields("dgrho", dgrho, helfem::Matrix((gp-gm)/(2*h)));
         if(do_tau)
           helfem::dftgrid_common::report_dfields("dtau", dtau, helfem::Matrix((tp-tm)/(2*h)));
+        if(needs_current())
+          helfem::dftgrid_common::report_dfields("djp", djp, helfem::Matrix((jpp-jpm)/(2*h)));
       }
 
       void PureMDFTGridWorker::check_response_fields(const helfem::Matrix & Pa,
@@ -535,17 +579,20 @@ namespace helfem {
                                                      const helfem::Matrix & dPb,
                                                      const helfem::Matrix & drho,
                                                      const helfem::Matrix & dgrho,
-                                                     const helfem::Matrix & dtau) {
+                                                     const helfem::Matrix & dtau,
+                                                     const helfem::Matrix & djp) {
         const double h = 1e-5;
         update_density(helfem::Matrix(Pa + h*dPa), helfem::Matrix(Pb + h*dPb));
-        const helfem::Matrix rp(rho), gp(grho), tp(tau);
+        const helfem::Matrix rp(rho), gp(grho), tp(tau), jpp(jp);
         update_density(helfem::Matrix(Pa - h*dPa), helfem::Matrix(Pb - h*dPb));
-        const helfem::Matrix rm(rho), gm(grho), tm(tau);
+        const helfem::Matrix rm(rho), gm(grho), tm(tau), jpm(jp);
         helfem::dftgrid_common::report_dfields("drho", drho, helfem::Matrix((rp-rm)/(2*h)));
         if(do_grad)
           helfem::dftgrid_common::report_dfields("dgrho", dgrho, helfem::Matrix((gp-gm)/(2*h)));
         if(do_tau)
           helfem::dftgrid_common::report_dfields("dtau", dtau, helfem::Matrix((tp-tm)/(2*h)));
+        if(needs_current())
+          helfem::dftgrid_common::report_dfields("djp", djp, helfem::Matrix((jpp-jpm)/(2*h)));
       }
 
       void PureMDFTGridWorker::update_density(const helfem::Matrix & Pa0, const helfem::Matrix & Pb0) {
@@ -647,6 +694,13 @@ namespace helfem {
             lapl.row(1) += 2.0 * kinb.transpose();
           }
         }
+
+        if (needs_current()) {
+          helfem::Matrix j(2, nang);
+          j.row(0) = azimuthal_current(rhoa_m).transpose();
+          j.row(1) = azimuthal_current(rhob_m).transpose();
+          set_current_density(j);
+        }
       }
 
       double PureMDFTGridWorker::compute_Ekin() const {
@@ -677,6 +731,20 @@ namespace helfem {
           if (mlist[jm] == -mlist[im] && bf_ind_m[jm].size() == bf_ind_m[im].size())
             return jm;
         return mlist.size();
+      }
+
+      helfem::Matrix PureMDFTGridWorker::current_block(size_t im, Eigen::Index spin) const {
+        // y_phi multiplies the pair's current Im(chi_u^* d_phi chi_v) /
+        // h_phi = m f_u f_v / h_phi within the block: an LDA-type
+        // increment on the real basis with the weight y m / h_phi.
+        const Eigen::Index nbf = (Eigen::Index) bf_ind_m[im].size();
+        helfem::Matrix Hc = helfem::Matrix::Zero(nbf, nbf);
+        if (do_cur && mlist[im] != 0) {
+          helfem::Vector w = vcur.row(spin).transpose();
+          w.array() *= wtot.array() * inv_scale_phi.array() * (double) mlist[im];
+          helfem::dftgrid_common::increment_lda<double>(Hc, w, bf_m[im]);
+        }
+        return Hc;
       }
 
       void PureMDFTGridWorker::eval_Fxc(helfem::Matrix & H) const {
@@ -750,14 +818,18 @@ namespace helfem {
             helfem::dftgrid_common::increment_mgga_lapl<double>(Hm, vl, bf_m[im], bf_lapl_m[im]);
           }
 
+          // The current term is the one place the sign of m enters: it
+          // is odd in m, so the mirrored -m block gets it negated.
+          const helfem::Matrix Hc = current_block(im, 0);
+
           for (Eigen::Index i = 0; i < nbf; i++)
             for (Eigen::Index j = 0; j < nbf; j++)
-              H(idx[i], idx[j]) += Hm(i, j);
+              H(idx[i], idx[j]) += Hm(i, j) + Hc(i, j);
           if (mlist[im] > 0 && imirror != mlist.size()) {
             const std::vector<Eigen::Index> & jdx = bf_ind_m[imirror];
             for (Eigen::Index i = 0; i < nbf; i++)
               for (Eigen::Index j = 0; j < nbf; j++)
-                H(jdx[i], jdx[j]) += Hm(i, j);
+                H(jdx[i], jdx[j]) += Hm(i, j) - Hc(i, j);
           }
         }
       }
@@ -856,17 +928,21 @@ namespace helfem {
             }
           }
 
+          // The current term is odd in m; see the restricted overload.
+          const helfem::Matrix Hca = current_block(im, 0);
+          const helfem::Matrix Hcb = beta ? current_block(im, 1) : helfem::Matrix();
+
           for (Eigen::Index i = 0; i < nbf; i++)
             for (Eigen::Index j = 0; j < nbf; j++) {
-              Ha(idx[i], idx[j]) += Hma(i, j);
-              if (beta) Hb(idx[i], idx[j]) += Hmb(i, j);
+              Ha(idx[i], idx[j]) += Hma(i, j) + Hca(i, j);
+              if (beta) Hb(idx[i], idx[j]) += Hmb(i, j) + Hcb(i, j);
             }
           if (mlist[im] > 0 && imirror != mlist.size()) {
             const std::vector<Eigen::Index> & jdx = bf_ind_m[imirror];
             for (Eigen::Index i = 0; i < nbf; i++)
               for (Eigen::Index j = 0; j < nbf; j++) {
-                Ha(jdx[i], jdx[j]) += Hma(i, j);
-                if (beta) Hb(jdx[i], jdx[j]) += Hmb(i, j);
+                Ha(jdx[i], jdx[j]) += Hma(i, j) - Hca(i, j);
+                if (beta) Hb(jdx[i], jdx[j]) += Hmb(i, j) - Hcb(i, j);
               }
           }
         }
@@ -948,6 +1024,7 @@ namespace helfem {
           {
             PureMDFTGridWorker grid(basp, lang);
             grid.check_grad_tau_lapl(x_func, c_func);
+            grid.set_current(current);
             const int tid = helfem_omp_thread_num();
             helfem::Matrix & Hloc = Hpart[tid];
             Hloc = helfem::Matrix::Zero(basp->Ndummy(), basp->Ndummy());
@@ -968,6 +1045,7 @@ namespace helfem {
 
               // the assembly contracts a general vector field; build it once
               grid.build_vgrad();
+              grid.build_vcurrent();
               excp[tid] += grid.eval_Exc();
               grid.eval_Fxc(Hloc);
             }
@@ -1003,6 +1081,7 @@ namespace helfem {
           {
             PureMDFTGridWorker grid(basp, lang);
             grid.check_grad_tau_lapl(x_func, c_func);
+            grid.set_current(current);
             const int tid = helfem_omp_thread_num();
             helfem::Matrix & Haloc = Hapart[tid];
             helfem::Matrix & Hbloc = Hbpart[tid];
@@ -1025,6 +1104,7 @@ namespace helfem {
 
               // the assembly contracts a general vector field; build it once
               grid.build_vgrad();
+              grid.build_vcurrent();
               excp[tid] += grid.eval_Exc();
               grid.eval_Fxc(Haloc, Hbloc, beta);
             }
@@ -1061,6 +1141,7 @@ namespace helfem {
         {
           PureMDFTGridWorker grid(basp, lang);
           grid.check_grad_tau_lapl(x_func, c_func);
+          grid.set_current(current);
 
           for (size_t iel = 0; iel < basp->rad_Nel(); iel++) {
             for (size_t irad = 0; irad < (size_t) basp->r(iel).size(); irad++) {
@@ -1081,17 +1162,17 @@ namespace helfem {
               if (x_func > 0) grid.compute_fxc(x_func, x_pars, thr);
               if (c_func > 0) grid.compute_fxc(c_func, c_pars, thr);
               for (size_t ip = 0; ip < dP.size(); ip++) {
-                helfem::Matrix drho, dgrho, dtau;
-                grid.eval_response_fields(dP[ip], drho, dgrho, dtau);
+                helfem::Matrix drho, dgrho, dtau, djp;
+                grid.eval_response_fields(dP[ip], drho, dgrho, dtau, djp);
                 if (getenv("HELFEM_CHECK_DFIELDS")) {
                   // The perturbed fields are linear in the perturbation,
                   // so they must equal a central difference of the
                   // reference ones. This isolates eval_response_fields
                   // from the kernel and the assembly.
-                  grid.check_response_fields(P, dP[ip], drho, dgrho, dtau);
+                  grid.check_response_fields(P, dP[ip], drho, dgrho, dtau, djp);
                   grid.update_density(P);
                 }
-                grid.set_response_potential(drho, grid.get_grho(), dgrho, dtau);
+                grid.set_response_potential(drho, grid.get_grho(), dgrho, dtau, djp);
                 grid.eval_Fxc(dH[ip]);
               }
             }
@@ -1140,6 +1221,7 @@ namespace helfem {
         {
           PureMDFTGridWorker grid(basp, lang);
           grid.check_grad_tau_lapl(x_func, c_func);
+          grid.set_current(current);
 
           for (size_t iel = 0; iel < basp->rad_Nel(); iel++) {
             for (size_t irad = 0; irad < (size_t) basp->r(iel).size(); irad++) {
@@ -1155,14 +1237,14 @@ namespace helfem {
               if (x_func > 0) grid.compute_fxc(x_func, x_pars, thr);
               if (c_func > 0) grid.compute_fxc(c_func, c_pars, thr);
               for (size_t ip = 0; ip < dPa.size(); ip++) {
-                helfem::Matrix drho, dgrho, dtau;
-                grid.eval_response_fields(dPa[ip], dPb[ip], drho, dgrho, dtau);
+                helfem::Matrix drho, dgrho, dtau, djp;
+                grid.eval_response_fields(dPa[ip], dPb[ip], drho, dgrho, dtau, djp);
                 if (getenv("HELFEM_CHECK_DFIELDS")) {
                   grid.check_response_fields(Pa, Pb, dPa[ip], dPb[ip],
-                                              drho, dgrho, dtau);
+                                              drho, dgrho, dtau, djp);
                   grid.update_density(Pa, Pb);
                 }
-                grid.set_response_potential(drho, grid.get_grho(), dgrho, dtau);
+                grid.set_response_potential(drho, grid.get_grho(), dgrho, dtau, djp);
                 grid.eval_Fxc(dHa[ip], dHb[ip], true);
               }
             }
