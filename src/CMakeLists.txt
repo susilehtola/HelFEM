@@ -168,6 +168,10 @@ target_link_libraries(1e_atom helfem-common legendre)
 # checks TwoDBasis::eval_lf.
 add_executable(diatomic_purem_test diatomic/purem_test.cpp)
 target_link_libraries(diatomic_purem_test helfem-common legendre)
+# The current-corrected tau-meta-GGA in the two diatomic workers: pure-m
+# against 3D, the single-orbital limit, and the derivatives.
+add_executable(current_mgga_test diatomic/current_mgga_test.cpp)
+target_link_libraries(current_mgga_test helfem-common legendre)
 
 # Checks the projection of the tabulated atomic orbitals onto the diatomic
 # basis, which the projected initial guess is built from.
