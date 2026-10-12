@@ -294,3 +294,83 @@ occupied at once) is the demonstration: the exact block reaches an RMS
 gradient of 9.7e-10 where the floored diagonal strands the solve 3.8e-3
 above the minimum. Almost every open-shell atom has only one such
 coordinate, so most systems will never show the difference.
+
+## Current-corrected meta-GGAs
+
+HelFEM's basis functions are complex, chi = f exp(i m phi), and its
+density matrices real. An open shell that occupies +m and -m unequally
+-- a p_{+1} electron, a pi_{+1} one at `--symmetry=1` -- therefore
+carries a paramagnetic current
+j_p = sum_uv P_uv Im(chi_u^* grad chi_v), and the plain kinetic energy
+density counts it: tau of a p_{+1} orbital exceeds that of a p_0 one by
+|j_p|^2 / 2 rho. A tau-meta-GGA then sees the M_L components of one term
+as different densities. `--current` (in `atomic` and `diatomic`) evaluates
+every tau-dependent functional at the gauge-invariant
+tau~ = tau - |j_p|^2 / (2 rho) instead, per spin. It is opt-in and a no-op
+for functionals without tau; `gensap`/`aij` have no such option because a
+spherically averaged density carries no current.
+
+The chain rule is generated, not written: libxckernel's `helfemwriter`
+(0.6.0 and later) emits `xck_helfem_{vxc,fxc}_cmgga_tau_*` into
+`src/general/xckernel_fxc.h`, derived for a complex basis with a real
+symmetric P. That convention is the one that matters -- a real
+perturbation of a complex basis MOVES the current, so the response needs
+the perturbed current too, and a kernel derived for the opposite
+convention (real basis, current from Im P) would silently drop it.
+The base worker forms tau~ for libxc, turns the ground-state vrho into
+u = vrho + vtau |j|^2 / 2 rho^2 and adds the current channel
+y = -vtau j / rho (`build_vcurrent`, after `build_vgrad`); each worker
+supplies j_p and assembles y against the pair's current density.
+
+- **3D workers** (atomic, diatomic): three components, from the complex
+  basis values, so they hold whatever the density matrix couples.
+- **Pure-m worker**: the current is purely azimuthal,
+  j_phi = sum_m m rho_m / h_phi. Its y term is the one piece of the XC
+  matrix that is ODD in m, so the +m / -m block mirroring in `eval_Fxc`
+  negates it for the mirrored block rather than copying it. At
+  `--symmetry=3` the shared +m / -m density makes j_phi vanish exactly.
+- **Empty spin channels.** Below the density threshold a channel's
+  current is dropped from tau~, the potential and the kernel alike, since
+  j / rho is 0/0 there (the beta channel of a hydrogen atom); doing it in
+  all three keeps the Fock matrix the derivative of the energy.
+
+`current_mgga_test` is the check, and each part of it can fail:
+- A density with no current is bit-identical with and without `--current`.
+- One occupied pi_{+1} orbital has tau~ = tau_W, where TPSS correlation
+  vanishes: -5.4e-3 Eh without the current, -2.6e-12 with it, on both
+  grids.
+- The pure-m and 3D workers agree to 1e-14 in Exc and the whole XC
+  matrix for a current-carrying density -- two independent
+  implementations of j and of the sign convention between j and y.
+- The pure-m XC matrix matches finite differences of the energy to a few
+  1e-9, and the response of both grids matches a central difference of
+  the XC matrix to 3e-8. Dropping the perturbed current from the kernel
+  puts the latter at 0.17, so the check does see it.
+
+End to end, through the `diatomic` driver: OH X 2Pi with TPSS and the
+beta pi electron pinned in m = +1 (`--readocc`, `--symmetry=1`) gives the
+same first-iteration energy on the pure-m and 3D grids to every printed
+digit with `--current`, and `--secondorder` takes it from an RMS gradient
+of 1.8e-6 to 2.1e-9 in two macroiterations -- the response is exact
+enough for quadratic convergence.
+
+The derivative checks need a density with NO spin channel made of a
+single orbital. One orbital has tau = tau_W (z = 1), which is where
+libxc clamps sigma <= 8 rho tau, so the energy has a kink there that a
+central difference straddles: the plain TPSS Fock matrix "fails" such a
+check by 3-20% with the current off just as much as on. The same z = 1
+limit is a real hazard in production. TPSS correlation of one electron
+has vtau proportional to rho/tau_W, which diverges wherever grad rho = 0;
+the H 2p_0 density has such points, and an SCF on it diverges (kinetic
+energy 330 Eh after one step) with or without `--current`. With
+`--current`, 2p_{+1} reaches z = 1 too and breaks in exactly the same way.
+That is the functional, not the correction: tau~ makes the two
+components behave alike, and here they are alike in failing.
+
+Measured on B 2p^1 (TPSS, unrestricted, `--symmetry=2 --lmax=1 --nelem=5
+--nnodes=15`, configuration pinned with `--readocc`):
+M_L = 0 is -24.6672086289 either way (a real orbital carries no current),
+and M_L = 1 goes from -24.6581195074 to -24.6613424157, i.e. the spurious
+M_L splitting falls from 9.1 to 5.9 mEh. It does not vanish, and should
+not be expected to: the p_0 and p_{+1} densities really are different
+shapes, which a semilocal functional can still tell apart.
