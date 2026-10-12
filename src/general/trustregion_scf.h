@@ -61,7 +61,9 @@ namespace helfem {
   /// run out (ERKALE's port of this optimizer stopped Fe2 70 mEh above
   /// the minimum that way). A cut step that lowers the energy stops the
   /// solve, which restarts from there with that block integer and frozen; whether it opens again is decided
-  /// by the KKT check below.
+  /// by the KKT check below, once the orbital gradient is small enough for
+  /// the orbital energies to mean something. The restarts end when an
+  /// occupation pattern recurs without a lower energy.
   ///
   /// The electron count of each particle type is conserved, so the free
   /// occupation parameters span the sum-zero subspace of its blocks:
@@ -148,10 +150,12 @@ namespace helfem {
       /// made, not on an absolute budget that a legitimately hard case
       /// might need. Zero disables it; the default is a few times n_micro.
       int max_hessian = 0;
-      /// How many times the solve may be restarted after the occupation
-      /// pattern changes under it (a shell closing, say). Each restart
-      /// rebuilds the parametrization around the new pattern.
-      int max_restarts = 5;
+      /// Safety cap on restarts of the solve: after the occupation pattern
+      /// changes under it (a shell closing, say), after a stop at a kink,
+      /// a retaken step or a KKT release. What normally ends the restarts
+      /// is a pattern recurring without a lower energy; this only bounds
+      /// a pathological run.
+      int max_restarts = 100;
       /// Output detail
       int verbosity = 5;
     };
@@ -243,6 +247,9 @@ namespace helfem {
       /// step that reached it
       bool kink_stop_ = false;
       helfem::Vector kink_step_;
+      /// RMS orbital gradient below which the orbital energies are trusted
+      /// as the multipliers of the KKT conditions
+      static constexpr double kkt_gate = 1e-4;
       /// Best point any objective evaluation has reached since the last
       /// accepted step, and its energy. When the solve stalls, this is the
       /// step it kept declining.
