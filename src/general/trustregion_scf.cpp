@@ -380,8 +380,25 @@ namespace helfem {
       const double nudge = 1e-3;
 
       for (size_t p = 0; p < pblocks_.size(); p++) {
-        if (free_[p].empty())
-          continue;
+        if (free_[p].empty()) {
+          // All integer: open the two blocks between which the aufbau is
+          // violated, if any.
+          size_t btop, bnext;
+          double emax, emin;
+          if (!integer_aufbau_violation(p, btop, bnext, emax, emin))
+            continue;
+          if (verbosity >= 1) {
+            printf("\nBlock %i is held full up to an orbital at % .6f, above "
+                   "the empty orbital of block %i at % .6f:\n         the "
+                   "integer occupations are not aufbau. Moving charge between "
+                   "them.\n",
+                   (int)btop, emax, (int)bnext, emin);
+            fflush(stdout);
+          }
+          q_[btop] -= nudge;
+          q_[bnext] += nudge;
+          return true;
+        }
         const double efermi = fermi_level(p);
 
         for (size_t b : pblocks_[p]) {
@@ -464,8 +481,18 @@ namespace helfem {
       if (verbosity < 1)
         return;
       for (size_t p = 0; p < pblocks_.size(); p++) {
-        if (free_[p].empty())
+        if (free_[p].empty()) {
+          size_t btop, bnext;
+          double emax, emin;
+          if (integer_aufbau_violation(p, btop, bnext, emax, emin)) {
+            printf("WARNING: block %i is held full up to an orbital at % .6f, "
+                   "above the empty orbital of block %i at % .6f.\n"
+                   "         The integer occupations are not aufbau.\n",
+                   (int)btop, emax, (int)bnext, emin);
+            fflush(stdout);
+          }
           continue;
+        }
         const double efermi = fermi_level(p);
         for (size_t b : pblocks_[p]) {
           if (std::find(free_[p].begin(), free_[p].end(), b) != free_[p].end())
@@ -869,6 +896,31 @@ namespace helfem {
                      : -std::numeric_limits<double>::infinity();
       enext = (f_[b](k) <= occ_tol) ? F_[b](k, k)
                                     : std::numeric_limits<double>::infinity();
+    }
+
+    bool Optimizer::integer_aufbau_violation(size_t p, size_t &btop,
+                                             size_t &bnext, double &emax,
+                                             double &emin) const {
+      // With no free block there is no Fermi level to compare against, but
+      // the integer occupations can still be wrong: a full orbital in one
+      // block above an empty one in another. Fe2 passes through exactly
+      // that (delta full above an empty sigma) on its way to the minimum.
+      emax = -std::numeric_limits<double>::infinity();
+      emin = std::numeric_limits<double>::infinity();
+      btop = bnext = 0;
+      for (size_t b : pblocks_[p]) {
+        double etop, enext;
+        frozen_edges(b, etop, enext);
+        if (etop > emax) {
+          emax = etop;
+          btop = b;
+        }
+        if (enext < emin) {
+          emin = enext;
+          bnext = b;
+        }
+      }
+      return btop != bnext && emax > emin + 1e-8;
     }
 
     void Optimizer::adopt(const std::vector<helfem::Matrix> &U,

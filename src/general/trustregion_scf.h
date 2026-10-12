@@ -312,6 +312,10 @@ namespace helfem {
       void frozen_edges(size_t b, double &etop, double &enext) const;
       /// Fermi level of particle type p: the highest fractional orbital
       double fermi_level(size_t p) const;
+      /// With no free block in particle type p: is a full orbital of block
+      /// btop (at emax) above an empty one of block bnext (at emin)?
+      bool integer_aufbau_violation(size_t p, size_t &btop, size_t &bnext,
+                                    double &emax, double &emin) const;
       /// Adopt a point: recompute C_, F_, the energy, and the gradient
       /// and Hessian data that go with them
       void adopt(const std::vector<helfem::Matrix> &U,
@@ -342,7 +346,9 @@ namespace helfem {
       /// handed over is not aufbau-stable
       void check_aufbau(int verbosity) const;
       /// Look for a block frozen in violation of the KKT conditions of the
-      /// constrained problem, and if there is one, move a little charge across so it becomes a free coordinate
+      /// constrained problem -- or, with every block integer, a full
+      /// orbital above an empty one in another block -- and if there is
+      /// one, move a little charge across so it becomes a free coordinate
       /// again. Returns true if the occupations were changed.
       bool release_kkt_violation(int verbosity);
 
