@@ -60,10 +60,11 @@ namespace helfem {
   /// overshoots back, each crossing a pattern change, until the restarts
   /// run out (ERKALE's port of this optimizer stopped Fe2 70 mEh above
   /// the minimum that way). A cut step that lowers the energy stops the
-  /// solve, which restarts from there with that block integer and frozen; whether it opens again is decided
-  /// by the KKT check below, once the orbital gradient is small enough for
-  /// the orbital energies to mean something. The restarts end when an
-  /// occupation pattern recurs without a lower energy.
+  /// solve, which restarts from there with that block integer and frozen.
+  /// Whether it opens again is decided by the KKT check below, once the
+  /// orbital gradient is small enough for the orbital energies to mean
+  /// something. The restarts end when an occupation pattern recurs without
+  /// a lower energy.
   ///
   /// The electron count of each particle type is conserved, so the free
   /// occupation parameters span the sum-zero subspace of its blocks:
@@ -299,6 +300,18 @@ namespace helfem {
       /// Per-block FEM densities of a given orbital set and filling
       void densities(const std::vector<helfem::Matrix> &U,
                      const std::vector<double> &q, helfem::Cube &P) const;
+      /// Recompute C_, the occupations, the energy and F_ from U_ and q_
+      void evaluate_reference();
+      /// Diagonalize F_ within the full and within the empty orbitals of
+      /// each block, rotating U_ and C_ to match. The density and energy
+      /// do not change; the diagonal of F_ then carries the true edges of
+      /// both spectra, which is what the KKT check reads.
+      void canonicalize();
+      /// Highest full and lowest empty orbital energy of a frozen block
+      /// (-inf / +inf where there is none)
+      void frozen_edges(size_t b, double &etop, double &enext) const;
+      /// Fermi level of particle type p: the highest fractional orbital
+      double fermi_level(size_t p) const;
       /// Adopt a point: recompute C_, F_, the energy, and the gradient
       /// and Hessian data that go with them
       void adopt(const std::vector<helfem::Matrix> &U,
@@ -329,9 +342,8 @@ namespace helfem {
       /// handed over is not aufbau-stable
       void check_aufbau(int verbosity) const;
       /// Look for a block frozen in violation of the KKT conditions of the
-      /// constrained problem, and if there is one, move a little charge
-      /// across so it becomes a free coordinate again. Returns true if the
-      /// occupations were changed.
+      /// constrained problem, and if there is one, move a little charge across so it becomes a free coordinate
+      /// again. Returns true if the occupations were changed.
       bool release_kkt_violation(int verbosity);
 
     public:
