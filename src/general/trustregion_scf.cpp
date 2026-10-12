@@ -382,30 +382,30 @@ namespace helfem {
       for (size_t p = 0; p < pblocks_.size(); p++) {
         if (free_[p].empty())
           continue;
-        double efermi = -std::numeric_limits<double>::max();
-        for (size_t b : free_[p])
-          efermi = std::max(efermi, F_[b](active_[b], active_[b]));
+        const double efermi = fermi_level(p);
 
         for (size_t b : pblocks_[p]) {
           if (std::find(free_[p].begin(), free_[p].end(), b) != free_[p].end())
             continue;
+          double etop, enext;
+          frozen_edges(b, etop, enext);
 
           // Frozen full, but its topmost filled orbital sits above the
           // Fermi level: it should give charge up.
-          if (active_[b] > 0 &&
-              F_[b](active_[b] - 1, active_[b] - 1) > efermi + 1e-8) {
+          if (etop > efermi + 1e-8) {
             size_t to = free_[p][0];
             for (size_t c : free_[p])
               if (F_[c](active_[c], active_[c]) < F_[to](active_[to], active_[to]))
                 to = c;
-            if (verbosity >= 1)
+            if (verbosity >= 1) {
               printf("\nBlock %i is pinned full at % .6f, above the Fermi level "
                      "% .6f, so the solution\n         satisfies the "
                      "stationarity of a restricted problem and not the KKT "
                      "conditions of this one.\n         Releasing it towards "
                      "block %i.\n",
-                     (int)b, F_[b](active_[b] - 1, active_[b] - 1), efermi,
-                     (int)to);
+                     (int)b, etop, efermi, (int)to);
+              fflush(stdout);
+            }
             q_[b] -= nudge;
             q_[to] += nudge;
             return true;
@@ -413,18 +413,20 @@ namespace helfem {
 
           // Frozen empty (or at a shell edge), but the orbital that would
           // fill next sits below the Fermi level: it should take charge on.
-          if (F_[b](active_[b], active_[b]) < efermi - 1e-8) {
+          if (enext < efermi - 1e-8) {
             size_t from = free_[p][0];
             for (size_t c : free_[p])
               if (F_[c](active_[c], active_[c]) > F_[from](active_[from], active_[from]))
                 from = c;
             if (q_[from] <= nudge)
               continue;
-            if (verbosity >= 1)
+            if (verbosity >= 1) {
               printf("\nBlock %i is pinned with its next orbital at % .6f, below "
                      "the Fermi level % .6f,\n         which violates the KKT "
                      "conditions. Releasing it from block %i.\n",
-                     (int)b, F_[b](active_[b], active_[b]), efermi, (int)from);
+                     (int)b, enext, efermi, (int)from);
+              fflush(stdout);
+            }
             q_[b] += nudge;
             q_[from] -= nudge;
             return true;
@@ -434,59 +436,57 @@ namespace helfem {
       return false;
     }
 
+    double Optimizer::fermi_level(size_t p) const {
+      double efermi = -std::numeric_limits<double>::infinity();
+      for (size_t b : free_[p])
+        efermi = std::max(efermi, F_[b](active_[b], active_[b]));
+      return efermi;
+    }
+
     void Optimizer::check_aufbau(int verbosity) const {
       // The blocks held frozen are frozen because their topmost orbital
       // is exactly full or exactly empty. That is only the right answer
       // if the orbital that would fill next lies above the Fermi level;
       // otherwise the solution is stationary but not aufbau, and the
       // occupation pattern handed over was wrong.
-      double efermi = -std::numeric_limits<double>::max();
-      bool have_fermi = false;
-      for (size_t p = 0; p < pblocks_.size(); p++)
-        for (size_t b : free_[p]) {
-          efermi = std::max(efermi, F_[b](active_[b], active_[b]));
-          have_fermi = true;
-        }
-      if (!have_fermi)
-        return;
-
+      //
       // A block frozen at an integer occupation can be wrong in two ways,
       // and by Janak's theorem dE/dn_i = eps_i both are read off the same
-      // orbital energies. It may want to RECEIVE charge, if the orbital
-      // that would fill next lies below the Fermi level. Or it may want to
-      // GIVE UP charge, if its topmost filled orbital lies above it --
-      // which is the more dangerous of the two, because the solve then
-      // converges tidily to the pure-state solution and reports a
-      // perfectly small gradient. Measured on Fe handed over at 20
-      // first-order iterations: 4s full at -0.163 against 3d at -0.248,
-      // converged to 2.2e-9, and 0.032 Eh above the ensemble minimum with
-      // nothing in the output to say so.
-      for (size_t p = 0; p < pblocks_.size(); p++)
+      // orbital energies -- the canonical ones, see canonicalize(). It may
+      // want to RECEIVE charge, if the orbital that would fill next lies
+      // below the Fermi level. Or it may want to GIVE UP charge, if its
+      // topmost filled orbital lies above it -- which is the more
+      // dangerous of the two, because the solve then converges tidily to
+      // the pure-state solution and reports a perfectly small gradient.
+      // Measured on Fe handed over at 20 first-order iterations: 4s full
+      // at -0.163 against 3d at -0.248, converged to 2.2e-9, and 0.032 Eh
+      // above the ensemble minimum with nothing in the output to say so.
+      if (verbosity < 1)
+        return;
+      for (size_t p = 0; p < pblocks_.size(); p++) {
+        if (free_[p].empty())
+          continue;
+        const double efermi = fermi_level(p);
         for (size_t b : pblocks_[p]) {
           if (std::find(free_[p].begin(), free_[p].end(), b) != free_[p].end())
             continue;
-          // active_ is the first orbital that is not full, i.e. the one
-          // that would receive charge if this block opened up.
-          const double enext = F_[b](active_[b], active_[b]);
-          if (enext < efermi - 1e-8 && verbosity >= 1)
+          double etop, enext;
+          frozen_edges(b, etop, enext);
+          if (enext < efermi - 1e-8)
             printf("WARNING: block %i is held at an integer occupation, but its "
                    "next orbital lies at % .6f, below the Fermi level % .6f.\n"
-                   "         The occupation pattern is not aufbau-stable; the "
-                   "first-order phase handed over the wrong one.\n",
+                   "         The occupation pattern is not aufbau-stable.\n",
                    (int)b, enext, efermi);
-          // ... and the topmost orbital it actually holds.
-          if (active_[b] > 0) {
-            const double etop = F_[b](active_[b] - 1, active_[b] - 1);
-            if (etop > efermi + 1e-8 && verbosity >= 1)
-              printf("WARNING: block %i is held full up to an orbital at % .6f, "
-                     "above the Fermi level % .6f.\n"
-                     "         Moving charge out of it would lower the energy, "
-                     "so this is a pure-state solution and not the ensemble "
-                     "one.\n         Hand over from a better converged "
-                     "first-order solution (--preiter).\n",
-                     (int)b, etop, efermi);
-          }
+          if (etop > efermi + 1e-8)
+            printf("WARNING: block %i is held full up to an orbital at % .6f, "
+                   "above the Fermi level % .6f.\n"
+                   "         Moving charge out of it would lower the energy, "
+                   "so this is a pure-state solution and not the ensemble "
+                   "one.\n",
+                   (int)b, etop, efermi);
+          fflush(stdout);
         }
+      }
     }
 
     bool Optimizer::truncate_at_kinks(std::vector<double> &q) const {
@@ -806,29 +806,82 @@ namespace helfem {
         out[exact_idx_[(size_t)i]] = rs(i);
     }
 
-    void Optimizer::adopt(const std::vector<helfem::Matrix> &U,
-                          const std::vector<double> &q, double *grad,
-                          double *h_diag) {
-      U_ = U;
-      q_ = q;
+    void Optimizer::evaluate_reference() {
       for (size_t b = 0; b < nblock(); b++) {
         reorthonormalize(U_[b]);
         fill_occupations(b, q_[b], f_[b], active_[b]);
         C_[b] = Sinvh_[b] * U_[b];
       }
-
       helfem::Cube P, F;
       densities(U_, q_, P);
       energy_ = fock_(P, F);
+      F_.resize(nblock());
+      for (size_t b = 0; b < nblock(); b++)
+        F_[b] = C_[b].transpose() * F[b] * C_[b];
+    }
+
+    void Optimizer::canonicalize() {
+      // Rotations among the full orbitals of a block, or among its empty
+      // ones, do not change the density, so they are not parameters and
+      // the optimizer leaves those orbitals however they come out --
+      // mixed. A diagonal element of F in mixed orbitals can then lie far
+      // inside their spectrum, and that is exactly what the KKT check and
+      // the aufbau report read: from the bare guess, Fe2 (in ERKALE's port)
+      // stopped 13 mEh above the minimum with an empty sigma orbital 22 mEh
+      // below the Fermi level, unseen. Diagonalizing F within each set
+      // leaves the density and the energy alone, puts the true edges of
+      // the spectrum on the diagonal, and makes the fill order the energy
+      // order, so that a block filling past its fractional orbital
+      // continues into its lowest empty one, and empties from its highest
+      // full one. The full orbitals are 0..k-1 and the empty ones follow,
+      // so both sets are contiguous and stay in place.
+      for (size_t b = 0; b < nblock(); b++) {
+        const Eigen::Index n = norb(b);
+        Eigen::Index nfull = 0, first_empty = n;
+        while (nfull < n && f_[b](nfull) >= maxocc_[b] - occ_tol)
+          nfull++;
+        for (Eigen::Index i = nfull; i < n; i++)
+          if (f_[b](i) <= occ_tol) {
+            first_empty = i;
+            break;
+          }
+        helfem::Matrix W = helfem::Matrix::Identity(n, n);
+        for (const auto &range : {std::make_pair((Eigen::Index)0, nfull),
+                                  std::make_pair(first_empty, n)}) {
+          const Eigen::Index m = range.second - range.first;
+          if (m < 2)
+            continue;
+          Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(
+              F_[b].block(range.first, range.first, m, m));
+          W.block(range.first, range.first, m, m) = es.eigenvectors();
+        }
+        U_[b] = U_[b] * W;
+        C_[b] = Sinvh_[b] * U_[b];
+        F_[b] = W.transpose() * F_[b] * W;
+      }
+    }
+
+    void Optimizer::frozen_edges(size_t b, double &etop, double &enext) const {
+      // active_ is the first orbital that is not full; in a frozen block it
+      // is empty, unless the block is full to the last orbital.
+      const Eigen::Index k = active_[b];
+      etop = (k > 0) ? F_[b](k - 1, k - 1)
+                     : -std::numeric_limits<double>::infinity();
+      enext = (f_[b](k) <= occ_tol) ? F_[b](k, k)
+                                    : std::numeric_limits<double>::infinity();
+    }
+
+    void Optimizer::adopt(const std::vector<helfem::Matrix> &U,
+                          const std::vector<double> &q, double *grad,
+                          double *h_diag) {
+      U_ = U;
+      q_ = q;
+      evaluate_reference();
       stats_.n_update++;
       // A step was accepted, so the runaway counter starts over.
       hess_this_macro_ = 0;
       best_energy_ = energy_;
       best_step_ = helfem::Vector();
-
-      F_.resize(nblock());
-      for (size_t b = 0; b < nblock(); b++)
-        F_[b] = C_[b].transpose() * F[b] * C_[b];
 
       if (grad)
         gradient(grad);
@@ -982,9 +1035,19 @@ namespace helfem {
       // a revisit at the same energy can only repeat what happened last
       // time. Each pattern -- the fractional orbital of every block and
       // which blocks are free -- is recorded with its entry energy.
+      //
+      // The handed-over reference is evaluated first, so that its energy
+      // is the first pattern's entry energy and its orbitals can be made
+      // canonical before the first layout. Each later rebuild
+      // canonicalizes too, so that a block that filled or emptied carries
+      // on with its lowest empty or highest full orbital. (Nothing derived
+      // from the reference needs refreshing after that: every solve opens
+      // by adopting the reference at zero displacement.)
       const otr::Settings otrset = opts.otr;
+      evaluate_reference();
       std::vector<std::pair<std::vector<Eigen::Index>, double>> visited;
       for (int pass = 0;; pass++) {
+        canonicalize();
         build_layout();
 
         std::vector<Eigen::Index> pattern(active_);
@@ -1097,10 +1160,18 @@ namespace helfem {
         // of the Fermi level, release it and go again: the restricted
         // problem it solved is not the problem. The orbital energies are
         // the multipliers of those conditions, and far from convergence
-        // they are noise, so the question waits for a small gradient.
-        if (!pattern_changed_ && pass < opts.max_restarts &&
-            gpass_rms <= std::max(otrset.conv_tol, kkt_gate) &&
-            release_kkt_violation(opts.verbosity)) {
+        // they are noise, so the question waits for a small gradient; and
+        // they are the canonical ones, the edges of the spectrum of the
+        // full and of the empty orbitals, not diagonal elements in
+        // whatever mixture the optimizer left them. Canonicalizing changes
+        // neither the energy nor the RMS gradient, and the next solve
+        // starts by adopting the reference afresh.
+        const bool kkt_ready = !pattern_changed_ &&
+                               pass < opts.max_restarts &&
+                               gpass_rms <= std::max(otrset.conv_tol, kkt_gate);
+        if (kkt_ready)
+          canonicalize();
+        if (kkt_ready && release_kkt_violation(opts.verbosity)) {
           std::vector<helfem::Matrix> U = U_;
           std::vector<double> q = q_;
           adopt(U, q, nullptr, nullptr);
@@ -1140,6 +1211,7 @@ namespace helfem {
                  (int)hess_budget);
         fflush(stdout);
       }
+      canonicalize();
       check_aufbau(opts.verbosity);
 
       return stats_;
