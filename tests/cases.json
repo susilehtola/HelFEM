@@ -3666,7 +3666,7 @@
         "consistency",
         "secondorder"
       ],
-      "_why": "spin-restricted Fe through the trust-region optimizer. This is the case that motivates the feature in gensap: the first-order solver does not converge here at all, and stops 0.103 Eh above the minimum, because 4s and 3d come out degenerate in different l blocks and no orbital rotation connects them. Matched to aij's bare-atom settings (lmax 4, core guess) so the two drivers can be compared directly.",
+      "_why": "spin-restricted Fe through the trust-region optimizer. This is the case that motivates the feature in gensap: the first-order solver does not converge here at all, and stops 0.103 Eh above the minimum, because 4s and 3d come out degenerate in different l blocks and no orbital rotation connects them. Matched to aij's bare-atom settings (lmax 4, core guess) so the two drivers can be compared directly. The threshold is 1e-7, not 1e-8: at a total energy of 1.3-1.5e3 Eh a trust-region step validated by the energy cannot resolve RMS gradients much below 1e-7, so whether a run reaches 1e-8 is luck -- this one stops at 4.5e-8 (Fe) or 6.2e-8 (Ni) with the energy unchanged to every digit, and the harness then finds no convergence line.",
       "args": [
         "--Z=Fe",
         "--M=0",
@@ -3676,7 +3676,7 @@
         "--method=lda_x",
         "--secondorder=1",
         "--preiter=30",
-        "--soconvthr=1e-8",
+        "--soconvthr=1e-7",
         "--scfmethods=ODA + LBFGS",
         "--sofractional=1"
       ]
@@ -3774,7 +3774,7 @@
         "consistency",
         "secondorder"
       ],
-      "_why": "spin-restricted Ni, the strongest case in the suite for the second-order method: first order does NOT converge it at all, either with DIIS (733 Fock builds) or without (487). The second-order phase reaches the minimum in seconds. It also has the richest occupation structure here -- 2 fractionally occupied blocks with 1 transfer at this handover, and 4 blocks with 3 transfers at preiter=22, which is the regime where the exact occupation-block preconditioner earns itself. preiter is 30 because 22 converges tightly to a DIFFERENT stationary point, 6.4e-8 Eh higher; 30 reproduces the value the first-order sweep independently reached.",
+      "_why": "spin-restricted Ni, the strongest case in the suite for the second-order method: first order does NOT converge it at all, either with DIIS (733 Fock builds) or without (487). The second-order phase reaches the minimum in seconds. It also has the richest occupation structure here -- 2 fractionally occupied blocks with 1 transfer at this handover, and 4 blocks with 3 transfers at preiter=22, which is the regime where the exact occupation-block preconditioner earns itself. preiter is 30 because 22 converges tightly to a DIFFERENT stationary point, 6.4e-8 Eh higher; 30 reproduces the value the first-order sweep independently reached. The threshold is 1e-7, not 1e-8: at a total energy of 1.3-1.5e3 Eh a trust-region step validated by the energy cannot resolve RMS gradients much below 1e-7, so whether a run reaches 1e-8 is luck -- this one stops at 4.5e-8 (Fe) or 6.2e-8 (Ni) with the energy unchanged to every digit, and the harness then finds no convergence line.",
       "args": [
         "--Z=Ni",
         "--M=0",
@@ -3785,7 +3785,7 @@
         "--scfmethods=ODA + LBFGS",
         "--secondorder=1",
         "--preiter=30",
-        "--soconvthr=1e-8",
+        "--soconvthr=1e-7",
         "--sofractional=1"
       ]
     },
