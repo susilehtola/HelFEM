@@ -19,6 +19,7 @@
 #include "../general/cas_integrals.h"
 
 #include <stdexcept>
+#include <utility>
 
 namespace helfem {
   namespace diatomic {
@@ -50,7 +51,11 @@ namespace helfem {
       class DiatomicCASEngine : public helfem::cas::JKProvider {
        public:
         explicit DiatomicCASEngine(const TwoDBasis & basis)
-            : basis_(basis), hcore_(basis.kinetic() + basis.nuclear()) {
+            : DiatomicCASEngine(basis, basis.kinetic() + basis.nuclear()) {}
+        /// With the driver's own one-electron Hamiltonian, which may carry
+        /// external fields or a model nuclear potential.
+        DiatomicCASEngine(const TwoDBasis & basis, helfem::Matrix hcore)
+            : basis_(basis), hcore_(std::move(hcore)) {
           if (basis_.is_absm_symmetric())
             throw std::logic_error(
                 "DiatomicCASEngine: the basis has absm_symmetric set, which "
