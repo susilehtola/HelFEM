@@ -99,6 +99,17 @@ namespace helfem {
                                          const helfem::Matrix & C,
                                          Eigen::Index ninact, Eigen::Index nact);
 
+    /// d/dt active_hamiltonian(C exp(t dkap)) at t = 0: the one-index
+    /// transformed Hamiltonian. Its sigma vector on the CI state is the
+    /// CI-orbital block of the coupled Hessian. Same coulomb() primitive as
+    /// everything else here: for each active pair, J of the pair density and
+    /// of its derivative.
+    ActiveHamiltonian active_hamiltonian_response(const JKProvider & jk,
+                                                  const helfem::Matrix & C,
+                                                  Eigen::Index ninact,
+                                                  Eigen::Index nact,
+                                                  const helfem::Matrix & dkap);
+
     /// CASSCF generalized Fock matrix F[m][p]: m over all orbitals, p over
     /// inactive+active.
     ///

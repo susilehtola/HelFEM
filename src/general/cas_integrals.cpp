@@ -141,6 +141,48 @@ namespace helfem {
       return F;
     }
 
+    ActiveHamiltonian active_hamiltonian_response(const JKProvider & jk,
+                                                  const helfem::Matrix & C,
+                                                  Eigen::Index ninact,
+                                                  Eigen::Index nact,
+                                                  const helfem::Matrix & dkap) {
+      const helfem::Matrix Cx = C * dkap;            // dC/dt
+      const helfem::Matrix Ci = C.leftCols(ninact), Cxi = Cx.leftCols(ninact);
+      const helfem::Matrix Ca = C.middleCols(ninact, nact);
+      const helfem::Matrix Cxa = Cx.middleCols(ninact, nact);
+
+      // Inactive part. E_inactive = tr(P h) + tr(P veff[P])/2 with veff
+      // linear and symmetric in its argument, so dE = tr(dP (h + veff[P])).
+      double Ei;
+      const helfem::Matrix FI = inactive_fock(jk, C, ninact, Ei);
+      const helfem::Matrix Px = 2.0 * (Cxi * Ci.transpose() + Ci * Cxi.transpose());
+      const helfem::Matrix FIx = closed_shell_veff(jk, Px);
+
+      ActiveHamiltonian out;
+      out.E_inactive = (Px * FI).trace();
+      out.h_eff = Cxa.transpose() * FI * Ca + Ca.transpose() * FI * Cxa
+                  + Ca.transpose() * FIx * Ca;
+
+      const Eigen::Index n = nact;
+      out.eri.assign((size_t) (n * n * n * n), 0.0);
+      for (Eigen::Index t = 0; t < n; t++)
+        for (Eigen::Index u = t; u < n; u++) {
+          // Pair densities passed bare, as in active_eri.
+          const helfem::Matrix J = jk.coulomb(Ca.col(t) * Ca.col(u).transpose());
+          const helfem::Matrix Jx = jk.coulomb(Cxa.col(t) * Ca.col(u).transpose()
+                                               + Ca.col(t) * Cxa.col(u).transpose());
+          const helfem::Matrix blk = Ca.transpose() * Jx * Ca
+                                     + Cxa.transpose() * J * Ca
+                                     + Ca.transpose() * J * Cxa;
+          for (Eigen::Index v = 0; v < n; v++)
+            for (Eigen::Index w = 0; w < n; w++) {
+              out.eri[idx4((size_t) n, (size_t) t, (size_t) u, (size_t) v, (size_t) w)] = blk(v, w);
+              out.eri[idx4((size_t) n, (size_t) u, (size_t) t, (size_t) w, (size_t) v)] = blk(v, w);
+            }
+        }
+      return out;
+    }
+
     helfem::Matrix orbital_gradient(const JKProvider & jk, const helfem::Matrix & C,
                                     Eigen::Index ninact, Eigen::Index nact,
                                     const helfem::Matrix & D,

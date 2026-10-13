@@ -202,6 +202,27 @@ namespace helfem {
       return es.eigenvalues()(0);
     }
 
+    std::vector<double> CASCI::to_det(const std::vector<double> & csf) const {
+      if (csf.size() != ncsf())
+        throw std::invalid_argument("CASCI::to_det: vector length is not ncsf");
+      std::vector<double> det(ndet());
+      impl_->spin.csf_C_to_det_C(csf, det);
+      return det;
+    }
+
+    std::vector<double> CASCI::to_csf(const std::vector<double> & det) const {
+      if (det.size() != ndet())
+        throw std::invalid_argument("CASCI::to_csf: vector length is not ndet");
+      std::vector<double> csf(ncsf());
+      impl_->spin.det_C_to_csf_C(det, csf);
+      return csf;
+    }
+
+    std::vector<double> CASCI::hdiag_csf() const {
+      impl_->builder();  // throws before the Hamiltonian is installed
+      return impl_->sb->build_Hdiag_csf_exact(impl_->spin);
+    }
+
     RDMs CASCI::rdms(const std::vector<double> & L, const std::vector<double> & R) const {
       const auto & sb = impl_->builder();
       if (L.size() != ndet() || R.size() != ndet())

@@ -111,6 +111,15 @@ namespace helfem {
       /// diagonal: the same H whose eigenvalue solve_ground returns.
       std::vector<double> sigma(const std::vector<double> & c) const;
 
+      /// Coefficients in the CSFs of the target spin <-> in determinants.
+      /// The CSFs are orthonormal combinations of determinants, so to_det is
+      /// an isometry and to_csf(to_det(x)) == x.
+      std::vector<double> to_det(const std::vector<double> & csf) const;
+      std::vector<double> to_csf(const std::vector<double> & det) const;
+
+      /// Exact diagonal of H in the CSF basis, E_inactive included.
+      std::vector<double> hdiag_csf() const;
+
       /// Spin-free RDMs <L| ... |R>, chemist order. L == R gives the state
       /// RDMs.
       RDMs rdms(const std::vector<double> & L, const std::vector<double> & R) const;
