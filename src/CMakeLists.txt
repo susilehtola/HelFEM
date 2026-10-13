@@ -73,9 +73,9 @@ install(TARGETS helfem-fem legendre
 # consumer. Not installed or exported yet -- neither is cas_integrals.h; the
 # CAS API joins the installed surface together with a driver that uses it.
 if(TARGET reci::core)
-    add_library(helfem-reci STATIC general/cas_ci.cpp)
+    add_library(helfem-reci STATIC general/cas_ci.cpp general/cas_optimizer.cpp)
     add_library(helfem::reci ALIAS helfem-reci)
-    target_link_libraries(helfem-reci PUBLIC helfem-fem PRIVATE reci::core)
+    target_link_libraries(helfem-reci PUBLIC helfem-common PRIVATE reci::core)
 endif()
 
 # The diatomic public surface. basis.h includes "quadrature.h" and
@@ -255,6 +255,8 @@ target_link_libraries(cas_diatomic_test helfem-fem)
 if(TARGET helfem-reci)
     add_executable(cas_ci_test general/cas_ci_test.cpp)
     target_link_libraries(cas_ci_test helfem-reci helfem-common legendre)
+    add_executable(cas_casscf_test general/cas_casscf_test.cpp)
+    target_link_libraries(cas_casscf_test helfem-reci helfem-common legendre)
 endif()
 
 add_executable(gaunt_test general/gaunt_test.cpp)
