@@ -1048,6 +1048,14 @@ int main(int argc, char **argv) {
                "highest occupied % .8f, lowest not full % .8f: %s\n",
                (int) t, eocc, eopen,
                eocc <= eopen + 1e-6 ? "aufbau" : "NOT AUFBAU");
+        // The pattern itself, so that it can be compared to other codes.
+        printf("  electrons per block:");
+        for (size_t k = 0; k < nsym; k++) {
+          const size_t b = t * nsym + k;
+          if (f[b].sum() > 1e-8)
+            printf(" %s %.6f", block_descriptions[b].c_str(), f[b].sum());
+        }
+        printf("\n");
       }
       fflush(stdout);
     }
