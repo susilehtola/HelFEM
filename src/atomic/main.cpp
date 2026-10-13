@@ -38,10 +38,8 @@
 #include "../general/scf_driver_common.h"
 #include "../general/trustregion_scf.h"
 #include "../general/otr_solver.h"
-#ifdef HELFEM_HAVE_RECI
-#include "../general/cas_optimizer.h"
+#include "../general/cas_options.h"
 #include "cas_engine.h"
-#endif
 #include "../general/checkpoint.h"
 #include "../general/eigen_io.h"
 
@@ -146,11 +144,7 @@ int main(int argc, char **argv) {
   parser.add<bool>("fractionaloccupations", 0, "optimize fractional occupations in the second-order phase: the block fillings become parameters, and charge moves between degenerate shells; off keeps every orbital full or empty", false, false);
   parser.add<bool>("stabilityanalysis", 0, "run OpenTrustRegion's stability analysis when the second-order phase converges, and follow a negative Hessian eigenvalue if one is found", false, false);
   parser.add<double>("sotest", 0, "instead of optimizing, check the analytic gradient and Hessian against finite differences with this step size", false, 0.0);
-  parser.add<int>("casact", 0, "CASSCF after the SCF: number of active orbitals (0 for none)", false, 0);
-  parser.add<int>("casinact", 0, "CASSCF: number of doubly occupied inactive orbitals", false, 0);
-  parser.add<int>("casM", 0, "CASSCF: spin multiplicity of the target state", false, 1);
-  parser.add<bool>("cascoupled", 0, "CASSCF: optimize orbitals and CI coefficients together (else re-solve the CI at every orbital step)", false, true);
-  parser.add<double>("casconvthr", 0, "CASSCF: RMS gradient to converge to", false, 1e-6);
+  helfem::cas::add_options(parser);
 
   parser.parse_check(argc, argv);
 
@@ -961,51 +955,16 @@ int main(int argc, char **argv) {
 #ifdef HELFEM_HAVE_RECI
     if (Bz != 0.0)
       throw std::logic_error("CASSCF with a magnetic field is not implemented.\n");
-    const int ninact = parser.get<int>("casinact");
-    const int twoS = parser.get<int>("casM") - 1;
-    const int nactel = Ntot - 2 * ninact;
-    if (twoS < 0 || nactel < 0 || nactel > 2 * casact || twoS > nactel
-        || (nactel - twoS) % 2 != 0 || twoS > 2 * casact - nactel)
-      throw std::logic_error("CASSCF: " + std::to_string(nactel) + " active electrons "
-                             "cannot form multiplicity " + std::to_string(twoS + 1)
-                             + " in " + std::to_string(casact) + " orbitals.\n");
-
     // Start from the SCF density, whatever produced it.
-    const auto scf_orbs = scfsolver.get_orbitals();
-    const auto scf_occs = scfsolver.get_orbital_occupations();
     helfem::Matrix Pa_scf, Pb_scf;
     std::tie(Pa_scf, Pb_scf) = helfem::scf_driver::assemble_final_density<OOO_Real>(
-        Nbf, restricted, dsym, Sinvh, scf_orbs, scf_occs);
+        Nbf, restricted, dsym, Sinvh, scfsolver.get_orbitals(),
+        scfsolver.get_orbital_occupations());
     const helfem::atomic::basis::AtomicCASEngine jk(basis, T + Vnuc + Vel + Vconf);
-    helfem::Matrix C;
-    helfem::Vector eorb;
-    std::vector<int> label;
-    helfem::cas::canonical_orbitals(jk, Pa_scf + Pb_scf, dsym, Sinvh, C, eorb, label);
-    if (ninact + casact > C.cols())
-      throw std::logic_error("CASSCF: more inactive and active orbitals than the basis has.\n");
-    if (verbosity >= 1) {
-      printf("\nCASSCF(%i,%i), multiplicity %i, %i inactive orbitals; starting "
-             "orbital energies:\n", nactel, casact, twoS + 1, ninact);
-      for (int i = 0; i < ninact + casact; i++)
-        printf("  %3i %-10s % .8f %s\n", i, block_descriptions[(size_t) label[(size_t) i]].c_str(),
-               eorb(i), i < ninact ? "inactive" : "active");
-      fflush(stdout);
-    }
-
     helfem::cas::KokkosScope kokkos;
-    helfem::cas::CASCI ci(casact, (nactel + twoS) / 2, (nactel - twoS) / 2);
-    helfem::cas::CASSCF cas(jk, S, ci, C, ninact, casact, label,
-                            parser.get<bool>("cascoupled") ? helfem::cas::Coupling::Coupled
-                                                           : helfem::cas::Coupling::TwoStep);
-    helfem::cas::CASSCFOptions copt;
-    copt.otr.conv_tol = parser.get<double>("casconvthr");
-    copt.otr.n_macro = parser.get<int>("somacro");
-    copt.otr.n_micro = parser.get<int>("somicro");
-    copt.otr.global_red_factor = parser.get<double>("soredfac");
-    copt.otr.local_red_factor = 0.1 * copt.otr.global_red_factor;
-    copt.otr.subsystem_solver = parser.get<std::string>("sosolver");
-    copt.verbosity = verbosity;
-    const helfem::cas::CASSCFResult cres = cas.run(copt);
+    const helfem::cas::CASSCFResult cres = helfem::cas::casscf_from_scf(
+        jk, S, Pa_scf + Pb_scf, dsym, Sinvh, block_descriptions, Ntot,
+        helfem::cas::request(parser, verbosity));
     printf("CASSCF total energy %.10f\n", cres.energy + Enucr);
     fflush(stdout);
 #else

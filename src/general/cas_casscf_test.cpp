@@ -30,11 +30,15 @@
 //   6. the coupled (kappa, c) gradient and Hessian against differences of the
 //      energy the coupled optimizer minimizes;
 //   7. coupled and two-step CASSCF(2,2) reach the same energy from the same
-//      start.
+//      start;
+//   8. equivalent blocks (the 2p of Be at lmax=1) are found, get identical
+//      orbitals and tied rotations, the tied derivatives agree with the
+//      energy, and the copies stay identical through the optimization.
 
 #include "cas_ci.h"
 #include "cas_integrals.h"
 #include "cas_optimizer.h"
+#include "scf_helpers.h"
 #include "trustregion_scf.h"
 #include "../atomic/cas_engine.h"
 #include "../atomic/basis.h"
@@ -42,6 +46,7 @@
 #include <helfem/ModelPotential.h>
 
 #include <Eigen/Eigenvalues>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -128,12 +133,12 @@ int main() {
     const size_t n = cs.nparam();
     const std::vector<double> x = direction(n, 0.3), y = direction(n, 2.1);
     const std::vector<double> Hx = cs.hessian_vector(x), Hy = cs.hessian_vector(y);
-    const std::vector<cas::RotationPair> pairs = cas::rotation_pairs(Ccore.cols(), 1, 2, {});
+    const std::vector<cas::Rotation> pairs = cas::rotation_pairs(Ccore.cols(), 1, 2, {});
     auto K = [&](const std::vector<double> & v) {
       helfem::Matrix M = helfem::Matrix::Zero(Ccore.cols(), Ccore.cols());
       for (size_t k = 0; k < n; k++) {
-        M(pairs[k].p, pairs[k].q) = v[k];
-        M(pairs[k].q, pairs[k].p) = -v[k];
+        M(pairs[k][0].p, pairs[k][0].q) = v[k];
+        M(pairs[k][0].q, pairs[k][0].p) = -v[k];
       }
       return M;
     };
@@ -186,13 +191,13 @@ int main() {
     // gradient is in its own rotated frame, which differs from the
     // reference one by O(h g) -- nothing at a stationary point.
     const size_t n = a.nparam();
-    const std::vector<cas::RotationPair> pairs = cas::rotation_pairs(Ccore.cols(), 1, 2, {});
+    const std::vector<cas::Rotation> pairs = cas::rotation_pairs(Ccore.cols(), 1, 2, {});
     helfem::Matrix H(n, n);
     const double h = 1e-4;
     for (size_t k = 0; k < n; k++) {
       helfem::Matrix K = helfem::Matrix::Zero(Ccore.cols(), Ccore.cols());
-      K(pairs[k].p, pairs[k].q) = h;
-      K(pairs[k].q, pairs[k].p) = -h;
+      K(pairs[k][0].p, pairs[k][0].q) = h;
+      K(pairs[k][0].q, pairs[k][0].p) = -h;
       cas::CASSCF up(jk, S, ci, a.orbitals() * trscf::expm_skew(K), 1, 2);
       cas::CASSCF dn(jk, S, ci, a.orbitals() * trscf::expm_skew(-K), 1, 2);
       const std::vector<double> gu = up.gradient(), gd = dn.gradient();
@@ -205,8 +210,8 @@ int main() {
     const std::vector<double> x = direction(n, 0.7);
     helfem::Matrix K = helfem::Matrix::Zero(Ccore.cols(), Ccore.cols());
     for (size_t k = 0; k < n; k++) {
-      K(pairs[k].p, pairs[k].q) = 0.05 * x[k];
-      K(pairs[k].q, pairs[k].p) = -0.05 * x[k];
+      K(pairs[k][0].p, pairs[k][0].q) = 0.05 * x[k];
+      K(pairs[k][0].q, pairs[k][0].p) = -0.05 * x[k];
     }
     cas::CASSCF b(jk, S, ci, a.orbitals() * trscf::expm_skew(K), 1, 2);
     const cas::CASSCFResult rb = b.run(opt);
@@ -239,7 +244,7 @@ int main() {
   printf("\n6  coupled Hessian against four-point differences of the energy\n");
   {
     cas::CASCI ci(2, 1, 1);
-    cas::CASSCF cs(jk, S, ci, Ccore, 1, 2, {}, cas::Coupling::Coupled);
+    cas::CASSCF cs(jk, S, ci, Ccore, 1, 2, {}, {}, cas::Coupling::Coupled);
     const size_t n = cs.nparam();
     printf("  %zu rotations, %zu CI coefficients\n", cs.nrot(), n - cs.nrot());
     const std::vector<double> x = direction(n, 0.3), y = direction(n, 2.1);
@@ -275,24 +280,98 @@ int main() {
     cas::CASCI ci(2, 1, 1);
     cas::CASSCF ref(jk, S, ci, Ccore, 1, 2);
     ref.run(opt);
-    const std::vector<cas::RotationPair> pairs = cas::rotation_pairs(Ccore.cols(), 1, 2, {});
+    const std::vector<cas::Rotation> pairs = cas::rotation_pairs(Ccore.cols(), 1, 2, {});
     const std::vector<double> x = direction(pairs.size(), 0.7);
     helfem::Matrix K = helfem::Matrix::Zero(Ccore.cols(), Ccore.cols());
     for (size_t k = 0; k < pairs.size(); k++) {
-      K(pairs[k].p, pairs[k].q) = 0.05 * x[k];
-      K(pairs[k].q, pairs[k].p) = -0.05 * x[k];
+      K(pairs[k][0].p, pairs[k][0].q) = 0.05 * x[k];
+      K(pairs[k][0].q, pairs[k][0].p) = -0.05 * x[k];
     }
     const helfem::Matrix Cpert = ref.orbitals() * trscf::expm_skew(K);
     for (const helfem::Matrix * C0 : {&Cpert, static_cast<const helfem::Matrix *>(&Chf)}) {
       const char * what = C0 == &Cpert ? "perturbed minimum" : "RHF orbitals";
       cas::CASSCF two(jk, S, ci, *C0, 1, 2);
       const cas::CASSCFResult r2 = two.run(opt);
-      cas::CASSCF one(jk, S, ci, *C0, 1, 2, {}, cas::Coupling::Coupled);
+      cas::CASSCF one(jk, S, ci, *C0, 1, 2, {}, {}, cas::Coupling::Coupled);
       const cas::CASSCFResult r1 = one.run(opt);
       printf("  from the %s: Hessian-vector products coupled %zu, two-step %zu\n",
              what, r1.n_hessian, r2.n_hessian);
       check("  same energy", r1.energy, r2.energy, 1e-9);
     }
+  }
+
+  printf("\n8  equivalent orbitals: Be at lmax=1, per-(l,m) blocks, CAS(2,4)\n");
+  {
+    // The three 2p blocks are equivalent, so canonical_orbitals must find
+    // them, give them identical orbitals, and tie their rotations. The
+    // tied gradient and Hessian are checked against the energy, and the
+    // orbitals must still be copies of one another after a tied step.
+    Eigen::VectorXi lval1, mval1;
+    atomic::basis::angular_basis(1, 1, lval1, mval1);
+    atomic::basis::TwoDBasis basis1(Z, modelpotential::POINT_NUCLEUS, 0.0, poly,
+                                    false, 5 * poly->nbf(), bval, lval1, mval1,
+                                    0, 0, 0.0);
+    basis1.compute_tei(true);
+    atomic::basis::AtomicCASEngine jk1(basis1);
+    const helfem::Matrix S1 = basis1.overlap();
+    const std::vector<std::vector<Eigen::Index>> dsym = basis1.sym_idx(2);
+    std::vector<helfem::Matrix> Sinvh;
+    for (const auto & idx : dsym) Sinvh.push_back(scf::form_Sinvh(helfem::Matrix(S1(idx, idx)), false));
+
+    helfem::Matrix C;
+    helfem::Vector e;
+    std::vector<int> label, shell;
+    const helfem::Matrix P0 = helfem::Matrix::Zero(S1.rows(), S1.cols());
+    cas::canonical_orbitals(jk1, S1, P0, dsym, Sinvh, C, e, label, shell);
+    // The lowest five orbitals are 1s, 2s and the 2p shell's three copies,
+    // in some order: with P = 0 the operator is hydrogenic, and 2s and 2p
+    // are degenerate.
+    std::vector<int> copies;
+    for (size_t i = 0; i < 5; i++) {
+      int nc = 0;
+      for (size_t j = 0; j < shell.size(); j++) nc += shell[j] == shell[i];
+      copies.push_back(nc);
+    }
+    std::sort(copies.begin(), copies.end());
+    check("1s, 2s and one 2p shell of three copies",
+          copies == std::vector<int>{1, 1, 3, 3, 3} ? 1.0 : 0.0, 1.0, 0.0);
+
+    cas::CASCI ci(4, 1, 1);
+    cas::CASSCF cs(jk1, S1, ci, C, 1, 4, label, shell, cas::Coupling::Coupled);
+    const size_t n = cs.nparam();
+    const size_t nuntied = cas::rotation_pairs(C.cols(), 1, 4, label).size();
+    printf("  %zu tied rotations (%zu untied), %zu CI coefficients\n",
+           cs.nrot(), nuntied, n - cs.nrot());
+    const std::vector<double> x = direction(n, 0.9), y = direction(n, 1.4);
+    const std::vector<double> g = cs.gradient(), Hx = cs.hessian_vector(x);
+    auto Eat = [&](double s1, double s2) {
+      std::vector<double> v(n);
+      for (size_t i = 0; i < n; i++) v[i] = s1 * x[i] + s2 * y[i];
+      return cs.energy(v);
+    };
+    const double h = 1e-3;
+    const double d1 = (Eat(h, 0) - Eat(-h, 0)) / (2 * h);
+    const double d2 = (Eat(0.5 * h, 0) - Eat(-0.5 * h, 0)) / h;
+    check("x . g (Richardson)", d2 + (d2 - d1) / 3.0, dot(x, g), 1e-9);
+    auto fxy = [&](double t) {
+      return (Eat(t, t) - Eat(t, -t) - Eat(-t, t) + Eat(-t, -t)) / (4 * t * t);
+    };
+    const double hh = 2e-3;
+    const double rxy = fxy(0.5 * hh) + (fxy(0.5 * hh) - fxy(hh)) / 3.0;
+    check("y . H x (Richardson)", dot(y, Hx), rxy, 1e-7 * std::max(1.0, std::abs(rxy)));
+
+    const cas::CASSCFResult r = cs.run(opt);
+    // Copies of a shell: identical coefficients on their own blocks.
+    double dev = 0.0;
+    for (size_t i = 0; i < shell.size(); i++)
+      for (size_t j = i + 1; j < shell.size(); j++)
+        if (shell[i] == shell[j]) {
+          const helfem::Vector ci_ = cs.orbitals().col((Eigen::Index) i)(dsym[(size_t) label[i]]);
+          const helfem::Vector cj_ = cs.orbitals().col((Eigen::Index) j)(dsym[(size_t) label[j]]);
+          dev = std::max(dev, (ci_ - cj_).cwiseAbs().maxCoeff());
+        }
+    check("copies stay identical through the optimization", dev, 0.0, 1e-10);
+    check("RMS gradient at the end", r.grad_rms, 0.0, opt.otr.conv_tol);
   }
 
   printf("\n%s\n", nfail ? "CASSCF TEST FAILED" : "CASSCF TEST PASSED");

@@ -19,39 +19,55 @@
 #include "cas_integrals.h"
 #include "otr_solver.h"
 
+#include <string>
 #include <utility>
 #include <vector>
 
 namespace helfem {
   namespace cas {
 
-    /// One rotation parameter: orbital p > q mixed into q.
+    /// A rotation of orbital q into orbital p > q.
     struct RotationPair {
       Eigen::Index p, q;
     };
+
+    /// One rotation parameter: the same angle applied to each listed pair.
+    /// The first pair lies in a representative symmetry block, the rest are
+    /// its images in the equivalent blocks (+m and -m in a diatomic, every
+    /// m of one l in an atom), which keeps equivalent orbitals identical --
+    /// the CI alone decides how they are occupied.
+    using Rotation = std::vector<RotationPair>;
 
     /// The non-redundant rotations of a CAS: inactive-active,
     /// inactive-virtual and active-virtual. Active-active rotations are
     /// left out because the CI absorbs them exactly, and rotations between
     /// orbitals of different `label` because they cannot lower a symmetric
-    /// state. An empty `label` puts every orbital in one symmetry.
-    std::vector<RotationPair> rotation_pairs(Eigen::Index norb, Eigen::Index ninact,
-                                             Eigen::Index nact,
-                                             const std::vector<int> & label);
+    /// state. Orbitals with the same `shell` are images of one another in
+    /// equivalent blocks, and their rotations are tied. Empty `label` puts
+    /// every orbital in one block; empty `shell` ties nothing.
+    std::vector<Rotation> rotation_pairs(Eigen::Index norb, Eigen::Index ninact,
+                                         Eigen::Index nact,
+                                         const std::vector<int> & label,
+                                         const std::vector<int> & shell = {});
 
     /// Starting orbitals for a CAS from an SCF density P (alpha + beta):
     /// the canonical orbitals of the closed-shell Hartree-Fock operator
     /// h + J[P] - K[P]/2, solved in each symmetry block over its own basis
     /// functions dsym[k] with orthonormalizer Sinvh[k], then sorted by
-    /// energy across blocks. For a converged RHF these ARE the SCF
-    /// orbitals; after DFT or an unrestricted SCF they are a well-defined
-    /// start that the CASSCF then optimizes. label[i] is the block of
-    /// orbital i, so rotations stay within a symmetry.
-    void canonical_orbitals(const JKProvider & jk, const helfem::Matrix & P,
+    /// energy. For a converged RHF these ARE the SCF orbitals; after DFT or
+    /// an unrestricted SCF they are a well-defined start.
+    ///
+    /// Blocks whose overlap and core Hamiltonian agree element by element
+    /// are equivalent, and get identical orbitals: the operator is averaged
+    /// over them, solved once, and copied. label[i] is the block of orbital
+    /// i and shell[i] numbers the set of copies it belongs to; the copies of
+    /// one shell are contiguous.
+    void canonical_orbitals(const JKProvider & jk, const helfem::Matrix & S,
+                            const helfem::Matrix & P,
                             const std::vector<std::vector<Eigen::Index>> & dsym,
                             const std::vector<helfem::Matrix> & Sinvh,
                             helfem::Matrix & C, helfem::Vector & energy,
-                            std::vector<int> & label);
+                            std::vector<int> & label, std::vector<int> & shell);
 
     struct CASSCFOptions {
       otr::Settings otr;
@@ -93,7 +109,8 @@ namespace helfem {
       /// state at C.
       CASSCF(const JKProvider & jk, const helfem::Matrix & S, CASCI & ci,
              helfem::Matrix C, Eigen::Index ninact, Eigen::Index nact,
-             std::vector<int> label = {}, Coupling coupling = Coupling::TwoStep);
+             const std::vector<int> & label = {}, const std::vector<int> & shell = {},
+             Coupling coupling = Coupling::TwoStep);
 
       CASSCFResult run(const CASSCFOptions & opt);
 
@@ -119,7 +136,7 @@ namespace helfem {
       CASCI & ci_;
       helfem::Matrix C_;
       Eigen::Index ninact_, nact_;
-      std::vector<RotationPair> pairs_;
+      std::vector<Rotation> pairs_;
       Coupling coupling_;
 
       /// State at the current point: energy, CI vector (determinants and
@@ -145,6 +162,26 @@ namespace helfem {
       /// rotations, 2(H_II - E) for the CSFs.
       std::vector<double> hessian_diagonal() const;
     };
+
+    /// What a driver asks for with --casact and friends.
+    struct CASRequest {
+      int ninact = 0, nact = 0;
+      /// 2S of the target state
+      int twoS = 0;
+      Coupling coupling = Coupling::Coupled;
+      CASSCFOptions options;
+    };
+
+    /// CASSCF from an SCF density: validates the request against Ntot,
+    /// builds the starting orbitals with canonical_orbitals, reports them
+    /// with `block_name`, and runs the optimizer. Returns the electronic
+    /// energy. The caller must hold a KokkosScope.
+    CASSCFResult casscf_from_scf(const JKProvider & jk, const helfem::Matrix & S,
+                                 const helfem::Matrix & P,
+                                 const std::vector<std::vector<Eigen::Index>> & dsym,
+                                 const std::vector<helfem::Matrix> & Sinvh,
+                                 const std::vector<std::string> & block_name,
+                                 int Ntot, const CASRequest & req);
 
   } // namespace cas
 } // namespace helfem
