@@ -28,6 +28,24 @@
 namespace helfem {
   namespace trscf {
 
+    /// exp(A) for a real antisymmetric A. i*A is Hermitian, so
+    /// diagonalizing it exponentiates the eigenvalues exactly and the
+    /// result is orthogonal by construction -- no scaling-and-squaring
+    /// truncation, and no dependence on Eigen's unsupported modules.
+    helfem::Matrix expm_skew(const helfem::Matrix &A) {
+      const Eigen::Index n = A.rows();
+      if (n == 0)
+        return helfem::Matrix(0, 0);
+      const std::complex<double> im(0.0, 1.0);
+      Eigen::MatrixXcd H = im * A.cast<std::complex<double>>();
+      Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(H);
+      Eigen::VectorXcd ph =
+          (-im * es.eigenvalues().cast<std::complex<double>>()).array().exp();
+      return (es.eigenvectors() * ph.asDiagonal() *
+              es.eigenvectors().adjoint())
+          .real();
+    }
+
     namespace {
       /// An occupation this close to empty or full counts as integer: the
       /// filling coordinate of such a block sits on a kink (an orbital
@@ -37,24 +55,6 @@ namespace helfem {
       /// Floor on |lambda - mu| in the preconditioner, matching
       /// OpenTrustRegion's own precond_floor.
       const double precond_floor = 1e-10;
-
-      /// exp(A) for a real antisymmetric A. i*A is Hermitian, so
-      /// diagonalizing it exponentiates the eigenvalues exactly and the
-      /// result is orthogonal by construction -- no scaling-and-squaring
-      /// truncation, and no dependence on Eigen's unsupported modules.
-      helfem::Matrix expm_skew(const helfem::Matrix &A) {
-        const Eigen::Index n = A.rows();
-        if (n == 0)
-          return helfem::Matrix(0, 0);
-        const std::complex<double> im(0.0, 1.0);
-        Eigen::MatrixXcd H = im * A.cast<std::complex<double>>();
-        Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(H);
-        Eigen::VectorXcd ph =
-            (-im * es.eigenvalues().cast<std::complex<double>>()).array().exp();
-        return (es.eigenvectors() * ph.asDiagonal() *
-                es.eigenvectors().adjoint())
-            .real();
-      }
 
       /// U * exp(kappa), where kappa is antisymmetric and supported only
       /// on rows and columns 0..m-1 (the occupied and fractionally

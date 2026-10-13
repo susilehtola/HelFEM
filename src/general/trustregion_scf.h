@@ -108,6 +108,8 @@ namespace helfem {
   /// directions are not what these cases founder on; the occupation ones
   /// are, and those are already exact.
   namespace trscf {
+    /// exp(A) for a real antisymmetric A, orthogonal by construction.
+    helfem::Matrix expm_skew(const helfem::Matrix &A);
 
     /// Total energy and per-block Fock matrices from per-block densities.
     /// Everything is in the non-orthonormal FEM basis.
