@@ -1018,6 +1018,12 @@ int main(int argc, char **argv) {
       fflush(stdout);
     }
 
+    // The final density's energy decomposition, printed: the optimizer's
+    // own Fock builds are silent, so without this the last decomposition
+    // in the output would be the first-order one.
+    helfem::Cube P, F;
+    opt.density(P);
+    fock_fem(P, F, true);
     if (verbosity >= 1) {
       // Aufbau, checked independently of the optimizer's own bookkeeping:
       // the Fock matrix of the final density from the driver's energy
@@ -1025,14 +1031,7 @@ int main(int argc, char **argv) {
       // electrons filled in eigenvalue order. The solution is aufbau if,
       // within each particle type, no occupied orbital lies above an
       // orbital that is not full.
-      const auto & U = opt.orbitals();
       const auto & f = opt.occupations();
-      helfem::Cube P(U.size()), F;
-      for (size_t b = 0; b < U.size(); b++) {
-        const helfem::Matrix C = Sinvh_blocks[b] * U[b];
-        P[b] = C * f[b].asDiagonal() * C.transpose();
-      }
-      fock_fem(P, F, false);
       for (size_t t = 0; t < nparttype; t++) {
         double eocc = -std::numeric_limits<double>::infinity();
         double eopen = std::numeric_limits<double>::infinity();

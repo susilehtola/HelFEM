@@ -426,6 +426,10 @@ namespace helfem {
       const std::vector<helfem::Matrix> &orbitals() const { return U_; }
       /// Reference occupations
       const std::vector<helfem::Vector> &occupations() const { return f_; }
+      /// Per-block FEM densities of the current orbitals and occupations,
+      /// in the layout the FockBuilder takes -- for a final, reported
+      /// Fock build by the driver.
+      void density(helfem::Cube &P) const { densities(U_, q_, P); }
       /// Reference Fock matrices in the MO basis; the diagonal holds the
       /// orbital energies of the converged solution
       const std::vector<helfem::Matrix> &fock() const { return F_; }

@@ -3889,6 +3889,31 @@
       ]
     },
     {
+      "name": "diatomic-H2-hf-u-stretched-stability",
+      "code": "diatomic",
+      "tags": [
+        "hf",
+        "unrestricted",
+        "secondorder"
+      ],
+      "_why": "integer occupations with stability analysis. At R=5 the first-order SCF from the symmetric guess converges to the spin-symmetric saddle (-0.8593120879); OpenTrustRegion finds the negative curvature and the second-order phase ends at the broken-symmetry UHF minimum, -0.9998401893, which --sostability then certifies.",
+      "args": [
+        "--Z1=1",
+        "--Z2=1",
+        "--Rbond=5",
+        "--nelem=3",
+        "--lmax=4",
+        "--nela=1",
+        "--nelb=1",
+        "--method=HF",
+        "--restricted=0",
+        "--symmetry=1",
+        "--secondorder=1",
+        "--preiter=30",
+        "--sostability=1"
+      ]
+    },
+    {
       "name": "diatomic-Ne-dummy-lda-absm-secondorder",
       "code": "diatomic",
       "tags": [
