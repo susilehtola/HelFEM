@@ -129,11 +129,10 @@ gradient of 1e-9 in a couple of seconds.
 `--secondorder=1` runs the first-order solver for `--preiter` iterations
 and then hands over to a trust-region optimizer built on OpenTrustRegion
 (`src/general/trustregion_scf.{h,cpp}`, over the wrapper in
-`otr_solver.{h,cpp}`). The first-order phase only has to find the
-occupation *pattern* -- which shells are fractionally occupied -- and get
-close enough for a quadratic model to mean something; the second-order
-phase optimizes within that pattern and is not the thing that should be
-deciding to open a closed shell.
+`otr_solver.{h,cpp}`). Each solve optimizes within one occupation
+*pattern*, meaning which shells are fractionally occupied. Between solves
+the optimizer changes the pattern itself; see "The second-order phase can
+start from the guess" below.
 
 Two habits worth keeping:
 
@@ -181,23 +180,51 @@ worked it is *cheaper* (Fe LDA 65 Hessian-vector products to 48, Fe PBE 81
 to 55) at identical energies. The same over-tight target was also what
 made `--sosolver=tcg` appear broken.
 
-**Hand over from a well-converged first-order solution.** `--preiter`
-defaults to 100 and lower is not merely slower, it is silently wrong: the
-second-order phase optimizes *within* an occupation pattern and cannot
-discover one. From the core guess (`--preiter=0`) Fe converges in a second
-to an RMS gradient of 5e-9 and an energy 6.1 Eh too high; Cm lands 124 Eh
-too high. Even at `--preiter=20` Fe converges to 2.2e-9 at the *pure-state*
-solution, 0.032 Eh above the ensemble one, because 4s came over exactly
-full. A block frozen on the wrong side of the Fermi level violates the KKT
-conditions of  min E(n) s.t. 0<=n_i<=w, sum n_i = N  -- by Janak's theorem
-dE/dn_i = eps_i, so a full orbital must lie below eps_F and an empty one
-above it. Such a point is stationary for the *restricted* problem with that
-block pinned, which is why the gradient there can be tiny and the energy
-still wrong. The optimizer detects this and releases the block rather than
-merely warning, which repairs the answer outright: Fe at `--preiter=20`
-goes from 0.032 Eh high to exact, and Cm at 20 from 0.029 Eh high to exact.
-It does not rescue a start from the bare core guess, where the orbitals
-themselves are wrong rather than the occupations.
+**The second-order phase can start from the guess.** `--preiter=0` hands
+the guess orbitals straight to the optimizer, and the optimizer finds the
+occupation pattern itself. It moves between patterns with three mechanisms.
+
+- **Kinks stop a step.** E(n) has a kink wherever a fractional orbital
+  fills or empties. An occupation step is cut at the first kink it
+  reaches. If the cut point is lower in energy, it is adopted, the
+  parametrization is rebuilt for the new pattern, and the solve restarts
+  there. A step that crossed the kink would follow a quadratic model of
+  the wrong pattern.
+- **KKT violations release a block.** By Janak's theorem dE/dn_i = eps_i,
+  so at the minimum of  min E(n) s.t. 0<=n_i<=w, sum n_i = N  a full
+  orbital lies below the Fermi level and an empty one above it. A point
+  that violates this is stationary only for the *restricted* problem with
+  that block pinned. That is why its gradient can be tiny while its energy
+  is still wrong. When the RMS gradient is below max(conv_tol, 1e-4), the
+  optimizer checks these conditions on canonical orbitals and moves a
+  nudge of charge across the violation. This includes all-integer
+  patterns, where the highest full orbital of one block lies above the
+  lowest empty orbital of another.
+- **A recurring pattern ends the restarts.** The restarts stop when a
+  pattern recurs without having lowered the energy. A cap of 100 restarts
+  is only a safety net.
+
+Measured from the core guess at `--preiter=0`, compared with the code before
+these mechanisms:
+
+| case | before | now |
+|---|---|---|
+| `aij` Fe | 6.1 Eh high | exact, 3 restarts |
+| `aij` Cm | 100 Eh high | exact, 29 restarts, 4.7 s |
+| `gensap` Cr, Nb, Fe-TPSS | 5-7 Eh high | exact, 3-5 restarts |
+
+Spin-restricted PBE Fe2 at `--symmetry=3` runs `--scfmethods=DIIS
+--preiter=0` straight from the SAP guess. It reaches the same energy as the
+DIIS+ODA+CG handover (-2526.8717316453) in 2 restarts and about 130
+Hessian-vector products. First order alone does not converge that system
+in 128 iterations.
+
+`--preiter` still defaults to 100. A good handover saves restarts, and a
+restart costs a full rebuild of the parametrization. Before reporting a
+second-order result on a new system, check the "Aufbau check from the final
+Fock matrix" line that `diatomic` prints at `--verbosity=1`. It
+diagonalizes the final Fock matrix independently of the optimizer and
+lists the electrons per block.
 
 Known weakness: the second-order phase is sensitive to where the
 first-order phase hands over. Fe with TPSS, Cr and Nb all stall at
