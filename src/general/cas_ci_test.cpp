@@ -34,8 +34,9 @@
 //      unrelated vectors;
 //   5. a tensor without the symmetries of a real symmetric Hamiltonian is
 //      refused;
-//   6. complex orbitals: Be at lmax=1 with every m = -1, 0, +1 orbital
-//      active, where (tu|vw) != (ut|vw), against the same product-basis FCI.
+//   6. complex orbitals: Be at lmax=1 with the lowest 13 orbitals above 1s
+//      active, m = -1, 0, +1 among them, where (tu|vw) != (ut|vw), against
+//      the same product-basis FCI.
 //
 // The orbitals are the core guess: none of these identities needs SCF
 // orbitals, and the core guess is deterministic.
@@ -48,6 +49,7 @@
 #include <helfem/ModelPotential.h>
 
 #include <Eigen/Eigenvalues>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -212,9 +214,12 @@ int main() {
     check("a non-Hermitian tensor is refused", refused ? 1.0 : 0.0, 1.0, 0.0);
   }
 
-  printf("\n6  complex orbitals: Be at lmax=1, ALL orbitals active\n");
+  printf("\n6  complex orbitals: Be at lmax=1, m = -1, 0, +1 active\n");
   {
-    // Every m = -1, 0, +1 orbital in the active space. The orbitals are
+    // The lowest 13 orbitals above 1s, which take in the 2p and 3p shells
+    // with every m. Not all of them: the dense CSF solve costs one sigma per
+    // CSF, and a sigma over all 55 orbitals is ~3e10 flops, so the full
+    // space would take hours and test nothing more. The orbitals are
     // complex, the integrals are not: (tu|vw) is real, and has the two
     // symmetries of a real symmetric Hamiltonian but NOT (tu|vw) = (ut|vw).
     // The product-basis FCI makes no symmetry assumption at all, so it is
@@ -229,7 +234,7 @@ int main() {
     atomic::basis::AtomicCASEngine jk1(basis1);
     Eigen::GeneralizedSelfAdjointEigenSolver<helfem::Matrix> es1(jk1.hcore(), basis1.overlap());
     const helfem::Matrix C1 = es1.eigenvectors();
-    const Eigen::Index n1 = (Eigen::Index) basis1.Nbf() - 1;
+    const Eigen::Index n1 = std::min<Eigen::Index>(13, (Eigen::Index) basis1.Nbf() - 1);
     const auto ah1 = cas::active_hamiltonian(jk1, C1, 1, n1);
 
     const double a8 = cas::eri_asymmetry(ah1.eri, (size_t) n1, 2);
