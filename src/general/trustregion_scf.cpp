@@ -1234,17 +1234,53 @@ namespace helfem {
 
         budget_spent_ = false;
         kink_stop_ = false;
-        try {
-          otr::solve((int)nparam_, cb, otrset);
-        } catch (std::exception &) {
-          // A spent budget or a stop at a kink comes back as a callback
-          // failure, which the library turns into an error return. Any
-          // other failure is real and is left to propagate. The reference
-          // is whatever the last accepted step installed either way, so
-          // the energy and gradient reported below are a real point on
-          // the surface -- just not a converged one.
-          if (!budget_spent_ && !kink_stop_)
-            throw;
+        for (int attempt = 0;; attempt++) {
+          try {
+            otr::solve((int)nparam_, cb, otrset);
+            break;
+          } catch (std::exception &e) {
+            // A spent budget or a stop at a kink comes back as a callback
+            // failure, which the library turns into an error return. The
+            // reference is whatever the last accepted step installed
+            // either way, so the energy and gradient reported below are a
+            // real point on the surface -- just not a converged one.
+            if (budget_spent_ || kink_stop_)
+              break;
+            // At a saddle that exists by symmetry -- spin-symmetric UHF H2
+            // at R=5 -- the gradient is exactly orthogonal to the unstable
+            // mode, so the lowest augmented-Hessian eigenvector lies
+            // entirely along that mode and OpenTrustRegion stops ("trial
+            // subspace too small"). More random trial vectors cannot help:
+            // the orthogonality is exact. Breaking the symmetry does --
+            // a small rotation in a fixed pseudo-random direction gives the
+            // gradient a component along the mode -- and costs nothing at a
+            // true minimum, where the solve simply comes back. Whether a
+            // run gets here at all depends on the 15th digit of the
+            // starting point. Anything still failing after two kicks is
+            // left to propagate.
+            if (attempt >= 2)
+              throw;
+            std::mt19937 rng(12345u + (unsigned)attempt);
+            std::normal_distribution<double> nd;
+            helfem::Vector kick = helfem::Vector::Zero((Eigen::Index)nparam_);
+            for (size_t i = 0; i < qoff_; i++)
+              kick((Eigen::Index)i) = nd(rng);
+            if (kick.norm() > 0.0)
+              kick *= 1e-3 / kick.norm();
+            std::vector<helfem::Matrix> kappa;
+            std::vector<double> dq;
+            decode(kick.data(), kappa, dq);
+            std::vector<helfem::Matrix> U;
+            std::vector<double> q;
+            displace(kappa, dq, U, q);
+            adopt(U, q, nullptr, nullptr);
+            if (opts.verbosity >= 1) {
+              printf("\nOpenTrustRegion stopped: %s         Rotating the orbitals "
+                     "by 1e-3 in a fixed random direction, which breaks a "
+                     "symmetric saddle, and retrying the pass.\n", e.what());
+              fflush(stdout);
+            }
+          }
         }
         if (kink_stop_ && pass < opts.max_restarts) {
           std::vector<helfem::Matrix> kappa;
