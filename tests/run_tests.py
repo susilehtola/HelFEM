@@ -194,9 +194,15 @@ def run_case(case, defaults, bindir, timeout_override=None):
                           "ran %.0fs, %d iterations) -- refusing to record an "
                           "unconverged energy as a reference"
                           % (elapsed, parsed.get("_iterations", 0))}
-    parsed["_seconds"] = round(elapsed, 1)
+    # A run can print a converged energy and then die: a first-order SCF
+    # that converges and a second-order phase that aborts leaves exactly
+    # that output, and the last energy in it is the first-order one. Such a
+    # run is a failure, not a result.
     if proc.returncode != 0:
-        parsed["_exit"] = proc.returncode
+        tail = "\n".join(out.strip().splitlines()[-3:])
+        return {"_error": "exited with code %d after printing an energy\n%s"
+                          % (proc.returncode, tail)}
+    parsed["_seconds"] = round(elapsed, 1)
     return parsed
 
 

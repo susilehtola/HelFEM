@@ -924,6 +924,14 @@ int main(int argc, char **argv) {
 
     const helfem::trscf::Result res = opt.run(sopt);
     scfsolver.initialize_with_orbitals(opt.orbitals(), opt.occupations());
+    {
+      // The final density's energy decomposition, printed: the optimizer's
+      // own Fock builds are silent, so without this the last decomposition
+      // in the output would be the first-order one.
+      helfem::Cube P, F;
+      opt.density(P);
+      fock_fem(P, F, true);
+    }
 
     if (res.converged)
       printf("Converged to energy %.10f!\n", res.energy);
