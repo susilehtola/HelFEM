@@ -116,6 +116,10 @@ namespace helfem {
         std::string sosolver = "davidson";
         /// Use the exact occupation-block preconditioner
         bool soprecond = true;
+        /// Optimize fractional occupations in the second-order phase
+        bool sofractional = false;
+        /// Stability analysis at the end of the second-order phase
+        bool sostability = false;
         /// Instead of optimizing, check the analytic gradient and
         /// Hessian against finite differences with this step size
         double sotest = 0.0;
