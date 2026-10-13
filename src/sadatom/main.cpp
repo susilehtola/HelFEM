@@ -209,6 +209,8 @@ int main(int argc, char **argv) {
   parser.add<double>("soredfac", 0, "second-order residual-reduction factor", false, 3e-1);
   parser.add<std::string>("sosolver", 0, "second-order reduced-space solver: davidson or tcg", false, "davidson");
   parser.add<bool>("soprecond", 0, "use the exact occupation-block preconditioner", false, true);
+  parser.add<bool>("sofractional", 0, "optimize fractional occupations in the second-order phase: the block fillings become parameters, and charge moves between degenerate shells; off keeps every orbital full or empty", false, false);
+  parser.add<bool>("sostability", 0, "run OpenTrustRegion's stability analysis when the second-order phase converges, and follow a negative Hessian eigenvalue if one is found", false, false);
   parser.add<double>("sotest", 0, "instead of optimizing, check the analytic gradient and Hessian against finite differences with this step size", false, 0.0);
 
   // SAP / effective-potential generation (parity with bespoke gensap).
@@ -347,6 +349,8 @@ int main(int argc, char **argv) {
   opts.soredfac     = parser.get<double>("soredfac");
   opts.sosolver     = parser.get<std::string>("sosolver");
   opts.soprecond    = parser.get<bool>("soprecond");
+  opts.sofractional = parser.get<bool>("sofractional");
+  opts.sostability  = parser.get<bool>("sostability");
   opts.sotest       = parser.get<double>("sotest");
   // A derivative check is a second-order run that stops after checking.
   if (opts.sotest > 0.0)

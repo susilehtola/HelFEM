@@ -3607,7 +3607,8 @@
         "--scfmethods=ODA + LBFGS",
         "--secondorder=1",
         "--preiter=22",
-        "--soconvthr=1e-8"
+        "--soconvthr=1e-8",
+        "--sofractional=1"
       ]
     },
     {
@@ -3630,7 +3631,8 @@
         "--secondorder=1",
         "--preiter=30",
         "--soconvthr=1e-8",
-        "--scfmethods=ODA + LBFGS"
+        "--scfmethods=ODA + LBFGS",
+        "--sofractional=1"
       ]
     },
     {
@@ -3675,7 +3677,8 @@
         "--secondorder=1",
         "--preiter=30",
         "--soconvthr=1e-8",
-        "--scfmethods=ODA + LBFGS"
+        "--scfmethods=ODA + LBFGS",
+        "--sofractional=1"
       ]
     },
     {
@@ -3758,7 +3761,8 @@
         "--scfmethods=ODA + LBFGS",
         "--secondorder=1",
         "--preiter=22",
-        "--soconvthr=1e-8"
+        "--soconvthr=1e-8",
+        "--sofractional=1"
       ]
     },
     {
@@ -3781,7 +3785,8 @@
         "--scfmethods=ODA + LBFGS",
         "--secondorder=1",
         "--preiter=30",
-        "--soconvthr=1e-8"
+        "--soconvthr=1e-8",
+        "--sofractional=1"
       ]
     },
     {

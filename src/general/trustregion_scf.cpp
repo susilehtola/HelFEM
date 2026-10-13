@@ -280,8 +280,9 @@ namespace helfem {
       for (size_t p = 0; p < pblocks_.size(); p++) {
         for (size_t b : pblocks_[p]) {
           // The active orbital is never full by construction, so a block
-          // is free exactly when that orbital carries something.
-          if (f_[b](active_[b]) > occ_tol)
+          // is free exactly when that orbital carries something -- and
+          // fractional occupations were asked for at all.
+          if (fractional_ && f_[b](active_[b]) > occ_tol)
             free_[p].push_back(b);
         }
         sumzero_[p] = helmert(free_[p].size());
@@ -451,6 +452,67 @@ namespace helfem {
         }
       }
       return false;
+    }
+
+    bool Optimizer::aufbau_integer(int verbosity) {
+      // Whole electrons, in energy order across the blocks of each
+      // particle type. The energies are those of each block's Fock matrix
+      // diagonalized as a whole: at a converged point that mixes only full
+      // with full and empty with empty, and anywhere else it is the
+      // Roothaan step that defines an integer pattern to start from. The
+      // rotation is kept only if the pattern changes, since otherwise it
+      // would move the density under an energy that no longer matches.
+      std::vector<helfem::Matrix> W(nblock());
+      std::vector<helfem::Vector> eps(nblock());
+      for (size_t b = 0; b < nblock(); b++) {
+        Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(F_[b]);
+        W[b] = es.eigenvectors();
+        eps[b] = es.eigenvalues();
+      }
+
+      std::vector<double> q(nblock(), 0.0);
+      for (size_t p = 0; p < pblocks_.size(); p++) {
+        double left = 0.0;
+        std::vector<std::pair<double, size_t>> orbs;
+        for (size_t b : pblocks_[p]) {
+          left += q_[b];
+          for (Eigen::Index i = 0; i < eps[b].size(); i++)
+            orbs.emplace_back(eps[b](i), b);
+        }
+        std::stable_sort(orbs.begin(), orbs.end(),
+                         [](const std::pair<double, size_t> &a,
+                            const std::pair<double, size_t> &c) { return a.first < c.first; });
+        // Whole electrons, not whole orbitals: the last orbital to fill may
+        // take fewer than it holds, since one orbital can stand for a
+        // whole shell. The count left is an integer throughout.
+        left = std::round(left);
+        for (const auto &o : orbs) {
+          if (left <= 0.0)
+            break;
+          const double n = std::min(maxocc_[o.second], left);
+          q[o.second] += n;
+          left -= n;
+        }
+      }
+
+      bool changed = false;
+      for (size_t b = 0; b < nblock(); b++)
+        changed = changed || std::abs(q[b] - q_[b]) > occ_tol;
+      if (!changed)
+        return false;
+
+      if (verbosity >= 1) {
+        printf("\nThe occupations are not aufbau. Re-occupying in energy "
+               "order:\n");
+        for (size_t b = 0; b < nblock(); b++)
+          if (std::abs(q[b] - q_[b]) > occ_tol)
+            printf("  block %i: %.6f -> %.6f electrons\n", (int)b, q_[b], q[b]);
+        fflush(stdout);
+      }
+      for (size_t b = 0; b < nblock(); b++)
+        U_[b] = U_[b] * W[b];
+      q_ = q;
+      return true;
     }
 
     double Optimizer::fermi_level(size_t p) const {
@@ -889,13 +951,18 @@ namespace helfem {
     }
 
     void Optimizer::frozen_edges(size_t b, double &etop, double &enext) const {
-      // active_ is the first orbital that is not full; in a frozen block it
-      // is empty, unless the block is full to the last orbital.
+      // active_ is the first orbital that is not full. In a frozen block
+      // of a fractional run it is empty, unless the block is full to the
+      // last orbital; with integer occupations it may also be partly
+      // filled -- one electron in a five-fold d orbital -- and is then
+      // both the highest occupied orbital and the lowest one not full.
       const Eigen::Index k = active_[b];
-      etop = (k > 0) ? F_[b](k - 1, k - 1)
-                     : -std::numeric_limits<double>::infinity();
-      enext = (f_[b](k) <= occ_tol) ? F_[b](k, k)
-                                    : std::numeric_limits<double>::infinity();
+      const double inf = std::numeric_limits<double>::infinity();
+      if (f_[b](k) > occ_tol)
+        etop = F_[b](k, k);
+      else
+        etop = (k > 0) ? F_[b](k - 1, k - 1) : -inf;
+      enext = (f_[b](k) < maxocc_[b] - occ_tol) ? F_[b](k, k) : inf;
     }
 
     bool Optimizer::integer_aufbau_violation(size_t p, size_t &btop,
@@ -1097,6 +1164,22 @@ namespace helfem {
       // by adopting the reference at zero displacement.)
       const otr::Settings otrset = opts.otr;
       evaluate_reference();
+      fractional_ = opts.fractional;
+      if (!opts.fractional) {
+        // Integer occupations from the start: a handover that spread
+        // charge over degenerate orbitals is re-occupied whole.
+        bool integer = true;
+        for (size_t b = 0; b < nblock(); b++)
+          integer = integer && std::abs(q_[b] - std::round(q_[b])) <= occ_tol;
+        if (!integer && aufbau_integer(opts.verbosity))
+          evaluate_reference();
+      }
+      // The best converged integer pattern, for when integer aufbau
+      // oscillates: the solve then ends there, not wherever the cycle was
+      // noticed.
+      double best_conv_energy = std::numeric_limits<double>::infinity();
+      std::vector<helfem::Matrix> best_conv_U;
+      std::vector<double> best_conv_q;
       std::vector<std::pair<std::vector<Eigen::Index>, double>> visited;
       for (int pass = 0;; pass++) {
         canonicalize();
@@ -1116,6 +1199,18 @@ namespace helfem {
             printf("\nThe occupation pattern recurs without a lower energy; "
                    "stopping.\n");
             fflush(stdout);
+          }
+          if (best_conv_energy < energy_) {
+            U_ = best_conv_U;
+            q_ = best_conv_q;
+            evaluate_reference();
+            canonicalize();
+            build_layout();
+            if (opts.verbosity >= 1) {
+              printf("Returning to the lowest converged pattern, at %.10f.\n",
+                     energy_);
+              fflush(stdout);
+            }
           }
           break;
         }
@@ -1223,7 +1318,13 @@ namespace helfem {
                                gpass_rms <= std::max(otrset.conv_tol, kkt_gate);
         if (kkt_ready)
           canonicalize();
-        if (kkt_ready && release_kkt_violation(opts.verbosity)) {
+        if (kkt_ready && !opts.fractional && energy_ < best_conv_energy) {
+          best_conv_energy = energy_;
+          best_conv_U = U_;
+          best_conv_q = q_;
+        }
+        if (kkt_ready && (opts.fractional ? release_kkt_violation(opts.verbosity)
+                                          : aufbau_integer(opts.verbosity))) {
           std::vector<helfem::Matrix> U = U_;
           std::vector<double> q = q_;
           adopt(U, q, nullptr, nullptr);
@@ -1250,6 +1351,14 @@ namespace helfem {
       stats_.energy = energy_;
       stats_.grad_rms = g.norm() / std::sqrt((double)nparam_);
       stats_.converged = (stats_.grad_rms <= opts.otr.conv_tol);
+      // OpenTrustRegion is silent about a stable point and reports only an
+      // unstable one (which it then follows downhill), so say it here.
+      if (stats_.converged && opts.otr.stability && opts.verbosity >= 1) {
+        printf("\nStability analysis: no negative Hessian eigenvalue among the "
+               "%i parameters, so this is a minimum within the symmetry "
+               "blocks.\n", (int)nparam_);
+        fflush(stdout);
+      }
 
       if (!stats_.converged && opts.verbosity >= 1) {
         printf("\nWARNING: the second-order optimization stopped with RMS "

@@ -157,6 +157,21 @@ namespace helfem {
       /// is a pattern recurring without a lower energy; this only bounds
       /// a pathological run.
       int max_restarts = 100;
+      /// Optimize fractional occupations. Off, every block holds a fixed
+      /// whole number of electrons, filled in orbital order, and only the
+      /// orbitals are parameters. (An orbital may still be partly filled:
+      /// one that stands for a whole spherically averaged shell, or for a
+      /// mirrored +-m pair, holds several electrons, and a d^1 is one
+      /// electron in a five-fold orbital.) A handover with non-integer
+      /// block counts is first rounded by filling whole electrons in
+      /// energy order, and a converged pass that is not aufbau is
+      /// re-occupied the same way, Roothaan-style, and solved again. On,
+      /// the block fillings are parameters too, the optimizer
+      /// stops at shell closings and releases KKT violations by moving
+      /// charge -- which is what an atom with degenerate shells in
+      /// different blocks (Fe's 4s and 3d) needs, and also what makes it a
+      /// different problem from an integer-occupation calculation.
+      bool fractional = false;
       /// Output detail
       int verbosity = 5;
     };
@@ -239,6 +254,9 @@ namespace helfem {
       helfem::Vector hdiag_;
       /// Verbosity for the one-off conditioning report
       int report_verbosity_ = 0;
+      /// Options::fractional of the current run: whether a partly filled
+      /// orbital makes its block a free occupation coordinate
+      bool fractional_ = false;
       /// Ceiling on Hessian-vector products WITHIN one macroiteration,
       /// and whether it was hit
       size_t hess_budget_ = 0;
@@ -351,6 +369,10 @@ namespace helfem {
       /// one, move a little charge across so it becomes a free coordinate
       /// again. Returns true if the occupations were changed.
       bool release_kkt_violation(int verbosity);
+      /// Integer occupations: diagonalize each block's Fock matrix and
+      /// fill whole electrons in energy order, per particle type. Returns
+      /// whether the block counts changed.
+      bool aufbau_integer(int verbosity);
 
     public:
       /// blocks_per_particle gives the number of blocks belonging to each
