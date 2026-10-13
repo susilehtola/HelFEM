@@ -55,22 +55,34 @@ namespace helfem {
       return Y;
     }
 
-    void require_real_eri(const std::vector<double> & eri, size_t n, double tol) {
-      double scale = 0.0, asym = 0.0;
+    double eri_asymmetry(const std::vector<double> & eri, size_t n, int which) {
+      double asym = 0.0;
+      auto at = [&](size_t t, size_t u, size_t v, size_t w) {
+        return eri[((t * n + u) * n + v) * n + w];
+      };
       for (size_t t = 0; t < n; t++)
         for (size_t u = 0; u < n; u++)
           for (size_t v = 0; v < n; v++)
             for (size_t w = 0; w < n; w++) {
-              const double a = eri[((t * n + u) * n + v) * n + w];
-              const double b = eri[((u * n + t) * n + v) * n + w];
-              scale = std::max(scale, std::abs(a));
+              const double a = at(t, u, v, w);
+              const double b = which == 0 ? at(v, w, t, u)
+                             : which == 1 ? at(u, t, w, v)
+                                          : at(u, t, v, w);
               asym = std::max(asym, std::abs(a - b));
             }
-      if (asym > tol * std::max(scale, 1.0))
-        throw ComplexOrbitalError(
-            "active-space integrals violate (tu|vw) = (ut|vw) by "
-            + std::to_string(asym) + ": an active orbital is complex (m != 0 "
-            "in the atomic basis), which the real CI in reci cannot represent");
+      return asym;
+    }
+
+    void require_hermitian_eri(const std::vector<double> & eri, size_t n, double tol) {
+      double scale = 0.0;
+      for (double x : eri) scale = std::max(scale, std::abs(x));
+      const double lim = tol * std::max(scale, 1.0);
+      const double a0 = eri_asymmetry(eri, n, 0), a1 = eri_asymmetry(eri, n, 1);
+      if (a0 > lim || a1 > lim)
+        throw std::invalid_argument(
+            "active-space integrals are not those of a real symmetric "
+            "Hamiltonian: (tu|vw) = (vw|tu) off by " + std::to_string(a0)
+            + ", (tu|vw) = (ut|wv) off by " + std::to_string(a1));
     }
 
     struct CASCI::Impl {
@@ -118,7 +130,7 @@ namespace helfem {
       if ((size_t) ah.h_eff.rows() != n || (size_t) ah.h_eff.cols() != n
           || ah.eri.size() != n * n * n * n)
         throw std::invalid_argument("CASCI: Hamiltonian does not match the active space");
-      require_real_eri(ah.eri, n);
+      require_hermitian_eri(ah.eri, n);
 
       std::vector<double> h(n * n);
       for (size_t p = 0; p < n; p++)

@@ -41,11 +41,16 @@ namespace helfem {
     /// Both directions are the same swap of the two middle indices. Nothing
     /// outside cas_ci.cpp has to know reci's convention.
     ///
-    /// reci's CI is real, so the active orbitals must be real. In HelFEM's
-    /// atomic basis an orbital with m != 0 is complex, and then
-    /// (tu|vw) != (ut|vw); such a Hamiltonian is refused with
-    /// ComplexOrbitalError rather than silently symmetrised -- the same guard,
-    /// and for the same reason, as python/helfem/pyscf_driver.py.
+    /// reci's CI is real, and that is all it needs to be. An orbital with
+    /// m != 0 is complex in HelFEM's bases, but the integrals over such
+    /// orbitals are still REAL numbers: the radial factors are real and so are
+    /// the Gaunt coefficients of complex spherical harmonics. What complex
+    /// orbitals cost is only the permutational symmetry (tu|vw) = (ut|vw);
+    /// the two that a real symmetric Hamiltonian needs, (tu|vw) = (vw|tu) and
+    /// (tu|vw) = (ut|wv), still hold. reci builds sigma from the full n^4
+    /// tensor, so any active space works -- p, d, f shells included. The
+    /// eri is passed through unsymmetrised; symmetrising it is exactly the
+    /// real-orbital assumption that does NOT hold here.
     ///
     /// reci_core runs on Kokkos, which must be initialized before a CASCI is
     /// constructed; hold a KokkosScope in main() for the duration.
@@ -62,12 +67,6 @@ namespace helfem {
 
      private:
       bool owner_ = false;
-    };
-
-    /// The active-space Hamiltonian is not real-symmetric: some active
-    /// orbital is complex (m != 0 in the atomic basis).
-    struct ComplexOrbitalError : public std::runtime_error {
-      using std::runtime_error::runtime_error;
     };
 
     /// The spin-free RDMs of a pair of CI vectors, in HelFEM's chemist
@@ -89,8 +88,9 @@ namespace helfem {
       CASCI & operator=(const CASCI &) = delete;
 
       /// Install the active-space Hamiltonian; strings are kept, so this is
-      /// the cheap per-macroiteration call. Throws ComplexOrbitalError for a
-      /// Hamiltonian reci cannot represent.
+      /// the cheap per-macroiteration call. Throws std::invalid_argument if
+      /// the integrals are not those of a real symmetric Hamiltonian, which
+      /// would mean a bug upstream, not a property of the orbitals.
       void set_hamiltonian(const ActiveHamiltonian & ah);
 
       /// Number of determinants, the length of every CI vector here.
@@ -120,9 +120,15 @@ namespace helfem {
       std::unique_ptr<Impl> impl_;
     };
 
-    /// Throws ComplexOrbitalError unless eri (chemist, as cas::active_eri)
-    /// has the real-orbital symmetry (tu|vw) = (ut|vw) to a relative `tol`.
-    void require_real_eri(const std::vector<double> & eri, size_t n, double tol = 1e-10);
+    /// Largest violation of one permutational symmetry of a chemist tensor:
+    /// which = 0: (tu|vw) = (vw|tu); 1: (tu|vw) = (ut|wv), both of which any
+    /// real Hamiltonian has; 2: (tu|vw) = (ut|vw), which only real ORBITALS
+    /// give.
+    double eri_asymmetry(const std::vector<double> & eri, size_t n, int which);
+
+    /// Throws std::invalid_argument unless eri has symmetries 0 and 1 above
+    /// to a relative `tol`.
+    void require_hermitian_eri(const std::vector<double> & eri, size_t n, double tol = 1e-10);
 
     /// The middle-index swap X[p,q,r,s] -> X[p,r,q,s] that converts
     /// chemist <-> physicist in either direction.

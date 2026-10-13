@@ -32,7 +32,10 @@
 //      the eigenvalue;
 //   4. transition RDMs: <L|H|R> from them equals L . sigma(R) for two
 //      unrelated vectors;
-//   5. the real-orbital guard refuses a tensor with (tu|vw) != (ut|vw).
+//   5. a tensor without the symmetries of a real symmetric Hamiltonian is
+//      refused;
+//   6. complex orbitals: Be at lmax=1 with every m = -1, 0, +1 orbital
+//      active, where (tu|vw) != (ut|vw), against the same product-basis FCI.
 //
 // The orbitals are the core guess: none of these identities needs SCF
 // orbitals, and the core guess is deterministic.
@@ -107,7 +110,7 @@ int main() {
   using namespace helfem;
   cas::KokkosScope kokkos;
 
-  // --- Be at lmax = 0: every orbital is real, as reci requires
+  // --- Be at lmax = 0 for sections 1-5; section 6 adds the p shell
   const int Z = 4, lmax = 0, nnodes = 6, nelem = 3;
   const double Rmax = 20.0, zexp = 2.0;
   const int igrid = 4;
@@ -202,19 +205,63 @@ int main() {
 
     bool refused = false;
     try {
-      cas::require_real_eri(X, n);   // a generic tensor has no (tu|vw)=(ut|vw)
-    } catch (const cas::ComplexOrbitalError &) {
+      cas::require_hermitian_eri(X, n);   // a generic tensor has no symmetry at all
+    } catch (const std::invalid_argument &) {
       refused = true;
     }
-    check("a tensor without (tu|vw) = (ut|vw) is refused", refused ? 1.0 : 0.0, 1.0, 0.0);
+    check("a non-Hermitian tensor is refused", refused ? 1.0 : 0.0, 1.0, 0.0);
+  }
 
+  printf("\n6  complex orbitals: Be at lmax=1, ALL orbitals active\n");
+  {
+    // Every m = -1, 0, +1 orbital in the active space. The orbitals are
+    // complex, the integrals are not: (tu|vw) is real, and has the two
+    // symmetries of a real symmetric Hamiltonian but NOT (tu|vw) = (ut|vw).
+    // The product-basis FCI makes no symmetry assumption at all, so it is
+    // the reference for exactly the case a real-orbital CI would get wrong.
+    const int lmax1 = 1;
+    Eigen::VectorXi lval1, mval1;
+    atomic::basis::angular_basis(lmax1, lmax1, lval1, mval1);
+    atomic::basis::TwoDBasis basis1(Z, modelpotential::POINT_NUCLEUS, 0.0, poly,
+                                    false, 5 * poly->nbf(), bval, lval1, mval1,
+                                    0, 0, 0.0);
+    basis1.compute_tei(true);
+    atomic::basis::AtomicCASEngine jk1(basis1);
+    Eigen::GeneralizedSelfAdjointEigenSolver<helfem::Matrix> es1(jk1.hcore(), basis1.overlap());
+    const helfem::Matrix C1 = es1.eigenvectors();
+    const Eigen::Index n1 = (Eigen::Index) basis1.Nbf() - 1;
+    const auto ah1 = cas::active_hamiltonian(jk1, C1, 1, n1);
+
+    const double a8 = cas::eri_asymmetry(ah1.eri, (size_t) n1, 2);
+    printf("  %i active orbitals; (tu|vw) - (ut|vw) up to %.3e\n", (int) n1, a8);
+    check("the tensor lacks the real-orbital symmetry (test is live)",
+          a8 > 1e-6 ? 1.0 : 0.0, 1.0, 0.0);
     bool accepted = true;
     try {
-      cas::require_real_eri(ah.eri, (size_t) nact);
-    } catch (const cas::ComplexOrbitalError &) {
+      cas::require_hermitian_eri(ah1.eri, (size_t) n1);
+    } catch (const std::invalid_argument &) {
       accepted = false;
     }
-    check("the real lmax=0 tensor is accepted", accepted ? 1.0 : 0.0, 1.0, 0.0);
+    check("...and is accepted as Hermitian", accepted ? 1.0 : 0.0, 1.0, 0.0);
+
+    double Es1_ref, Et1_ref;
+    two_electron_fci(ah1, Es1_ref, Et1_ref);
+    for (int twoS : {0, 2}) {
+      cas::CASCI ci((int) n1, twoS ? 2 : 1, twoS ? 0 : 1);
+      ci.set_hamiltonian(ah1);
+      std::vector<double> c;
+      const double E = ci.solve_ground(c);
+      const double Eref = twoS ? Et1_ref : Es1_ref;
+      printf("  %s: %zu determinants, %zu CSFs\n", twoS ? "triplet" : "singlet",
+             ci.ndet(), ci.ncsf());
+      check(twoS ? "triplet energy vs product-basis FCI" : "singlet energy vs product-basis FCI",
+            E, Eref, 1e-10);
+      const cas::RDMs r = ci.rdms(c, c);
+      double Er = ah1.E_inactive + ah1.h_eff.cwiseProduct(r.D).sum();
+      for (size_t i = 0; i < r.d.size(); i++) Er += 0.5 * ah1.eri[i] * r.d[i];
+      check("  RDMs reproduce the eigenvalue", Er, E, 1e-10);
+      check("  D is symmetric (real state)", (r.D - r.D.transpose()).cwiseAbs().maxCoeff(), 0.0, 1e-12);
+    }
   }
 
   printf("\n%s\n", nfail ? "CASCI TEST FAILED" : "CASCI TEST PASSED");
