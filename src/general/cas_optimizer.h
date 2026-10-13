@@ -50,38 +50,53 @@ namespace helfem {
       size_t n_update = 0, n_objective = 0, n_hessian = 0;
     };
 
-    /// Two-step CASSCF on OpenTrustRegion: the parameters are the orbital
-    /// rotations alone, and the CI is solved to convergence at every point
-    /// the optimizer visits.
+    /// CASSCF on OpenTrustRegion, in one of two parametrizations.
     ///
-    /// Because the CI is variational, the gradient of that energy is the
-    /// orbital gradient at fixed CI, exactly. Its Hessian is not: the
-    /// Hessian-vector product here is the orbital-orbital block, which
-    /// leaves out the CI response. That makes the model too stiff in the
-    /// directions that couple to the CI, which costs iterations, not
-    /// correctness -- every step is validated against the true energy.
+    /// TwoStep: the parameters are the orbital rotations alone, and the CI
+    /// is solved to convergence at every point the optimizer visits. Since
+    /// the CI is variational, the orbital gradient at fixed CI is the exact
+    /// gradient of that energy; the Hessian-vector product is only the
+    /// orbital-orbital block, which leaves out the CI response. The model is
+    /// too stiff in the directions that couple to the CI, which costs
+    /// iterations, not correctness.
+    ///
+    /// Coupled: the CI coefficients join the parameters, as a CSF-basis
+    /// vector t projected against the current state |0>, with
+    ///     |c(t)> = cos|t| |0> + sin|t| t/|t|.
+    /// The projection leaves one redundant direction, along |0>, with zero
+    /// gradient and zero curvature. Every block of the Hessian is exact:
+    ///     kappa-kappa  the orbital Hessian at the RDMs of |0>;
+    ///     kappa-c      the orbital gradient at the symmetrised TRANSITION
+    ///                  RDMs between t and |0>;
+    ///     c-kappa      2 P H' |0>, H' the one-index-transformed Hamiltonian;
+    ///     c-c          2 P (H - E) P.
+    enum class Coupling { TwoStep, Coupled };
+
     class CASSCF {
      public:
       /// C holds S-orthonormal orbitals in its columns, inactive first,
-      /// then active, then virtual.
+      /// then active, then virtual. The CI starts from the CASCI ground
+      /// state at C.
       CASSCF(const JKProvider & jk, const helfem::Matrix & S, CASCI & ci,
              helfem::Matrix C, Eigen::Index ninact, Eigen::Index nact,
-             std::vector<int> label = {});
+             std::vector<int> label = {}, Coupling coupling = Coupling::TwoStep);
 
       CASSCFResult run(const CASSCFOptions & opt);
 
-      /// Number of rotation parameters.
-      size_t nparam() const { return pairs_.size(); }
+      /// Number of parameters: rotations, then (Coupled) CSF coefficients.
+      size_t nparam() const { return pairs_.size() + nci(); }
+      size_t nrot() const { return pairs_.size(); }
 
-      /// The CAS energy with the orbitals rotated by x from the current
-      /// ones and the CI solved there.
+      /// The CAS energy at the point x from the current one. TwoStep solves
+      /// the CI there; Coupled evaluates the CI vector the parameters name.
       double energy(const std::vector<double> & x);
-      /// Orbital gradient at the current orbitals, in parameter order.
-      std::vector<double> gradient();
-      /// Orbital-orbital Hessian times x at the current orbitals, CI fixed.
+      /// Gradient at the current point, in parameter order.
+      std::vector<double> gradient() const;
+      /// Hessian times x at the current point (TwoStep: orbital block only).
       std::vector<double> hessian_vector(const std::vector<double> & x);
 
       const helfem::Matrix & orbitals() const { return C_; }
+      /// The CI state in the determinant basis.
       const std::vector<double> & ci_vector() const { return c_; }
 
      private:
@@ -91,21 +106,29 @@ namespace helfem {
       helfem::Matrix C_;
       Eigen::Index ninact_, nact_;
       std::vector<RotationPair> pairs_;
+      Coupling coupling_;
 
-      /// State at the current orbitals: energy, CI vector, RDMs and the
-      /// square orbital gradient.
+      /// State at the current point: energy, CI vector (determinants and
+      /// CSFs), the active Hamiltonian, sigma of the state in CSFs, RDMs
+      /// and the square orbital gradient.
       double E_ = 0.0;
-      std::vector<double> c_;
+      std::vector<double> c_, ccsf_, sigma_;
+      ActiveHamiltonian ah_;
       RDMs rdm_;
       helfem::Matrix g_;
 
+      size_t nci() const { return coupling_ == Coupling::Coupled ? ccsf_.size() : 0; }
       helfem::Matrix kappa(const double * x) const;
       helfem::Matrix rotated(const double * x) const;
-      double solve_ci(const helfem::Matrix & C, std::vector<double> & c);
-      /// Adopt C as the current orbitals and refresh everything above.
-      void adopt(const helfem::Matrix & C);
-      /// Approximate diagonal of the orbital Hessian, from the inactive,
-      /// active and generalized Fock matrices.
+      /// The normalized CSF vector the CI parameters at x name.
+      std::vector<double> ci_at(const double * x) const;
+      /// <c|H|c> for a CSF vector, with H installed in the CI first.
+      double expectation(const ActiveHamiltonian & ah, const std::vector<double> & ccsf);
+      /// Adopt C (and, Coupled, the CSF vector ccsf) as the current point
+      /// and refresh everything above. TwoStep re-solves the CI.
+      void adopt(const helfem::Matrix & C, const std::vector<double> & ccsf);
+      /// Approximate Hessian diagonal: Fock-matrix estimates for the
+      /// rotations, 2(H_II - E) for the CSFs.
       std::vector<double> hessian_diagonal() const;
     };
 

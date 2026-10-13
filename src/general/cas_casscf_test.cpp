@@ -12,7 +12,7 @@
  * See the LICENSE file at the root of this source distribution
  * for the full license text.
  */
-// Two-step CASSCF on OpenTrustRegion, checked against references that do not
+// CASSCF on OpenTrustRegion, checked against references that do not
 // go through the optimizer.
 //
 //   1. the Hessian-vector product in parameter space against
@@ -24,7 +24,13 @@
 //      reach the RHF energy of a separate Roothaan iteration;
 //   4. CASSCF(2,2) ends at a minimum of the CI-relaxed energy -- checked on
 //      a finite-difference Hessian -- below RHF, and a perturbed restart
-//      returns to it.
+//      returns to it;
+//   5. the one-index-transformed active Hamiltonian against central
+//      differences of active_hamiltonian;
+//   6. the coupled (kappa, c) gradient and Hessian against differences of the
+//      energy the coupled optimizer minimizes;
+//   7. coupled and two-step CASSCF(2,2) reach the same energy from the same
+//      start.
 
 #include "cas_ci.h"
 #include "cas_integrals.h"
@@ -205,6 +211,88 @@ int main() {
     cas::CASSCF b(jk, S, ci, a.orbitals() * trscf::expm_skew(K), 1, 2);
     const cas::CASSCFResult rb = b.run(opt);
     check("a perturbed restart returns", rb.energy, ra.energy, 1e-9);
+  }
+
+  printf("\n5  one-index-transformed Hamiltonian against central differences\n");
+  {
+    const Eigen::Index nb = Ccore.cols();
+    helfem::Matrix K = helfem::Matrix::Zero(nb, nb);
+    for (Eigen::Index p = 0; p < nb; p++)
+      for (Eigen::Index q = 0; q < p; q++) {
+        K(p, q) = std::sin(0.5 + 1.3 * (double) p - 0.7 * (double) q);
+        K(q, p) = -K(p, q);
+      }
+    K /= K.norm();
+    const double h = 1e-4;
+    const cas::ActiveHamiltonian an = cas::active_hamiltonian_response(jk, Ccore, 1, 3, K);
+    const cas::ActiveHamiltonian up = cas::active_hamiltonian(jk, Ccore * trscf::expm_skew(h * K), 1, 3);
+    const cas::ActiveHamiltonian dn = cas::active_hamiltonian(jk, Ccore * trscf::expm_skew(-h * K), 1, 3);
+    double de = 0.0;
+    for (size_t i = 0; i < an.eri.size(); i++)
+      de = std::max(de, std::abs((up.eri[i] - dn.eri[i]) / (2 * h) - an.eri[i]));
+    check("E_inactive'", an.E_inactive, (up.E_inactive - dn.E_inactive) / (2 * h), 1e-6);
+    check("h_eff' (max deviation)",
+          ((up.h_eff - dn.h_eff) / (2 * h) - an.h_eff).cwiseAbs().maxCoeff(), 0.0, 1e-6);
+    check("eri' (max deviation)", de, 0.0, 1e-6);
+  }
+
+  printf("\n6  coupled Hessian against four-point differences of the energy\n");
+  {
+    cas::CASCI ci(2, 1, 1);
+    cas::CASSCF cs(jk, S, ci, Ccore, 1, 2, {}, cas::Coupling::Coupled);
+    const size_t n = cs.nparam();
+    printf("  %zu rotations, %zu CI coefficients\n", cs.nrot(), n - cs.nrot());
+    const std::vector<double> x = direction(n, 0.3), y = direction(n, 2.1);
+    const std::vector<double> g = cs.gradient(), Hx = cs.hessian_vector(x),
+                              Hy = cs.hessian_vector(y);
+    auto Eat = [&](double s1, double s2) {
+      std::vector<double> v(n);
+      for (size_t i = 0; i < n; i++) v[i] = s1 * x[i] + s2 * y[i];
+      return cs.energy(v);
+    };
+    const double h = 1e-3;
+    const double d1 = (Eat(h, 0) - Eat(-h, 0)) / (2 * h);
+    const double d2 = (Eat(0.5 * h, 0) - Eat(-0.5 * h, 0)) / h;
+    check("x . g (Richardson)", d2 + (d2 - d1) / 3.0, dot(x, g), 1e-9);
+    // Four-point differences, Richardson-extrapolated: the h^2 truncation
+    // is ~1e-4 here, far above what the formula has to be checked to.
+    auto fxy = [&](double e) {
+      return (Eat(e, e) - Eat(e, -e) - Eat(-e, e) + Eat(-e, -e)) / (4 * e * e);
+    };
+    auto fxx = [&](double e) { return (Eat(e, 0) - 2 * Eat(0, 0) + Eat(-e, 0)) / (e * e); };
+    const double hh = 2e-3;
+    const double rxy = fxy(0.5 * hh) + (fxy(0.5 * hh) - fxy(hh)) / 3.0;
+    const double rxx = fxx(0.5 * hh) + (fxx(0.5 * hh) - fxx(hh)) / 3.0;
+    check("y . H x (Richardson)", dot(y, Hx), rxy, 1e-7 * std::max(1.0, std::abs(rxy)));
+    check("x . H x (Richardson)", dot(x, Hx), rxx, 1e-7 * std::max(1.0, std::abs(rxx)));
+    check("y . H x = x . H y", dot(y, Hx), dot(x, Hy), 1e-10 * std::max(1.0, std::abs(rxy)));
+  }
+
+  printf("\n7  coupled CASSCF(2,2) against two-step, from common starts\n");
+  {
+    // Each start lies in the basin of one of the two minima, so both
+    // optimizers must agree on it.
+    cas::CASCI ci(2, 1, 1);
+    cas::CASSCF ref(jk, S, ci, Ccore, 1, 2);
+    ref.run(opt);
+    const std::vector<cas::RotationPair> pairs = cas::rotation_pairs(Ccore.cols(), 1, 2, {});
+    const std::vector<double> x = direction(pairs.size(), 0.7);
+    helfem::Matrix K = helfem::Matrix::Zero(Ccore.cols(), Ccore.cols());
+    for (size_t k = 0; k < pairs.size(); k++) {
+      K(pairs[k].p, pairs[k].q) = 0.05 * x[k];
+      K(pairs[k].q, pairs[k].p) = -0.05 * x[k];
+    }
+    const helfem::Matrix Cpert = ref.orbitals() * trscf::expm_skew(K);
+    for (const helfem::Matrix * C0 : {&Cpert, static_cast<const helfem::Matrix *>(&Chf)}) {
+      const char * what = C0 == &Cpert ? "perturbed minimum" : "RHF orbitals";
+      cas::CASSCF two(jk, S, ci, *C0, 1, 2);
+      const cas::CASSCFResult r2 = two.run(opt);
+      cas::CASSCF one(jk, S, ci, *C0, 1, 2, {}, cas::Coupling::Coupled);
+      const cas::CASSCFResult r1 = one.run(opt);
+      printf("  from the %s: Hessian-vector products coupled %zu, two-step %zu\n",
+             what, r1.n_hessian, r2.n_hessian);
+      check("  same energy", r1.energy, r2.energy, 1e-9);
+    }
   }
 
   printf("\n%s\n", nfail ? "CASSCF TEST FAILED" : "CASSCF TEST PASSED");

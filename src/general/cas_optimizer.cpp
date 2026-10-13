@@ -42,12 +42,31 @@ namespace helfem {
       return pairs;
     }
 
+    namespace {
+      double dot(const std::vector<double> & a, const std::vector<double> & b) {
+        double s = 0.0;
+        for (size_t i = 0; i < a.size(); i++) s += a[i] * b[i];
+        return s;
+      }
+
+      /// v minus its component along the unit vector u.
+      std::vector<double> project_out(std::vector<double> v, const std::vector<double> & u) {
+        const double a = dot(u, v);
+        for (size_t i = 0; i < v.size(); i++) v[i] -= a * u[i];
+        return v;
+      }
+    } // namespace
+
     CASSCF::CASSCF(const JKProvider & jk, const helfem::Matrix & S, CASCI & ci,
                    helfem::Matrix C, Eigen::Index ninact, Eigen::Index nact,
-                   std::vector<int> label)
+                   std::vector<int> label, Coupling coupling)
         : jk_(jk), S_(S), ci_(ci), ninact_(ninact), nact_(nact),
-          pairs_(rotation_pairs(C.cols(), ninact, nact, label)) {
-      adopt(C);
+          pairs_(rotation_pairs(C.cols(), ninact, nact, label)), coupling_(coupling) {
+      // Both parametrizations start from the CASCI ground state at C.
+      std::vector<double> c;
+      ci_.set_hamiltonian(active_hamiltonian(jk_, C, ninact_, nact_));
+      ci_.solve_ground(c);
+      adopt(C, ci_.to_csf(c));
     }
 
     helfem::Matrix CASSCF::kappa(const double * x) const {
@@ -63,31 +82,67 @@ namespace helfem {
       return C_ * trscf::expm_skew(kappa(x));
     }
 
-    double CASSCF::solve_ci(const helfem::Matrix & C, std::vector<double> & c) {
-      ci_.set_hamiltonian(active_hamiltonian(jk_, C, ninact_, nact_));
-      return ci_.solve_ground(c);
+    std::vector<double> CASSCF::ci_at(const double * x) const {
+      if (coupling_ == Coupling::TwoStep)
+        return ccsf_;
+      const std::vector<double> t =
+          project_out(std::vector<double>(x + nrot(), x + nrot() + nci()), ccsf_);
+      const double th = std::sqrt(dot(t, t));
+      std::vector<double> c(ccsf_);
+      if (th > 0.0)
+        for (size_t i = 0; i < c.size(); i++)
+          c[i] = std::cos(th) * ccsf_[i] + std::sin(th) / th * t[i];
+      return c;
     }
 
-    void CASSCF::adopt(const helfem::Matrix & C) {
+    double CASSCF::expectation(const ActiveHamiltonian & ah, const std::vector<double> & ccsf) {
+      ci_.set_hamiltonian(ah);
+      const std::vector<double> c = ci_.to_det(ccsf);
+      return dot(c, ci_.sigma(c));
+    }
+
+    void CASSCF::adopt(const helfem::Matrix & C, const std::vector<double> & ccsf) {
       // Loewdin, so that roundoff in many rotations cannot accumulate into
-      // non-orthonormal orbitals.
+      // non-orthonormal orbitals; likewise the CI vector is renormalized.
       Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(C.transpose() * S_ * C);
       C_ = C * (es.eigenvectors() * es.eigenvalues().array().rsqrt().matrix().asDiagonal()
                 * es.eigenvectors().transpose());
-      E_ = solve_ci(C_, c_);
+      ah_ = active_hamiltonian(jk_, C_, ninact_, nact_);
+      ci_.set_hamiltonian(ah_);
+      if (coupling_ == Coupling::TwoStep) {
+        E_ = ci_.solve_ground(c_);
+        ccsf_ = ci_.to_csf(c_);
+      } else {
+        ccsf_ = ccsf;
+        const double nrm = std::sqrt(dot(ccsf_, ccsf_));
+        for (double & v : ccsf_) v /= nrm;
+        c_ = ci_.to_det(ccsf_);
+      }
+      const std::vector<double> s = ci_.sigma(c_);
+      E_ = dot(c_, s);
+      sigma_ = ci_.to_csf(s);
       rdm_ = ci_.rdms(c_, c_);
       g_ = orbital_gradient(jk_, C_, ninact_, nact_, rdm_.D, rdm_.d);
     }
 
     double CASSCF::energy(const std::vector<double> & x) {
-      std::vector<double> c;
-      return solve_ci(rotated(x.data()), c);
+      const helfem::Matrix C = rotated(x.data());
+      const ActiveHamiltonian ah = active_hamiltonian(jk_, C, ninact_, nact_);
+      if (coupling_ == Coupling::TwoStep) {
+        std::vector<double> c;
+        ci_.set_hamiltonian(ah);
+        return ci_.solve_ground(c);
+      }
+      return expectation(ah, ci_at(x.data()));
     }
 
-    std::vector<double> CASSCF::gradient() {
-      std::vector<double> g(pairs_.size());
+    std::vector<double> CASSCF::gradient() const {
+      std::vector<double> g(nparam());
       for (size_t k = 0; k < pairs_.size(); k++)
         g[k] = g_(pairs_[k].p, pairs_[k].q);
+      // CI part: 2 P H|0> = 2 (sigma - E c), zero along |0> itself.
+      for (size_t i = 0; i < nci(); i++)
+        g[nrot() + i] = 2.0 * (sigma_[i] - E_ * ccsf_[i]);
       return g;
     }
 
@@ -96,10 +151,42 @@ namespace helfem {
       // exponentials, which differs from the Hessian by the commutator term
       // (1/2) g . [K, .]; taking it off leaves the symmetric Hessian.
       const helfem::Matrix K = kappa(x.data());
-      const helfem::Matrix M =
+      helfem::Matrix M =
           hess_kappa_kappa_raw(jk_, C_, ninact_, nact_, rdm_.D, rdm_.d, K)
           - 0.5 * (g_ * K - K * g_);
-      std::vector<double> hx(pairs_.size());
+      std::vector<double> hx(nparam(), 0.0);
+
+      if (coupling_ == Coupling::Coupled) {
+        const std::vector<double> t =
+            project_out(std::vector<double>(x.begin() + nrot(), x.end()), ccsf_);
+        const std::vector<double> tdet = ci_.to_det(t);
+
+        // kappa-c: the orbital gradient is bilinear in the CI vector, so its
+        // derivative along t is the gradient at the symmetrised transition
+        // RDMs. Their inactive block vanishes because <t|0> = 0, hence
+        // core_occ = 0.
+        const RDMs a = ci_.rdms(tdet, c_), b = ci_.rdms(c_, tdet);
+        std::vector<double> dt(a.d.size());
+        for (size_t i = 0; i < dt.size(); i++) dt[i] = a.d[i] + b.d[i];
+        helfem::Matrix Ft = helfem::Matrix::Zero(C_.cols(), C_.cols());
+        Ft.leftCols(ninact_ + nact_) =
+            generalized_fock(jk_, C_, ninact_, nact_, a.D + b.D, dt, 0.0);
+        M += 2.0 * (Ft - Ft.transpose());
+
+        // c-c: 2 P (H - E) t, with the reference Hamiltonian installed.
+        ci_.set_hamiltonian(ah_);
+        std::vector<double> hc = ci_.to_csf(ci_.sigma(tdet));
+        for (size_t i = 0; i < hc.size(); i++) hc[i] = 2.0 * (hc[i] - E_ * t[i]);
+
+        // c-kappa: 2 P H' |0>, H' the one-index-transformed Hamiltonian.
+        ci_.set_hamiltonian(active_hamiltonian_response(jk_, C_, ninact_, nact_, K));
+        const std::vector<double> sk = ci_.to_csf(ci_.sigma(c_));
+        ci_.set_hamiltonian(ah_);
+        for (size_t i = 0; i < hc.size(); i++) hc[i] += 2.0 * sk[i];
+
+        hc = project_out(hc, ccsf_);
+        std::copy(hc.begin(), hc.end(), hx.begin() + nrot());
+      }
       for (size_t k = 0; k < pairs_.size(); k++)
         hx[k] = M(pairs_[k].p, pairs_[k].q);
       return hx;
@@ -137,21 +224,28 @@ namespace helfem {
         // the magnitude away from zero.
         h[k] = std::copysign(std::max(std::abs(v), 1e-4), v);
       }
+      if (nci()) {
+        const std::vector<double> hd = ci_.hdiag_csf();
+        for (size_t i = 0; i < nci(); i++)
+          h.push_back(std::max(2.0 * (hd[i] - E_), 1e-4));
+      }
       return h;
     }
 
     CASSCFResult CASSCF::run(const CASSCFOptions & opt) {
       CASSCFResult res;
-      const int n = (int) pairs_.size();
+      const int n = (int) nparam();
       if (opt.verbosity >= 1) {
-        printf("CASSCF over %i orbital rotations: %i inactive, %i active orbitals, "
-               "%zu determinants\n", n, (int) ninact_, (int) nact_, ci_.ndet());
+        printf("%s CASSCF over %zu orbital rotations and %zu CI coefficients: "
+               "%i inactive, %i active orbitals, %zu determinants, %zu CSFs\n",
+               coupling_ == Coupling::Coupled ? "Coupled" : "Two-step",
+               nrot(), nci(), (int) ninact_, (int) nact_, ci_.ndet(), ci_.ncsf());
         fflush(stdout);
       }
 
       otr::Callbacks cb;
       cb.update = [&](const double * x, double & f, double * grad, double * hdiag) {
-        adopt(rotated(x));
+        adopt(rotated(x), ci_at(x));
         res.n_update++;
         f = E_;
         const std::vector<double> g = gradient(), h = hessian_diagonal();
@@ -160,8 +254,7 @@ namespace helfem {
         return true;
       };
       cb.objective = [&](const double * x, double & f) {
-        std::vector<double> c;
-        f = solve_ci(rotated(x), c);
+        f = energy(std::vector<double>(x, x + n));
         res.n_objective++;
         return true;
       };
@@ -182,7 +275,7 @@ namespace helfem {
       res.energy = E_;
       res.grad_rms = n ? std::sqrt(g2 / n) : 0.0;
       if (opt.verbosity >= 1) {
-        printf("CASSCF energy %.10f, RMS orbital gradient %.3e: %zu updates, "
+        printf("CASSCF energy %.10f, RMS gradient %.3e: %zu updates, "
                "%zu objective evaluations, %zu Hessian-vector products\n",
                res.energy, res.grad_rms, res.n_update, res.n_objective, res.n_hessian);
         fflush(stdout);
