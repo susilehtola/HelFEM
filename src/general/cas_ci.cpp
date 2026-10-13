@@ -139,15 +139,21 @@ namespace helfem {
       // chemist (tu|vw) -> reci's physicist <pq|rs> = (pr|qs)
       std::vector<double> V = swap_middle(ah.eri, n);
 
+      // FourFold always: complex active orbitals lack (tu|vw) = (ut|vw), and
+      // an EightFold declaration lets Knowles-Handy drop the antisymmetric
+      // pair channel those integrals need. For real orbitals the channel
+      // is merely zero, so FourFold costs time, never correctness.
       if (!impl_->sb) {
         impl_->sb = std::make_unique<reci::CISigmaBuilder<double>>(
-            impl_->strings, ah.E_inactive, std::move(h), std::move(V), /*log_level=*/0);
+            impl_->strings, ah.E_inactive, std::move(h), std::move(V),
+            reci::ERISymmetry::FourFold, /*log_level=*/0);
         // Chosen explicitly rather than inherited from reci's defaults, so a
         // change of default there cannot silently change the CI here.
         impl_->sb->set_algorithm("kh");
         impl_->sb->set_memory(1024);
       } else {
-        impl_->sb->set_Hamiltonian(ah.E_inactive, std::move(h), std::move(V));
+        impl_->sb->set_Hamiltonian(ah.E_inactive, std::move(h), std::move(V),
+                                   reci::ERISymmetry::FourFold);
       }
     }
 

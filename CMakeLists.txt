@@ -879,7 +879,7 @@ if(HELFEM_WITH_RECI)
         # how anyone with access to it already authenticates.
         FetchContent_Declare(reci
             GIT_REPOSITORY git@github.com:philipmnel/reci.git
-            GIT_TAG        a08ff969d096c6a2cec37abf79758436e9355a9d)
+            GIT_TAG        e9b7d2dac4239828d63dab58c952bb233e32f040)
         set(RECI_CORE_ONLY ON)
         set(RECI_BUILD_TESTS OFF)
         helfem_fetch_privately(reci RECI_BUILD_TESTS)
