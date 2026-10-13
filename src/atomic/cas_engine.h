@@ -17,6 +17,7 @@
 
 #include "TwoDBasis.h"
 #include "../general/cas_integrals.h"
+#include <utility>
 
 namespace helfem {
   namespace atomic {
@@ -34,6 +35,10 @@ namespace helfem {
        public:
         explicit AtomicCASEngine(const TwoDBasis & basis)
             : basis_(basis), hcore_(basis.kinetic() + basis.nuclear()) {}
+        /// With the driver's own one-electron Hamiltonian, which may carry
+        /// external fields or a confinement potential on top of T + V.
+        AtomicCASEngine(const TwoDBasis & basis, helfem::Matrix hcore)
+            : basis_(basis), hcore_(std::move(hcore)) {}
 
         helfem::Matrix coulomb(const helfem::Matrix & P) const override {
           return basis_.coulomb(P);

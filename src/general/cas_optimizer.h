@@ -39,6 +39,20 @@ namespace helfem {
                                              Eigen::Index nact,
                                              const std::vector<int> & label);
 
+    /// Starting orbitals for a CAS from an SCF density P (alpha + beta):
+    /// the canonical orbitals of the closed-shell Hartree-Fock operator
+    /// h + J[P] - K[P]/2, solved in each symmetry block over its own basis
+    /// functions dsym[k] with orthonormalizer Sinvh[k], then sorted by
+    /// energy across blocks. For a converged RHF these ARE the SCF
+    /// orbitals; after DFT or an unrestricted SCF they are a well-defined
+    /// start that the CASSCF then optimizes. label[i] is the block of
+    /// orbital i, so rotations stay within a symmetry.
+    void canonical_orbitals(const JKProvider & jk, const helfem::Matrix & P,
+                            const std::vector<std::vector<Eigen::Index>> & dsym,
+                            const std::vector<helfem::Matrix> & Sinvh,
+                            helfem::Matrix & C, helfem::Vector & energy,
+                            std::vector<int> & label);
+
     struct CASSCFOptions {
       otr::Settings otr;
       int verbosity = 1;

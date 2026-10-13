@@ -57,6 +57,42 @@ namespace helfem {
       }
     } // namespace
 
+    void canonical_orbitals(const JKProvider & jk, const helfem::Matrix & P,
+                            const std::vector<std::vector<Eigen::Index>> & dsym,
+                            const std::vector<helfem::Matrix> & Sinvh,
+                            helfem::Matrix & C, helfem::Vector & energy,
+                            std::vector<int> & label) {
+      const helfem::Matrix F = jk.hcore() + closed_shell_veff(jk, P);
+      struct Orbital {
+        double e;
+        int k;
+        helfem::Vector c;
+      };
+      std::vector<Orbital> orbs;
+      for (size_t k = 0; k < dsym.size(); k++) {
+        const helfem::Matrix Fk = Sinvh[k].transpose() * F(dsym[k], dsym[k]) * Sinvh[k];
+        Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(Fk);
+        const helfem::Matrix Ck = Sinvh[k] * es.eigenvectors();
+        for (Eigen::Index i = 0; i < Ck.cols(); i++) {
+          helfem::Vector c = helfem::Vector::Zero(F.rows());
+          for (size_t r = 0; r < dsym[k].size(); r++)
+            c(dsym[k][r]) = Ck((Eigen::Index) r, i);
+          orbs.push_back({es.eigenvalues()(i), (int) k, c});
+        }
+      }
+      // Stable, so degenerate partners keep their block order.
+      std::stable_sort(orbs.begin(), orbs.end(),
+                       [](const Orbital & a, const Orbital & b) { return a.e < b.e; });
+      C.resize(F.rows(), (Eigen::Index) orbs.size());
+      energy.resize((Eigen::Index) orbs.size());
+      label.resize(orbs.size());
+      for (size_t i = 0; i < orbs.size(); i++) {
+        C.col((Eigen::Index) i) = orbs[i].c;
+        energy((Eigen::Index) i) = orbs[i].e;
+        label[i] = orbs[i].k;
+      }
+    }
+
     CASSCF::CASSCF(const JKProvider & jk, const helfem::Matrix & S, CASCI & ci,
                    helfem::Matrix C, Eigen::Index ninact, Eigen::Index nact,
                    std::vector<int> label, Coupling coupling)
