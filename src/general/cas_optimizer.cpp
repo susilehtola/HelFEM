@@ -446,7 +446,16 @@ namespace helfem {
 
       CASCI ci(req.nact, (nactel + req.twoS) / 2, (nactel - req.twoS) / 2);
       CASSCF cas(jk, S, ci, C, req.ninact, req.nact, label, shell, req.coupling);
-      return cas.run(req.options);
+      const CASSCFResult res = cas.run(req.options);
+      // Checked here rather than trusted to OpenTrustRegion's exit status: the
+      // drivers print this energy as the result of the run.
+      if (!(res.grad_rms <= req.options.otr.conv_tol)) {
+        char msg[160];
+        snprintf(msg, sizeof msg, "CASSCF did not converge: RMS gradient %.3e "
+                 "above the threshold %.1e", res.grad_rms, req.options.otr.conv_tol);
+        throw std::runtime_error(msg);
+      }
+      return res;
     }
 
   } // namespace cas
