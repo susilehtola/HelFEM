@@ -117,9 +117,9 @@ namespace helfem {
         /// Use the exact occupation-block preconditioner
         bool soprecond = true;
         /// Optimize fractional occupations in the second-order phase
-        bool sofractional = false;
+        bool fractionaloccupations = false;
         /// Stability analysis at the end of the second-order phase
-        bool sostability = false;
+        bool stabilityanalysis = false;
         /// Instead of optimizing, check the analytic gradient and
         /// Hessian against finite differences with this step size
         double sotest = 0.0;

@@ -107,8 +107,8 @@ int main(int argc, char **argv) {
   parser.add<int>("somaxhess", 0, "ceiling on Hessian-vector products in one second-order solve; 0 uses somacro*somicro, which only a runaway step-rejection loop can reach", false, 0);
   parser.add<std::string>("sosolver", 0, "second-order microiteration solver: davidson, jacobi-davidson or tcg", false, "davidson");
   parser.add<bool>("soprecond", 0, "precondition with the exactly built Hessian subspace; off falls back to OpenTrustRegion's diagonal, which is blind to the occupation coupling", false, true);
-  parser.add<bool>("sofractional", 0, "optimize fractional occupations in the second-order phase: the block fillings become parameters, and charge moves between degenerate shells; off keeps every orbital full or empty", false, false);
-  parser.add<bool>("sostability", 0, "run OpenTrustRegion's stability analysis when the second-order phase converges, and follow a negative Hessian eigenvalue if one is found", false, false);
+  parser.add<bool>("fractionaloccupations", 0, "optimize fractional occupations in the second-order phase: the block fillings become parameters, and charge moves between degenerate shells; off keeps every orbital full or empty", false, false);
+  parser.add<bool>("stabilityanalysis", 0, "run OpenTrustRegion's stability analysis when the second-order phase converges, and follow a negative Hessian eigenvalue if one is found", false, false);
   parser.add<double>("sotest", 0, "instead of optimizing, check the analytic gradient and Hessian against finite differences with this step size", false, 0.0);
   parser.parse_check(argc, argv);
 
@@ -160,8 +160,8 @@ int main(int argc, char **argv) {
   double soredfac(parser.get<double>("soredfac"));
   std::string sosolver(parser.get<std::string>("sosolver"));
   bool soprecond(parser.get<bool>("soprecond"));
-  const bool sofractional(parser.get<bool>("sofractional"));
-  const bool sostability(parser.get<bool>("sostability"));
+  const bool fractionaloccupations(parser.get<bool>("fractionaloccupations"));
+  const bool stabilityanalysis(parser.get<bool>("stabilityanalysis"));
   double sotest(parser.get<double>("sotest"));
   if(sotest > 0.0)
     secondorder = true;
@@ -648,8 +648,8 @@ int main(int argc, char **argv) {
     // OpenTrustRegion prints its iteration table at level 3.
     sopt.otr.verbose = (verbosity >= 1) ? std::max(3, verbosity) : 0;
     sopt.exact_precond = soprecond;
-    sopt.fractional = sofractional;
-    sopt.otr.stability = sostability;
+    sopt.fractional = fractionaloccupations;
+    sopt.otr.stability = stabilityanalysis;
     sopt.verbosity = verbosity;
 
     const helfem::trscf::Result res = opt.run(sopt);
