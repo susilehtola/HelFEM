@@ -63,6 +63,10 @@ OCC_RE = re.compile(r"^([ab]:sym\d+|sym\d+) occupations:\s*(.*)$")
 LEGACY_RE = re.compile(r"^([A-Za-z][A-Za-z \-]*?)\s+energy:\s*(-?\d+\.\d+)\s*$")
 # gensap and aij print no decomposition at all, only a converged total.
 CONVERGED_RE = re.compile(r"Converged to energy\s+(-?\d+\.\d+)")
+# A run with --casact follows the SCF with a CASSCF and prints this last. It
+# is a separate field rather than the total: the SCF it starts from is still
+# worth comparing in its own right.
+CASSCF_RE = re.compile(r"^CASSCF total energy\s+(-?\d+\.\d+)", re.M)
 
 # OpenOrbitalOptimizer prints this on success, so it is a universal marker for
 # every current driver. A run killed by a timeout still prints per-iteration
@@ -137,6 +141,10 @@ def parse_output(text):
     if occs:
         result["_occupations"] = occs
 
+    m = CASSCF_RE.search(text)
+    if m:
+        result["casscf"] = float(m.group(1))
+
     iters = text.count("Iteration ")
     if iters:
         result["_iterations"] = iters
@@ -178,6 +186,11 @@ def run_case(case, defaults, bindir, timeout_override=None):
     elapsed = time.time() - t0
 
     out = proc.stdout + proc.stderr
+    # --casact needs a build configured with -DHELFEM_WITH_RECI=ON; without
+    # it the driver says so after the SCF. That is a build choice, not a
+    # failure of the case.
+    if "built without reci" in out:
+        return {"_skipped": "built without reci"}
     parsed = parse_output(out)
     if "total" not in parsed:
         tail = "\n".join(out.strip().splitlines()[-5:])
@@ -287,6 +300,14 @@ def compare(name, ref, got, tol, ctol=None):
             # difference between "converged elsewhere" and "computed wrongly".
             problems.append("    (total agrees: %+.3e within %.1e -- component "
                             "drift only)" % (delta, tol))
+
+    if "casscf" in ref:
+        if "casscf" not in got:
+            problems.append("    casscf   ref %18.10f  got no CASSCF energy" % ref["casscf"])
+        elif abs(got["casscf"] - ref["casscf"]) > tol:
+            problems.append("    %-8s ref %18.10f  got %18.10f  delta %+.3e  <-- CASSCF"
+                            % ("casscf", ref["casscf"], got["casscf"],
+                               got["casscf"] - ref["casscf"]))
     return problems
 
 
@@ -299,9 +320,12 @@ def check_invariants(spec, results):
         tol = inv.get("tolerance", 1e-7)
         vals = {}
         for n in names:
-            r = results.get(n)
-            if r and field in r:
-                vals[n] = r[field]
+            # "case:field" compares another field of a case, e.g. a CASSCF
+            # energy against the SCF energy of the same run.
+            cname, _, f = n.partition(":")
+            r = results.get(cname)
+            if r and (f or field) in r:
+                vals[n] = r[f or field]
         if len(vals) < 2:
             continue  # not enough cases were run to compare
         lo, hi = min(vals.values()), max(vals.values())
@@ -372,7 +396,7 @@ def main():
     # Each case is pinned to one thread, so cases parallelise cleanly across
     # cores without perturbing any result. Output is collected and printed in
     # case order so a run is diffable regardless of completion order.
-    results, failed, errored = {}, [], []
+    results, failed, errored, skipped = {}, [], [], []
     if args.jobs > 1:
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
             futures = {pool.submit(run_case, c, defaults, args.bindir, args.timeout): c["name"]
@@ -395,6 +419,11 @@ def main():
         if "_error" in got:
             print("ERROR  (%s)" % got["_error"].splitlines()[0])
             errored.append(name)
+            continue
+        if "_skipped" in got:
+            print("SKIP   (%s)" % got["_skipped"])
+            del results[name]
+            skipped.append(name)
             continue
 
         if args.generate or args.smoke:
@@ -427,8 +456,9 @@ def main():
 
     if args.smoke:
         ok = not errored and not inv_failures
-        print("\n%d ran, %d errored, %d invariant violation(s)"
-              % (len(results) - len(errored), len(errored), len(inv_failures)))
+        print("\n%d ran, %d errored, %d skipped, %d invariant violation(s)"
+              % (len(results) - len(errored), len(errored), len(skipped),
+                 len(inv_failures)))
         return 0 if ok else 1
 
     if args.generate:
@@ -443,9 +473,9 @@ def main():
                   % (len(errored), ", ".join(errored)))
         return 1 if errored else 0
 
-    print("\n%d passed, %d failed, %d errored, %d invariant violation(s)"
+    print("\n%d passed, %d failed, %d errored, %d skipped, %d invariant violation(s)"
           % (len(results) - len(failed) - len(errored), len(failed),
-             len(errored), len(inv_failures)))
+             len(errored), len(skipped), len(inv_failures)))
     if ref_data.get("metadata"):
         m = ref_data["metadata"]
         print("Reference from %s (%s)" % (m.get("git_describe", "?"), m.get("date", "?")))

@@ -122,7 +122,11 @@ foreach(line ${HELFEM_CASE_LINES})
   # rather than on "not slow" matters -- only ~49 of the ~180 cases carry
   # ci, while ~130 are merely not-slow, and a default run of those would
   # be hours.
-  if(NOT "ci" IN_LIST case_tags AND NOT HELFEM_SLOW_TESTS)
+  if("reci" IN_LIST case_tags AND NOT HELFEM_WITH_RECI)
+    # --casact cases need the reci CI; the driver refuses them without it.
+    set_tests_properties(case.${case_name} PROPERTIES DISABLED TRUE)
+    math(EXPR _n_slow "${_n_slow}+1")
+  elseif(NOT "ci" IN_LIST case_tags AND NOT HELFEM_SLOW_TESTS)
     set_tests_properties(case.${case_name} PROPERTIES DISABLED TRUE)
     math(EXPR _n_slow "${_n_slow}+1")
   else()
