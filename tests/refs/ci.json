@@ -878,6 +878,27 @@
       "nel_err": 2.194e-13,
       "nuclear": -128.3952870355,
       "total": -54.6161717394
+    },
+    "diatomic-H2-hf-u-stretched-stability": {
+      "Coulomb": 0.8237831345,
+      "Enucr": 0.2,
+      "Exx": -0.6228874588,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 7,
+      "_seconds": 79.8,
+      "err": 2.462,
+      "kinetic": 0.991375819,
+      "nel_err": 2.462e-12,
+      "nuclear": -2.392111684,
+      "total": -0.9998401893
+    },
+    "gensap-Ni-secondorder": {
+      "_converged": true,
+      "_format": "total-only",
+      "_iterations": 31,
+      "_seconds": 1.4,
+      "total": -1503.2111233187
     }
   },
   "metadata": {
