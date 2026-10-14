@@ -735,8 +735,8 @@ namespace helfem {
             // OpenTrustRegion prints its iteration table at level 3.
             sopt.otr.verbose = (opts.verbosity >= 1) ? std::max(3, opts.verbosity) : 0;
             sopt.exact_precond = opts.soprecond;
-            sopt.fractional = opts.sofractional;
-            sopt.otr.stability = opts.sostability;
+            sopt.fractional = opts.fractionaloccupations;
+            sopt.otr.stability = opts.stabilityanalysis;
             sopt.verbosity = opts.verbosity;
 
             const helfem::trscf::Result res = opt.run(sopt);

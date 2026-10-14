@@ -124,7 +124,7 @@ Fe atom is the standard case: 4s and 3d come out at the same orbital
 energy and sit in different `l` blocks, so no orbital rotation connects
 them at all and their whole interaction is `<4s 4s|W|3d 3d>`. ODA alone
 does not converge it in 2000 iterations; `--secondorder=1
---sofractional=1` reaches a gradient of 1e-9 in a couple of seconds.
+--fractionaloccupations=1` reaches a gradient of 1e-9 in a couple of seconds.
 
 `--secondorder=1` runs the first-order solver for `--preiter` iterations
 and then hands over to a trust-region optimizer built on OpenTrustRegion
@@ -134,7 +134,7 @@ and then hands over to a trust-region optimizer built on OpenTrustRegion
 the optimizer changes the pattern itself; see "The second-order phase can
 start from the guess" below.
 
-**Fractional occupations are opt-in.** `--sofractional` (default off)
+**Fractional occupations are opt-in.** `--fractionaloccupations` (default off)
 decides what the occupations are.
 
 - **Off: integer occupations.** Every block holds a fixed whole number of
@@ -156,7 +156,7 @@ decides what the occupations are.
   problem from an integer calculation, not a better solver for the same
   one.
 
-`--sostability=1` runs OpenTrustRegion's stability analysis whenever the
+`--stabilityanalysis=1` runs OpenTrustRegion's stability analysis whenever the
 second-order phase converges. The analysis covers the orbital rotations
 within the symmetry blocks, and the occupation coordinates when there are
 any. OpenTrustRegion reports only an unstable point, which it then follows
@@ -216,7 +216,7 @@ made `--sosolver=tcg` appear broken.
 **The second-order phase can start from the guess.** `--preiter=0` hands
 the guess orbitals straight to the optimizer, and the optimizer finds the
 occupation pattern itself. With integer occupations it does so by the
-aufbau re-occupation above. With `--sofractional=1` it moves between
+aufbau re-occupation above. With `--fractionaloccupations=1` it moves between
 patterns with three mechanisms.
 
 - **Kinks stop a step.** E(n) has a kink wherever a fractional orbital
@@ -239,7 +239,7 @@ patterns with three mechanisms.
   pattern recurs without having lowered the energy. A cap of 100 restarts
   is only a safety net.
 
-Measured from the core guess at `--preiter=0 --sofractional=1`, compared
+Measured from the core guess at `--preiter=0 --fractionaloccupations=1`, compared
 with the code before these mechanisms:
 
 | case | before | now |
@@ -249,7 +249,7 @@ with the code before these mechanisms:
 | `gensap` Cr, Nb, Fe-TPSS | 5-7 Eh high | exact, 3-5 restarts |
 
 Spin-restricted PBE Fe2 at `--symmetry=3` runs `--scfmethods=DIIS
---preiter=0 --sofractional=1` straight from the SAP guess. It reaches the same energy as the
+--preiter=0 --fractionaloccupations=1` straight from the SAP guess. It reaches the same energy as the
 DIIS+ODA+CG handover (-2526.8717316453) in 2 restarts and about 130
 Hessian-vector products. First order alone does not converge that system
 in 128 iterations.
