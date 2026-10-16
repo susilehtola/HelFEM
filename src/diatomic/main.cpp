@@ -894,13 +894,16 @@ int main(int argc, char **argv) {
       const helfem::Matrix P_total = Pa_new + Pb_new;
       for (size_t k = 0; k < nsym; ++k)
         seed_dev_a = std::max(seed_dev_a, helfem::scf_driver::fill_block_from_density(
-            k, loaded_orbs, loaded_occs, P_total, S, dsym[k], Sinvh[k], max_occ_restr));
+            k, loaded_orbs, loaded_occs, P_total, S, dsym[k], Sinvh[k], max_occ_restr,
+            block_degeneracy[k]));
     } else {
       for (size_t k = 0; k < nsym; ++k) {
         seed_dev_a = std::max(seed_dev_a, helfem::scf_driver::fill_block_from_density(
-            k, loaded_orbs, loaded_occs, Pa_new, S, dsym[k], Sinvh[k], max_occ_open));
+            k, loaded_orbs, loaded_occs, Pa_new, S, dsym[k], Sinvh[k], max_occ_open,
+            block_degeneracy[k]));
         seed_dev_b = std::max(seed_dev_b, helfem::scf_driver::fill_block_from_density(
-            nsym + k, loaded_orbs, loaded_occs, Pb_new, S, dsym[k], Sinvh[k], max_occ_open));
+            nsym + k, loaded_orbs, loaded_occs, Pb_new, S, dsym[k], Sinvh[k], max_occ_open,
+            block_degeneracy[k]));
       }
     }
     if (restricted) {
@@ -1077,7 +1080,7 @@ int main(int argc, char **argv) {
     const auto final_occs = scfsolver.get_orbital_occupations();
     helfem::Matrix Pa_final, Pb_final;
     std::tie(Pa_final, Pb_final) = helfem::scf_driver::assemble_final_density<OOO_Real>(
-        Nbf, restricted, dsym, Sinvh, final_orbs, final_occs);
+        Nbf, restricted, dsym, Sinvh, final_orbs, final_occs, dmirror);
     // Densities written straight through the checkpoint's helfem::Matrix overloads.
     savechk.write("Pa", Pa_final);
     savechk.write("Pb", Pb_final);
@@ -1087,7 +1090,7 @@ int main(int argc, char **argv) {
     helfem::Vector occa_final, occb_final;
     helfem::scf_driver::assemble_final_orbitals<OOO_Real>(
         Nbf, restricted, dsym, Sinvh, final_orbs, final_occs,
-        Ca_final, occa_final, Cb_final, occb_final);
+        Ca_final, occa_final, Cb_final, occb_final, dmirror);
     savechk.write("Ca", Ca_final);
     savechk.write("Cb", Cb_final);
     savechk.write("occa", occa_final);

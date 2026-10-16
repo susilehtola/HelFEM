@@ -57,6 +57,12 @@ if(NOT TARGET diatomic)
   return()
 endif()
 
+# --save followed by --load must restart exactly; see reload_test.py.
+add_test(NAME integration.reload
+         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/reload_test.py
+                 --bindir $<TARGET_FILE_DIR:diatomic>)
+set_tests_properties(integration.reload PROPERTIES LABELS "integration;quick")
+
 set(HELFEM_TEST_DRIVER "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py")
 set(HELFEM_TEST_REFS   "${CMAKE_CURRENT_SOURCE_DIR}/refs/ci.json")
 
