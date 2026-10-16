@@ -1070,10 +1070,44 @@ int main(int argc, char **argv) {
   }
   if (verbosity >= 5) ftimer.print_summary(have_xc, have_exx);
 
+  if (savefile.size()) {
+    Checkpoint savechk(savefile, /*writemode=*/true);
+    savechk.write(basis);
+    const auto final_orbs = scfsolver.get_orbitals();
+    const auto final_occs = scfsolver.get_orbital_occupations();
+    helfem::Matrix Pa_final, Pb_final;
+    std::tie(Pa_final, Pb_final) = helfem::scf_driver::assemble_final_density<OOO_Real>(
+        Nbf, restricted, dsym, Sinvh, final_orbs, final_occs);
+    // Densities written straight through the checkpoint's helfem::Matrix overloads.
+    savechk.write("Pa", Pa_final);
+    savechk.write("Pb", Pb_final);
+    // The AO-basis orbitals, occupied columns first: what diatomic_cpl
+    // projects the probe AOs against.
+    helfem::Matrix Ca_final, Cb_final;
+    helfem::Vector occa_final, occb_final;
+    helfem::scf_driver::assemble_final_orbitals<OOO_Real>(
+        Nbf, restricted, dsym, Sinvh, final_orbs, final_occs,
+        Ca_final, occa_final, Cb_final, occb_final);
+    savechk.write("Ca", Ca_final);
+    savechk.write("Cb", Cb_final);
+    savechk.write("occa", occa_final);
+    savechk.write("occb", occb_final);
+    savechk.write("nela", nela);
+    savechk.write("nelb", nelb);
+    // Extra parameters needed by density_line / density_grid / completeness.
+    savechk.write("Rhalf", Rhalf);
+    savechk.write("Z1", Z1);
+    savechk.write("Z2", Z2);
+    if (verbosity >= 1)
+      printf("Saved results to %s\n", savefile.c_str());
+  }
+
   if (casact > 0) {
 #ifdef HELFEM_HAVE_RECI
     if (Bz != 0.0)
       throw std::logic_error("CASSCF with a magnetic field is not implemented.\n");
+    // After --save, so that a CASSCF that fails or is killed still leaves
+    // the SCF to restart from.
     // Start from the SCF density, whatever produced it; the accumulation
     // is the SCF's own, so a --symmetry=3 mirror block contributes both
     // of its m partners.
@@ -1106,38 +1140,6 @@ int main(int argc, char **argv) {
     throw std::logic_error("This HelFEM was built without reci, so --casact is "
                            "unavailable. Configure with -DHELFEM_WITH_RECI=ON.\n");
 #endif
-  }
-
-  if (savefile.size()) {
-    Checkpoint savechk(savefile, /*writemode=*/true);
-    savechk.write(basis);
-    const auto final_orbs = scfsolver.get_orbitals();
-    const auto final_occs = scfsolver.get_orbital_occupations();
-    helfem::Matrix Pa_final, Pb_final;
-    std::tie(Pa_final, Pb_final) = helfem::scf_driver::assemble_final_density<OOO_Real>(
-        Nbf, restricted, dsym, Sinvh, final_orbs, final_occs);
-    // Densities written straight through the checkpoint's helfem::Matrix overloads.
-    savechk.write("Pa", Pa_final);
-    savechk.write("Pb", Pb_final);
-    // The AO-basis orbitals, occupied columns first: what diatomic_cpl
-    // projects the probe AOs against.
-    helfem::Matrix Ca_final, Cb_final;
-    helfem::Vector occa_final, occb_final;
-    helfem::scf_driver::assemble_final_orbitals<OOO_Real>(
-        Nbf, restricted, dsym, Sinvh, final_orbs, final_occs,
-        Ca_final, occa_final, Cb_final, occb_final);
-    savechk.write("Ca", Ca_final);
-    savechk.write("Cb", Cb_final);
-    savechk.write("occa", occa_final);
-    savechk.write("occb", occb_final);
-    savechk.write("nela", nela);
-    savechk.write("nelb", nelb);
-    // Extra parameters needed by density_line / density_grid / completeness.
-    savechk.write("Rhalf", Rhalf);
-    savechk.write("Z1", Z1);
-    savechk.write("Z2", Z2);
-    if (verbosity >= 1)
-      printf("Saved results to %s\n", savefile.c_str());
   }
 
   return 0;

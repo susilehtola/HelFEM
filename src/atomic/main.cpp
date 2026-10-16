@@ -951,28 +951,6 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (casact > 0) {
-#ifdef HELFEM_HAVE_RECI
-    if (Bz != 0.0)
-      throw std::logic_error("CASSCF with a magnetic field is not implemented.\n");
-    // Start from the SCF density, whatever produced it.
-    helfem::Matrix Pa_scf, Pb_scf;
-    std::tie(Pa_scf, Pb_scf) = helfem::scf_driver::assemble_final_density<OOO_Real>(
-        Nbf, restricted, dsym, Sinvh, scfsolver.get_orbitals(),
-        scfsolver.get_orbital_occupations());
-    const helfem::atomic::basis::AtomicCASEngine jk(basis, T + Vnuc + Vel + Vconf);
-    helfem::cas::KokkosScope kokkos;
-    const helfem::cas::CASSCFResult cres = helfem::cas::casscf_from_scf(
-        jk, S, Pa_scf + Pb_scf, dsym, Sinvh, block_descriptions, Ntot,
-        helfem::cas::request(parser, verbosity));
-    printf("CASSCF total energy %.10f\n", cres.energy + Enucr);
-    fflush(stdout);
-#else
-    throw std::logic_error("This HelFEM was built without reci, so --casact is "
-                           "unavailable. Configure with -DHELFEM_WITH_RECI=ON.\n");
-#endif
-  }
-
   // --save: reconstruct the AO densities from the converged per-block
   // orbitals + occupations and write them plus the basis to a
   // checkpoint. Layout matches --load's expectation and is what
@@ -1003,6 +981,30 @@ int main(int argc, char **argv) {
     savechk.write("nelb", nelb);
     if (verbosity >= 1)
       printf("Saved results to %s\n", savefile.c_str());
+  }
+
+  if (casact > 0) {
+#ifdef HELFEM_HAVE_RECI
+    if (Bz != 0.0)
+      throw std::logic_error("CASSCF with a magnetic field is not implemented.\n");
+    // After --save, so that a CASSCF that fails or is killed still leaves
+    // the SCF to restart from.
+    // Start from the SCF density, whatever produced it.
+    helfem::Matrix Pa_scf, Pb_scf;
+    std::tie(Pa_scf, Pb_scf) = helfem::scf_driver::assemble_final_density<OOO_Real>(
+        Nbf, restricted, dsym, Sinvh, scfsolver.get_orbitals(),
+        scfsolver.get_orbital_occupations());
+    const helfem::atomic::basis::AtomicCASEngine jk(basis, T + Vnuc + Vel + Vconf);
+    helfem::cas::KokkosScope kokkos;
+    const helfem::cas::CASSCFResult cres = helfem::cas::casscf_from_scf(
+        jk, S, Pa_scf + Pb_scf, dsym, Sinvh, block_descriptions, Ntot,
+        helfem::cas::request(parser, verbosity));
+    printf("CASSCF total energy %.10f\n", cres.energy + Enucr);
+    fflush(stdout);
+#else
+    throw std::logic_error("This HelFEM was built without reci, so --casact is "
+                           "unavailable. Configure with -DHELFEM_WITH_RECI=ON.\n");
+#endif
   }
 
   return 0;
