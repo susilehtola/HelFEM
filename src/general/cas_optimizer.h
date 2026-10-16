@@ -53,9 +53,10 @@ namespace helfem {
     /// Starting orbitals for a CAS from an SCF density P (alpha + beta):
     /// the canonical orbitals of the closed-shell Hartree-Fock operator
     /// h + J[P] - K[P]/2, solved in each symmetry block over its own basis
-    /// functions dsym[k] with orthonormalizer Sinvh[k], then sorted by
+    /// functions dsym[k] with orthonormalizer Sinvh[k] separately within
+    /// the occupied and the empty natural orbitals of P, then sorted by
     /// energy. For a converged RHF these ARE the SCF orbitals; after DFT or
-    /// an unrestricted SCF they are a well-defined start.
+    /// an unrestricted SCF they span the same occupied space as the SCF.
     ///
     /// Blocks whose overlap and core Hamiltonian agree element by element
     /// are equivalent, and get identical orbitals: the operator is averaged

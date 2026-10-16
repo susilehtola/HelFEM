@@ -109,6 +109,7 @@ namespace helfem {
                             helfem::Matrix & C, helfem::Vector & energy,
                             std::vector<int> & label, std::vector<int> & shell) {
       const helfem::Matrix F = jk.hcore() + closed_shell_veff(jk, P);
+      const helfem::Matrix SPS = S * P * S;
       const size_t nb = dsym.size();
 
       // Equivalent blocks: same size, identical overlap and core
@@ -146,17 +147,36 @@ namespace helfem {
         for (size_t k : g)
           Fg += Sinvh[k].transpose() * F(dsym[k], dsym[k]) * Sinvh[k];
         Fg /= (double) g.size();
-        Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(Fg);
-        for (Eigen::Index i = 0; i < es.eigenvalues().size(); i++) {
-          Shell sh{es.eigenvalues()(i), {}};
-          for (size_t k : g) {
-            const helfem::Vector ck = Sinvh[k] * es.eigenvectors().col(i);
-            helfem::Vector c = helfem::Vector::Zero(F.rows());
-            for (size_t r = 0; r < dsym[k].size(); r++)
-              c(dsym[k][r]) = ck((Eigen::Index) r);
-            sh.copies.push_back({(int) k, c});
+        // P's own occupied space, from its natural orbitals: the operator
+        // above is not the one P is self-consistent for unless P is RHF, and
+        // its eigenvectors would then mix P's occupied and empty orbitals --
+        // after DFT, losing the Kohn-Sham occupied space the start was
+        // meant to keep. So F is canonicalized within each part separately;
+        // for a converged RHF that changes nothing, F and P commuting.
+        helfem::Matrix Ng = helfem::Matrix::Zero(Fg.rows(), Fg.cols());
+        for (size_t k : g)
+          Ng += Sinvh[k].transpose() * SPS(dsym[k], dsym[k]) * Sinvh[k];
+        Ng /= (double) g.size();
+        Eigen::SelfAdjointEigenSolver<helfem::Matrix> ns(Ng);
+        std::vector<Eigen::Index> occ_cols, virt_cols;
+        for (Eigen::Index i = 0; i < ns.eigenvalues().size(); i++)
+          (ns.eigenvalues()(i) > 1e-8 ? occ_cols : virt_cols).push_back(i);
+        for (const auto * part : {&occ_cols, &virt_cols}) {
+          if (part->empty())
+            continue;
+          const helfem::Matrix W = ns.eigenvectors()(Eigen::all, *part);
+          Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(W.transpose() * Fg * W);
+          for (Eigen::Index i = 0; i < es.eigenvalues().size(); i++) {
+            Shell sh{es.eigenvalues()(i), {}};
+            for (size_t k : g) {
+              const helfem::Vector ck = Sinvh[k] * (W * es.eigenvectors().col(i));
+              helfem::Vector c = helfem::Vector::Zero(F.rows());
+              for (size_t r = 0; r < dsym[k].size(); r++)
+                c(dsym[k][r]) = ck((Eigen::Index) r);
+              sh.copies.push_back({(int) k, c});
+            }
+            shells.push_back(sh);
           }
-          shells.push_back(sh);
         }
       }
       // Stable, so equal energies keep their block order.
