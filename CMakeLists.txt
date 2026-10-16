@@ -862,14 +862,15 @@ endif()
 # src/general/cas_integrals.cpp. Optional and off by default: the repository
 # is not public yet, so fetching it needs SSH access to it.
 #
-# Only reci's core is used (RECI_CORE_ONLY): no Fortran, TREXIO, diaglib,
-# molpro or GTest. The core does bring Kokkos (found, or fetched by reci) and
-# C++20, which is why its one consumer, helfem-reci, is a separate target:
-# nothing else in HelFEM is compiled as C++20 or sees a Kokkos header.
+# The whole of reci is used, solvers and guesses included: the CI problem is
+# solved there, not here. That brings a Fortran compiler (diaglib), Kokkos
+# (found, or fetched by reci) and C++20, which is why its one consumer,
+# helfem-reci, is a separate target: nothing else in HelFEM is compiled as
+# C++20 or sees a Kokkos header.
 option(HELFEM_WITH_RECI "Build the reci-backed CASCI (helfem-reci)" OFF)
 set(HELFEM_FETCHED_reci FALSE)
 if(HELFEM_WITH_RECI)
-    find_package(reci CONFIG QUIET COMPONENTS core)
+    find_package(reci CONFIG QUIET)
     if(reci_FOUND)
         message(STATUS "Using installed reci (${reci_DIR})")
     else()
@@ -880,15 +881,25 @@ if(HELFEM_WITH_RECI)
         FetchContent_Declare(reci
             GIT_REPOSITORY git@github.com:philipmnel/reci.git
             GIT_TAG        e9b7d2dac4239828d63dab58c952bb233e32f040)
-        set(RECI_CORE_ONLY ON)
+        set(RECI_CORE_ONLY OFF)
         set(RECI_BUILD_TESTS OFF)
-        helfem_fetch_privately(reci RECI_BUILD_TESTS)
+        helfem_fetch_privately(reci RECI_CORE_ONLY RECI_BUILD_TESTS)
         unset(RECI_CORE_ONLY)
         unset(RECI_BUILD_TESTS)
+        # The installed package exports the solver library as reci::reci;
+        # in the tree it is plain reci.
+        add_library(reci::reci ALIAS reci)
     endif()
-    if(NOT TARGET reci::core)
-        message(FATAL_ERROR "reci was found but provides no reci::core target")
+    if(NOT TARGET reci::reci)
+        message(FATAL_ERROR "reci was found but provides no reci::reci target")
     endif()
+    # reci exports EIGEN_MALLOC_ALREADY_ALIGNED=0 with molpro's
+    # iterative-solver: an Eigen allocator policy every translation unit that
+    # shares Eigen objects must agree on. Only helfem-reci would see it
+    # through the link, so a matrix allocated there and freed elsewhere
+    # crashes, and the linker merges the two versions of Eigen's inline
+    # allocator. All of HelFEM is compiled with the same policy instead.
+    add_compile_definitions(EIGEN_MALLOC_ALREADY_ALIGNED=0)
 endif()
 
 # ---------------------------------------------------------------------------

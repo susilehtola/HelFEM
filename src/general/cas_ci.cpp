@@ -21,10 +21,12 @@
 #include <reci/ci_sigma_builder.h>
 #include <reci/ci_spin_adapter.h>
 #include <reci/ci_strings.h>
+#include <direct.h>
 
 #include <Eigen/Eigenvalues>
 
 #include <cmath>
+#include <numeric>
 #include <span>
 #include <string>
 
@@ -94,9 +96,14 @@ namespace helfem {
       // construction, and holds a reference to `strings`, which is why Impl
       // owns both and is never moved.
       std::unique_ptr<reci::CISigmaBuilder<double>> sb;
+      // The Hamiltonian as last installed, in reci's conventions, for the
+      // ground-state solve, which goes through reci's own driver.
+      double E_core = 0.0;
+      std::vector<double> h, V;
+      int nalpha, nbeta;
 
       Impl(int nact_, int na, int nb)
-          : nact((size_t) nact_), twoS(na - nb),
+          : nact((size_t) nact_), twoS(na - nb), nalpha(na), nbeta(nb),
             strings((size_t) na, (size_t) nb, (size_t) nact_),
             spin(na - nb, na - nb, nact_) {
         spin.prepare_couplings(strings);
@@ -143,6 +150,9 @@ namespace helfem {
       // an EightFold declaration lets Knowles-Handy drop the antisymmetric
       // pair channel those integrals need. For real orbitals the channel
       // is merely zero, so FourFold costs time, never correctness.
+      impl_->E_core = ah.E_inactive;
+      impl_->h = h;
+      impl_->V = V;
       if (!impl_->sb) {
         impl_->sb = std::make_unique<reci::CISigmaBuilder<double>>(
             impl_->strings, ah.E_inactive, std::move(h), std::move(V),
@@ -165,115 +175,45 @@ namespace helfem {
       return s;
     }
 
-    double CASCI::solve_ground(std::vector<double> & civec, size_t max_dense) const {
-      const auto & sb = impl_->builder();
-      const size_t nc = ncsf(), nd = ndet();
-      if (nc == 0)
-        throw std::runtime_error("CASCI: no CSFs of the target spin");
-      if (nc > max_dense)
-        return davidson(civec);
+    double CASCI::solve_ground(std::vector<double> & civec) const {
+      impl_->builder();  // throws before the Hamiltonian is installed
+      Problem p;
+      p.nmo = (int) impl_->nact;
+      p.nalpha = impl_->nalpha;
+      p.nbeta = impl_->nbeta;
+      p.nre = impl_->E_core;
+      p.h0 = impl_->h;
+      p.eri = impl_->V;
+      p.eri_symmetry = reci::ERISymmetry::FourFold;
+      p.mo_symmetry.assign(impl_->nact, 0);
 
-      // H in the CSF basis, one column per CSF: CSF -> determinants -> sigma
-      // -> back to CSFs. The CSFs are an orthonormal combination of
-      // determinants, so this is T^T H T and symmetric up to roundoff.
-      helfem::Matrix Hc((Eigen::Index) nc, (Eigen::Index) nc);
-      std::vector<double> e(nc, 0.0), det(nd), sig(nd), col(nc);
-      for (size_t k = 0; k < nc; k++) {
-        e[k] = 1.0;
-        impl_->spin.csf_C_to_det_C(e, det);
-        sb.Hamiltonian(det.data(), sig.data(), nd);
-        impl_->spin.det_C_to_csf_C(sig, col);
-        for (size_t j = 0; j < nc; j++)
-          Hc((Eigen::Index) j, (Eigen::Index) k) = col[j];
-        e[k] = 0.0;
-      }
-      const double asym = (Hc - Hc.transpose()).cwiseAbs().maxCoeff();
-      if (asym > 1e-9 * std::max(1.0, Hc.cwiseAbs().maxCoeff()))
-        throw std::runtime_error("CASCI: CSF-basis Hamiltonian is not symmetric ("
-                                 + std::to_string(asym) + ")");
+      // reci's driver, with its own guess, preconditioner and eigensolver;
+      // the CI problem is solved there and nowhere here.
+      DirectSettings s;
+      s.c1 = true;
+      s.solver = "molpro";
+      s.guess = "hci";
+      s.solver_settings.verbose = false;
+      s.solver_settings.tol = 1e-8;
+      s.solver_settings.max_iter = 500;
+      const DirectResult r = direct(p, s);
+      if (r.eigenvalues.empty() || !r.converged)
+        throw std::runtime_error("CASCI: reci's CI solver did not converge");
+      if (r.det_basis || r.ndim != ncsf())
+        throw std::logic_error("CASCI: reci returned a vector outside the CSF basis");
 
-      Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(0.5 * (Hc + Hc.transpose()));
-      std::vector<double> c0(nc);
-      for (size_t j = 0; j < nc; j++)
-        c0[j] = es.eigenvectors()((Eigen::Index) j, 0);
-      civec.assign(nd, 0.0);
-      impl_->spin.csf_C_to_det_C(c0, civec);
-      return es.eigenvalues()(0);
-    }
-
-    double CASCI::davidson(std::vector<double> & civec) const {
-      const auto & sb = impl_->builder();
-      const size_t nc = ncsf(), nd = ndet();
-      const Eigen::Index n = (Eigen::Index) nc;
-      const std::vector<double> hd = hdiag_csf();
-      auto apply = [&](const helfem::Vector & x) {
-        std::vector<double> xc(x.data(), x.data() + nc), det(nd), sig(nd), out(nc);
-        impl_->spin.csf_C_to_det_C(xc, det);
-        sb.Hamiltonian(det.data(), sig.data(), nd);
-        impl_->spin.det_C_to_csf_C(sig, out);
-        return helfem::Vector(Eigen::Map<helfem::Vector>(out.data(), n));
-      };
-
-      // Start from the CSF with the lowest diagonal element.
-      helfem::Vector x = helfem::Vector::Zero(n);
-      x((Eigen::Index) (std::min_element(hd.begin(), hd.end()) - hd.begin())) = 1.0;
-
-      // Collapsed to the current and the previous Ritz vector when full, so
-      // the subspace keeps the direction the iteration is moving in.
-      const Eigen::Index maxdim = 24;
-      const int maxit = 1000;
-      const double tol = 1e-9;
-      helfem::Matrix V(n, maxdim), AV(n, maxdim);
-      V.col(0) = x;
-      AV.col(0) = apply(x);
-      Eigen::Index m = 1;
-      helfem::Vector xprev = x;
-      double theta = 0.0, rnorm = 0.0;
-      for (int it = 0; it < maxit; it++) {
-        const helfem::Matrix Hs = V.leftCols(m).transpose() * AV.leftCols(m);
-        Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(0.5 * (Hs + Hs.transpose()));
-        theta = es.eigenvalues()(0);
-        const helfem::Vector y = es.eigenvectors().col(0);
-        x = V.leftCols(m) * y;
-        helfem::Vector r = AV.leftCols(m) * y - theta * x;
-        rnorm = r.norm();
-        if (rnorm < tol) {
-          civec.assign(nd, 0.0);
-          std::vector<double> xc(x.data(), x.data() + nc);
-          impl_->spin.csf_C_to_det_C(xc, civec);
-          return theta;
-        }
-        // Diagonal correction, kept away from the pole.
-        for (Eigen::Index i = 0; i < n; i++) {
-          double d = theta - hd[(size_t) i];
-          if (std::abs(d) < 1e-4) d = d < 0.0 ? -1e-4 : 1e-4;
-          r(i) /= d;
-        }
-        if (m == maxdim) {
-          helfem::Vector p = xprev - x * x.dot(xprev);
-          V.col(0) = x;
-          AV.col(0) = AV.leftCols(m) * y;
-          m = 1;
-          if (p.norm() > 1e-8) {
-            p.normalize();
-            V.col(1) = p;
-            AV.col(1) = apply(p);
-            m = 2;
-          }
-        }
-        xprev = x;
-        for (int pass = 0; pass < 2; pass++)
-          r -= V.leftCols(m) * (V.leftCols(m).transpose() * r);
-        const double nr = r.norm();
-        if (nr < 1e-14)
-          break;
-        V.col(m) = r / nr;
-        AV.col(m) = apply(V.col(m));
-        m++;
-      }
-      throw std::runtime_error("CASCI: Davidson did not converge, residual "
-                               + std::to_string(rnorm) + " after " + std::to_string(maxit)
-                               + " iterations");
+      // direct() builds its spin adapter from the same strings and spin as
+      // ours, so the CSF order is the same; checked rather than assumed.
+      std::vector<double> c0(r.eigenvectors.begin(), r.eigenvectors.begin() + (long) r.ndim);
+      civec = to_det(c0);
+      const double nrm = std::sqrt(std::inner_product(civec.begin(), civec.end(), civec.begin(), 0.0));
+      for (double & x : civec) x /= nrm;
+      const std::vector<double> sg = sigma(civec);
+      const double E = std::inner_product(civec.begin(), civec.end(), sg.begin(), 0.0);
+      if (std::abs(E - r.eigenvalues[0]) > 1e-8 * std::max(1.0, std::abs(E)))
+        throw std::logic_error("CASCI: reci's eigenvector does not reproduce its eigenvalue "
+                               "in this CSF basis");
+      return E;
     }
 
     std::vector<double> CASCI::to_det(const std::vector<double> & csf) const {

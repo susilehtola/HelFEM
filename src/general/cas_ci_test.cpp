@@ -163,24 +163,6 @@ int main() {
   const double Et = triplet.solve_ground(ct);
   check("triplet energy vs product-basis FCI", Et, Et_ref, 1e-10);
 
-  printf("\n2b Davidson against the dense solver\n");
-  {
-    // Four electrons over the eight lowest orbitals: more than two
-    // electrons, so the CI is not a pair problem, and few enough CSFs for
-    // the dense solver to be the reference.
-    const auto ah4 = cas::active_hamiltonian(jk, C, 0, 8);
-    for (int twoS : {0, 2}) {
-      cas::CASCI ci(8, twoS ? 3 : 2, twoS ? 1 : 2);
-      ci.set_hamiltonian(ah4);
-      std::vector<double> cd, ci_;
-      const double Ed = ci.solve_ground(cd);
-      const double Ei = ci.solve_ground(ci_, 0);
-      printf("  %s: %zu CSFs\n", twoS ? "triplet" : "singlet", ci.ncsf());
-      check("  Davidson energy == dense", Ei, Ed, 1e-10);
-      check("  |<dense|Davidson>| == 1", std::abs(dot(cd, ci_)), 1.0, 1e-9);
-    }
-  }
-
   printf("\n3  state RDMs\n");
   {
     check("|c| = 1", std::sqrt(dot(c0, c0)), 1.0, 1e-12);

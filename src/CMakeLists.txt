@@ -72,10 +72,10 @@ install(TARGETS helfem-fem legendre
 # includes no reci header, so linking reci PRIVATE keeps both off every
 # consumer. Not installed or exported yet -- neither is cas_integrals.h; the
 # CAS API joins the installed surface together with a driver that uses it.
-if(TARGET reci::core)
+if(TARGET reci::reci)
     add_library(helfem-reci STATIC general/cas_ci.cpp general/cas_optimizer.cpp)
     add_library(helfem::reci ALIAS helfem-reci)
-    target_link_libraries(helfem-reci PUBLIC helfem-common PRIVATE reci::core)
+    target_link_libraries(helfem-reci PUBLIC helfem-common PRIVATE reci::reci)
 endif()
 
 # The diatomic public surface. basis.h includes "quadrature.h" and
