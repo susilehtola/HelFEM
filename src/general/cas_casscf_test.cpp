@@ -429,7 +429,7 @@ int main() {
     helfem::Vector ec = e;
     std::vector<int> lc = label, sc = shell;
     std::vector<double> w;
-    cas::correlating_virtuals(jk1, S1, P, 1, Cc, ec, lc, sc, w);
+    cas::correlating_virtuals(jk1, S1, P, 1, 4, Cc, ec, lc, sc, w);
     check("occupied orbitals untouched", (Cc.leftCols(2) - C.leftCols(2)).cwiseAbs().maxCoeff(),
           0.0, 0.0);
     check("orbitals still orthonormal",
@@ -438,6 +438,16 @@ int main() {
     check("the three empty active orbitals are one shell of three copies (2p)",
           (sc[2] == sc[3] && sc[3] == sc[4] && lc[2] != lc[3] && lc[3] != lc[4]
            && lc[2] != lc[4]) ? 1.0 : 0.0, 1.0, 0.0);
+    {
+      // Beyond the active space the virtuals are canonical again.
+      const helfem::Matrix Fv = Cc.rightCols(Cc.cols() - 5).transpose()
+                                * (jk1.hcore() + cas::closed_shell_veff(jk1, P))
+                                * Cc.rightCols(Cc.cols() - 5);
+      helfem::Matrix off = Fv;
+      off.diagonal().setZero();
+      check("Fock matrix diagonal over the virtuals outside the active space",
+            off.cwiseAbs().maxCoeff(), 0.0, 1e-10);
+    }
     printf("  leading correlating weight %.4e; lowest canonical virtual energies"
            " %.6f %.6f %.6f\n", w[2], e(2), e(3), e(4));
 

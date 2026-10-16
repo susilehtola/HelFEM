@@ -202,7 +202,7 @@ namespace helfem {
 
     void correlating_virtuals(const JKProvider & jk, const helfem::Matrix & S,
                               const helfem::Matrix & P, Eigen::Index ninact,
-                              helfem::Matrix & C,
+                              Eigen::Index nact, helfem::Matrix & C,
                               helfem::Vector & energy, std::vector<int> & label,
                               std::vector<int> & shell, std::vector<double> & weight) {
       // The copies of one shell are contiguous, in the same block order for
@@ -318,13 +318,76 @@ namespace helfem {
         }
       }
 
-      // Occupied by energy, then virtuals by weight, most negative first.
+      // The active space takes the most strongly correlating virtual shells,
+      // whole shells, until it is full.
+      Eigen::Index nvirt_active = ninact + nact;
+      for (const Shell & x : sh)
+        if (x.occupied)
+          nvirt_active -= (Eigen::Index) x.cols.size();
+      std::vector<size_t> vorder;
+      for (size_t s = 0; s < sh.size(); s++)
+        if (!sh[s].occupied)
+          vorder.push_back(s);
+      std::stable_sort(vorder.begin(), vorder.end(),
+                       [&](size_t a, size_t b) { return sh[a].w < sh[b].w; });
+      std::vector<bool> chosen(sh.size(), false);
+      Eigen::Index taken = 0;
+      for (size_t s : vorder) {
+        if (taken >= nvirt_active)
+          break;
+        chosen[s] = true;
+        taken += (Eigen::Index) sh[s].cols.size();
+      }
+
+      // The virtuals left outside are canonicalized again, within the span
+      // the chosen ones leave in each group: the CASSCF preconditioner takes
+      // its orbital Hessian diagonal from the Fock matrix, which assumes
+      // that it is diagonal there. Correlating functions are not, and a
+      // first macroiteration of O2 CAS(2,2) took 34 Hessian-vector products
+      // over them.
+      for (size_t g = 0; g < group_virt.size(); g++) {
+        std::vector<size_t> rest;
+        for (size_t s : group_virt[g])
+          if (!chosen[s])
+            rest.push_back(s);
+        if (rest.empty())
+          continue;
+        const Eigen::Index nr = (Eigen::Index) rest.size();
+        const size_t ncopy = group_blocks[g].size();
+        std::vector<helfem::Matrix> Vr(ncopy);
+        helfem::Matrix Fr = helfem::Matrix::Zero(nr, nr);
+        for (size_t j = 0; j < ncopy; j++) {
+          const auto & rows = copies[g][j].rows;
+          Vr[j].resize((Eigen::Index) rows.size(), nr);
+          for (Eigen::Index a = 0; a < nr; a++)
+            Vr[j].col(a) = Cnew(rows, sh[rest[(size_t) a]].cols[j]);
+          Fr += Vr[j].transpose() * F(rows, rows) * Vr[j];
+        }
+        Fr /= (double) ncopy;
+        Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(0.5 * (Fr + Fr.transpose()));
+        for (size_t j = 0; j < ncopy; j++) {
+          const helfem::Matrix U = Vr[j] * es.eigenvectors();
+          for (Eigen::Index a = 0; a < nr; a++) {
+            const Eigen::Index c = sh[rest[(size_t) a]].cols[j];
+            Cnew.col(c).setZero();
+            Cnew(copies[g][j].rows, c) = U.col(a);
+          }
+        }
+        for (Eigen::Index a = 0; a < nr; a++) {
+          sh[rest[(size_t) a]].e = es.eigenvalues()(a);
+          sh[rest[(size_t) a]].w = 0.0;
+        }
+      }
+
+      // Occupied by energy, then the chosen virtuals by weight, most negative
+      // first, then the rest by energy.
+      auto rank = [&](size_t s) { return sh[s].occupied ? 0 : chosen[s] ? 1 : 2; };
       std::vector<size_t> order(sh.size());
       for (size_t s = 0; s < order.size(); s++) order[s] = s;
       std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) {
-        if (sh[a].occupied != sh[b].occupied)
-          return sh[a].occupied;
-        return sh[a].occupied ? sh[a].e < sh[b].e : sh[a].w < sh[b].w;
+        if (rank(a) != rank(b))
+          return rank(a) < rank(b);
+        return rank(a) == 1 ? sh[a].w < sh[b].w : sh[a].e < sh[b].e;
       });
       helfem::Matrix Cout(C.rows(), C.cols());
       helfem::Vector eout(C.cols());
@@ -599,7 +662,7 @@ namespace helfem {
       std::vector<int> label, shell;
       std::vector<double> weight;
       canonical_orbitals(jk, S, P, dsym, Sinvh, C, eorb, label, shell);
-      correlating_virtuals(jk, S, P, req.ninact, C, eorb, label, shell, weight);
+      correlating_virtuals(jk, S, P, req.ninact, req.nact, C, eorb, label, shell, weight);
       if (req.ninact + req.nact > C.cols())
         throw std::logic_error("CASSCF: more inactive and active orbitals than the "
                                "basis has.\n");

@@ -85,15 +85,19 @@ namespace helfem {
     /// density -- the leading one of a bonding orbital is its antibonding
     /// partner -- so it is what an active space wants.
     ///
-    /// The occupied orbitals are untouched and come first, by energy; the
-    /// virtuals follow in order of |eigenvalue| across all blocks, so the
-    /// active space takes the most strongly correlating ones whatever their
-    /// block. Equivalent blocks share one averaged A, which keeps their
-    /// copies identical. energy becomes the Fock expectation value, and
-    /// weight the eigenvalue (zero for an occupied orbital).
+    /// The occupied orbitals are untouched and come first, by energy. The
+    /// active space of `ninact + nact` orbitals is then filled with the
+    /// most strongly correlating virtual shells, by |eigenvalue| across all
+    /// blocks, whatever their block. The virtuals left outside it are made
+    /// canonical again within the span they keep, and follow by energy: the
+    /// CASSCF takes its Hessian diagonal from the Fock matrix. Equivalent
+    /// blocks share one averaged A and F, which keeps their copies
+    /// identical. energy becomes the Fock expectation value of a chosen
+    /// orbital and the eigenvalue of a canonical one, and weight is the
+    /// eigenvalue of A for a chosen orbital and zero otherwise.
     void correlating_virtuals(const JKProvider & jk, const helfem::Matrix & S,
                               const helfem::Matrix & P, Eigen::Index ninact,
-                              helfem::Matrix & C,
+                              Eigen::Index nact, helfem::Matrix & C,
                               helfem::Vector & energy, std::vector<int> & label,
                               std::vector<int> & shell, std::vector<double> & weight);
 
