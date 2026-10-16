@@ -200,6 +200,152 @@ namespace helfem {
         }
     }
 
+    void correlating_virtuals(const JKProvider & jk, const helfem::Matrix & S,
+                              const helfem::Matrix & P, Eigen::Index ninact,
+                              helfem::Matrix & C,
+                              helfem::Vector & energy, std::vector<int> & label,
+                              std::vector<int> & shell, std::vector<double> & weight) {
+      // The copies of one shell are contiguous, in the same block order for
+      // every shell of a group (canonical_orbitals builds them that way).
+      struct Shell {
+        double e, w = 0.0;
+        bool occupied = false;
+        std::vector<Eigen::Index> cols;
+      };
+      std::vector<Shell> sh;
+      for (Eigen::Index i = 0; i < C.cols(); i++) {
+        if (i == 0 || shell[(size_t) i] != shell[(size_t) i - 1])
+          sh.push_back(Shell{energy(i), 0.0, false, {}});
+        sh.back().cols.push_back(i);
+      }
+      const helfem::Matrix SPS = S * P * S;
+      std::vector<double> occ((size_t) C.cols());
+      for (Eigen::Index i = 0; i < C.cols(); i++) {
+        occ[(size_t) i] = C.col(i).dot(SPS * C.col(i));
+        // A shell is occupied if any copy is, so its copies stay together.
+        if (occ[(size_t) i] > 1e-6)
+          sh[(size_t) shell[(size_t) i]].occupied = true;
+      }
+
+      // Virtual shells per group of equivalent blocks.
+      std::vector<std::vector<int>> group_blocks;
+      std::vector<std::vector<size_t>> group_virt;
+      for (size_t s = 0; s < sh.size(); s++) {
+        if (sh[s].occupied)
+          continue;
+        std::vector<int> blocks;
+        for (Eigen::Index c : sh[s].cols) blocks.push_back(label[(size_t) c]);
+        size_t g = 0;
+        while (g < group_blocks.size() && group_blocks[g] != blocks) g++;
+        if (g == group_blocks.size()) {
+          group_blocks.push_back(blocks);
+          group_virt.push_back({});
+        }
+        group_virt[g].push_back(s);
+      }
+
+      // The virtuals of each copy, restricted to the rows of their block:
+      // K is dense, and only that diagonal block of it is ever needed.
+      struct Copy {
+        std::vector<Eigen::Index> rows;
+        helfem::Matrix V;
+      };
+      std::vector<std::vector<Copy>> copies(group_virt.size());
+      for (size_t g = 0; g < group_virt.size(); g++) {
+        const auto & v = group_virt[g];
+        for (size_t j = 0; j < group_blocks[g].size(); j++) {
+          Copy cp;
+          for (Eigen::Index r = 0; r < C.rows(); r++)
+            for (size_t a = 0; a < v.size(); a++)
+              if (C(r, sh[v[a]].cols[j]) != 0.0) {
+                cp.rows.push_back(r);
+                break;
+              }
+          cp.V.resize((Eigen::Index) cp.rows.size(), (Eigen::Index) v.size());
+          for (size_t a = 0; a < v.size(); a++)
+            cp.V.col((Eigen::Index) a) = C(cp.rows, sh[v[a]].cols[j]);
+          copies[g].push_back(std::move(cp));
+        }
+      }
+
+      // A, averaged over the copies, one exchange build per active occupied
+      // orbital. The inactive ones are the ninact lowest occupied; they are
+      // core here, and what is wanted is what correlates the active ones.
+      std::vector<helfem::Matrix> A(group_virt.size());
+      for (size_t g = 0; g < A.size(); g++)
+        A[g] = helfem::Matrix::Zero((Eigen::Index) group_virt[g].size(),
+                                    (Eigen::Index) group_virt[g].size());
+      Eigen::Index nocc_seen = 0;
+      for (Eigen::Index i = 0; i < C.cols(); i++) {
+        if (occ[(size_t) i] <= 1e-6 || nocc_seen++ < ninact)
+          continue;
+        // exchange() returns the signed Fock contribution, -K.
+        const helfem::Matrix K = -jk.exchange(C.col(i) * C.col(i).transpose());
+        for (size_t g = 0; g < A.size(); g++) {
+          const auto & v = group_virt[g];
+          helfem::Matrix Kv = helfem::Matrix::Zero(A[g].rows(), A[g].cols());
+          for (const Copy & cp : copies[g])
+            Kv += cp.V.transpose() * K(cp.rows, cp.rows) * cp.V;
+          const double f = occ[(size_t) i] / (double) copies[g].size();
+          for (size_t a = 0; a < v.size(); a++)
+            for (size_t b = 0; b < v.size(); b++)
+              A[g]((Eigen::Index) a, (Eigen::Index) b) +=
+                  f * Kv((Eigen::Index) a, (Eigen::Index) b)
+                  / (2.0 * energy(i) - sh[v[a]].e - sh[v[b]].e);
+        }
+      }
+      // Kv is symmetric only up to rounding.
+      for (auto & a : A) a = 0.5 * (a + a.transpose()).eval();
+
+      const helfem::Matrix F = jk.hcore() + closed_shell_veff(jk, P);
+      helfem::Matrix Cnew = C;
+      for (size_t g = 0; g < A.size(); g++) {
+        const auto & v = group_virt[g];
+        Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(A[g]);
+        // The new vectors go into the same columns, so the copies keep their
+        // blocks; which shell they belong to is redone by the sort below.
+        for (size_t k = 0; k < v.size(); k++) {
+          double e = 0.0;
+          for (size_t j = 0; j < group_blocks[g].size(); j++) {
+            helfem::Vector c = helfem::Vector::Zero(C.rows());
+            for (size_t a = 0; a < v.size(); a++)
+              c += es.eigenvectors()((Eigen::Index) a, (Eigen::Index) k) * C.col(sh[v[a]].cols[j]);
+            Cnew.col(sh[v[k]].cols[j]) = c;
+            e += c.dot(F * c);
+          }
+          sh[v[k]].e = e / (double) group_blocks[g].size();
+          sh[v[k]].w = es.eigenvalues()((Eigen::Index) k);
+        }
+      }
+
+      // Occupied by energy, then virtuals by weight, most negative first.
+      std::vector<size_t> order(sh.size());
+      for (size_t s = 0; s < order.size(); s++) order[s] = s;
+      std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+        if (sh[a].occupied != sh[b].occupied)
+          return sh[a].occupied;
+        return sh[a].occupied ? sh[a].e < sh[b].e : sh[a].w < sh[b].w;
+      });
+      helfem::Matrix Cout(C.rows(), C.cols());
+      helfem::Vector eout(C.cols());
+      std::vector<int> lout(label.size()), sout(shell.size());
+      weight.assign((size_t) C.cols(), 0.0);
+      Eigen::Index col = 0;
+      for (size_t s = 0; s < order.size(); s++)
+        for (Eigen::Index c : sh[order[s]].cols) {
+          Cout.col(col) = Cnew.col(c);
+          eout(col) = sh[order[s]].e;
+          lout[(size_t) col] = label[(size_t) c];
+          sout[(size_t) col] = (int) s;
+          weight[(size_t) col] = sh[order[s]].w;
+          col++;
+        }
+      C = Cout;
+      energy = eout;
+      label = lout;
+      shell = sout;
+    }
+
     CASSCF::CASSCF(const JKProvider & jk, const helfem::Matrix & S, CASCI & ci,
                    helfem::Matrix C, Eigen::Index ninact, Eigen::Index nact,
                    const std::vector<int> & label, const std::vector<int> & shell,
@@ -451,16 +597,23 @@ namespace helfem {
       helfem::Matrix C;
       helfem::Vector eorb;
       std::vector<int> label, shell;
+      std::vector<double> weight;
       canonical_orbitals(jk, S, P, dsym, Sinvh, C, eorb, label, shell);
+      correlating_virtuals(jk, S, P, req.ninact, C, eorb, label, shell, weight);
       if (req.ninact + req.nact > C.cols())
         throw std::logic_error("CASSCF: more inactive and active orbitals than the "
                                "basis has.\n");
       if (req.options.verbosity >= 1) {
         printf("\nCASSCF(%i,%i), multiplicity %i, %i inactive orbitals; starting "
-               "orbital energies:\n", nactel, req.nact, req.twoS + 1, req.ninact);
-        for (int i = 0; i < req.ninact + req.nact; i++)
-          printf("  %3i %-10s % .8f %s\n", i, block_name[(size_t) label[(size_t) i]].c_str(),
+               "orbitals (energy, and correlating weight of an empty one):\n",
+               nactel, req.nact, req.twoS + 1, req.ninact);
+        for (int i = 0; i < req.ninact + req.nact; i++) {
+          printf("  %3i %-10s % .8f %s", i, block_name[(size_t) label[(size_t) i]].c_str(),
                  eorb(i), i < req.ninact ? "inactive" : "active");
+          if (weight[(size_t) i] != 0.0)
+            printf("  % .3e", weight[(size_t) i]);
+          printf("\n");
+        }
         fflush(stdout);
       }
 

@@ -4078,6 +4078,50 @@
         "--casinact=7",
         "--casM=3"
       ]
+    },
+    {
+      "name": "atomic-Be-hf-cas24",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "hf",
+        "cas",
+        "reci"
+      ],
+      "_why": "Be 2s2+2p2 as CAS(2,4): the 2p shell is empty in the SCF, so the active space has to come from the correlating-function guess. Over the lowest canonical virtuals instead, which are diffuse, CASSCF stops at the RHF energy with a zero gradient. -14.6168453 agrees with the MCHF 2s2+2p2 value, -14.616856.",
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--method=HF",
+        "--restricted=1",
+        "--casact=4",
+        "--casinact=1"
+      ]
+    },
+    {
+      "name": "atomic-Be-pbe-cas24",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "gga",
+        "cas",
+        "reci"
+      ],
+      "_why": "Be 2s2+2p2 as CAS(2,4): the 2p shell is empty in the SCF, so the active space has to come from the correlating-function guess. Over the lowest canonical virtuals instead, which are diffuse, CASSCF stops at the RHF energy with a zero gradient. -14.6168453 agrees with the MCHF 2s2+2p2 value, -14.616856.",
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--restricted=1",
+        "--casact=4",
+        "--casinact=1"
+      ]
     }
   ],
   "_invariants_comment": [
@@ -4913,6 +4957,16 @@
       "cases": [
         "diatomic-O2-hf-cas22-sym1",
         "diatomic-O2-hf-cas22-sym3"
+      ],
+      "field": "casscf",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "Be-cas24-hf-and-dft-start",
+      "_why": "the SCF only supplies the starting orbitals: from PBE or HF orbitals CASSCF must reach the same minimum",
+      "cases": [
+        "atomic-Be-hf-cas24",
+        "atomic-Be-pbe-cas24"
       ],
       "field": "casscf",
       "tolerance": 1e-08

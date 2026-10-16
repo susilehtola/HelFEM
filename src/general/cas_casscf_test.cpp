@@ -33,7 +33,11 @@
 //      start;
 //   8. equivalent blocks (the 2p of Be at lmax=1) are found, get identical
 //      orbitals and tied rotations, the tied derivatives agree with the
-//      energy, and the copies stay identical through the optimization.
+//      energy, and the copies stay identical through the optimization;
+//   9. the correlating-function guess: for Be CAS(2,4) from RHF, the
+//      empty active orbitals it picks are the 2p shell, and the CASCI
+//      energy there is far below that over the lowest canonical virtuals,
+//      which are diffuse.
 
 #include "cas_ci.h"
 #include "cas_integrals.h"
@@ -372,6 +376,81 @@ int main() {
         }
     check("copies stay identical through the optimization", dev, 0.0, 1e-10);
     check("RMS gradient at the end", r.grad_rms, 0.0, opt.otr.conv_tol);
+  }
+
+  printf("\n9  correlating-function guess: Be CAS(2,4) from RHF at lmax=1\n");
+  {
+    Eigen::VectorXi lval1, mval1;
+    atomic::basis::angular_basis(1, 1, lval1, mval1);
+    atomic::basis::TwoDBasis basis1(Z, modelpotential::POINT_NUCLEUS, 0.0, poly,
+                                    false, 5 * poly->nbf(), bval, lval1, mval1,
+                                    0, 0, 0.0);
+    basis1.compute_tei(true);
+    atomic::basis::AtomicCASEngine jk1(basis1);
+    const helfem::Matrix S1 = basis1.overlap();
+    const std::vector<std::vector<Eigen::Index>> dsym = basis1.sym_idx(2);
+    std::vector<helfem::Matrix> Sinvh;
+    for (const auto & idx : dsym) Sinvh.push_back(scf::form_Sinvh(helfem::Matrix(S1(idx, idx)), false));
+
+    // RHF 1s2 2s2 by plain Roothaan iteration over the blocks.
+    // canonical_orbitals cannot do it: it keeps P's occupied space by design.
+    // The first pass, at P = 0, is hydrogenic with 2s and 2p degenerate, so
+    // it occupies the s block; after that 2s is below 2p.
+    helfem::Matrix P = helfem::Matrix::Zero(S1.rows(), S1.cols());
+    double dP = 1.0;
+    for (int it = 0; it < 100 && dP > 1e-11; it++) {
+      const helfem::Matrix F = jk1.hcore() + cas::closed_shell_veff(jk1, P);
+      std::vector<std::pair<double, helfem::Vector>> orb;
+      for (size_t k = 0; k < dsym.size(); k++) {
+        Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(
+            Sinvh[k].transpose() * F(dsym[k], dsym[k]) * Sinvh[k]);
+        for (Eigen::Index i = 0; i < es.eigenvalues().size(); i++) {
+          helfem::Vector c = helfem::Vector::Zero(S1.rows());
+          c(dsym[k]) = Sinvh[k] * es.eigenvectors().col(i);
+          // Only the s block (k = 0) on the first pass.
+          if (it > 0 || k == 0)
+            orb.push_back({es.eigenvalues()(i), c});
+        }
+      }
+      std::stable_sort(orb.begin(), orb.end(),
+                       [](const auto & a, const auto & b) { return a.first < b.first; });
+      helfem::Matrix Pn = 2.0 * (orb[0].second * orb[0].second.transpose()
+                                 + orb[1].second * orb[1].second.transpose());
+      dP = (Pn - P).cwiseAbs().maxCoeff();
+      P = Pn;
+    }
+    check("RHF density converged", dP, 0.0, 1e-10);
+    helfem::Matrix C;
+    helfem::Vector e;
+    std::vector<int> label, shell;
+    cas::canonical_orbitals(jk1, S1, P, dsym, Sinvh, C, e, label, shell);
+
+    helfem::Matrix Cc = C;
+    helfem::Vector ec = e;
+    std::vector<int> lc = label, sc = shell;
+    std::vector<double> w;
+    cas::correlating_virtuals(jk1, S1, P, 1, Cc, ec, lc, sc, w);
+    check("occupied orbitals untouched", (Cc.leftCols(2) - C.leftCols(2)).cwiseAbs().maxCoeff(),
+          0.0, 0.0);
+    check("orbitals still orthonormal",
+          (Cc.transpose() * S1 * Cc - helfem::Matrix::Identity(Cc.cols(), Cc.cols()))
+              .cwiseAbs().maxCoeff(), 0.0, 1e-10);
+    check("the three empty active orbitals are one shell of three copies (2p)",
+          (sc[2] == sc[3] && sc[3] == sc[4] && lc[2] != lc[3] && lc[3] != lc[4]
+           && lc[2] != lc[4]) ? 1.0 : 0.0, 1.0, 0.0);
+    printf("  leading correlating weight %.4e; lowest canonical virtual energies"
+           " %.6f %.6f %.6f\n", w[2], e(2), e(3), e(4));
+
+    cas::CASCI ci(4, 1, 1);
+    std::vector<double> c;
+    ci.set_hamiltonian(cas::active_hamiltonian(jk1, C, 1, 4));
+    const double Ecan = ci.solve_ground(c);
+    ci.set_hamiltonian(cas::active_hamiltonian(jk1, Cc, 1, 4));
+    const double Ecor = ci.solve_ground(c);
+    printf("  CASCI over canonical virtuals % .10f, over correlating functions % .10f\n",
+           Ecan, Ecor);
+    check("correlating functions lower the CASCI energy by more than 10 mEh",
+          Ecan - Ecor > 1e-2 ? 1.0 : 0.0, 1.0, 0.0);
   }
 
   printf("\n%s\n", nfail ? "CASSCF TEST FAILED" : "CASSCF TEST PASSED");

@@ -70,6 +70,33 @@ namespace helfem {
                             helfem::Matrix & C, helfem::Vector & energy,
                             std::vector<int> & label, std::vector<int> & shell);
 
+    /// Replace the empty orbitals from canonical_orbitals by correlating
+    /// functions: the energy-weighted maximal-exchange orbitals of
+    /// Aldossary and Head-Gordon (2022). In each block the virtuals a,b span
+    ///
+    ///     A_ab = sum_i n_i (ai|ib) / (2 e_i - e_a - e_b)
+    ///
+    /// over the ACTIVE occupied orbitals i -- the occupied ones above the
+    /// `ninact` lowest, with occupation n_i in P -- and its
+    /// eigenvectors, most negative eigenvalue first, replace them. A
+    /// canonical virtual is set by the one-electron problem alone, and in a
+    /// near-complete basis it is a diffuse, nearly free function that
+    /// couples to nothing; the correlating function is set by the occupied
+    /// density -- the leading one of a bonding orbital is its antibonding
+    /// partner -- so it is what an active space wants.
+    ///
+    /// The occupied orbitals are untouched and come first, by energy; the
+    /// virtuals follow in order of |eigenvalue| across all blocks, so the
+    /// active space takes the most strongly correlating ones whatever their
+    /// block. Equivalent blocks share one averaged A, which keeps their
+    /// copies identical. energy becomes the Fock expectation value, and
+    /// weight the eigenvalue (zero for an occupied orbital).
+    void correlating_virtuals(const JKProvider & jk, const helfem::Matrix & S,
+                              const helfem::Matrix & P, Eigen::Index ninact,
+                              helfem::Matrix & C,
+                              helfem::Vector & energy, std::vector<int> & label,
+                              std::vector<int> & shell, std::vector<double> & weight);
+
     struct CASSCFOptions {
       otr::Settings otr;
       int verbosity = 1;
@@ -174,8 +201,9 @@ namespace helfem {
     };
 
     /// CASSCF from an SCF density: validates the request against Ntot,
-    /// builds the starting orbitals with canonical_orbitals, reports them
-    /// with `block_name`, and runs the optimizer. Returns the electronic
+    /// builds the starting orbitals with canonical_orbitals and
+    /// correlating_virtuals, reports them with `block_name`, and runs the
+    /// optimizer. Returns the electronic
     /// energy. The caller must hold a KokkosScope.
     CASSCFResult casscf_from_scf(const JKProvider & jk, const helfem::Matrix & S,
                                  const helfem::Matrix & P,

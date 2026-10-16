@@ -971,6 +971,34 @@
       "nel_err": 2.665e-13,
       "nuclear": -410.3104619984,
       "total": -149.3545417228
+    },
+    "atomic-Be-hf-cas24": {
+      "Coulomb": 7.1560551656,
+      "Exx": -2.6669131303,
+      "XC": 0.0,
+      "_converged": true,
+      "_iterations": 7,
+      "_seconds": 86.2,
+      "casscf": -14.6168453292,
+      "err": 1.243,
+      "kinetic": 14.5730210859,
+      "nel_err": 1.243e-14,
+      "nuclear": -33.6351862897,
+      "total": -14.5730231684
+    },
+    "atomic-Be-pbe-cas24": {
+      "Coulomb": 7.1687773677,
+      "Exx": 0.0,
+      "XC": -2.719005362,
+      "_converged": true,
+      "_iterations": 7,
+      "_seconds": 52.5,
+      "casscf": -14.6168453292,
+      "err": 4.441,
+      "kinetic": 14.5583297352,
+      "nel_err": 4.441e-15,
+      "nuclear": -33.6380493755,
+      "total": -14.6299476346
     }
   },
   "metadata": {
