@@ -46,6 +46,48 @@ namespace helfem {
           .real();
     }
 
+    /// U * exp(kappa), where kappa is antisymmetric and supported only
+    /// on rows and columns 0..m-1 (the occupied and fractionally
+    /// occupied orbitals; rotations among the virtuals are redundant
+    /// and are not parameters).
+    ///
+    /// That support means kappa has rank at most 2m: its range lies in
+    /// span{e_0..e_{m-1}} plus the virtual part of its first m columns.
+    /// Projecting onto an orthonormal basis Q of those 2m directions
+    /// turns the exponential into a 2m x 2m problem,
+    /// exp(kappa) = I + Q (exp(Q'kappa Q) - I) Q', which costs O(n^2 m)
+    /// instead of the O(n^3) a dense exponential would -- and this is
+    /// called once per block per objective evaluation, so the
+    /// difference is the difference between a usable optimizer and an
+    /// unusable one.
+    helfem::Matrix apply_kappa(const helfem::Matrix &U,
+                               const helfem::Matrix &kappa, Eigen::Index m) {
+      const Eigen::Index n = kappa.rows();
+      if (kappa.cwiseAbs().maxCoeff() == 0.0)
+        return U;
+      if (2 * m >= n)
+        // The projection would not shrink anything.
+        return U * expm_skew(kappa);
+
+      // Orthonormal basis of the virtual part of the first m columns.
+      Eigen::HouseholderQR<helfem::Matrix> qr(kappa.bottomLeftCorner(n - m, m));
+      const helfem::Matrix Zq =
+          qr.householderQ() * helfem::Matrix::Identity(n - m, m);
+
+      helfem::Matrix Q = helfem::Matrix::Zero(n, 2 * m);
+      Q.topLeftCorner(m, m) = helfem::Matrix::Identity(m, m);
+      Q.bottomRightCorner(n - m, m) = Zq;
+
+      helfem::Matrix kt = Q.transpose() * kappa * Q;
+      // Antisymmetrize away the roundoff, so expm_skew's Hermitian
+      // eigensolver sees exactly what it expects.
+      kt = 0.5 * (kt - kt.transpose());
+      helfem::Matrix E = expm_skew(kt);
+      E.diagonal().array() -= 1.0;
+
+      return U + (U * Q) * E * Q.transpose();
+    }
+
     namespace {
       /// An occupation this close to empty or full counts as integer: the
       /// filling coordinate of such a block sits on a kink (an orbital
@@ -55,48 +97,6 @@ namespace helfem {
       /// Floor on |lambda - mu| in the preconditioner, matching
       /// OpenTrustRegion's own precond_floor.
       const double precond_floor = 1e-10;
-
-      /// U * exp(kappa), where kappa is antisymmetric and supported only
-      /// on rows and columns 0..m-1 (the occupied and fractionally
-      /// occupied orbitals; rotations among the virtuals are redundant
-      /// and are not parameters).
-      ///
-      /// That support means kappa has rank at most 2m: its range lies in
-      /// span{e_0..e_{m-1}} plus the virtual part of its first m columns.
-      /// Projecting onto an orthonormal basis Q of those 2m directions
-      /// turns the exponential into a 2m x 2m problem,
-      /// exp(kappa) = I + Q (exp(Q'kappa Q) - I) Q', which costs O(n^2 m)
-      /// instead of the O(n^3) a dense exponential would -- and this is
-      /// called once per block per objective evaluation, so the
-      /// difference is the difference between a usable optimizer and an
-      /// unusable one.
-      helfem::Matrix apply_kappa(const helfem::Matrix &U,
-                                 const helfem::Matrix &kappa, Eigen::Index m) {
-        const Eigen::Index n = kappa.rows();
-        if (kappa.cwiseAbs().maxCoeff() == 0.0)
-          return U;
-        if (2 * m >= n)
-          // The projection would not shrink anything.
-          return U * expm_skew(kappa);
-
-        // Orthonormal basis of the virtual part of the first m columns.
-        Eigen::HouseholderQR<helfem::Matrix> qr(kappa.bottomLeftCorner(n - m, m));
-        const helfem::Matrix Zq =
-            qr.householderQ() * helfem::Matrix::Identity(n - m, m);
-
-        helfem::Matrix Q = helfem::Matrix::Zero(n, 2 * m);
-        Q.topLeftCorner(m, m) = helfem::Matrix::Identity(m, m);
-        Q.bottomRightCorner(n - m, m) = Zq;
-
-        helfem::Matrix kt = Q.transpose() * kappa * Q;
-        // Antisymmetrize away the roundoff, so expm_skew's Hermitian
-        // eigensolver sees exactly what it expects.
-        kt = 0.5 * (kt - kt.transpose());
-        helfem::Matrix E = expm_skew(kt);
-        E.diagonal().array() -= 1.0;
-
-        return U + (U * Q) * E * Q.transpose();
-      }
 
       /// Symmetric (Loewdin) reorthonormalization, to stop the reference
       /// orbitals drifting off the orthogonal manifold over many

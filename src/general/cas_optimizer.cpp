@@ -416,8 +416,10 @@ namespace helfem {
         : jk_(jk), S_(S), ci_(ci), ninact_(ninact), nact_(nact),
           pairs_(rotation_pairs(C.cols(), ninact, nact, label, shell)), coupling_(coupling) {
       // Both parametrizations start from the CASCI ground state at C.
+      C = orthonormalized(C);
+      trial_ = std::make_unique<CASPoint>(jk_, C, ninact_, nact_);
       std::vector<double> c;
-      ci_.set_hamiltonian(active_hamiltonian(jk_, C, ninact_, nact_));
+      ci_.set_hamiltonian(trial_->hamiltonian());
       ci_.solve_ground(c);
       adopt(C, ci_.to_csf(c));
     }
@@ -432,8 +434,30 @@ namespace helfem {
       return K;
     }
 
+    helfem::Matrix CASSCF::orthonormalized(const helfem::Matrix & C) const {
+      // So that roundoff in many rotations cannot accumulate into
+      // non-orthonormal orbitals. Loewdin over the occupied orbitals, and
+      // the virtuals made orthogonal to them: the rotations are exact
+      // exponentials, so what drifts is roundoff, and a Loewdin over all
+      // orbitals would be a dense eigensolve of the whole basis (4004
+      // orbitals for Cr2) at every step.
+      const Eigen::Index nocc = ninact_ + nact_, nvirt = C.cols() - nocc;
+      helfem::Matrix out = C;
+      const helfem::Matrix Co = C.leftCols(nocc);
+      Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(Co.transpose() * S_ * Co);
+      out.leftCols(nocc) = Co * (es.eigenvectors()
+                                 * es.eigenvalues().array().rsqrt().matrix().asDiagonal()
+                                 * es.eigenvectors().transpose());
+      if (nvirt > 0) {
+        const helfem::Matrix SCo = S_ * out.leftCols(nocc);
+        out.rightCols(nvirt) -= out.leftCols(nocc) * (SCo.transpose() * C.rightCols(nvirt));
+      }
+      return out;
+    }
+
     helfem::Matrix CASSCF::rotated(const double * x) const {
-      return C_ * trscf::expm_skew(kappa(x));
+      // Every rotation has its lower index among the occupied orbitals.
+      return orthonormalized(trscf::apply_kappa(C_, kappa(x), ninact_ + nact_));
     }
 
     std::vector<double> CASSCF::ci_at(const double * x) const {
@@ -456,13 +480,16 @@ namespace helfem {
     }
 
     void CASSCF::adopt(const helfem::Matrix & C, const std::vector<double> & ccsf) {
-      // Loewdin, so that roundoff in many rotations cannot accumulate into
-      // non-orthonormal orbitals; likewise the CI vector is renormalized.
-      Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(C.transpose() * S_ * C);
-      C_ = C * (es.eigenvectors() * es.eigenvalues().array().rsqrt().matrix().asDiagonal()
-                * es.eigenvectors().transpose());
-      ah_ = active_hamiltonian(jk_, C_, ninact_, nact_);
-      ci_.set_hamiltonian(ah_);
+      // C comes from rotated(), already orthonormal. The optimizer normally
+      // adopts the point whose energy it evaluated last, so those integrals
+      // are taken over rather than rebuilt.
+      C_ = C;
+      if (trial_ && trial_->orbitals() == C)
+        pt_ = std::move(trial_);
+      else
+        pt_ = std::make_unique<CASPoint>(jk_, C_, ninact_, nact_);
+      trial_.reset();
+      ci_.set_hamiltonian(pt_->hamiltonian());
       if (coupling_ == Coupling::TwoStep) {
         E_ = ci_.solve_ground(c_);
         ccsf_ = ci_.to_csf(c_);
@@ -476,12 +503,13 @@ namespace helfem {
       E_ = dot(c_, s);
       sigma_ = ci_.to_csf(s);
       rdm_ = ci_.rdms(c_, c_);
-      g_ = orbital_gradient(jk_, C_, ninact_, nact_, rdm_.D, rdm_.d);
+      Fg_ = pt_->generalized_fock(rdm_.D, rdm_.d);
+      g_ = 2.0 * square_antisymmetric(Fg_);
     }
 
     double CASSCF::energy(const std::vector<double> & x) {
-      const helfem::Matrix C = rotated(x.data());
-      const ActiveHamiltonian ah = active_hamiltonian(jk_, C, ninact_, nact_);
+      trial_ = std::make_unique<CASPoint>(jk_, rotated(x.data()), ninact_, nact_);
+      const ActiveHamiltonian & ah = trial_->hamiltonian();
       if (coupling_ == Coupling::TwoStep) {
         std::vector<double> c;
         ci_.set_hamiltonian(ah);
@@ -506,10 +534,14 @@ namespace helfem {
       // hess_kappa_kappa_raw differentiates the gradient along a product of
       // exponentials, which differs from the Hessian by the commutator term
       // (1/2) g . [K, .]; taking it off leaves the symmetric Hessian.
+      // Only the occupied columns of M are parameters.
+      const Eigen::Index nocc = ninact_ + nact_;
       const helfem::Matrix K = kappa(x.data());
-      helfem::Matrix M =
-          hess_kappa_kappa_raw(jk_, C_, ninact_, nact_, rdm_.D, rdm_.d, K)
-          - 0.5 * (g_ * K - K * g_);
+      ActiveHamiltonian dH;
+      const helfem::Matrix dF = pt_->fock_response(
+          rdm_.D, rdm_.d, K, coupling_ == Coupling::Coupled ? &dH : nullptr);
+      helfem::Matrix M = 2.0 * antisymmetrize_occupied(dF)
+                         - 0.5 * (g_ * K.leftCols(nocc) - K * g_.leftCols(nocc));
       std::vector<double> hx(nparam(), 0.0);
 
       if (coupling_ == Coupling::Coupled) {
@@ -524,20 +556,17 @@ namespace helfem {
         const RDMs a = ci_.rdms(tdet, c_), b = ci_.rdms(c_, tdet);
         std::vector<double> dt(a.d.size());
         for (size_t i = 0; i < dt.size(); i++) dt[i] = a.d[i] + b.d[i];
-        helfem::Matrix Ft = helfem::Matrix::Zero(C_.cols(), C_.cols());
-        Ft.leftCols(ninact_ + nact_) =
-            generalized_fock(jk_, C_, ninact_, nact_, a.D + b.D, dt, 0.0);
-        M += 2.0 * (Ft - Ft.transpose());
+        M += 2.0 * antisymmetrize_occupied(pt_->generalized_fock(a.D + b.D, dt, 0.0));
 
         // c-c: 2 P (H - E) t, with the reference Hamiltonian installed.
-        ci_.set_hamiltonian(ah_);
+        ci_.set_hamiltonian(pt_->hamiltonian());
         std::vector<double> hc = ci_.to_csf(ci_.sigma(tdet));
         for (size_t i = 0; i < hc.size(); i++) hc[i] = 2.0 * (hc[i] - E_ * t[i]);
 
         // c-kappa: 2 P H' |0>, H' the one-index-transformed Hamiltonian.
-        ci_.set_hamiltonian(active_hamiltonian_response(jk_, C_, ninact_, nact_, K));
+        ci_.set_hamiltonian(dH);
         const std::vector<double> sk = ci_.to_csf(ci_.sigma(c_));
-        ci_.set_hamiltonian(ah_);
+        ci_.set_hamiltonian(pt_->hamiltonian());
         for (size_t i = 0; i < hc.size(); i++) hc[i] += 2.0 * sk[i];
 
         hc = project_out(hc, ccsf_);
@@ -552,14 +581,8 @@ namespace helfem {
     std::vector<double> CASSCF::hessian_diagonal() const {
       // The usual Fock-matrix approximation to the diagonal, with F = F^I +
       // F^A; only the preconditioner sees it.
-      double Ei;
-      const helfem::Matrix Ca = C_.middleCols(ninact_, nact_);
-      const helfem::Matrix F =
-          C_.transpose()
-          * (inactive_fock(jk_, C_, ninact_, Ei)
-             + closed_shell_veff(jk_, Ca * rdm_.D * Ca.transpose()))
-          * C_;
-      const helfem::Matrix Fg = generalized_fock(jk_, C_, ninact_, nact_, rdm_.D, rdm_.d);
+      const helfem::Vector Fd = pt_->fock_diagonal(rdm_.D);
+      const helfem::Matrix & Fg = Fg_;
 
       std::vector<double> h(pairs_.size());
       for (size_t k = 0; k < pairs_.size(); k++) {
@@ -571,13 +594,13 @@ namespace helfem {
         const bool p_active = p < ninact_ + nact_;
         double v;
         if (q_inactive && !p_active) {
-          v = 4.0 * (F(p, p) - F(q, q));
+          v = 4.0 * (Fd(p) - Fd(q));
         } else if (q_inactive) {
           const double Dtt = rdm_.D(p - ninact_, p - ninact_);
-          v = 4.0 * (F(p, p) - F(q, q)) + 2.0 * Dtt * F(q, q) - 2.0 * Fg(p, p);
+          v = 4.0 * (Fd(p) - Fd(q)) + 2.0 * Dtt * Fd(q) - 2.0 * Fg(p, p);
         } else {
           const double Dtt = rdm_.D(q - ninact_, q - ninact_);
-          v = 2.0 * Dtt * F(p, p) - 2.0 * Fg(q, q);
+          v = 2.0 * Dtt * Fd(p) - 2.0 * Fg(q, q);
         }
         // Rotations into an empty or full active orbital are (nearly)
         // redundant and have a vanishing diagonal; keep the sign, bound

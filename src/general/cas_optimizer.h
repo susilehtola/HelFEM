@@ -19,6 +19,7 @@
 #include "cas_integrals.h"
 #include "otr_solver.h"
 
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -172,17 +173,21 @@ namespace helfem {
       Coupling coupling_;
 
       /// State at the current point: energy, CI vector (determinants and
-      /// CSFs), the active Hamiltonian, sigma of the state in CSFs, RDMs
-      /// and the square orbital gradient.
+      /// CSFs), sigma of the state in CSFs, the integrals, RDMs and the
+      /// orbital gradient.
       double E_ = 0.0;
       std::vector<double> c_, ccsf_, sigma_;
-      ActiveHamiltonian ah_;
+      /// The integrals at the current point, and at the last point whose
+      /// energy was asked for, which is usually the next one adopted.
+      std::unique_ptr<CASPoint> pt_, trial_;
       RDMs rdm_;
-      helfem::Matrix g_;
+      /// Generalized Fock matrix (norb x nocc) and the square gradient.
+      helfem::Matrix Fg_, g_;
 
       size_t nci() const { return coupling_ == Coupling::Coupled ? ccsf_.size() : 0; }
       helfem::Matrix kappa(const double * x) const;
       helfem::Matrix rotated(const double * x) const;
+      helfem::Matrix orthonormalized(const helfem::Matrix & C) const;
       /// The normalized CSF vector the CI parameters at x name.
       std::vector<double> ci_at(const double * x) const;
       /// <c|H|c> for a CSF vector, with H installed in the CI first.

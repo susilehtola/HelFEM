@@ -99,6 +99,74 @@ namespace helfem {
                                          const helfem::Matrix & C,
                                          Eigen::Index ninact, Eigen::Index nact);
 
+    /// The integrals of one set of orbitals C, built once and shared by
+    /// everything a CASSCF step needs there: the active Hamiltonian, the
+    /// generalized Fock matrix at the state or at any transition RDMs, and
+    /// its orbital response.
+    ///
+    /// The construction costs one closed-shell Fock build for the inactive
+    /// density and one Coulomb build per unordered active pair (v,w); the
+    /// pair matrices are kept as C^T J[C_v C_w^T] C_a, all orbitals by the
+    /// active ones, which is every (mu|vw) with u active that the
+    /// generalized Fock matrix contracts. With them the 2-RDM term of any
+    /// generalized Fock matrix is a contraction, and the active Hamiltonian
+    /// is their active rows. No product here runs over all orbitals twice:
+    /// in a basis of thousands of orbitals an N^3 product per call costs
+    /// more than the integrals.
+    class CASPoint {
+     public:
+      CASPoint(const JKProvider & jk, const helfem::Matrix & C,
+               Eigen::Index ninact, Eigen::Index nact);
+
+      const helfem::Matrix & orbitals() const { return C_; }
+      const ActiveHamiltonian & hamiltonian() const { return ah_; }
+
+      /// generalized_fock below, (norb x nocc). Costs one closed-shell Fock
+      /// build of the active density, cached for the last D asked for.
+      helfem::Matrix generalized_fock(const helfem::Matrix & D, const std::vector<double> & d,
+                                      double core_occ = 2.0) const;
+
+      /// fock_response_kappa below, (norb x nocc), and if dH is given
+      /// active_hamiltonian_response along the same dkap: the two share
+      /// their Coulomb builds, two per unordered active pair, plus two
+      /// closed-shell Fock builds.
+      helfem::Matrix fock_response(const helfem::Matrix & D, const std::vector<double> & d,
+                                   const helfem::Matrix & dkap,
+                                   ActiveHamiltonian * dH = nullptr) const;
+
+      /// Diagonal of C^T (F^I + F^A) C over all orbitals, F^A that of the
+      /// active density Ca D Ca^T: what the usual approximation to the
+      /// orbital Hessian diagonal needs.
+      helfem::Vector fock_diagonal(const helfem::Matrix & D) const;
+
+     private:
+      const JKProvider & jk_;
+      helfem::Matrix C_;
+      Eigen::Index ninact_, nact_;
+      /// h + veff of the inactive density, AO; C^T Vi C over occupied columns.
+      helfem::Matrix Vi_, FIo_;
+      /// L_[v*nact + w] = C^T J[C_v C_w^T] C_a.
+      std::vector<helfem::Matrix> L_;
+      ActiveHamiltonian ah_;
+      /// veff of the active density for Va_D_.
+      mutable helfem::Matrix Va_, Va_D_;
+
+      const helfem::Matrix & active_veff(const helfem::Matrix & D) const;
+      /// T(u,t) = d_tuvw.
+      helfem::Matrix pair_block(const std::vector<double> & d, Eigen::Index v,
+                                Eigen::Index w) const;
+      /// Q[m][t] = sum_uvw d_tuvw (mu|vw), all orbitals by active.
+      helfem::Matrix Q(const std::vector<double> & d) const;
+      void check_rdms(const helfem::Matrix & D, const std::vector<double> & d) const;
+    };
+
+    /// F - F^T restricted to the occupied columns, for F (norb x nocc) whose
+    /// columns beyond nocc vanish: the occupied columns of the square
+    /// completion's antisymmetric part.
+    helfem::Matrix antisymmetrize_occupied(const helfem::Matrix & F);
+    /// The same, as a square (norb x norb) matrix.
+    helfem::Matrix square_antisymmetric(const helfem::Matrix & F);
+
     /// d/dt active_hamiltonian(C exp(t dkap)) at t = 0: the one-index
     /// transformed Hamiltonian. Its sigma vector on the CI state is the
     /// CI-orbital block of the coupled Hessian. Same coulomb() primitive as
