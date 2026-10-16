@@ -165,14 +165,13 @@ namespace helfem {
       return s;
     }
 
-    double CASCI::solve_ground(std::vector<double> & civec, size_t max_csf) const {
+    double CASCI::solve_ground(std::vector<double> & civec, size_t max_dense) const {
       const auto & sb = impl_->builder();
       const size_t nc = ncsf(), nd = ndet();
       if (nc == 0)
         throw std::runtime_error("CASCI: no CSFs of the target spin");
-      if (nc > max_csf)
-        throw std::runtime_error("CASCI: " + std::to_string(nc) + " CSFs exceed the "
-                                 "dense solver's limit of " + std::to_string(max_csf));
+      if (nc > max_dense)
+        return davidson(civec);
 
       // H in the CSF basis, one column per CSF: CSF -> determinants -> sigma
       // -> back to CSFs. The CSFs are an orthonormal combination of
@@ -200,6 +199,81 @@ namespace helfem {
       civec.assign(nd, 0.0);
       impl_->spin.csf_C_to_det_C(c0, civec);
       return es.eigenvalues()(0);
+    }
+
+    double CASCI::davidson(std::vector<double> & civec) const {
+      const auto & sb = impl_->builder();
+      const size_t nc = ncsf(), nd = ndet();
+      const Eigen::Index n = (Eigen::Index) nc;
+      const std::vector<double> hd = hdiag_csf();
+      auto apply = [&](const helfem::Vector & x) {
+        std::vector<double> xc(x.data(), x.data() + nc), det(nd), sig(nd), out(nc);
+        impl_->spin.csf_C_to_det_C(xc, det);
+        sb.Hamiltonian(det.data(), sig.data(), nd);
+        impl_->spin.det_C_to_csf_C(sig, out);
+        return helfem::Vector(Eigen::Map<helfem::Vector>(out.data(), n));
+      };
+
+      // Start from the CSF with the lowest diagonal element.
+      helfem::Vector x = helfem::Vector::Zero(n);
+      x((Eigen::Index) (std::min_element(hd.begin(), hd.end()) - hd.begin())) = 1.0;
+
+      // Collapsed to the current and the previous Ritz vector when full, so
+      // the subspace keeps the direction the iteration is moving in.
+      const Eigen::Index maxdim = 24;
+      const int maxit = 1000;
+      const double tol = 1e-9;
+      helfem::Matrix V(n, maxdim), AV(n, maxdim);
+      V.col(0) = x;
+      AV.col(0) = apply(x);
+      Eigen::Index m = 1;
+      helfem::Vector xprev = x;
+      double theta = 0.0, rnorm = 0.0;
+      for (int it = 0; it < maxit; it++) {
+        const helfem::Matrix Hs = V.leftCols(m).transpose() * AV.leftCols(m);
+        Eigen::SelfAdjointEigenSolver<helfem::Matrix> es(0.5 * (Hs + Hs.transpose()));
+        theta = es.eigenvalues()(0);
+        const helfem::Vector y = es.eigenvectors().col(0);
+        x = V.leftCols(m) * y;
+        helfem::Vector r = AV.leftCols(m) * y - theta * x;
+        rnorm = r.norm();
+        if (rnorm < tol) {
+          civec.assign(nd, 0.0);
+          std::vector<double> xc(x.data(), x.data() + nc);
+          impl_->spin.csf_C_to_det_C(xc, civec);
+          return theta;
+        }
+        // Diagonal correction, kept away from the pole.
+        for (Eigen::Index i = 0; i < n; i++) {
+          double d = theta - hd[(size_t) i];
+          if (std::abs(d) < 1e-4) d = d < 0.0 ? -1e-4 : 1e-4;
+          r(i) /= d;
+        }
+        if (m == maxdim) {
+          helfem::Vector p = xprev - x * x.dot(xprev);
+          V.col(0) = x;
+          AV.col(0) = AV.leftCols(m) * y;
+          m = 1;
+          if (p.norm() > 1e-8) {
+            p.normalize();
+            V.col(1) = p;
+            AV.col(1) = apply(p);
+            m = 2;
+          }
+        }
+        xprev = x;
+        for (int pass = 0; pass < 2; pass++)
+          r -= V.leftCols(m) * (V.leftCols(m).transpose() * r);
+        const double nr = r.norm();
+        if (nr < 1e-14)
+          break;
+        V.col(m) = r / nr;
+        AV.col(m) = apply(V.col(m));
+        m++;
+      }
+      throw std::runtime_error("CASCI: Davidson did not converge, residual "
+                               + std::to_string(rnorm) + " after " + std::to_string(maxit)
+                               + " iterations");
     }
 
     std::vector<double> CASCI::to_det(const std::vector<double> & csf) const {

@@ -101,11 +101,10 @@ namespace helfem {
       /// Lowest root in the target spin: energy (including E_inactive) and
       /// its determinant-basis CI vector.
       ///
-      /// Solved by dense diagonalization of H in the CSF basis, built from
-      /// reci sigma vectors. Exact and simple, and limited to `max_csf`
-      /// CSFs; an iterative solver replaces it when larger active spaces are
-      /// needed.
-      double solve_ground(std::vector<double> & civec, size_t max_csf = 5000) const;
+      /// Up to `max_dense` CSFs, solved by dense diagonalization of H in the
+      /// CSF basis, built from reci sigma vectors: exact and simple. Above
+      /// that, by Davidson in the CSF basis, to a residual norm of 1e-9.
+      double solve_ground(std::vector<double> & civec, size_t max_dense = 5000) const;
 
       /// sigma = H c in the determinant basis, with E_inactive on the
       /// diagonal: the same H whose eigenvalue solve_ground returns.
@@ -127,6 +126,8 @@ namespace helfem {
      private:
       struct Impl;
       std::unique_ptr<Impl> impl_;
+      /// The iterative branch of solve_ground.
+      double davidson(std::vector<double> & civec) const;
     };
 
     /// Largest violation of one permutational symmetry of a chemist tensor:
