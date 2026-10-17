@@ -130,9 +130,18 @@ namespace helfem {
       /// active_hamiltonian_response along the same dkap: the two share
       /// their Coulomb builds, two per unordered active pair, plus two
       /// closed-shell Fock builds.
+      ///
+      /// If Dt and dt are given, generalized_fock(Dt, dt, 0) is added to the
+      /// result: the kappa-c block of a coupled Hessian, which a
+      /// Hessian-vector product needs alongside. Its closed-shell Fock build
+      /// of Ca Dt Ca^T enters only the inactive columns, exactly where the
+      /// response's build of the perturbed active density does, and both are
+      /// linear, so one build of the sum serves the two.
       helfem::Matrix fock_response(const helfem::Matrix & D, const std::vector<double> & d,
                                    const helfem::Matrix & dkap,
-                                   ActiveHamiltonian * dH = nullptr) const;
+                                   ActiveHamiltonian * dH = nullptr,
+                                   const helfem::Matrix * Dt = nullptr,
+                                   const std::vector<double> * dt = nullptr) const;
 
       /// Diagonal of C^T (F^I + F^A) C over all orbitals, F^A that of the
       /// active density Ca D Ca^T: what the usual approximation to the

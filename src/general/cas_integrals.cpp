@@ -176,8 +176,14 @@ namespace helfem {
     helfem::Matrix CASPoint::fock_response(const helfem::Matrix & D,
                                            const std::vector<double> & d,
                                            const helfem::Matrix & dkap,
-                                           ActiveHamiltonian * dH) const {
+                                           ActiveHamiltonian * dH,
+                                           const helfem::Matrix * Dt,
+                                           const std::vector<double> * dt) const {
       check_rdms(D, d);
+      if ((Dt == nullptr) != (dt == nullptr))
+        throw std::logic_error("CASPoint::fock_response: give both transition RDMs or neither.\n");
+      if (Dt)
+        check_rdms(*Dt, *dt);
       const Eigen::Index n = nact_, ni = ninact_, nocc = ni + n, norb = C_.cols();
       const helfem::Matrix Co = C_.leftCols(nocc);
       const helfem::Matrix Ci = C_.leftCols(ni), Ca = C_.middleCols(ni, n);
@@ -192,7 +198,10 @@ namespace helfem {
           (ni > 0) ? closed_shell_veff(jk_, dPI) : helfem::Matrix(helfem::Matrix::Zero(norb, norb));
       helfem::Matrix dPA = Cxa * D * Ca.transpose();
       dPA += dPA.transpose().eval();
-      const helfem::Matrix dVa = closed_shell_veff(jk_, dPA);
+      // dVa reaches the inactive columns only, through Ci; so does the
+      // transition density's build, so fold it in (see the header).
+      const helfem::Matrix dVa = closed_shell_veff(
+          jk_, (Dt && ni > 0) ? helfem::Matrix(dPA + Ca * (*Dt) * Ca.transpose()) : dPA);
       const helfem::Matrix & Va = active_veff(D);
 
       // d(C^T V C)/dt = dkap^T (C^T V C) + C^T V (C dkap) + C^T dV C, over
@@ -245,6 +254,10 @@ namespace helfem {
         }
       dF.middleCols(ni, n) =
           dFI.middleCols(ni, n) * D + dkap.transpose() * Q(d) + C_.transpose() * acc;
+      // generalized_fock(Dt, dt, 0) less its inactive columns, which dVa
+      // already carries.
+      if (Dt)
+        dF.middleCols(ni, n) += FIo_.middleCols(ni, n) * (*Dt) + Q(*dt);
       return dF;
     }
 

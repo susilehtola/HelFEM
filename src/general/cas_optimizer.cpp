@@ -537,27 +537,32 @@ namespace helfem {
       // Only the occupied columns of M are parameters.
       const Eigen::Index nocc = ninact_ + nact_;
       const helfem::Matrix K = kappa(x.data());
+      const bool coupled = coupling_ == Coupling::Coupled;
+
+      // kappa-c: the orbital gradient is bilinear in the CI vector, so its
+      // derivative along t is the gradient at the symmetrised transition
+      // RDMs. Their inactive block vanishes because <t|0> = 0, hence
+      // core_occ = 0. fock_response adds it, sharing a Fock build.
+      std::vector<double> t, tdet, dt;
+      helfem::Matrix Dt;
+      if (coupled) {
+        t = project_out(std::vector<double>(x.begin() + nrot(), x.end()), ccsf_);
+        tdet = ci_.to_det(t);
+        const RDMs a = ci_.rdms(tdet, c_), b = ci_.rdms(c_, tdet);
+        Dt = a.D + b.D;
+        dt.resize(a.d.size());
+        for (size_t i = 0; i < dt.size(); i++) dt[i] = a.d[i] + b.d[i];
+      }
+
       ActiveHamiltonian dH;
-      const helfem::Matrix dF = pt_->fock_response(
-          rdm_.D, rdm_.d, K, coupling_ == Coupling::Coupled ? &dH : nullptr);
-      helfem::Matrix M = 2.0 * antisymmetrize_occupied(dF)
-                         - 0.5 * (g_ * K.leftCols(nocc) - K * g_.leftCols(nocc));
+      const helfem::Matrix dF = pt_->fock_response(rdm_.D, rdm_.d, K, coupled ? &dH : nullptr,
+                                                   coupled ? &Dt : nullptr,
+                                                   coupled ? &dt : nullptr);
+      const helfem::Matrix M = 2.0 * antisymmetrize_occupied(dF)
+                               - 0.5 * (g_ * K.leftCols(nocc) - K * g_.leftCols(nocc));
       std::vector<double> hx(nparam(), 0.0);
 
-      if (coupling_ == Coupling::Coupled) {
-        const std::vector<double> t =
-            project_out(std::vector<double>(x.begin() + nrot(), x.end()), ccsf_);
-        const std::vector<double> tdet = ci_.to_det(t);
-
-        // kappa-c: the orbital gradient is bilinear in the CI vector, so its
-        // derivative along t is the gradient at the symmetrised transition
-        // RDMs. Their inactive block vanishes because <t|0> = 0, hence
-        // core_occ = 0.
-        const RDMs a = ci_.rdms(tdet, c_), b = ci_.rdms(c_, tdet);
-        std::vector<double> dt(a.d.size());
-        for (size_t i = 0; i < dt.size(); i++) dt[i] = a.d[i] + b.d[i];
-        M += 2.0 * antisymmetrize_occupied(pt_->generalized_fock(a.D + b.D, dt, 0.0));
-
+      if (coupled) {
         // c-c: 2 P (H - E) t, with the reference Hamiltonian installed.
         ci_.set_hamiltonian(pt_->hamiltonian());
         std::vector<double> hc = ci_.to_csf(ci_.sigma(tdet));
