@@ -194,6 +194,16 @@ namespace helfem {
         /// Relative eigenvalue threshold for the factorization above
         double cd_thresh;
 
+        /// Angular coupling of channel j to channel i through (L,M),
+        /// M = m_j - m_i: u0 = mod_coeff(lj,mj,L,M,li,mi) and
+        /// u1 = coeff(lj,mj,L,M,li), nonzero ones only. ang_cpl[key][j]
+        /// with key = 2*lmind(L,M) + (M<0). Coulomb and exchange both
+        /// contract the density with these, on either index pair.
+        struct AngCpl { size_t other; double u0, u1; };
+        std::vector<std::vector<std::vector<AngCpl>>> ang_cpl;
+        /// Per angular row i, the channels l with a nonzero block P(i,l)
+        std::vector<std::vector<size_t>> nonzero_blocks(const helfem::Matrix & P) const;
+
         /// Add to radial submatrix
         void add_sub(helfem::Matrix & M, size_t iang, size_t jang, const helfem::Matrix & Msub) const;
         /// Set radial submatrix
