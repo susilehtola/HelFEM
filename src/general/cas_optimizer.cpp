@@ -658,6 +658,16 @@ namespace helfem {
       for (double v : g) g2 += v * v;
       res.energy = E_;
       res.grad_rms = n ? std::sqrt(g2 / n) : 0.0;
+      // OpenTrustRegion reports only an unstable point, which it then
+      // follows downhill, so say it here when the final one passed. The
+      // check covers the CI coefficients too: a negative curvature there
+      // would mean the CI vector is not the lowest root at these orbitals.
+      // It cannot see other minima, only whether this one is one.
+      if (s.stability && res.grad_rms <= s.conv_tol && opt.verbosity >= 1) {
+        printf("Stability analysis: no negative Hessian eigenvalue among the "
+               "%i parameters, so this is a minimum within the symmetry blocks.\n", n);
+        fflush(stdout);
+      }
       if (opt.verbosity >= 1) {
         printf("CASSCF energy %.10f, RMS gradient %.3e: %zu updates, "
                "%zu objective evaluations, %zu Hessian-vector products\n",
@@ -706,6 +716,34 @@ namespace helfem {
       CASCI ci(req.nact, (nactel + req.twoS) / 2, (nactel - req.twoS) / 2);
       CASSCF cas(jk, S, ci, C, req.ninact, req.nact, label, shell, req.coupling);
       const CASSCFResult res = cas.run(req.options);
+      if (req.options.verbosity >= 1) {
+        // Natural occupations per symmetry block. Active-active rotations
+        // are not parameters, so each active orbital keeps its block, and
+        // D does not couple blocks.
+        const helfem::Matrix & D = cas.active_density();
+        printf("Natural occupations of the active orbitals:\n");
+        std::vector<int> done;
+        for (int t = 0; t < req.nact; t++) {
+          const int lt = label[(size_t) (req.ninact + t)];
+          if (std::find(done.begin(), done.end(), lt) != done.end())
+            continue;
+          done.push_back(lt);
+          std::vector<Eigen::Index> idx;
+          for (int u = 0; u < req.nact; u++)
+            if (label[(size_t) (req.ninact + u)] == lt)
+              idx.push_back(u);
+          helfem::Matrix Db((Eigen::Index) idx.size(), (Eigen::Index) idx.size());
+          for (size_t a = 0; a < idx.size(); a++)
+            for (size_t b = 0; b < idx.size(); b++)
+              Db((Eigen::Index) a, (Eigen::Index) b) = D(idx[a], idx[b]);
+          const helfem::Vector occ = Eigen::SelfAdjointEigenSolver<helfem::Matrix>(Db).eigenvalues();
+          printf("  %-10s", block_name[(size_t) lt].c_str());
+          for (Eigen::Index i = occ.size() - 1; i >= 0; i--)
+            printf(" %.6f", occ(i));
+          printf("\n");
+        }
+        fflush(stdout);
+      }
       // Checked here rather than trusted to OpenTrustRegion's exit status: the
       // drivers print this energy as the result of the run.
       if (!(res.grad_rms <= req.options.otr.conv_tol)) {

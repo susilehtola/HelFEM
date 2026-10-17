@@ -162,6 +162,8 @@ namespace helfem {
       const helfem::Matrix & orbitals() const { return C_; }
       /// The CI state in the determinant basis.
       const std::vector<double> & ci_vector() const { return c_; }
+      /// The active-space one-particle density matrix at the current point.
+      const helfem::Matrix & active_density() const { return rdm_.D; }
 
      private:
       const JKProvider & jk_;
