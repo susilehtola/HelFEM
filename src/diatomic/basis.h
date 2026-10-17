@@ -184,6 +184,13 @@ namespace helfem {
         /// eigenvalue-thresholded factorization, not a plain Cholesky.
         std::vector<helfem::Matrix> cd_B;
         std::vector<helfem::Vector> cd_sigma;
+        /// cd_B rearranged for exchange(), which needs, per element and
+        /// (L,|M|), K = sum_p sigma_p W_p R V_p with W_p = [M0_p' M2_p'] and
+        /// V_p = [M0_p'; M2_p'] (M_p the channel blocks of Cholesky vector
+        /// p). Stacking W_p over p as rows (cd_KW, Nprim*r x 2*Nprim) and
+        /// sigma_p V_p over p as rows (cd_KV, r*2*Nprim x Nprim) turns the
+        /// 8r tiny products per output block into two GEMMs.
+        std::vector<helfem::Matrix> cd_KW, cd_KV;
         /// Relative eigenvalue threshold for the factorization above
         double cd_thresh;
 

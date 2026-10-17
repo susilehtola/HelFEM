@@ -1316,6 +1316,8 @@ namespace helfem {
         cd_thresh = 1e-12;
         cd_B.assign(Nel*lm_map.size(), helfem::Matrix());
         cd_sigma.assign(Nel*lm_map.size(), helfem::Vector());
+        cd_KW.assign(Nel*lm_map.size(), helfem::Matrix());
+        cd_KV.assign(Nel*lm_map.size(), helfem::Matrix());
 
 #ifdef _OPENMP
 #pragma omp parallel for
@@ -1404,6 +1406,26 @@ namespace helfem {
 
             cd_B[ilm*Nel+iel]     = B;
             cd_sigma[ilm*Nel+iel] = sigma;
+
+            // Exchange layouts; see cd_KW in basis.h. With Ni functions in
+            // the element, M0_p(i,j) = B(j*Ni+i, p) and M2_p(i,j) =
+            // B(Ni^2+j*Ni+i, p). For the stacked index a = c*Ni+b (channel
+            // c, function b), [M0' M2'](j,a) = B(c*Ni^2+j*Ni+b, p) and
+            // [M0'; M2'](a,j) = B(a*Ni+j, p).
+            const Eigen::Index Ni = (Eigen::Index) std::lround(std::sqrt((double) n));
+            if(Ni*Ni != n)
+              throw std::logic_error("In-element integral block is not Nprim^2 square.\n");
+            helfem::Matrix KW(Ni*r, 2*Ni), KV(r*2*Ni, Ni);
+            for(Eigen::Index p=0;p<r;p++)
+              for(Eigen::Index c=0;c<2;c++)
+                for(Eigen::Index b=0;b<Ni;b++)
+                  for(Eigen::Index j=0;j<Ni;j++) {
+                    const Eigen::Index a = c*Ni+b;
+                    KW(j+Ni*p, a) = B(c*n+j*Ni+b, p);
+                    KV(p+r*a, j) = sigma(p)*B(a*Ni+j, p);
+                  }
+            cd_KW[ilm*Nel+iel] = KW;
+            cd_KV[ilm*Nel+iel] = KV;
           }
         }
 
@@ -1732,6 +1754,37 @@ namespace helfem {
             pairs_by_dm[dm+dmoff].emplace_back(iang,lang);
           }
 
+        // The (l,-m) partner of each angular channel.
+        std::vector<size_t> mirror_ang(Nang, Nang);
+        for(size_t a1=0;a1<Nang;a1++)
+          for(size_t b1=0;b1<Nang;b1++)
+            if(lval_(b1)==lval_(a1) && mval_(b1)==-mval_(a1)) { mirror_ang[a1]=b1; break; }
+
+        // Build only the m >= 0 half of K and mirror it (see below) when
+        // the density is diagonal in m and the same in its +m and -m
+        // blocks. The driver asserts that through absm_symmetric for a
+        // --symmetry=3 SCF; otherwise it is detected here, which is what
+        // lets a perturbed density such as a CASSCF's -- built from
+        // rotations tied between the +m and -m partners -- take the
+        // shortcut too, while a pair density between them, which carries
+        // dm != 0, does not.
+        bool mirror = absm_symmetric;
+        if(!mirror) {
+          mirror = true;
+          for(int dm=-2*mabs;dm<=2*mabs && mirror;dm++)
+            if(dm != 0 && !pairs_by_dm[dm+dmoff].empty())
+              mirror = false;
+          for(size_t ip=0;ip<pairs_by_dm[dmoff].size() && mirror;ip++) {
+            const size_t iang = pairs_by_dm[dmoff][ip].first;
+            const size_t lang = pairs_by_dm[dmoff][ip].second;
+            const size_t im = mirror_ang[iang], lm = mirror_ang[lang];
+            if(im == Nang || lm == Nang ||
+               (P.block(iang*Nrad,lang*Nrad,Nrad,Nrad) - P.block(im*Nrad,lm*Nrad,Nrad,Nrad)).cwiseAbs().maxCoeff()
+               > 10*DBL_EPSILON*std::max(1.0, P.block(iang*Nrad,lang*Nrad,Nrad,Nrad).cwiseAbs().maxCoeff()))
+              mirror = false;
+          }
+        }
+
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
@@ -1756,7 +1809,7 @@ namespace helfem {
               // image of K(+m,+m): the same radial problem with every m
               // negated, and the Gaunt couplings are invariant under a
               // global m negation. Build the m >= 0 half and copy.
-              if(absm_symmetric && (mj < 0 || mk < 0))
+              if(mirror && (mj < 0 || mk < 0))
                 continue;
 
               const int dmjk = mj-mk;
@@ -1868,38 +1921,37 @@ namespace helfem {
                     // K(j,k) = sum_ab s_ab sum_il T_ab[(i,j),(k,l)] R_ab(i,l)
                     //        = sum_P sigma_P sum_ab s_ab M^P_a' R_ab M^P_b'
                     //
-                    // i.e. the standard RI-K: two (Ni x Ni) matrix products per
-                    // Cholesky vector. No exchange-ordered tensor is needed --
-                    // which is just as well, since that pairing is full rank.
+                    // i.e. the standard RI-K. No exchange-ordered tensor is
+                    // needed -- which is just as well, since that pairing is
+                    // full rank.
+                    //
+                    // Per vector that is   W_p Rb V_p,   W_p = [M0' M2'],
+                    // V_p = [M0'; M2'], Rb = [R00 -R02; -R20 R22], and the sum
+                    // over p is two GEMMs on the stacked layouts cd_KW / cd_KV:
+                    // T = KW Rb holds W_p Rb in rows p*Ni.., which read as an
+                    // (Ni x r*2Ni) matrix line up with the rows of KV. Doing
+                    // the 8r products one by one, with Ni ~ 16 and r ~ 30,
+                    // cost more in BLAS call overhead and temporaries than in
+                    // arithmetic. (Batching the first product over output
+                    // blocks was measured too, and is slower: the second then
+                    // needs T transposed.)
                     helfem::Matrix Ksubm(helfem::Matrix::Zero(Ni,Nj));
+                    helfem::Matrix Rb(2*Ni,2*Ni), T;
 
                     for(size_t ilm=0;ilm<lm_map.size();ilm++) {
                       if(!couple[ilm])
                         continue;
 
-                      const helfem::Matrix & B = cd_B[ilm*Nel+iel];
-                      const helfem::Vector & sigma = cd_sigma[ilm*Nel+iel];
-                      const Eigen::Index nn = (Eigen::Index) (Ni*Ni);
+                      const helfem::Matrix & KW = cd_KW[ilm*Nel+iel];
+                      const helfem::Matrix & KV = cd_KV[ilm*Nel+iel];
 
-                      const helfem::Matrix Rb00(Rmat00[ilm].block(ifirst,jfirst,Ni,Nj));
-                      const helfem::Matrix Rb02(Rmat02[ilm].block(ifirst,jfirst,Ni,Nj));
-                      const helfem::Matrix Rb20(Rmat20[ilm].block(ifirst,jfirst,Ni,Nj));
-                      const helfem::Matrix Rb22(Rmat22[ilm].block(ifirst,jfirst,Ni,Nj));
+                      Rb.topLeftCorner(Ni,Ni)     =  Rmat00[ilm].block(ifirst,jfirst,Ni,Nj);
+                      Rb.topRightCorner(Ni,Ni)    = -Rmat02[ilm].block(ifirst,jfirst,Ni,Nj);
+                      Rb.bottomLeftCorner(Ni,Ni)  = -Rmat20[ilm].block(ifirst,jfirst,Ni,Nj);
+                      Rb.bottomRightCorner(Ni,Ni) =  Rmat22[ilm].block(ifirst,jfirst,Ni,Nj);
 
-                      for(Eigen::Index p=0;p<B.cols();p++) {
-                        // Channel blocks of Cholesky vector p, as (Ni x Ni)
-                        Eigen::Map<const helfem::Matrix> M0(B.col(p).data(),      Ni, Ni);
-                        Eigen::Map<const helfem::Matrix> M2(B.col(p).data() + nn, Ni, Ni);
-
-                        const helfem::Matrix M0t(M0.transpose());
-                        const helfem::Matrix M2t(M2.transpose());
-
-                        helfem::Matrix contrib(  M0t*Rb00*M0t
-                                               - M0t*Rb02*M2t
-                                               - M2t*Rb20*M0t
-                                               + M2t*Rb22*M2t );
-                        Ksubm += sigma(p)*contrib;
-                      }
+                      T.noalias() = KW*Rb;
+                      Ksubm.noalias() += Eigen::Map<const helfem::Matrix>(T.data(), Ni, KV.rows()) * KV;
                     }
 
                     // Increment global exchange matrix
@@ -1952,11 +2004,7 @@ namespace helfem {
         // exactly, so the mirror already delivers everything the
         // structure allows. Wall-clock comparisons suggest a shortfall
         // only because a loaded machine adds +-20% between builds.
-        if(absm_symmetric) {
-          std::vector<size_t> mirror_ang(Nang, Nang);
-          for(size_t a1=0;a1<Nang;a1++)
-            for(size_t b1=0;b1<Nang;b1++)
-              if(lval_(b1)==lval_(a1) && mval_(b1)==-mval_(a1)) { mirror_ang[a1]=b1; break; }
+        if(mirror) {
           for(size_t jang=0;jang<Nang;jang++) {
             if(mval_(jang) >= 0) continue;
             const size_t jm = mirror_ang[jang];
