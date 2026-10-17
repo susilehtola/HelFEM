@@ -38,6 +38,8 @@
 #include "../general/scf_driver_common.h"
 #include "../general/trustregion_scf.h"
 #include "../general/otr_solver.h"
+#include "../general/cas_options.h"
+#include "cas_engine.h"
 #include "../general/timer.h"
 #include "../general/checkpoint.h"
 #include "../general/eigen_io.h"
@@ -133,6 +135,7 @@ int main(int argc, char **argv) {
   parser.add<bool>("fractionaloccupations", 0, "optimize fractional occupations in the second-order phase: the block fillings become parameters, and charge moves between degenerate shells; off keeps every orbital full or empty", false, false);
   parser.add<bool>("stabilityanalysis", 0, "run OpenTrustRegion's stability analysis when the second-order phase converges, and follow a negative Hessian eigenvalue if one is found", false, false);
   parser.add<double>("sotest", 0, "instead of optimizing, check the analytic gradient and Hessian against finite differences with this step size", false, 0.0);
+  helfem::cas::add_options(parser);
 
   parser.parse_check(argc, argv);
 
@@ -351,7 +354,9 @@ int main(int argc, char **argv) {
   // --symmetry=3 makes every density +-m symmetric by construction, so
   // exchange() may build only the m >= 0 output blocks and mirror.
   basis.set_absm_symmetric(symm == 3);
-  basis.compute_tei(have_exx);
+  const int casact = parser.get<int>("casact");
+  // A CAS wave function needs exchange whatever the SCF functional is.
+  basis.compute_tei(have_exx || casact > 0);
 
   const double Enucr = Z1 * Z2 / Rbond;
 
@@ -889,13 +894,16 @@ int main(int argc, char **argv) {
       const helfem::Matrix P_total = Pa_new + Pb_new;
       for (size_t k = 0; k < nsym; ++k)
         seed_dev_a = std::max(seed_dev_a, helfem::scf_driver::fill_block_from_density(
-            k, loaded_orbs, loaded_occs, P_total, S, dsym[k], Sinvh[k], max_occ_restr));
+            k, loaded_orbs, loaded_occs, P_total, S, dsym[k], Sinvh[k], max_occ_restr,
+            block_degeneracy[k]));
     } else {
       for (size_t k = 0; k < nsym; ++k) {
         seed_dev_a = std::max(seed_dev_a, helfem::scf_driver::fill_block_from_density(
-            k, loaded_orbs, loaded_occs, Pa_new, S, dsym[k], Sinvh[k], max_occ_open));
+            k, loaded_orbs, loaded_occs, Pa_new, S, dsym[k], Sinvh[k], max_occ_open,
+            block_degeneracy[k]));
         seed_dev_b = std::max(seed_dev_b, helfem::scf_driver::fill_block_from_density(
-            nsym + k, loaded_orbs, loaded_occs, Pb_new, S, dsym[k], Sinvh[k], max_occ_open));
+            nsym + k, loaded_orbs, loaded_occs, Pb_new, S, dsym[k], Sinvh[k], max_occ_open,
+            block_degeneracy[k]));
       }
     }
     if (restricted) {
@@ -1072,7 +1080,7 @@ int main(int argc, char **argv) {
     const auto final_occs = scfsolver.get_orbital_occupations();
     helfem::Matrix Pa_final, Pb_final;
     std::tie(Pa_final, Pb_final) = helfem::scf_driver::assemble_final_density<OOO_Real>(
-        Nbf, restricted, dsym, Sinvh, final_orbs, final_occs);
+        Nbf, restricted, dsym, Sinvh, final_orbs, final_occs, dmirror);
     // Densities written straight through the checkpoint's helfem::Matrix overloads.
     savechk.write("Pa", Pa_final);
     savechk.write("Pb", Pb_final);
@@ -1082,7 +1090,7 @@ int main(int argc, char **argv) {
     helfem::Vector occa_final, occb_final;
     helfem::scf_driver::assemble_final_orbitals<OOO_Real>(
         Nbf, restricted, dsym, Sinvh, final_orbs, final_occs,
-        Ca_final, occa_final, Cb_final, occb_final);
+        Ca_final, occa_final, Cb_final, occb_final, dmirror);
     savechk.write("Ca", Ca_final);
     savechk.write("Cb", Cb_final);
     savechk.write("occa", occa_final);
@@ -1095,6 +1103,46 @@ int main(int argc, char **argv) {
     savechk.write("Z2", Z2);
     if (verbosity >= 1)
       printf("Saved results to %s\n", savefile.c_str());
+  }
+
+  if (casact > 0) {
+#ifdef HELFEM_HAVE_RECI
+    if (Bz != 0.0)
+      throw std::logic_error("CASSCF with a magnetic field is not implemented.\n");
+    // After --save, so that a CASSCF that fails or is killed still leaves
+    // the SCF to restart from.
+    // Start from the SCF density, whatever produced it; the accumulation
+    // is the SCF's own, so a --symmetry=3 mirror block contributes both
+    // of its m partners.
+    helfem::Matrix P_scf = helfem::Matrix::Zero(Nbf, Nbf);
+    {
+      const auto orbs = scfsolver.get_orbitals();
+      const auto occs = scfsolver.get_orbital_occupations();
+      for (size_t b = 0; b < orbs.size(); b++)
+        accumulate_density(P_scf, b % nsym, orbs[b], occs[b]);
+    }
+    // The CAS itself needs one block per spatial orbital, i.e. signed m:
+    // a --symmetry=3 block stands for two orbitals the CI must be free to
+    // occupy differently. Their equivalence is kept by tying the +m and -m
+    // rotations instead (see cas::canonical_orbitals), which also means
+    // exchange() can no longer assume m-symmetric densities.
+    const int csymm = (symm == 3) ? 1 : symm;
+    const std::vector<std::vector<Eigen::Index>> cdsym =
+        (csymm == symm) ? dsym : basis.sym_idx(csymm);
+    const std::vector<helfem::Matrix> cSinvh =
+        (csymm == symm) ? Sinvh : helfem::scf_driver::build_per_block_Sinvh(S, cdsym);
+    basis.set_absm_symmetric(false);
+    const helfem::diatomic::basis::DiatomicCASEngine jk(basis, T + Vnuc + Vel);
+    helfem::cas::KokkosScope kokkos;
+    const helfem::cas::CASSCFResult cres = helfem::cas::casscf_from_scf(
+        jk, S, P_scf, cdsym, cSinvh, basis.sym_labels(csymm), Ntot,
+        helfem::cas::request(parser, verbosity));
+    printf("CASSCF total energy %.10f\n", cres.energy + Enucr);
+    fflush(stdout);
+#else
+    throw std::logic_error("This HelFEM was built without reci, so --casact is "
+                           "unavailable. Configure with -DHELFEM_WITH_RECI=ON.\n");
+#endif
   }
 
   return 0;

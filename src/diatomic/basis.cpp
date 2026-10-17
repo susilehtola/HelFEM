@@ -1316,6 +1316,26 @@ namespace helfem {
         cd_thresh = 1e-12;
         cd_B.assign(Nel*lm_map.size(), helfem::Matrix());
         cd_sigma.assign(Nel*lm_map.size(), helfem::Vector());
+        cd_KW.assign(Nel*lm_map.size(), helfem::Matrix());
+        cd_KV.assign(Nel*lm_map.size(), helfem::Matrix());
+
+        {
+          const size_t Nang = lval_.size();
+          ang_cpl.assign(2*lm_map.size(), std::vector<std::vector<AngCpl>>(Nang));
+          for(size_t jang=0;jang<Nang;jang++)
+            for(size_t iang=0;iang<Nang;iang++) {
+              const int lj(lval_(jang)), mj(mval_(jang));
+              const int li(lval_(iang)), mi(mval_(iang));
+              const int M(mj-mi);
+              for(int L=std::max(std::abs(lj-li)-2,std::abs(M));L<=lj+li+2;L++) {
+                const double u0(gaunt.mod_coeff(lj,mj,L,M,li,mi));
+                const double u1(gaunt.coeff(lj,mj,L,M,li));
+                if(u0==0.0 && u1==0.0)
+                  continue;
+                ang_cpl[2*lmind(L,M) + (M<0)][jang].push_back({iang,u0,u1});
+              }
+            }
+        }
 
 #ifdef _OPENMP
 #pragma omp parallel for
@@ -1404,6 +1424,26 @@ namespace helfem {
 
             cd_B[ilm*Nel+iel]     = B;
             cd_sigma[ilm*Nel+iel] = sigma;
+
+            // Exchange layouts; see cd_KW in basis.h. With Ni functions in
+            // the element, M0_p(i,j) = B(j*Ni+i, p) and M2_p(i,j) =
+            // B(Ni^2+j*Ni+i, p). For the stacked index a = c*Ni+b (channel
+            // c, function b), [M0' M2'](j,a) = B(c*Ni^2+j*Ni+b, p) and
+            // [M0'; M2'](a,j) = B(a*Ni+j, p).
+            const Eigen::Index Ni = (Eigen::Index) std::lround(std::sqrt((double) n));
+            if(Ni*Ni != n)
+              throw std::logic_error("In-element integral block is not Nprim^2 square.\n");
+            helfem::Matrix KW(Ni*r, 2*Ni), KV(r*2*Ni, Ni);
+            for(Eigen::Index p=0;p<r;p++)
+              for(Eigen::Index c=0;c<2;c++)
+                for(Eigen::Index b=0;b<Ni;b++)
+                  for(Eigen::Index j=0;j<Ni;j++) {
+                    const Eigen::Index a = c*Ni+b;
+                    KW(j+Ni*p, a) = B(c*n+j*Ni+b, p);
+                    KV(p+r*a, j) = sigma(p)*B(a*Ni+j, p);
+                  }
+            cd_KW[ilm*Nel+iel] = KW;
+            cd_KV[ilm*Nel+iel] = KV;
           }
         }
 
@@ -1493,6 +1533,16 @@ namespace helfem {
         return r;
       }
 
+      std::vector<std::vector<size_t>> TwoDBasis::nonzero_blocks(const helfem::Matrix & P) const {
+        const size_t Nang(lval_.size()), Nrad(radial_.Nbf());
+        std::vector<std::vector<size_t>> rows(Nang);
+        for(size_t iang=0;iang<Nang;iang++)
+          for(size_t lang=0;lang<Nang;lang++)
+            if(P.block(iang*Nrad,lang*Nrad,Nrad,Nrad).norm() >= 10*DBL_EPSILON)
+              rows[iang].push_back(lang);
+        return rows;
+      }
+
       helfem::Matrix TwoDBasis::coulomb(const helfem::Matrix & P_in) const {
         if(!cd_B.size())
           throw std::logic_error("Primitive teis have not been computed!\n");
@@ -1501,77 +1551,87 @@ namespace helfem {
         const helfem::Matrix P(expand_boundaries(P_in));
 
         // Number of radial elements
-        size_t Nel(radial_.Nel());
+        const size_t Nel(radial_.Nel());
         // Number of radial functions
-        size_t Nrad(radial_.Nbf());
+        const size_t Nrad(radial_.Nbf());
+        const size_t Nang(lval_.size());
+        const size_t Nkey(2*lm_map.size());
 
-        // Radial helper matrices
-        std::vector<helfem::Matrix> Paux0(LM_map.size());
-        std::vector<helfem::Matrix> Paux2(LM_map.size());
-        for(size_t i=0;i<Paux0.size();i++) {
-          Paux0[i]=helfem::Matrix::Zero(Nrad,Nrad);
-          Paux2[i]=helfem::Matrix::Zero(Nrad,Nrad);
-        }
+        // Only the nonzero density blocks contribute; a CASSCF pair
+        // density, for one, lives in a single (m_v, m_w) sector.
+        const std::vector<std::vector<size_t>> Prow(nonzero_blocks(P));
+        std::vector<char> Pnz(Nang*Nang, 0);
+        for(size_t kang=0;kang<Nang;kang++)
+          for(size_t lang : Prow[kang])
+            Pnz[kang*Nang+lang] = 1;
 
-        // Form radial helpers: contract ket
-        for(size_t kang=0;kang<lval_.size();kang++) {
-          for(size_t lang=0;lang<lval_.size();lang++) {
-            // l and m values
-            int lk(lval_(kang));
-            int mk(mval_(kang));
-            int ll(lval_(lang));
-            int ml(mval_(lang));
-            // RH m value
-            int M(mk-ml);
-            // M values match. Loop over possible couplings
-            int Lmin=std::max(std::abs(lk-ll)-2,abs(M));
-            int Lmax=lk+ll+2;
-            for(int L=Lmin;L<=Lmax;L++) {
-              const size_t iLM(LMind(L,M));
-              // Calculate coupling coefficients
-              double cpl0(gaunt.mod_coeff(lk,mk,L,M,ll,ml));
-              double cpl2(gaunt.coeff(lk,mk,L,M,ll));
-              // Increment
-              helfem::Matrix Prad(P.block(kang*Nrad,lang*Nrad,Nrad,Nrad));
-              if(cpl0!=0.0)
-                Paux0[iLM]+=cpl0*Prad;
-              if(cpl2!=0.0)
-                Paux2[iLM]+=cpl2*Prad;
-            }
-          }
-        }
-
-        // Coulomb helpers
-        std::vector<helfem::Matrix> Jaux0(LM_map.size());
-        std::vector<helfem::Matrix> Jaux2(LM_map.size());
-        for(size_t i=0;i<Jaux0.size();i++) {
-          Jaux0[i]=helfem::Matrix::Zero(Nrad,Nrad);
-          Jaux2[i]=helfem::Matrix::Zero(Nrad,Nrad);
-        }
         // Cache the angular prefactor 4*pi*Rhalf_^5 / ((L+|M|)!/(L-|M|)!) for
         // every (L, |M|) in the lm_map. The (-1)^M sign is applied at the
         // lookup site since lm_map is indexed by |M| only. pow(Rhalf_,5) and
         // the factorial loop both dominated the inner-loop cost otherwise.
         const std::vector<double> LMfac_abs = build_LMfac_abs();
-        for(size_t iLM=0;iLM<LM_map.size();iLM++) {
-          // Values of L and M
-          int L(LM_map[iLM].first);
-          int M(LM_map[iLM].second);
 
-          // Helpers
-          const size_t ilm(lmind(L,M));
+        // Radial helpers, per (L,M) key of ang_cpl and per element. The
+        // density enters only through its element-diagonal radial blocks,
+        // and the potential of a multipole is multiplicative, so J comes
+        // out element-diagonal as well; nothing else is formed. An element
+        // keeps its own copy of the node it shares with a neighbour, as
+        // the per-element integrals expect, and the assembly below sums
+        // them.
+        std::vector<helfem::Matrix> Jaux0(Nkey*Nel), Jaux2(Nkey*Nel);
+        std::vector<char> used(Nkey, 0);
+
+        // Each key writes only its own helpers.
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+        for(size_t key=0;key<Nkey;key++) {
+          // Contract the ket with the angular couplings
+          std::vector<helfem::Matrix> Paux0, Paux2;
+          for(size_t kang=0;kang<Nang;kang++)
+            for(const AngCpl & c : ang_cpl[key][kang]) {
+              if(!Pnz[kang*Nang+c.other])
+                continue;
+              if(Paux0.empty()) {
+                Paux0.resize(Nel);
+                Paux2.resize(Nel);
+                for(size_t iel=0;iel<Nel;iel++) {
+                  size_t ifirst, ilast;
+                  radial_.idx(iel,ifirst,ilast);
+                  const Eigen::Index Ni(ilast-ifirst+1);
+                  Paux0[iel] = helfem::Matrix::Zero(Ni,Ni);
+                  Paux2[iel] = helfem::Matrix::Zero(Ni,Ni);
+                }
+              }
+              for(size_t iel=0;iel<Nel;iel++) {
+                size_t ifirst, ilast;
+                radial_.idx(iel,ifirst,ilast);
+                const size_t Ni(ilast-ifirst+1);
+                const auto Pb = P.block(kang*Nrad+ifirst,c.other*Nrad+ifirst,Ni,Ni);
+                Paux0[iel] += c.u0*Pb;
+                Paux2[iel] += c.u1*Pb;
+              }
+            }
+          if(Paux0.empty())
+            continue;
+          used[key] = 1;
+
+          const size_t ilm(key/2);
+          const int M((key & 1) ? -lm_map[ilm].second : lm_map[ilm].second);
           const double signM = (M & 1) ? -1.0 : 1.0;
           const double LMfac(signM * LMfac_abs[ilm]);
 
+          for(size_t iel=0;iel<Nel;iel++) {
+            const Eigen::Index Ni(Paux0[iel].rows());
+            Jaux0[key*Nel+iel] = helfem::Matrix::Zero(Ni,Ni);
+            Jaux2[key*Nel+iel] = helfem::Matrix::Zero(Ni,Ni);
+          }
+
           // Loop over input elements
           for(size_t jel=0;jel<Nel;jel++) {
-            size_t jfirst, jlast;
-            radial_.idx(jel,jfirst,jlast);
-            size_t Nj(jlast-jfirst+1);
-
-            // Get density submatrices
-            helfem::Matrix Psub0(Paux0[iLM].block(jfirst,jfirst,Nj,Nj));
-            helfem::Matrix Psub2(Paux2[iLM].block(jfirst,jfirst,Nj,Nj));
+            const helfem::Matrix & Psub0 = Paux0[jel];
+            const helfem::Matrix & Psub2 = Paux2[jel];
+            const size_t Nj(Psub0.rows());
 
             // Contract integrals
             double jsmall0 = LMfac*(disjoint_P0[ilm*Nel+jel]*Psub0).trace();
@@ -1583,39 +1643,24 @@ namespace helfem {
             double ifac0(jbig0 - jbig2);
             double ifac2(-jbig0 + jbig2);
             for(size_t iel=0;iel<jel;iel++) {
-              size_t ifirst, ilast;
-              radial_.idx(iel,ifirst,ilast);
-              size_t Ni(ilast-ifirst+1);
-
-              const helfem::Matrix & iint0=disjoint_P0[ilm*Nel+iel];
-              const helfem::Matrix & iint2=disjoint_P2[ilm*Nel+iel];
-              Jaux0[iLM].block(ifirst,ifirst,Ni,Ni)+=ifac0*iint0;
-              Jaux2[iLM].block(ifirst,ifirst,Ni,Ni)+=ifac2*iint2;
+              Jaux0[key*Nel+iel]+=ifac0*disjoint_P0[ilm*Nel+iel];
+              Jaux2[key*Nel+iel]+=ifac2*disjoint_P2[ilm*Nel+iel];
             }
 
             // Increment J: jel<iel
             ifac0=jsmall0 - jsmall2;
             ifac2=-jsmall0 + jsmall2;
             for(size_t iel=jel+1;iel<Nel;iel++) {
-              size_t ifirst, ilast;
-              radial_.idx(iel,ifirst,ilast);
-              size_t Ni(ilast-ifirst+1);
-
-              const helfem::Matrix & iint0=disjoint_Q0[ilm*Nel+iel];
-              const helfem::Matrix & iint2=disjoint_Q2[ilm*Nel+iel];
-              Jaux0[iLM].block(ifirst,ifirst,Ni,Ni)+=ifac0*iint0;
-              Jaux2[iLM].block(ifirst,ifirst,Ni,Ni)+=ifac2*iint2;
+              Jaux0[key*Nel+iel]+=ifac0*disjoint_Q0[ilm*Nel+iel];
+              Jaux2[key*Nel+iel]+=ifac2*disjoint_Q2[ilm*Nel+iel];
             }
 
             // In-element contribution
             {
-              size_t iel=jel;
-              size_t ifirst=jfirst;
-              size_t Ni=Nj;
+              const size_t iel=jel;
+              const size_t Ni=Nj;
 
               // Column-major vectorisation of the (Nj x Nj) density blocks.
-              // Psub0/Psub2 are materialised contiguous matrices, so a Map
-              // reproduces arma::vectorise exactly.
               Eigen::Map<const helfem::Vector> pv0(Psub0.data(), Psub0.size());
               Eigen::Map<const helfem::Vector> pv2(Psub2.data(), Psub2.size());
 
@@ -1636,50 +1681,32 @@ namespace helfem {
               c.array() *= sigma.array();
               const helfem::Vector jv2ch = LMfac*(B*c);
 
-              const helfem::Vector jv0 = jv2ch.head(nn);
-              const helfem::Vector jv2 = jv2ch.tail(nn);
-
               // Reshape back to (Ni x Ni), column-major
-              Eigen::Map<const helfem::Matrix> Jsub0(jv0.data(), Ni, Ni);
-              Eigen::Map<const helfem::Matrix> Jsub2(jv2.data(), Ni, Ni);
-
-              // Increment global Coulomb matrix
-              Jaux0[iLM].block(ifirst,ifirst,Ni,Ni)+=Jsub0;
-              Jaux2[iLM].block(ifirst,ifirst,Ni,Ni)+=Jsub2;
+              Jaux0[key*Nel+iel] += Eigen::Map<const helfem::Matrix>(jv2ch.data(), Ni, Ni);
+              Jaux2[key*Nel+iel] += Eigen::Map<const helfem::Matrix>(jv2ch.data()+nn, Ni, Ni);
             }
           }
         }
 
-        // Full Coulomb matrix
+        // Full Coulomb matrix: J(i,j) = sum_{L,M} u(j,i;L,M) Jaux[L,M],
+        // M = m_j - m_i. Each j writes only its own block column.
         helfem::Matrix J(helfem::Matrix::Zero(Ndummy(),Ndummy()));
-        for(size_t iang=0;iang<lval_.size();iang++) {
-          for(size_t jang=0;jang<lval_.size();jang++) {
-            // l and m values
-            int li(lval_(iang));
-            int mi(mval_(iang));
-            int lj(lval_(jang));
-            int mj(mval_(jang));
-            // LH m value
-            int M(mj-mi);
-
-            int Lmin=std::max(std::abs(lj-li)-2,abs(M));
-            int Lmax=lj+li+2;
-            for(int L=Lmin;L<=Lmax;L++) {
-              const size_t iLM(LMind(L,M));
-
-              // Couplings
-              double cpl0(gaunt.mod_coeff(lj,mj,L,M,li,mi));
-              if(cpl0!=0.0) {
-                J.block(iang*Nrad,jang*Nrad,Nrad,Nrad)+=cpl0*Jaux0[iLM];
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+        for(size_t jang=0;jang<Nang;jang++)
+          for(size_t key=0;key<Nkey;key++) {
+            if(!used[key])
+              continue;
+            for(const AngCpl & c : ang_cpl[key][jang])
+              for(size_t iel=0;iel<Nel;iel++) {
+                size_t ifirst, ilast;
+                radial_.idx(iel,ifirst,ilast);
+                const size_t Ni(ilast-ifirst+1);
+                J.block(c.other*Nrad+ifirst,jang*Nrad+ifirst,Ni,Ni) +=
+                    c.u0*Jaux0[key*Nel+iel] + c.u1*Jaux2[key*Nel+iel];
               }
-
-              double cpl2(gaunt.coeff(lj,mj,L,M,li));
-              if(cpl2!=0.0) {
-                J.block(iang*Nrad,jang*Nrad,Nrad,Nrad)+=cpl2*Jaux2[iLM];
-              }
-            }
           }
-        }
 
         return remove_boundaries(J);
       }
@@ -1700,232 +1727,251 @@ namespace helfem {
         // the inner loop reduces to a vector lookup + sign branch.
         const std::vector<double> LMfac_abs = build_LMfac_abs();
 
-        // Full exchange matrix. Each (jang,kang) writes a disjoint block, so
+        // Full exchange matrix. Each jang writes its own block row, so
         // the parallel accumulation into K is race-free.
         helfem::Matrix K(helfem::Matrix::Zero(Ndummy(),Ndummy()));
 
         const size_t Nang = lval_.size();
 
-        // Density blocks, bucketed once by dm = m_i - m_l.
-        //
-        // A (jang,kang) output block can only be fed by a density block
-        // whose M matches: mj-mi == mk-ml, i.e. mi-ml == mj-mk. So the
-        // candidates for an output block depend on nothing but dm, and
-        // the same buckets serve every (jang,kang).
-        //
-        // This used to be an unconditional Nang^2 rescan per output
-        // block, recomputing P.block(...).norm() every time -- O(Nang^4)
-        // norms of an Nrad x Nrad block per Fock build, none of which
-        // depend on (jang,kang). Now each norm is taken once, and an
-        // output block iterates only over density blocks that can
-        // actually reach it.
+        // Nonzero density blocks, by row (Prow[i] lists the l with
+        // P(i,l) != 0), and bucketed by dm = m_i - m_l for the mirror
+        // test below. Each block norm is taken once per build.
         const int mabs = absm_max();
         const int dmoff = 2*mabs;
+        const std::vector<std::vector<size_t>> Prow(nonzero_blocks(P));
         std::vector<std::vector<std::pair<size_t,size_t>>> pairs_by_dm(4*mabs+1);
         for(size_t iang=0;iang<Nang;iang++)
-          for(size_t lang=0;lang<Nang;lang++) {
-            if(P.block(iang*Nrad,lang*Nrad,Nrad,Nrad).norm() < 10*DBL_EPSILON)
-              continue;
-            const int dm = mval_(iang)-mval_(lang);
-            if(std::abs(dm) > 2*mabs)
-              continue;
-            pairs_by_dm[dm+dmoff].emplace_back(iang,lang);
+          for(size_t lang : Prow[iang])
+            pairs_by_dm[mval_(iang)-mval_(lang)+dmoff].emplace_back(iang,lang);
+
+        // The (l,-m) partner of each angular channel.
+        std::vector<size_t> mirror_ang(Nang, Nang);
+        for(size_t a1=0;a1<Nang;a1++)
+          for(size_t b1=0;b1<Nang;b1++)
+            if(lval_(b1)==lval_(a1) && mval_(b1)==-mval_(a1)) { mirror_ang[a1]=b1; break; }
+
+        // Build only the m >= 0 half of K and mirror it (see below) when
+        // the density is diagonal in m and the same in its +m and -m
+        // blocks. The driver asserts that through absm_symmetric for a
+        // --symmetry=3 SCF; otherwise it is detected here, which is what
+        // lets a perturbed density such as a CASSCF's -- built from
+        // rotations tied between the +m and -m partners -- take the
+        // shortcut too, while a pair density between them, which carries
+        // dm != 0, does not.
+        bool mirror = absm_symmetric;
+        if(!mirror) {
+          mirror = true;
+          for(int dm=-2*mabs;dm<=2*mabs && mirror;dm++)
+            if(dm != 0 && !pairs_by_dm[dm+dmoff].empty())
+              mirror = false;
+          for(size_t ip=0;ip<pairs_by_dm[dmoff].size() && mirror;ip++) {
+            const size_t iang = pairs_by_dm[dmoff][ip].first;
+            const size_t lang = pairs_by_dm[dmoff][ip].second;
+            const size_t im = mirror_ang[iang], lm = mirror_ang[lang];
+            if(im == Nang || lm == Nang ||
+               (P.block(iang*Nrad,lang*Nrad,Nrad,Nrad) - P.block(im*Nrad,lm*Nrad,Nrad,Nrad)).cwiseAbs().maxCoeff()
+               > 10*DBL_EPSILON*std::max(1.0, P.block(iang*Nrad,lang*Nrad,Nrad,Nrad).cwiseAbs().maxCoeff()))
+              mirror = false;
           }
+        }
+
+        // Angular couplings. Output block (j,k) receives density block
+        // (i,l) through each (L,M), M = mj-mi = mk-ml, with the 2x2
+        // channel weights
+        //   LMfac(L,M) u_x(j,i;L,M) u_y(k,l;L,M),   u_0 = mod_coeff, u_1 = coeff,
+        // a product of a (j,i) and a (k,l) factor. The angular sum is
+        // therefore two stages per (j,L,M):
+        //   X_x[l]  = sum_i u_x(j,i) P(i,l)
+        //   R_xy[k] = sum_l X_x[l] u_y(k,l)
+        // and the second is one GEMM over vectorized radial blocks.
+        // Summing all four factors directly over (i,l) for every (j,k),
+        // as this used to, cost O(couplings^2) Nrad^2 additions and two
+        // Gaunt lookups each, which after the RI-K rewrite below was
+        // half of the exchange build.
+        //
+        // ang_cpl[2*ilm + (M<0)][j] lists the channels i that j couples
+        // to through (L,M), with u_0 and u_1. The same list serves (k,l).
+        const size_t Nlm = lm_map.size();
+        const auto & cpl = ang_cpl;
+
+        const size_t Nrad2(Nrad*Nrad);
 
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
         {
-          // Increment
+          // Position of a channel in the l list of the current (j,L,M),
+          // per sign of M, or -1.
+          std::vector<long> lpos[2] = {std::vector<long>(Nang,-1), std::vector<long>(Nang,-1)};
+          std::vector<size_t> Lset[2], Kset;
+          helfem::Matrix X, U, Y, Rb(2*Nrad,2*Nrad), T;
+
+          // Each j writes only its own rows of K, so the threads share
+          // nothing and the result does not depend on the schedule.
 #ifdef _OPENMP
-#pragma omp for collapse(2)
+#pragma omp for schedule(dynamic)
 #endif
-          for(size_t jang=0;jang<lval_.size();jang++) {
-            for(size_t kang=0;kang<lval_.size();kang++) {
-              int lj(lval_(jang));
-              int mj(mval_(jang));
+          for(size_t jang=0;jang<Nang;jang++) {
+            // With a +-m symmetric density, K(-m,-m) is the mirror
+            // image of K(+m,+m): the same radial problem with every m
+            // negated, and the Gaunt couplings are invariant under a
+            // global m negation. Build the m >= 0 half and copy.
+            if(mirror && mval_(jang) < 0)
+              continue;
 
-              int lk(lval_(kang));
-              int mk(mval_(kang));
+            for(size_t ilm=0;ilm<Nlm;ilm++) {
+              const int Mabs(lm_map[ilm].second);
+              const int nsign(Mabs ? 2 : 1);
 
-              // Only density blocks with mi-ml == mj-mk can feed this
-              // output block. If there are none, there is nothing to
-              // allocate and nothing to contract: skip before paying for
-              // either.
-              // With a +-m symmetric density, K(-m,-m) is the mirror
-              // image of K(+m,+m): the same radial problem with every m
-              // negated, and the Gaunt couplings are invariant under a
-              // global m negation. Build the m >= 0 half and copy.
-              if(absm_symmetric && (mj < 0 || mk < 0))
-                continue;
-
-              const int dmjk = mj-mk;
-              if(std::abs(dmjk) > 2*mabs)
-                continue;
-              const std::vector<std::pair<size_t,size_t>> & cand = pairs_by_dm[dmjk+dmoff];
-              if(cand.empty())
-                continue;
-
-              // Form radial helpers. Left empty until a channel actually
-              // couples: allocating 4*lm_map.size() Nrad x Nrad zero
-              // matrices per output block is pure churn when, as is
-              // usual, only a handful of L couple.
-              std::vector<helfem::Matrix> Rmat00(lm_map.size());
-              std::vector<helfem::Matrix> Rmat02(lm_map.size());
-              std::vector<helfem::Matrix> Rmat20(lm_map.size());
-              std::vector<helfem::Matrix> Rmat22(lm_map.size());
-              // Is there a coupling to the channel?
-              std::vector<bool> couple(lm_map.size(),false);
-              bool any_couple = false;
-
-              // Perform angular sums
-              for(size_t ipair=0;ipair<cand.size();ipair++) {
-                const size_t iang = cand[ipair].first;
-                const size_t lang = cand[ipair].second;
-                int li(lval_(iang));
-                int mi(mval_(iang));
-                int ll(lval_(lang));
-                int ml(mval_(lang));
-                {
-                  // mi-ml == mj-mk by construction of the bucket, hence
-                  // M == Mp; no test needed.
-                  int M(mj-mi);
-
-                  // M values match. Loop over possible couplings
-                  int Lmin=std::max(std::max(std::abs(li-lj),std::abs(lk-ll))-2,abs(M));
-                  int Lmax=std::min(li+lj,lk+ll)+2;
-
-                  for(int L=Lmin;L<=Lmax;L++) {
-                    // Calculate total coupling coefficient
-                    double cpl00(gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
-                    double cpl02(-gaunt.mod_coeff(lj,mj,L,M,li,mi)*gaunt.coeff(lk,mk,L,M,ll));
-                    double cpl20(-gaunt.coeff(lj,mj,L,M,li)*gaunt.mod_coeff(lk,mk,L,M,ll,ml));
-                    double cpl22(gaunt.coeff(lj,mj,L,M,li)*gaunt.coeff(lk,mk,L,M,ll));
-
-                    // Is there any coupling?
-                    if(cpl00==0.0 && cpl02==0.0 && cpl20==0.0 && cpl22==0.0)
-                      continue;
-
-                    // Index in the L,|M| table
-                    const size_t ilm(lmind(L,M));
-                    const double signM = (M & 1) ? -1.0 : 1.0;
-                    const double LMfac(signM * LMfac_abs[ilm]);
-
-                    const auto Psub = P.block(iang*Nrad,lang*Nrad,Nrad,Nrad);
-
-                    if(!couple[ilm]) {
-                      Rmat00[ilm]=helfem::Matrix::Zero(Nrad,Nrad);
-                      Rmat02[ilm]=helfem::Matrix::Zero(Nrad,Nrad);
-                      Rmat20[ilm]=helfem::Matrix::Zero(Nrad,Nrad);
-                      Rmat22[ilm]=helfem::Matrix::Zero(Nrad,Nrad);
-                      couple[ilm]=true;
-                      any_couple=true;
+              // Density columns l reached from j, per sign of M
+              for(int s=0;s<nsign;s++) {
+                Lset[s].clear();
+                for(const AngCpl & c : cpl[2*ilm+s][jang])
+                  for(size_t l : Prow[c.other])
+                    if(lpos[s][l] < 0) {
+                      lpos[s][l] = Lset[s].size();
+                      Lset[s].push_back(l);
                     }
-                    Rmat00[ilm]+=(LMfac*cpl00)*Psub;
-                    Rmat02[ilm]+=(LMfac*cpl02)*Psub;
-                    Rmat20[ilm]+=(LMfac*cpl20)*Psub;
-                    Rmat22[ilm]+=(LMfac*cpl22)*Psub;
-                  }
+              }
+              // Output columns k reached from those l
+              Kset.clear();
+              for(size_t kang=0;kang<Nang;kang++) {
+                if(mirror && mval_(kang) < 0)
+                  continue;
+                bool hit = false;
+                for(int s=0;s<nsign && !hit;s++)
+                  for(const AngCpl & c : cpl[2*ilm+s][kang])
+                    if(lpos[s][c.other] >= 0) { hit = true; break; }
+                if(hit)
+                  Kset.push_back(kang);
+              }
+              const Eigen::Index nK(Kset.size());
+
+              if(nK) {
+                // Y holds R_xy[k] as column y*nK+k, rows x*Nrad2.., each
+                // a column-major Nrad x Nrad block.
+                Y.setZero(2*Nrad2, 2*nK);
+                for(int s=0;s<nsign;s++) {
+                  const Eigen::Index nL(Lset[s].size());
+                  if(!nL)
+                    continue;
+                  const int M(s ? -Mabs : Mabs);
+                  const double LMfac(((M & 1) ? -1.0 : 1.0) * LMfac_abs[ilm]);
+
+                  X.setZero(2*Nrad2, nL);
+                  for(const AngCpl & c : cpl[2*ilm+s][jang])
+                    for(size_t l : Prow[c.other]) {
+                      const auto Pb = P.block(c.other*Nrad, l*Nrad, Nrad, Nrad);
+                      double * x = X.col(lpos[s][l]).data();
+                      Eigen::Map<helfem::Matrix>(x, Nrad, Nrad) += c.u0*Pb;
+                      Eigen::Map<helfem::Matrix>(x+Nrad2, Nrad, Nrad) += c.u1*Pb;
+                    }
+
+                  U.setZero(nL, 2*nK);
+                  for(Eigen::Index ik=0;ik<nK;ik++)
+                    for(const AngCpl & c : cpl[2*ilm+s][Kset[ik]])
+                      if(lpos[s][c.other] >= 0) {
+                        U(lpos[s][c.other], ik) = LMfac*c.u0;
+                        U(lpos[s][c.other], nK+ik) = LMfac*c.u1;
+                      }
+
+                  Y.noalias() += X*U;
                 }
               }
 
-              // Nothing coupled: no contribution to this output block.
-              if(!any_couple)
-                continue;
+              for(int s=0;s<nsign;s++)
+                for(size_t l : Lset[s])
+                  lpos[s][l] = -1;
 
-              // Loop over elements: output
-              for(size_t iel=0;iel<Nel;iel++) {
-                size_t ifirst, ilast;
-                radial_.idx(iel,ifirst,ilast);
+              // Radial contraction into K(j,k)
+              for(Eigen::Index ik=0;ik<nK;ik++) {
+                const size_t kang(Kset[ik]);
+                const Eigen::Map<const helfem::Matrix> R00(Y.col(ik).data(), Nrad, Nrad);
+                const Eigen::Map<const helfem::Matrix> R10(Y.col(ik).data()+Nrad2, Nrad, Nrad);
+                const Eigen::Map<const helfem::Matrix> R01(Y.col(nK+ik).data(), Nrad, Nrad);
+                const Eigen::Map<const helfem::Matrix> R11(Y.col(nK+ik).data()+Nrad2, Nrad, Nrad);
 
-                // Input
-                for(size_t jel=0;jel<Nel;jel++) {
-                  size_t jfirst, jlast;
-                  radial_.idx(jel,jfirst,jlast);
+                // Loop over elements: output
+                for(size_t iel=0;iel<Nel;iel++) {
+                  size_t ifirst, ilast;
+                  radial_.idx(iel,ifirst,ilast);
 
-                  // Number of functions in the two elements
-                  size_t Ni(ilast-ifirst+1);
-                  size_t Nj(jlast-jfirst+1);
+                  // Input
+                  for(size_t jel=0;jel<Nel;jel++) {
+                    size_t jfirst, jlast;
+                    radial_.idx(jel,jfirst,jlast);
 
-                  if(iel == jel) {
-                    /*
-                      The exchange matrix is given by
-                      K(jk) = (ij|kl) P(il)
-                      i.e. the complex conjugation hits i and l as
-                      in the density matrix.
+                    // Number of functions in the two elements
+                    size_t Ni(ilast-ifirst+1);
+                    size_t Nj(jlast-jfirst+1);
 
-                      To get this in the proper order, we permute the integrals
-                      K(jk) = (jk;il) P(il)
-                    */
+                    auto Kb = K.block(jang*Nrad+ifirst,kang*Nrad+jfirst,Ni,Nj);
 
-                    // RI-K contraction. The in-element integrals are stored as
-                    //   T_ab[(i,j),(k,l)] = s_ab sum_P sigma_P M^P_a[i,j] M^P_b[k,l]
-                    // with s_00 = s_22 = +1, s_02 = s_20 = -1 (the signs of the
-                    // 2-channel kernel W), and M^P_a the a-channel part of
-                    // Cholesky vector P reshaped to (Ni x Ni), column-major --
-                    // the same (i,j) -> j*Ni+i order the tensors used.
-                    //
-                    // K(j,k) = sum_ab s_ab sum_il T_ab[(i,j),(k,l)] R_ab(i,l)
-                    //        = sum_P sigma_P sum_ab s_ab M^P_a' R_ab M^P_b'
-                    //
-                    // i.e. the standard RI-K: two (Ni x Ni) matrix products per
-                    // Cholesky vector. No exchange-ordered tensor is needed --
-                    // which is just as well, since that pairing is full rank.
-                    helfem::Matrix Ksubm(helfem::Matrix::Zero(Ni,Nj));
+                    if(iel == jel) {
+                      /*
+                        The exchange matrix is given by
+                        K(jk) = (ij|kl) P(il)
+                        i.e. the complex conjugation hits i and l as
+                        in the density matrix.
 
-                    for(size_t ilm=0;ilm<lm_map.size();ilm++) {
-                      if(!couple[ilm])
-                        continue;
+                        To get this in the proper order, we permute the integrals
+                        K(jk) = (jk;il) P(il)
+                      */
 
-                      const helfem::Matrix & B = cd_B[ilm*Nel+iel];
-                      const helfem::Vector & sigma = cd_sigma[ilm*Nel+iel];
-                      const Eigen::Index nn = (Eigen::Index) (Ni*Ni);
+                      // RI-K contraction. The in-element integrals are stored as
+                      //   T_ab[(i,j),(k,l)] = s_ab sum_P sigma_P M^P_a[i,j] M^P_b[k,l]
+                      // with s_00 = s_22 = +1, s_02 = s_20 = -1 (the signs of the
+                      // 2-channel kernel W), and M^P_a the a-channel part of
+                      // Cholesky vector P reshaped to (Ni x Ni), column-major --
+                      // the same (i,j) -> j*Ni+i order the tensors used.
+                      //
+                      // K(j,k) = sum_ab s_ab sum_il T_ab[(i,j),(k,l)] R'_ab(i,l)
+                      //        = sum_P sigma_P sum_ab M^P_a' R_ab M^P_b'
+                      //
+                      // with R'_ab the angular sum under the kernel signs, which
+                      // cancel against s_ab: R_xy above carries none. That is
+                      // the standard RI-K. No exchange-ordered tensor is needed
+                      // -- which is just as well, since that pairing is full
+                      // rank.
+                      //
+                      // Per vector that is   W_p Rb V_p,   W_p = [M0' M2'],
+                      // V_p = [M0'; M2'], Rb = [R00 R01; R10 R11], and the sum
+                      // over p is two GEMMs on the stacked layouts cd_KW / cd_KV:
+                      // T = KW Rb holds W_p Rb in rows p*Ni.., which read as an
+                      // (Ni x r*2Ni) matrix line up with the rows of KV. Doing
+                      // the 8r products one by one, with Ni ~ 16 and r ~ 30,
+                      // cost more in BLAS call overhead and temporaries than in
+                      // arithmetic. (Batching the first product over output
+                      // blocks was measured too, and is slower: the second then
+                      // needs T transposed.)
+                      const helfem::Matrix & KW = cd_KW[ilm*Nel+iel];
+                      const helfem::Matrix & KV = cd_KV[ilm*Nel+iel];
 
-                      const helfem::Matrix Rb00(Rmat00[ilm].block(ifirst,jfirst,Ni,Nj));
-                      const helfem::Matrix Rb02(Rmat02[ilm].block(ifirst,jfirst,Ni,Nj));
-                      const helfem::Matrix Rb20(Rmat20[ilm].block(ifirst,jfirst,Ni,Nj));
-                      const helfem::Matrix Rb22(Rmat22[ilm].block(ifirst,jfirst,Ni,Nj));
+                      Rb.topLeftCorner(Ni,Nj)     = R00.block(ifirst,jfirst,Ni,Nj);
+                      Rb.block(0,Nj,Ni,Nj)        = R01.block(ifirst,jfirst,Ni,Nj);
+                      Rb.block(Ni,0,Ni,Nj)        = R10.block(ifirst,jfirst,Ni,Nj);
+                      Rb.block(Ni,Nj,Ni,Nj)       = R11.block(ifirst,jfirst,Ni,Nj);
 
-                      for(Eigen::Index p=0;p<B.cols();p++) {
-                        // Channel blocks of Cholesky vector p, as (Ni x Ni)
-                        Eigen::Map<const helfem::Matrix> M0(B.col(p).data(),      Ni, Ni);
-                        Eigen::Map<const helfem::Matrix> M2(B.col(p).data() + nn, Ni, Ni);
+                      T.noalias() = KW*Rb.topLeftCorner(2*Ni,2*Nj);
+                      Kb.noalias() -= Eigen::Map<const helfem::Matrix>(T.data(), Ni, KV.rows()) * KV;
 
-                        const helfem::Matrix M0t(M0.transpose());
-                        const helfem::Matrix M2t(M2.transpose());
-
-                        helfem::Matrix contrib(  M0t*Rb00*M0t
-                                               - M0t*Rb02*M2t
-                                               - M2t*Rb20*M0t
-                                               + M2t*Rb22*M2t );
-                        Ksubm += sigma(p)*contrib;
-                      }
-                    }
-
-                    // Increment global exchange matrix
-                    K.block(jang*Nrad+ifirst,kang*Nrad+jfirst,Ni,Nj)-=Ksubm;
-
-                  } else {
-                    helfem::Matrix Ksub(helfem::Matrix::Zero(Ni,Nj));
-                    for(size_t ilm=0;ilm<lm_map.size();ilm++) {
-                      if(!couple[ilm])
-                        continue;
+                    } else {
                       // Disjoint integrals. When r(iel)>r(jel), iel gets Q, jel gets P.
+                      // The 0-2 cross terms carry the kernel's minus sign.
                       const helfem::Matrix & iint0=(iel>jel) ? disjoint_Q0[ilm*Nel+iel] : disjoint_P0[ilm*Nel+iel];
                       const helfem::Matrix & iint2=(iel>jel) ? disjoint_Q2[ilm*Nel+iel] : disjoint_P2[ilm*Nel+iel];
                       const helfem::Matrix & jint0=(iel>jel) ? disjoint_P0[ilm*Nel+jel] : disjoint_Q0[ilm*Nel+jel];
                       const helfem::Matrix & jint2=(iel>jel) ? disjoint_P2[ilm*Nel+jel] : disjoint_Q2[ilm*Nel+jel];
 
                       // (Niel x Njel) = (Niel x Njel) x (Njel x Njel)
-                      helfem::Matrix T(Rmat00[ilm].block(ifirst,jfirst,Ni,Nj)*jint0.transpose() + Rmat02[ilm].block(ifirst,jfirst,Ni,Nj)*jint2.transpose());
-                      Ksub-=iint0*T;
+                      T.noalias() = R00.block(ifirst,jfirst,Ni,Nj)*jint0.transpose();
+                      T.noalias() -= R01.block(ifirst,jfirst,Ni,Nj)*jint2.transpose();
+                      Kb.noalias() -= iint0*T;
 
-                      T=Rmat20[ilm].block(ifirst,jfirst,Ni,Nj)*jint0.transpose() + Rmat22[ilm].block(ifirst,jfirst,Ni,Nj)*jint2.transpose();
-                      Ksub-=iint2*T;
+                      T.noalias() = R10.block(ifirst,jfirst,Ni,Nj)*jint0.transpose();
+                      T.noalias() -= R11.block(ifirst,jfirst,Ni,Nj)*jint2.transpose();
+                      Kb.noalias() += iint2*T;
                     }
-
-                    // Increment global exchange matrix
-                    K.block(jang*Nrad+ifirst,kang*Nrad+jfirst,Ni,Nj)+=Ksub;
                   }
                 }
               }
@@ -1952,11 +1998,7 @@ namespace helfem {
         // exactly, so the mirror already delivers everything the
         // structure allows. Wall-clock comparisons suggest a shortfall
         // only because a loaded machine adds +-20% between builds.
-        if(absm_symmetric) {
-          std::vector<size_t> mirror_ang(Nang, Nang);
-          for(size_t a1=0;a1<Nang;a1++)
-            for(size_t b1=0;b1<Nang;b1++)
-              if(lval_(b1)==lval_(a1) && mval_(b1)==-mval_(a1)) { mirror_ang[a1]=b1; break; }
+        if(mirror) {
           for(size_t jang=0;jang<Nang;jang++) {
             if(mval_(jang) >= 0) continue;
             const size_t jm = mirror_ang[jang];

@@ -34,6 +34,7 @@ cmake -B objdir -DCMAKE_PREFIX_PATH="/opt/libxc;$(brew --prefix)"
 - `HELFEM_BINARIES=OFF` — build only `libhelfem` (skips the HDF5 and libxc requirements)
 - `HELFEM_EIGEN_BLAS` (default `ON`) — route Eigen's dense products (GEMM/GEMV/SYRK) through an external BLAS via `EIGEN_USE_BLAS`, instead of Eigen's own kernels. Vendor BLAS is typically faster for large dense products, and it makes Eigen reproduce that BLAS bit-for-bit. Requires a **32-bit-integer (LP64) BLAS** (stock Eigen's BLAS backend is int32-only and HelFEM does **not** patch Eigen). When a BLAS is linked, LAPACKE is also probed and, if found, Eigen's dense decompositions (including the SCF eigensolves) are routed to LAPACK via `EIGEN_USE_LAPACKE`. **Graceful fallback:** if no LP64 BLAS is found, the configure prints a notice and uses Eigen's header-only kernels — BLAS is never a hard dependency (and missing LAPACKE just leaves the decompositions on Eigen's own code). Set `OFF` to force the header-only kernels (the machine-independent-reproducibility choice). There is no ILP64 knob: Eigen indexes with a 64-bit type unconditionally.
 - `HELFEM_FETCH_LIBXC` (default `ON`) — libxc is looked for first as a CMake package (`LibxcConfig.cmake`, which a CMake-built libxc installs), then through pkg-config (`libxc.pc`); if neither is found, libxc `HELFEM_LIBXC_FETCH_TAG` (default `7.1.2`) is cloned from gitlab.com/libxc/libxc and built static alongside HelFEM, then installed with it (see *Fetched dependencies* below). `OFF` makes a missing libxc a configure error instead. Building it needs CMake ≥ 3.21. On a compute node without network access, set `FETCHCONTENT_SOURCE_DIR_LIBXC` to a local checkout.
+- `HELFEM_WITH_RECI` (default `OFF`) — build `helfem-reci`: CASCI (`src/general/cas_ci.{h,cpp}`) on reci's determinant/CSF engine, and CASSCF on OpenTrustRegion (`src/general/cas_optimizer.{h,cpp}`), which `atomic` runs after its SCF with `--casact`/`--casinact`/`--casM`. reci is looked for as an installed package (`find_package(reci)`), else fetched from `git@github.com:philipmnel/reci.git` at a pinned commit (SSH: the repository is private) and built whole, solvers and guesses included, which needs a Fortran compiler (diaglib). The CI problem is solved by reci's own driver; HelFEM keeps no CI algorithm of its own, and what the CI lacks is fixed in reci. reci brings Kokkos and C++20, both confined to `cas_ci.cpp`: nothing else in HelFEM is compiled as C++20. A program using it must hold a `helfem::cas::KokkosScope` in `main()`. reci's CI is real, which suffices for any active space: orbitals with m != 0 are complex, but their integrals are real numbers, with (tu|vw) = (vw|tu) = (ut|wv) though not (tu|vw) = (ut|vw). The tensor is therefore passed through unsymmetrised -- symmetrising it would be the real-ORBITAL assumption, which does not hold.
 - `HELFEM_USE_OPENMP` (default `ON`) — consumed as the `OpenMP::OpenMP_CXX` imported target. On **macOS**, AppleClang ships no OpenMP runtime; `brew install libomp` first (or configure with `-DHELFEM_USE_OPENMP=OFF`). The old unprefixed `USE_OPENMP` is still honoured for a standalone build, with a deprecation warning; it is ignored when HelFEM is consumed by another project, where an unprefixed name would collide.
 
 **Dependencies:** Eigen ≥ 3.4 (auto-fetched if absent), BLAS/LAPACK (optional; used when found and `HELFEM_EIGEN_BLAS=ON`, the default),
@@ -68,6 +69,38 @@ After build, test binaries are in `objdir/src/` (or `install/bin/`):
 ./install/bin/atomic_itest     # Atomic integration test
 ./install/bin/atomdb_test      # Tabulated atomic wave functions
 ```
+
+## Choosing a diatomic basis
+
+Never guess the `diatomic` grid (`--nelem`, `--nnodes`, `--primbas`,
+`--grid`, `--zexp`, `--Rmax`, `--lmax`), and do not copy one from an
+earlier run, a test case or a transcript without rederiving it: such a
+grid is neither converged nor minimal, so its energies compare to nothing
+and its timings measure the wrong problem. Derive it with `diatomic_cbasis`
+at the geometry in question:
+
+```bash
+diatomic_cbasis --Z1=Cr --Z2=Cr --Rbond=1.6788 --angstrom=1 --thresh=N
+```
+
+It grows the radial elements and the partial waves of each |m| channel
+until the energy changes by less than 10^-N (default 10), and ends by
+printing the complete option line to pass to `diatomic`, e.g.
+
+```
+An estimated accuracy of 1.000000e-04 is achieved with
+--Z1=Cr --Z2=Cr --Rbond=1.678800e+00 --angstrom=1 --grid=4 --zexp=1.000000e+00 --primbas=5 --nnodes=8 --nelem=3 --Rmax=4.000000e+01 --lmax=26,20,16
+```
+
+Use that line verbatim. State `--thresh` along with any result, since it
+sets what the numbers can be compared against; a loose threshold is fine
+for timing an algorithm, not for reporting an energy difference. The run
+takes minutes for a transition-metal dimer, so background it.
+
+The `--lmax` list has one entry per |m| channel, and `diatomic_cbasis`
+chooses the channels from the orbitals the atoms occupy (N2: sigma and
+pi, so |m| <= 1; Cr2: up to delta, |m| <= 2). Do not append channels to
+it; they only cost time.
 
 ## Architecture
 

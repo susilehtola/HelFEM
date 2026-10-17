@@ -184,8 +184,25 @@ namespace helfem {
         /// eigenvalue-thresholded factorization, not a plain Cholesky.
         std::vector<helfem::Matrix> cd_B;
         std::vector<helfem::Vector> cd_sigma;
+        /// cd_B rearranged for exchange(), which needs, per element and
+        /// (L,|M|), K = sum_p sigma_p W_p R V_p with W_p = [M0_p' M2_p'] and
+        /// V_p = [M0_p'; M2_p'] (M_p the channel blocks of Cholesky vector
+        /// p). Stacking W_p over p as rows (cd_KW, Nprim*r x 2*Nprim) and
+        /// sigma_p V_p over p as rows (cd_KV, r*2*Nprim x Nprim) turns the
+        /// 8r tiny products per output block into two GEMMs.
+        std::vector<helfem::Matrix> cd_KW, cd_KV;
         /// Relative eigenvalue threshold for the factorization above
         double cd_thresh;
+
+        /// Angular coupling of channel j to channel i through (L,M),
+        /// M = m_j - m_i: u0 = mod_coeff(lj,mj,L,M,li,mi) and
+        /// u1 = coeff(lj,mj,L,M,li), nonzero ones only. ang_cpl[key][j]
+        /// with key = 2*lmind(L,M) + (M<0). Coulomb and exchange both
+        /// contract the density with these, on either index pair.
+        struct AngCpl { size_t other; double u0, u1; };
+        std::vector<std::vector<std::vector<AngCpl>>> ang_cpl;
+        /// Per angular row i, the channels l with a nonzero block P(i,l)
+        std::vector<std::vector<size_t>> nonzero_blocks(const helfem::Matrix & P) const;
 
         /// Add to radial submatrix
         void add_sub(helfem::Matrix & M, size_t iang, size_t jang, const helfem::Matrix & Msub) const;

@@ -3937,6 +3937,191 @@
         "--preiter=20",
         "--soconvthr=1e-8"
       ]
+    },
+    {
+      "name": "atomic-Be-hf-cas21",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "hf",
+        "cas",
+        "reci",
+        "ci"
+      ],
+      "_why": "CAS(2,1) has one configuration, so CASSCF must reproduce the RHF energy of the same run",
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=0",
+        "--mmax=0",
+        "--nelem=4",
+        "--method=HF",
+        "--restricted=1",
+        "--casact=1",
+        "--casinact=1"
+      ]
+    },
+    {
+      "name": "atomic-C-hf-cas23-sym1",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "hf",
+        "cas",
+        "reci",
+        "symmetry",
+        "ci"
+      ],
+      "_why": "3P carbon as CAS(2,3) over the 2p shell from a spin-restricted SCF. Two electrons in a triplet have one configuration per M_L, so this is the open-shell HF limit, -37.6886189632.",
+      "args": [
+        "--Z=C",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--method=HF",
+        "--restricted=1",
+        "--symmetry=1",
+        "--casact=3",
+        "--casinact=2",
+        "--casM=3"
+      ]
+    },
+    {
+      "name": "atomic-C-hf-cas23-sym2",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "hf",
+        "cas",
+        "reci",
+        "symmetry",
+        "ci"
+      ],
+      "_why": "3P carbon as CAS(2,3) over the 2p shell from a spin-restricted SCF. Two electrons in a triplet have one configuration per M_L, so this is the open-shell HF limit, -37.6886189632.",
+      "args": [
+        "--Z=C",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--method=HF",
+        "--restricted=1",
+        "--symmetry=2",
+        "--casact=3",
+        "--casinact=2",
+        "--casM=3"
+      ]
+    },
+    {
+      "name": "diatomic-O2-hf-cas22-sym1",
+      "code": "diatomic",
+      "tags": [
+        "diatomic",
+        "restricted",
+        "hf",
+        "cas",
+        "reci",
+        "symmetry",
+        "slow"
+      ],
+      "_why": "triplet O2 as CAS(2,2) over pi*, grid from diatomic_cbasis --thresh=3. At --symmetry=3 the SCF ties +m to -m and the CAS keeps them tied by rotating both together; the energy must match the --symmetry=1 start. About 36 minutes each on one thread.",
+      "timeout_s": 5400,
+      "args": [
+        "--Z1=O",
+        "--Z2=O",
+        "--Rbond=2.282",
+        "--grid=4",
+        "--primbas=5",
+        "--nnodes=8",
+        "--nelem=3",
+        "--Rmax=40",
+        "--lmax=11,7",
+        "--method=HF",
+        "--restricted=1",
+        "--M=1",
+        "--symmetry=1",
+        "--casact=2",
+        "--casinact=7",
+        "--casM=3"
+      ]
+    },
+    {
+      "name": "diatomic-O2-hf-cas22-sym3",
+      "code": "diatomic",
+      "tags": [
+        "diatomic",
+        "restricted",
+        "hf",
+        "cas",
+        "reci",
+        "symmetry",
+        "slow"
+      ],
+      "_why": "triplet O2 as CAS(2,2) over pi*, grid from diatomic_cbasis --thresh=3. At --symmetry=3 the SCF ties +m to -m and the CAS keeps them tied by rotating both together; the energy must match the --symmetry=1 start. About 36 minutes each on one thread.",
+      "timeout_s": 5400,
+      "args": [
+        "--Z1=O",
+        "--Z2=O",
+        "--Rbond=2.282",
+        "--grid=4",
+        "--primbas=5",
+        "--nnodes=8",
+        "--nelem=3",
+        "--Rmax=40",
+        "--lmax=11,7",
+        "--method=HF",
+        "--restricted=1",
+        "--M=1",
+        "--symmetry=3",
+        "--casact=2",
+        "--casinact=7",
+        "--casM=3"
+      ]
+    },
+    {
+      "name": "atomic-Be-hf-cas24",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "hf",
+        "cas",
+        "reci"
+      ],
+      "_why": "Be 2s2+2p2 as CAS(2,4): the 2p shell is empty in the SCF, so the active space has to come from the correlating-function guess. Over the lowest canonical virtuals instead, which are diffuse, CASSCF stops at the RHF energy with a zero gradient. -14.6168453 agrees with the MCHF 2s2+2p2 value, -14.616856.",
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--method=HF",
+        "--restricted=1",
+        "--casact=4",
+        "--casinact=1"
+      ]
+    },
+    {
+      "name": "atomic-Be-pbe-cas24",
+      "code": "atomic",
+      "tags": [
+        "restricted",
+        "gga",
+        "cas",
+        "reci"
+      ],
+      "_why": "Be 2s2+2p2 as CAS(2,4): the 2p shell is empty in the SCF, so the active space has to come from the correlating-function guess. Over the lowest canonical virtuals instead, which are diffuse, CASSCF stops at the RHF energy with a zero gradient. -14.6168453 agrees with the MCHF 2s2+2p2 value, -14.616856.",
+      "args": [
+        "--Z=Be",
+        "--M=1",
+        "--lmax=1",
+        "--mmax=1",
+        "--nelem=5",
+        "--method=gga_x_pbe-gga_c_pbe",
+        "--restricted=1",
+        "--casact=4",
+        "--casinact=1"
+      ]
     }
   ],
   "_invariants_comment": [
@@ -4745,6 +4930,45 @@
         "diatomic-Ne-dummy-lda-absm-secondorder"
       ],
       "field": "total",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "Be-cas21-equals-rhf",
+      "_why": "a one-configuration CAS is the SCF wave function",
+      "cases": [
+        "atomic-Be-hf-cas21:total",
+        "atomic-Be-hf-cas21:casscf"
+      ],
+      "tolerance": 1e-08
+    },
+    {
+      "name": "C-cas23-symmetry-independent",
+      "_why": "the SCF symmetry only decides the starting orbitals; the CASSCF minimum does not depend on it",
+      "cases": [
+        "atomic-C-hf-cas23-sym1",
+        "atomic-C-hf-cas23-sym2"
+      ],
+      "field": "casscf",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "O2-cas22-symmetry-independent",
+      "_why": "tying the +m and -m rotations must not change the CASSCF minimum",
+      "cases": [
+        "diatomic-O2-hf-cas22-sym1",
+        "diatomic-O2-hf-cas22-sym3"
+      ],
+      "field": "casscf",
+      "tolerance": 1e-08
+    },
+    {
+      "name": "Be-cas24-hf-and-dft-start",
+      "_why": "the SCF only supplies the starting orbitals: from PBE or HF orbitals CASSCF must reach the same minimum",
+      "cases": [
+        "atomic-Be-hf-cas24",
+        "atomic-Be-pbe-cas24"
+      ],
+      "field": "casscf",
       "tolerance": 1e-08
     }
   ]

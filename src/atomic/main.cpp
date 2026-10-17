@@ -38,6 +38,8 @@
 #include "../general/scf_driver_common.h"
 #include "../general/trustregion_scf.h"
 #include "../general/otr_solver.h"
+#include "../general/cas_options.h"
+#include "cas_engine.h"
 #include "../general/checkpoint.h"
 #include "../general/eigen_io.h"
 
@@ -142,6 +144,7 @@ int main(int argc, char **argv) {
   parser.add<bool>("fractionaloccupations", 0, "optimize fractional occupations in the second-order phase: the block fillings become parameters, and charge moves between degenerate shells; off keeps every orbital full or empty", false, false);
   parser.add<bool>("stabilityanalysis", 0, "run OpenTrustRegion's stability analysis when the second-order phase converges, and follow a negative Hessian eigenvalue if one is found", false, false);
   parser.add<double>("sotest", 0, "instead of optimizing, check the analytic gradient and Hessian against finite differences with this step size", false, 0.0);
+  helfem::cas::add_options(parser);
 
   parser.parse_check(argc, argv);
 
@@ -346,7 +349,9 @@ int main(int argc, char **argv) {
   const int mdft = mdft_arg > 0 ? mdft_arg : 4 * mmax + 12;
   auto grid = helfem::atomic::dftgrid::DFTGrid(&basis, ldft, mdft);
   grid.set_current(current);
-  basis.compute_tei(have_exx);
+  const int casact = parser.get<int>("casact");
+  // A CAS wave function needs exchange whatever the SCF functional is.
+  basis.compute_tei(have_exx || casact > 0);
   // Precompute the range-separated exchange kernel if the functional uses
   // one. Yukawa (screened Coulomb) and erfc (complementary error-function)
   // are the two kernels libxc's CAM functionals ask for.
@@ -976,6 +981,30 @@ int main(int argc, char **argv) {
     savechk.write("nelb", nelb);
     if (verbosity >= 1)
       printf("Saved results to %s\n", savefile.c_str());
+  }
+
+  if (casact > 0) {
+#ifdef HELFEM_HAVE_RECI
+    if (Bz != 0.0)
+      throw std::logic_error("CASSCF with a magnetic field is not implemented.\n");
+    // After --save, so that a CASSCF that fails or is killed still leaves
+    // the SCF to restart from.
+    // Start from the SCF density, whatever produced it.
+    helfem::Matrix Pa_scf, Pb_scf;
+    std::tie(Pa_scf, Pb_scf) = helfem::scf_driver::assemble_final_density<OOO_Real>(
+        Nbf, restricted, dsym, Sinvh, scfsolver.get_orbitals(),
+        scfsolver.get_orbital_occupations());
+    const helfem::atomic::basis::AtomicCASEngine jk(basis, T + Vnuc + Vel + Vconf);
+    helfem::cas::KokkosScope kokkos;
+    const helfem::cas::CASSCFResult cres = helfem::cas::casscf_from_scf(
+        jk, S, Pa_scf + Pb_scf, dsym, Sinvh, block_descriptions, Ntot,
+        helfem::cas::request(parser, verbosity));
+    printf("CASSCF total energy %.10f\n", cres.energy + Enucr);
+    fflush(stdout);
+#else
+    throw std::logic_error("This HelFEM was built without reci, so --casact is "
+                           "unavailable. Configure with -DHELFEM_WITH_RECI=ON.\n");
+#endif
   }
 
   return 0;

@@ -247,13 +247,18 @@ namespace helfem {
         OpenOrbitalOptimizer::OrbitalOccupations<Real> & occs,
         const helfem::Matrix & Pspin, const helfem::Matrix & S,
         const std::vector<Eigen::Index> & idx,
-        const helfem::Matrix & Sinvh_block, double max_occ) {
+        const helfem::Matrix & Sinvh_block, double max_occ, int degeneracy = 1) {
       if (idx.empty()) {
         orbs[out_index] = helfem::Matrix::Zero(0, 0);
         occs[out_index] = helfem::Vector::Zero(0);
         return 0.0;
       }
-      const helfem::Matrix Pblk  = Pspin(idx, idx);
+      // A block standing for `degeneracy` mirrored copies (+m and -m at
+      // diatomic --symmetry=3) holds the electrons of all of them, of
+      // which idx sees one copy's share: the density is shared equally
+      // when the block is scattered back.
+      const helfem::Matrix Pblk  = degeneracy * Pspin(idx, idx);
+      max_occ *= degeneracy;
       const helfem::Matrix Sblk  = S(idx, idx);
       const helfem::Matrix SC    = Sblk * Sinvh_block;
       const helfem::Matrix Porth = SC.transpose() * Pblk * SC;
@@ -328,25 +333,35 @@ namespace helfem {
         const std::vector<std::vector<Eigen::Index>> & dsym,
         const std::vector<helfem::Matrix> & Sinvh,
         const OpenOrbitalOptimizer::Orbitals<Real> & final_orbs,
-        const OpenOrbitalOptimizer::OrbitalOccupations<Real> & final_occs) {
+        const OpenOrbitalOptimizer::OrbitalOccupations<Real> & final_occs,
+        const std::vector<std::vector<Eigen::Index>> & dmirror = {}) {
       const size_t nsym = dsym.size();
       const Eigen::Index N = static_cast<Eigen::Index>(Nbf);
       helfem::Matrix Pa_final = helfem::Matrix::Zero(N, N);
       helfem::Matrix Pb_final = helfem::Matrix::Zero(N, N);
+      // A mirrored block (diatomic --symmetry=3) stands for its +m and -m
+      // copies, which share its density equally, as in the SCF itself.
+      auto scatter = [&](helfem::Matrix & P, size_t k, const helfem::Matrix & Pblk) {
+        if (k < dmirror.size() && !dmirror[k].empty()) {
+          P(dsym[k], dsym[k]) += 0.5 * Pblk;
+          P(dmirror[k], dmirror[k]) += 0.5 * Pblk;
+        } else {
+          P(dsym[k], dsym[k]) += Pblk;
+        }
+      };
       for (size_t k = 0; k < nsym; ++k) {
         if (dsym[k].empty()) continue;
-        const std::vector<Eigen::Index> & idx = dsym[k];
         const helfem::Matrix orb_a_ao = Sinvh[k] * final_orbs[k];
         const helfem::Vector occ_a    = final_occs[k];
         if (restricted) {
           const helfem::Matrix P_block = 0.5 * (orb_a_ao * occ_a.asDiagonal() * orb_a_ao.transpose());
-          Pa_final(idx, idx) += P_block;
-          Pb_final(idx, idx) += P_block;
+          scatter(Pa_final, k, P_block);
+          scatter(Pb_final, k, P_block);
         } else {
           const helfem::Matrix orb_b_ao = Sinvh[k] * final_orbs[nsym + k];
           const helfem::Vector occ_b    = final_occs[nsym + k];
-          Pa_final(idx, idx) += orb_a_ao * occ_a.asDiagonal() * orb_a_ao.transpose();
-          Pb_final(idx, idx) += orb_b_ao * occ_b.asDiagonal() * orb_b_ao.transpose();
+          scatter(Pa_final, k, orb_a_ao * occ_a.asDiagonal() * orb_a_ao.transpose());
+          scatter(Pb_final, k, orb_b_ao * occ_b.asDiagonal() * orb_b_ao.transpose());
         }
       }
       return {Pa_final, Pb_final};
@@ -367,20 +382,31 @@ namespace helfem {
         const OpenOrbitalOptimizer::Orbitals<Real> & final_orbs,
         const OpenOrbitalOptimizer::OrbitalOccupations<Real> & final_occs,
         helfem::Matrix & Ca, helfem::Vector & occa,
-        helfem::Matrix & Cb, helfem::Vector & occb) {
+        helfem::Matrix & Cb, helfem::Vector & occb,
+        const std::vector<std::vector<Eigen::Index>> & dmirror = {}) {
       const size_t nsym = dsym.size();
       const Eigen::Index N = static_cast<Eigen::Index>(Nbf);
+      // An orbital of a mirrored block is two spatial orbitals, its +m and
+      // -m copies, each holding half of its occupation.
+      auto mirrored = [&](size_t k) { return k < dmirror.size() && !dmirror[k].empty(); };
 
       auto build = [&](size_t block_offset, helfem::Matrix & C, helfem::Vector & occ,
                        double occ_scale) {
-        // (occupation, block, column-in-block), sorted descending by
-        // occupation; ties keep block-then-column order (stable_sort).
-        std::vector<std::tuple<double, size_t, Eigen::Index>> order;
+        // (occupation, block, column-in-block, mirror copy), sorted
+        // descending by occupation; ties keep block-then-column order
+        // (stable_sort).
+        std::vector<std::tuple<double, size_t, Eigen::Index, bool>> order;
         for (size_t k = 0; k < nsym; ++k) {
           if (dsym[k].empty()) continue;
           const helfem::Vector & o = final_occs[block_offset + k];
-          for (Eigen::Index c = 0; c < o.size(); ++c)
-            order.emplace_back(o(c), k, c);
+          for (Eigen::Index c = 0; c < o.size(); ++c) {
+            if (mirrored(k)) {
+              order.emplace_back(0.5 * o(c), k, c, false);
+              order.emplace_back(0.5 * o(c), k, c, true);
+            } else {
+              order.emplace_back(o(c), k, c, false);
+            }
+          }
         }
         std::stable_sort(order.begin(), order.end(),
                          [](const auto & a, const auto & b) {
@@ -393,7 +419,7 @@ namespace helfem {
           const size_t k = std::get<1>(order[i]);
           const Eigen::Index c = std::get<2>(order[i]);
           const helfem::Vector col_ao = Sinvh[k] * final_orbs[block_offset + k].col(c);
-          const std::vector<Eigen::Index> & idx = dsym[k];
+          const std::vector<Eigen::Index> & idx = std::get<3>(order[i]) ? dmirror[k] : dsym[k];
           for (size_t r = 0; r < idx.size(); ++r)
             C(idx[r], static_cast<Eigen::Index>(i)) = col_ao(static_cast<Eigen::Index>(r));
           occ(static_cast<Eigen::Index>(i)) = occ_scale * std::get<0>(order[i]);
