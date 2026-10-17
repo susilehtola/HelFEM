@@ -70,6 +70,38 @@ After build, test binaries are in `objdir/src/` (or `install/bin/`):
 ./install/bin/atomdb_test      # Tabulated atomic wave functions
 ```
 
+## Choosing a diatomic basis
+
+Never guess the `diatomic` grid (`--nelem`, `--nnodes`, `--primbas`,
+`--grid`, `--zexp`, `--Rmax`, `--lmax`), and do not copy one from an
+earlier run, a test case or a transcript without rederiving it: such a
+grid is neither converged nor minimal, so its energies compare to nothing
+and its timings measure the wrong problem. Derive it with `diatomic_cbasis`
+at the geometry in question:
+
+```bash
+diatomic_cbasis --Z1=Cr --Z2=Cr --Rbond=1.6788 --angstrom=1 --thresh=N
+```
+
+It grows the radial elements and the partial waves of each |m| channel
+until the energy changes by less than 10^-N (default 10), and ends by
+printing the complete option line to pass to `diatomic`, e.g.
+
+```
+An estimated accuracy of 1.000000e-04 is achieved with
+--Z1=Cr --Z2=Cr --Rbond=1.678800e+00 --angstrom=1 --grid=4 --zexp=1.000000e+00 --primbas=5 --nnodes=8 --nelem=3 --Rmax=4.000000e+01 --lmax=26,20,16
+```
+
+Use that line verbatim. State `--thresh` along with any result, since it
+sets what the numbers can be compared against; a loose threshold is fine
+for timing an algorithm, not for reporting an energy difference. The run
+takes minutes for a transition-metal dimer, so background it.
+
+The `--lmax` list has one entry per |m| channel, and `diatomic_cbasis`
+chooses the channels from the orbitals the atoms occupy (N2: sigma and
+pi, so |m| <= 1; Cr2: up to delta, |m| <= 2). Do not append channels to
+it; they only cost time.
+
 ## Architecture
 
 The codebase has three layers:
