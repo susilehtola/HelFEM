@@ -18,15 +18,14 @@
 // and keeping them out of cas_ci.h keeps both requirements off every HelFEM
 // translation unit that merely uses a CASCI.
 #include <Kokkos_Core.hpp>
-#include <reci/ci_sigma_builder.h>
-#include <reci/ci_spin_adapter.h>
-#include <reci/ci_strings.h>
-#include <direct.h>
+#include <ci_solver.h>
 
 #include <Eigen/Eigenvalues>
 
+#include <algorithm>
 #include <cmath>
 #include <numeric>
+#include <optional>
 #include <span>
 #include <string>
 
@@ -87,36 +86,68 @@ namespace helfem {
             + ", (tu|vw) = (ut|wv) off by " + std::to_string(a1));
     }
 
-    struct CASCI::Impl {
-      size_t nact;
-      int twoS;
-      reci::CIStrings strings;
-      reci::CISpinAdapter<double> spin;
-      // Built at the first set_hamiltonian: CISigmaBuilder takes integrals at
-      // construction, and holds a reference to `strings`, which is why Impl
-      // owns both and is never moved.
-      std::unique_ptr<reci::CISigmaBuilder<double>> sb;
-      // The Hamiltonian as last installed, in reci's conventions, for the
-      // ground-state solve, which goes through reci's own driver.
-      double E_core = 0.0;
-      std::vector<double> h, V;
-      int nalpha, nbeta;
-
-      Impl(int nact_, int na, int nb)
-          : nact((size_t) nact_), twoS(na - nb), nalpha(na), nbeta(nb),
-            strings((size_t) na, (size_t) nb, (size_t) nact_),
-            spin(na - nb, na - nb, nact_) {
-        spin.prepare_couplings(strings);
+    namespace {
+      /// The M_L sector as reci sees it: m mod n in Z_n, with n larger than
+      /// twice the largest |M_L| the electrons can reach, so that no two
+      /// reachable M_L share a label.
+      std::optional<CISymmetry> ml_sector(const std::vector<int> & m, int nalpha, int nbeta,
+                                          int ML) {
+        if (m.empty())
+          return std::nullopt;
+        std::vector<int> am;
+        for (int x : m) am.push_back(std::abs(x));
+        std::sort(am.rbegin(), am.rend());
+        int Mmax = 0;
+        for (int k = 0; k < nalpha; k++) Mmax += am[(size_t) k];
+        for (int k = 0; k < nbeta; k++) Mmax += am[(size_t) k];
+        const int n = 2 * std::max(Mmax, std::abs(ML)) + 1;
+        auto label = [n](int x) { return (x % n + n) % n; };
+        CISymmetry sym{reci::SymmetryGroup::cyclic((size_t) n), {}, label(ML)};
+        for (int x : m) sym.orbital_irreps.push_back(label(x));
+        return sym;
       }
 
+      CISolverOptions solver_options() {
+        // Chosen explicitly rather than inherited from reci's defaults, so a
+        // change of default there cannot silently change the CI here.
+        CISolverOptions o;
+        o.solver = "davidson";
+        o.sigma_algorithm = "kh";
+        // The heat-bath guess, seeded inside the M_L sector: H never couples
+        // two sectors, so the seed root's M_L is the answer's.
+        o.guess = "hci";
+        o.guess_subspace = 1000;
+        o.hci_eps = 1e-3;
+        o.hci_seed = 200;
+        o.tol = 1e-8;
+        o.max_iter = 500;
+        o.memory_mb = 1024;
+        return o;
+      }
+    } // namespace
+
+    struct CASCI::Impl {
+      size_t nact;
+      // FourFold always: complex active orbitals lack (tu|vw) = (ut|vw), and
+      // an EightFold declaration lets Knowles-Handy drop the antisymmetric
+      // pair channel those integrals need. For real orbitals the channel
+      // is merely zero, so FourFold costs time, never correctness.
+      CISolver solver;
+      bool have_h = false;
+
+      Impl(int nact_, int na, int nb, const std::vector<int> & m, int ML)
+          : nact((size_t) nact_),
+            solver((size_t) nact_, (size_t) na, (size_t) nb, na - nb,
+                   reci::ERISymmetry::FourFold, solver_options(), ml_sector(m, na, nb, ML)) {}
+
       const reci::CISigmaBuilder<double> & builder() const {
-        if (!sb)
+        if (!have_h)
           throw std::logic_error("CASCI: set_hamiltonian has not been called");
-        return *sb;
+        return solver.sigma_builder();
       }
     };
 
-    CASCI::CASCI(int nact, int nalpha, int nbeta) {
+    CASCI::CASCI(int nact, int nalpha, int nbeta, const std::vector<int> & m, int ML) {
       if (!Kokkos::is_initialized())
         throw std::logic_error("CASCI: Kokkos is not initialized; hold a "
                                "helfem::cas::KokkosScope in main()");
@@ -124,13 +155,18 @@ namespace helfem {
         throw std::invalid_argument("CASCI: nalpha < nbeta; the target is M_S = S >= 0");
       if (nact < 1 || nalpha > nact || nbeta > nact)
         throw std::invalid_argument("CASCI: electrons do not fit the active space");
-      impl_ = std::make_unique<Impl>(nact, nalpha, nbeta);
+      if (!m.empty() && m.size() != (size_t) nact)
+        throw std::invalid_argument("CASCI: give the m of every active orbital, or none");
+      impl_ = std::make_unique<Impl>(nact, nalpha, nbeta, m, ML);
+      if (ncsf() == 0)
+        throw std::invalid_argument("CASCI: no configuration of the active electrons has M_L = "
+                                    + std::to_string(ML));
     }
 
     CASCI::~CASCI() = default;
 
-    size_t CASCI::ndet() const { return impl_->strings.ndet(); }
-    size_t CASCI::ncsf() const { return impl_->spin.ncsf(); }
+    size_t CASCI::ndet() const { return impl_->solver.ndet(); }
+    size_t CASCI::ncsf() const { return impl_->solver.ncsf(); }
 
     void CASCI::set_hamiltonian(const ActiveHamiltonian & ah) {
       const size_t n = impl_->nact;
@@ -144,27 +180,8 @@ namespace helfem {
         for (size_t q = 0; q < n; q++)
           h[p * n + q] = ah.h_eff((Eigen::Index) p, (Eigen::Index) q);
       // chemist (tu|vw) -> reci's physicist <pq|rs> = (pr|qs)
-      std::vector<double> V = swap_middle(ah.eri, n);
-
-      // FourFold always: complex active orbitals lack (tu|vw) = (ut|vw), and
-      // an EightFold declaration lets Knowles-Handy drop the antisymmetric
-      // pair channel those integrals need. For real orbitals the channel
-      // is merely zero, so FourFold costs time, never correctness.
-      impl_->E_core = ah.E_inactive;
-      impl_->h = h;
-      impl_->V = V;
-      if (!impl_->sb) {
-        impl_->sb = std::make_unique<reci::CISigmaBuilder<double>>(
-            impl_->strings, ah.E_inactive, std::move(h), std::move(V),
-            reci::ERISymmetry::FourFold, /*log_level=*/0);
-        // Chosen explicitly rather than inherited from reci's defaults, so a
-        // change of default there cannot silently change the CI here.
-        impl_->sb->set_algorithm("kh");
-        impl_->sb->set_memory(1024);
-      } else {
-        impl_->sb->set_Hamiltonian(ah.E_inactive, std::move(h), std::move(V),
-                                   reci::ERISymmetry::FourFold);
-      }
+      impl_->solver.set_Hamiltonian(ah.E_inactive, std::move(h), swap_middle(ah.eri, n));
+      impl_->have_h = true;
     }
 
     std::vector<double> CASCI::sigma(const std::vector<double> & c) const {
@@ -177,64 +194,37 @@ namespace helfem {
 
     double CASCI::solve_ground(std::vector<double> & civec) const {
       impl_->builder();  // throws before the Hamiltonian is installed
-      Problem p;
-      p.nmo = (int) impl_->nact;
-      p.nalpha = impl_->nalpha;
-      p.nbeta = impl_->nbeta;
-      p.nre = impl_->E_core;
-      p.h0 = impl_->h;
-      p.eri = impl_->V;
-      p.eri_symmetry = reci::ERISymmetry::FourFold;
-      p.mo_symmetry.assign(impl_->nact, 0);
-
-      // reci's driver, with its own guess, preconditioner and eigensolver;
+      // reci's solver, with its own guess, preconditioner and eigensolver;
       // the CI problem is solved there and nowhere here.
-      DirectSettings s;
-      s.c1 = true;
-      s.solver = "molpro";
-      s.guess = "hci";
-      s.solver_settings.verbose = false;
-      s.solver_settings.tol = 1e-8;
-      s.solver_settings.max_iter = 500;
-      const DirectResult r = direct(p, s);
-      if (r.eigenvalues.empty() || !r.converged)
+      const CISolveResult r = impl_->solver.solve(1);
+      if (!r.converged || r.energies.empty())
         throw std::runtime_error("CASCI: reci's CI solver did not converge");
-      if (r.det_basis || r.ndim != ncsf())
-        throw std::logic_error("CASCI: reci returned a vector outside the CSF basis");
 
-      // direct() builds its spin adapter from the same strings and spin as
-      // ours, so the CSF order is the same; checked rather than assumed.
-      std::vector<double> c0(r.eigenvectors.begin(), r.eigenvectors.begin() + (long) r.ndim);
-      civec = to_det(c0);
+      civec = to_det(r.csf_vectors);
       const double nrm = std::sqrt(std::inner_product(civec.begin(), civec.end(), civec.begin(), 0.0));
       for (double & x : civec) x /= nrm;
       const std::vector<double> sg = sigma(civec);
       const double E = std::inner_product(civec.begin(), civec.end(), sg.begin(), 0.0);
-      if (std::abs(E - r.eigenvalues[0]) > 1e-8 * std::max(1.0, std::abs(E)))
-        throw std::logic_error("CASCI: reci's eigenvector does not reproduce its eigenvalue "
-                               "in this CSF basis");
+      if (std::abs(E - r.energies[0]) > 1e-8 * std::max(1.0, std::abs(E)))
+        throw std::logic_error("CASCI: reci's eigenvector does not reproduce its eigenvalue");
       return E;
     }
 
     std::vector<double> CASCI::to_det(const std::vector<double> & csf) const {
       if (csf.size() != ncsf())
         throw std::invalid_argument("CASCI::to_det: vector length is not ncsf");
-      std::vector<double> det(ndet());
-      impl_->spin.csf_C_to_det_C(csf, det);
-      return det;
+      return impl_->solver.csf_to_det(csf);
     }
 
     std::vector<double> CASCI::to_csf(const std::vector<double> & det) const {
       if (det.size() != ndet())
         throw std::invalid_argument("CASCI::to_csf: vector length is not ndet");
-      std::vector<double> csf(ncsf());
-      impl_->spin.det_C_to_csf_C(det, csf);
-      return csf;
+      return impl_->solver.det_to_csf(det);
     }
 
     std::vector<double> CASCI::hdiag_csf() const {
       impl_->builder();  // throws before the Hamiltonian is installed
-      return impl_->sb->build_Hdiag_csf_exact(impl_->spin);
+      return impl_->solver.sigma_builder().build_Hdiag_csf_exact(impl_->solver.spin_adapter());
     }
 
     RDMs CASCI::rdms(const std::vector<double> & L, const std::vector<double> & R) const {

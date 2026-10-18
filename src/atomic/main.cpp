@@ -997,7 +997,7 @@ int main(int argc, char **argv) {
     const helfem::atomic::basis::AtomicCASEngine jk(basis, T + Vnuc + Vel + Vconf);
     helfem::cas::KokkosScope kokkos;
     const helfem::cas::CASSCFResult cres = helfem::cas::casscf_from_scf(
-        jk, S, Pa_scf + Pb_scf, dsym, Sinvh, block_descriptions, Ntot,
+        jk, S, Pa_scf + Pb_scf, dsym, Sinvh, block_descriptions, basis.sym_m(symm_eff), Ntot,
         helfem::cas::request(parser, verbosity));
     printf("CASSCF total energy %.10f\n", cres.energy + Enucr);
     fflush(stdout);

@@ -379,6 +379,9 @@ namespace helfem {
         /// order ("m=+1", "m=-2 u", ...). Kept alongside sym_idx so
         /// the two cannot drift apart.
         std::vector<std::string> sym_labels(int symm) const;
+        /// The m of each block of sym_idx(symm); empty when the blocks have
+        /// no signed m (symm = 0 and 3).
+        std::vector<int> sym_m(int symm) const;
         /// Largest |m| present in the basis.
         int absm_max() const;
         /// Declare that every density handed to exchange() will be

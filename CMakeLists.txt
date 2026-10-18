@@ -880,11 +880,13 @@ if(HELFEM_WITH_RECI)
         # how anyone with access to it already authenticates.
         FetchContent_Declare(reci
             GIT_REPOSITORY git@github.com:philipmnel/reci.git
-            GIT_TAG        e9b7d2dac4239828d63dab58c952bb233e32f040)
-        set(RECI_CORE_ONLY OFF)
+            GIT_TAG        7607470b7212f24550d5c150cdd02d2b419ce896)
+        # The CI library with its eigensolvers, which is all a CASSCF
+        # driver needs: no TREXIO, executables or tests.
+        set(RECI_LIBRARY_ONLY ON)
         set(RECI_BUILD_TESTS OFF)
-        helfem_fetch_privately(reci RECI_CORE_ONLY RECI_BUILD_TESTS)
-        unset(RECI_CORE_ONLY)
+        helfem_fetch_privately(reci RECI_LIBRARY_ONLY RECI_BUILD_TESTS)
+        unset(RECI_LIBRARY_ONLY)
         unset(RECI_BUILD_TESTS)
         # The installed package exports the solver library as reci::reci;
         # in the tree it is plain reci.

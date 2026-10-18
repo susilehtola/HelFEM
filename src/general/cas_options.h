@@ -29,6 +29,7 @@ namespace helfem {
       parser.add<int>("casact", 0, "CASSCF after the SCF: number of active orbitals (0 for none)", false, 0);
       parser.add<int>("casinact", 0, "CASSCF: number of doubly occupied inactive orbitals", false, 0);
       parser.add<int>("casM", 0, "CASSCF: spin multiplicity of the target state", false, 1);
+      parser.add<int>("casML", 0, "CASSCF: M_L of the target state, whose sector the CI is solved in; 0 holds every atomic term and every Sigma state of a diatomic", false, 0);
       parser.add<bool>("cascoupled", 0, "CASSCF: optimize orbitals and CI coefficients together (else re-solve the CI at every orbital step)", false, true);
       parser.add<double>("casconvthr", 0, "CASSCF: RMS gradient to converge to", false, 1e-6);
     }
@@ -38,6 +39,7 @@ namespace helfem {
       r.ninact = parser.get<int>("casinact");
       r.nact = parser.get<int>("casact");
       r.twoS = parser.get<int>("casM") - 1;
+      r.ML = parser.get<int>("casML");
       r.coupling = parser.get<bool>("cascoupled") ? Coupling::Coupled : Coupling::TwoStep;
       r.options.otr.conv_tol = parser.get<double>("casconvthr");
       r.options.otr.n_macro = parser.get<int>("somacro");

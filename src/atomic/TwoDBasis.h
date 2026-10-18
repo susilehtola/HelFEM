@@ -266,6 +266,9 @@ namespace helfem {
         /// order ("m=+1", "l=2 m=-1", ...). Kept alongside sym_idx so
         /// the two cannot drift apart.
         std::vector<std::string> sym_labels(int isym) const;
+        /// The m of each block of sym_idx(isym); empty when the blocks have
+        /// none (isym = 0).
+        std::vector<int> sym_m(int isym) const;
 
         /// Evaluate basis functions (T = double only)
         Eigen::MatrixXcd eval_bf(size_t iel, double cth, double phi) const;

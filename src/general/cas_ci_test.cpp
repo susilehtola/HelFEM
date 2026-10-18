@@ -52,6 +52,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -232,8 +233,30 @@ int main() {
                                     0, 0, 0.0);
     basis1.compute_tei(true);
     atomic::basis::AtomicCASEngine jk1(basis1);
-    Eigen::GeneralizedSelfAdjointEigenSolver<helfem::Matrix> es1(jk1.hcore(), basis1.overlap());
-    const helfem::Matrix C1 = es1.eigenvectors();
+    // Orbitals of definite m, by solving each m block on its own: a dense
+    // solve is free to mix the degenerate +m and -m partners.
+    const helfem::Matrix S1 = basis1.overlap();
+    const auto blocks = basis1.sym_idx(1);
+    const std::vector<int> block_m = basis1.sym_m(1);
+    std::vector<std::tuple<double, int, helfem::Vector>> orbs;
+    for (size_t b = 0; b < blocks.size(); b++) {
+      const auto & idx = blocks[b];
+      Eigen::GeneralizedSelfAdjointEigenSolver<helfem::Matrix> esb(
+          helfem::Matrix(jk1.hcore()(idx, idx)), helfem::Matrix(S1(idx, idx)));
+      for (Eigen::Index k = 0; k < esb.eigenvalues().size(); k++) {
+        helfem::Vector c = helfem::Vector::Zero(S1.rows());
+        c(idx) = esb.eigenvectors().col(k);
+        orbs.emplace_back(esb.eigenvalues()(k), block_m[b], c);
+      }
+    }
+    std::stable_sort(orbs.begin(), orbs.end(),
+                     [](const auto & a, const auto & b) { return std::get<0>(a) < std::get<0>(b); });
+    helfem::Matrix C1(S1.rows(), (Eigen::Index) orbs.size());
+    std::vector<int> m1;
+    for (size_t k = 0; k < orbs.size(); k++) {
+      C1.col((Eigen::Index) k) = std::get<2>(orbs[k]);
+      m1.push_back(std::get<1>(orbs[k]));
+    }
     const Eigen::Index n1 = std::min<Eigen::Index>(13, (Eigen::Index) basis1.Nbf() - 1);
     const auto ah1 = cas::active_hamiltonian(jk1, C1, 1, n1);
 
@@ -266,6 +289,28 @@ int main() {
       for (size_t i = 0; i < r.d.size(); i++) Er += 0.5 * ah1.eri[i] * r.d[i];
       check("  RDMs reproduce the eigenvalue", Er, E, 1e-10);
       check("  D is symmetric (real state)", (r.D - r.D.transpose()).cwiseAbs().maxCoeff(), 0.0, 1e-12);
+
+      // The same CI by M_L sector. The integrals conserve M_L, so the
+      // sectors partition the CSFs, and the ground state is the lowest of
+      // the sectors' ground states. Each sector's RDMs give its energy.
+      const std::vector<int> ma(m1.begin() + 1, m1.begin() + 1 + n1);
+      size_t nsec = 0;
+      double Emin = 1e300, rdm_err = 0.0;
+      for (int ML = -2; ML <= 2; ML++) {
+        cas::CASCI cs((int) n1, twoS ? 2 : 1, twoS ? 0 : 1, ma, ML);
+        cs.set_hamiltonian(ah1);
+        nsec += cs.ncsf();
+        std::vector<double> cm;
+        const double Em = cs.solve_ground(cm);
+        Emin = std::min(Emin, Em);
+        const cas::RDMs rm = cs.rdms(cm, cm);
+        double Erm = ah1.E_inactive + ah1.h_eff.cwiseProduct(rm.D).sum();
+        for (size_t i = 0; i < rm.d.size(); i++) Erm += 0.5 * ah1.eri[i] * rm.d[i];
+        rdm_err = std::max(rdm_err, std::abs(Erm - Em));
+      }
+      check("  the M_L sectors partition the CSFs", (double) nsec, (double) ci.ncsf(), 0.0);
+      check("  the lowest sector ground state is the ground state", Emin, E, 1e-10);
+      check("  each sector's RDMs reproduce its eigenvalue", rdm_err, 0.0, 1e-10);
     }
   }
 

@@ -851,6 +851,22 @@ namespace helfem {
         return labels;
       }
 
+      std::vector<int> TwoDBasis::sym_m(int symm) const {
+        // Block for block as sym_labels
+        std::vector<int> mv, out;
+        if(symm==1 || symm==2) {
+          for(size_t i=0;i<mval_.size();i++)
+            if(std::find(mv.begin(),mv.end(),mval_(i))==mv.end())
+              mv.push_back(mval_(i));
+          std::sort(mv.begin(),mv.end());
+          for(int m : mv)
+            for(int k=0;k<symm;k++)
+              out.push_back(m);
+        } else if(symm!=0 && symm!=3)
+          throw std::logic_error("Unknown symmetry\n");
+        return out;
+      }
+
       helfem::Matrix TwoDBasis::Sinvh(bool chol, int sym) const {
         // Form overlap matrix
         helfem::Matrix S(overlap());

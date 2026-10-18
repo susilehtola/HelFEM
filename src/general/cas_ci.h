@@ -80,9 +80,14 @@ namespace helfem {
 
     class CASCI {
      public:
-      /// A CAS(nalpha + nbeta, nact) in C1, spin-adapted to S = (nalpha -
-      /// nbeta)/2 with M_S = S.
-      CASCI(int nact, int nalpha, int nbeta);
+      /// A CAS(nalpha + nbeta, nact), spin-adapted to S = (nalpha - nbeta)/2
+      /// with M_S = S. Given the m of each active orbital, the CI is that of
+      /// the M_L = ML sector alone; the Hamiltonian conserves M_L, so the
+      /// other sectors are other states. Without, it is over every M_L, and
+      /// since H never couples two sectors, the solver's guess decides which
+      /// one the "ground state" it returns lies in.
+      /// Throws std::invalid_argument if no configuration has that M_L.
+      CASCI(int nact, int nalpha, int nbeta, const std::vector<int> & m = {}, int ML = 0);
       ~CASCI();
       CASCI(const CASCI &) = delete;
       CASCI & operator=(const CASCI &) = delete;
@@ -101,8 +106,8 @@ namespace helfem {
       /// Lowest root in the target spin: energy (including E_inactive) and
       /// its determinant-basis CI vector.
       ///
-      /// Solved by reci's own driver (direct()): its heat-bath CI guess and
-      /// Davidson eigensolver in the CSF basis of the target spin.
+      /// Solved by reci's CISolver: its heat-bath guess and Davidson
+      /// eigensolver in the CSF basis of the target spin.
       double solve_ground(std::vector<double> & civec) const;
 
       /// sigma = H c in the determinant basis, with E_inactive on the

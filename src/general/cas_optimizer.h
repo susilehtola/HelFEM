@@ -207,6 +207,8 @@ namespace helfem {
       int ninact = 0, nact = 0;
       /// 2S of the target state
       int twoS = 0;
+      /// M_L of the target state, when the active orbitals have definite m
+      int ML = 0;
       Coupling coupling = Coupling::Coupled;
       CASSCFOptions options;
     };
@@ -214,13 +216,16 @@ namespace helfem {
     /// CASSCF from an SCF density: validates the request against Ntot,
     /// builds the starting orbitals with canonical_orbitals and
     /// correlating_virtuals, reports them with `block_name`, and runs the
-    /// optimizer. Returns the electronic
-    /// energy. The caller must hold a KokkosScope.
+    /// optimizer. `block_m` gives the m of each block, which puts the CI in
+    /// the M_L = req.ML sector; empty when the blocks have no m (--symmetry=0),
+    /// and the CI is then over every M_L. Returns the electronic energy. The
+    /// caller must hold a KokkosScope.
     CASSCFResult casscf_from_scf(const JKProvider & jk, const helfem::Matrix & S,
                                  const helfem::Matrix & P,
                                  const std::vector<std::vector<Eigen::Index>> & dsym,
                                  const std::vector<helfem::Matrix> & Sinvh,
                                  const std::vector<std::string> & block_name,
+                                 const std::vector<int> & block_m,
                                  int Ntot, const CASRequest & req);
 
   } // namespace cas

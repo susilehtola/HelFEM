@@ -687,6 +687,7 @@ namespace helfem {
                                  const std::vector<std::vector<Eigen::Index>> & dsym,
                                  const std::vector<helfem::Matrix> & Sinvh,
                                  const std::vector<std::string> & block_name,
+                                 const std::vector<int> & block_m,
                                  int Ntot, const CASRequest & req) {
       const int nactel = Ntot - 2 * req.ninact;
       if (req.twoS < 0 || nactel < 0 || req.twoS > nactel || (nactel - req.twoS) % 2 != 0
@@ -718,7 +719,18 @@ namespace helfem {
         fflush(stdout);
       }
 
-      CASCI ci(req.nact, (nactel + req.twoS) / 2, (nactel - req.twoS) / 2);
+      std::vector<int> active_m;
+      if (!block_m.empty())
+        for (int t = 0; t < req.nact; t++)
+          active_m.push_back(block_m.at((size_t) label[(size_t) (req.ninact + t)]));
+      CASCI ci(req.nact, (nactel + req.twoS) / 2, (nactel - req.twoS) / 2, active_m, req.ML);
+      if (req.options.verbosity >= 1) {
+        if (active_m.empty())
+          printf("The CI is over every M_L: the blocks have no m.\n");
+        else
+          printf("The CI is in the M_L = %i sector.\n", req.ML);
+        fflush(stdout);
+      }
       CASSCF cas(jk, S, ci, C, req.ninact, req.nact, label, shell, req.coupling);
       const CASSCFResult res = cas.run(req.options);
       if (req.options.verbosity >= 1) {
