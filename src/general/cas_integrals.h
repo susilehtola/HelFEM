@@ -16,10 +16,19 @@
 #define HELFEM_CAS_INTEGRALS_H
 
 #include <helfem/Matrix.h>
+#include <memory>
 #include <vector>
 
 namespace helfem {
   namespace cas {
+
+    /// A Coulomb matrix, as an operator on a few vectors.
+    class CoulombOperator {
+     public:
+      virtual ~CoulombOperator() = default;
+      /// J X, or J^T X
+      virtual helfem::Matrix apply(const helfem::Matrix & X, bool transpose = false) const = 0;
+    };
 
     /// Everything a geometry has to supply for a CAS wave function.
     ///
@@ -41,6 +50,12 @@ namespace helfem {
 
       /// J[P]_{mu nu} = sum_{la si} (mu nu|la si) P_{la si}.
       virtual helfem::Matrix coulomb(const helfem::Matrix & P) const = 0;
+
+      /// J[A B^T], for a low-rank density such as a pair density. The CAS
+      /// only ever applies these to a few orbitals, so a geometry that can
+      /// keep J compact should; this default forms it densely.
+      virtual std::unique_ptr<CoulombOperator> coulomb_operator(const helfem::Matrix & A,
+                                                                const helfem::Matrix & B) const;
 
       /// The SIGNED exchange contribution to the Fock matrix of a SPIN
       /// density -- HelFEM's own convention, stated at src/atomic/main.cpp:383

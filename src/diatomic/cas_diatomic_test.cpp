@@ -342,6 +342,29 @@ int main() {
     if (err >= 1e-8) nfail++;
   }
 
+  printf("\n6  the compact Coulomb operator equals the dense J\n");
+  {
+    // A rank-2 density mixing every m: the operator never forms A B^T, so
+    // it has to get the angular sectors right from the factors alone, for
+    // J and J^T alike (the two differ once m != 0).
+    helfem::Matrix A(nbf, 2), B(nbf, 2), X(nbf, 3);
+    for (Eigen::Index i = 0; i < nbf; i++) {
+      A(i, 0) = std::sin(0.3 + 1.7*(double)i);  A(i, 1) = std::cos(0.1 + 0.9*(double)i);
+      B(i, 0) = std::cos(1.1 - 0.7*(double)i);  B(i, 1) = std::sin(2.0 + 0.4*(double)i);
+      for (Eigen::Index k = 0; k < X.cols(); k++)
+        X(i, k) = std::sin(0.5 + (double)k + 1.3*(double)i);
+    }
+    const helfem::Matrix J = jk.coulomb(A * B.transpose());
+    const auto op = jk.coulomb_operator(A, B);
+    const double scale = J.cwiseAbs().maxCoeff() * X.cwiseAbs().colwise().sum().maxCoeff();
+    const double dn = (op->apply(X) - J * X).cwiseAbs().maxCoeff();
+    const double dt = (op->apply(X, true) - J.transpose() * X).cwiseAbs().maxCoeff();
+    printf("  |J X|max %.3e:  J X err %.2e   J^T X err %.2e\n", scale, dn, dt);
+    report("J X matches the dense J", dn < 1e-13 * scale);
+    report("J^T X matches the dense J", dt < 1e-13 * scale);
+    report("J is not symmetric for this density", (J - J.transpose()).cwiseAbs().maxCoeff() > 1e-8 * J.cwiseAbs().maxCoeff());
+  }
+
   printf("\n%s\n", nfail ? "DIATOMIC CAS TEST FAILED" : "DIATOMIC CAS TEST PASSED");
   return nfail ? 1 : 0;
 }

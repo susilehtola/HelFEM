@@ -1543,27 +1543,12 @@ namespace helfem {
         return rows;
       }
 
-      helfem::Matrix TwoDBasis::coulomb(const helfem::Matrix & P_in) const {
-        if(!cd_B.size())
-          throw std::logic_error("Primitive teis have not been computed!\n");
-
-        // Eigen throughout: no arma bridge on the Fock path.
-        const helfem::Matrix P(expand_boundaries(P_in));
-
-        // Number of radial elements
+      std::vector<char> TwoDBasis::coulomb_aux(const std::vector<helfem::Matrix> & Paux0,
+                                               const std::vector<helfem::Matrix> & Paux2,
+                                               std::vector<helfem::Matrix> & Jaux0,
+                                               std::vector<helfem::Matrix> & Jaux2) const {
         const size_t Nel(radial_.Nel());
-        // Number of radial functions
-        const size_t Nrad(radial_.Nbf());
-        const size_t Nang(lval_.size());
         const size_t Nkey(2*lm_map.size());
-
-        // Only the nonzero density blocks contribute; a CASSCF pair
-        // density, for one, lives in a single (m_v, m_w) sector.
-        const std::vector<std::vector<size_t>> Prow(nonzero_blocks(P));
-        std::vector<char> Pnz(Nang*Nang, 0);
-        for(size_t kang=0;kang<Nang;kang++)
-          for(size_t lang : Prow[kang])
-            Pnz[kang*Nang+lang] = 1;
 
         // Cache the angular prefactor 4*pi*Rhalf_^5 / ((L+|M|)!/(L-|M|)!) for
         // every (L, |M|) in the lm_map. The (-1)^M sign is applied at the
@@ -1571,14 +1556,14 @@ namespace helfem {
         // the factorial loop both dominated the inner-loop cost otherwise.
         const std::vector<double> LMfac_abs = build_LMfac_abs();
 
-        // Radial helpers, per (L,M) key of ang_cpl and per element. The
-        // density enters only through its element-diagonal radial blocks,
-        // and the potential of a multipole is multiplicative, so J comes
-        // out element-diagonal as well; nothing else is formed. An element
-        // keeps its own copy of the node it shares with a neighbour, as
-        // the per-element integrals expect, and the assembly below sums
-        // them.
-        std::vector<helfem::Matrix> Jaux0(Nkey*Nel), Jaux2(Nkey*Nel);
+        // The density enters only through its element-diagonal radial
+        // blocks, and the potential of a multipole is multiplicative, so J
+        // comes out element-diagonal as well; nothing else is formed. An
+        // element keeps its own copy of the node it shares with a
+        // neighbour, as the per-element integrals expect, and the assembly
+        // sums them.
+        Jaux0.assign(Nkey*Nel, helfem::Matrix());
+        Jaux2.assign(Nkey*Nel, helfem::Matrix());
         std::vector<char> used(Nkey, 0);
 
         // Each key writes only its own helpers.
@@ -1586,33 +1571,7 @@ namespace helfem {
 #pragma omp parallel for schedule(dynamic)
 #endif
         for(size_t key=0;key<Nkey;key++) {
-          // Contract the ket with the angular couplings
-          std::vector<helfem::Matrix> Paux0, Paux2;
-          for(size_t kang=0;kang<Nang;kang++)
-            for(const AngCpl & c : ang_cpl[key][kang]) {
-              if(!Pnz[kang*Nang+c.other])
-                continue;
-              if(Paux0.empty()) {
-                Paux0.resize(Nel);
-                Paux2.resize(Nel);
-                for(size_t iel=0;iel<Nel;iel++) {
-                  size_t ifirst, ilast;
-                  radial_.idx(iel,ifirst,ilast);
-                  const Eigen::Index Ni(ilast-ifirst+1);
-                  Paux0[iel] = helfem::Matrix::Zero(Ni,Ni);
-                  Paux2[iel] = helfem::Matrix::Zero(Ni,Ni);
-                }
-              }
-              for(size_t iel=0;iel<Nel;iel++) {
-                size_t ifirst, ilast;
-                radial_.idx(iel,ifirst,ilast);
-                const size_t Ni(ilast-ifirst+1);
-                const auto Pb = P.block(kang*Nrad+ifirst,c.other*Nrad+ifirst,Ni,Ni);
-                Paux0[iel] += c.u0*Pb;
-                Paux2[iel] += c.u1*Pb;
-              }
-            }
-          if(Paux0.empty())
+          if(!Paux0[key*Nel].size())
             continue;
           used[key] = 1;
 
@@ -1622,15 +1581,15 @@ namespace helfem {
           const double LMfac(signM * LMfac_abs[ilm]);
 
           for(size_t iel=0;iel<Nel;iel++) {
-            const Eigen::Index Ni(Paux0[iel].rows());
+            const Eigen::Index Ni(Paux0[key*Nel+iel].rows());
             Jaux0[key*Nel+iel] = helfem::Matrix::Zero(Ni,Ni);
             Jaux2[key*Nel+iel] = helfem::Matrix::Zero(Ni,Ni);
           }
 
           // Loop over input elements
           for(size_t jel=0;jel<Nel;jel++) {
-            const helfem::Matrix & Psub0 = Paux0[jel];
-            const helfem::Matrix & Psub2 = Paux2[jel];
+            const helfem::Matrix & Psub0 = Paux0[key*Nel+jel];
+            const helfem::Matrix & Psub2 = Paux2[key*Nel+jel];
             const size_t Nj(Psub0.rows());
 
             // Contract integrals
@@ -1687,6 +1646,58 @@ namespace helfem {
             }
           }
         }
+        return used;
+      }
+
+      helfem::Matrix TwoDBasis::coulomb(const helfem::Matrix & P_in) const {
+        if(!cd_B.size())
+          throw std::logic_error("Primitive teis have not been computed!\n");
+
+        // Eigen throughout: no arma bridge on the Fock path.
+        const helfem::Matrix P(expand_boundaries(P_in));
+
+        // Number of radial elements
+        const size_t Nel(radial_.Nel());
+        // Number of radial functions
+        const size_t Nrad(radial_.Nbf());
+        const size_t Nang(lval_.size());
+        const size_t Nkey(2*lm_map.size());
+
+        // Only the nonzero density blocks contribute; a CASSCF pair
+        // density, for one, lives in a single (m_v, m_w) sector.
+        const std::vector<std::vector<size_t>> Prow(nonzero_blocks(P));
+        std::vector<char> Pnz(Nang*Nang, 0);
+        for(size_t kang=0;kang<Nang;kang++)
+          for(size_t lang : Prow[kang])
+            Pnz[kang*Nang+lang] = 1;
+
+        // Contract the density's element blocks with the angular couplings,
+        // per (L,M) key of ang_cpl. Each key writes only its own blocks.
+        std::vector<helfem::Matrix> Paux0(Nkey*Nel), Paux2(Nkey*Nel);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+        for(size_t key=0;key<Nkey;key++)
+          for(size_t kang=0;kang<Nang;kang++)
+            for(const AngCpl & c : ang_cpl[key][kang]) {
+              if(!Pnz[kang*Nang+c.other])
+                continue;
+              for(size_t iel=0;iel<Nel;iel++) {
+                size_t ifirst, ilast;
+                radial_.idx(iel,ifirst,ilast);
+                const Eigen::Index Ni(ilast-ifirst+1);
+                if(!Paux0[key*Nel+iel].size()) {
+                  Paux0[key*Nel+iel] = helfem::Matrix::Zero(Ni,Ni);
+                  Paux2[key*Nel+iel] = helfem::Matrix::Zero(Ni,Ni);
+                }
+                const auto Pb = P.block(kang*Nrad+ifirst,c.other*Nrad+ifirst,Ni,Ni);
+                Paux0[key*Nel+iel] += c.u0*Pb;
+                Paux2[key*Nel+iel] += c.u1*Pb;
+              }
+            }
+
+        std::vector<helfem::Matrix> Jaux0, Jaux2;
+        const std::vector<char> used(coulomb_aux(Paux0, Paux2, Jaux0, Jaux2));
 
         // Full Coulomb matrix: J(i,j) = sum_{L,M} u(j,i;L,M) Jaux[L,M],
         // M = m_j - m_i. Each j writes only its own block column.
@@ -1709,6 +1720,143 @@ namespace helfem {
           }
 
         return remove_boundaries(J);
+      }
+
+      TwoDBasis::CoulombBlocks TwoDBasis::coulomb_blocks(const helfem::Matrix & A_in, const helfem::Matrix & B_in) const {
+        if(!cd_B.size())
+          throw std::logic_error("Primitive teis have not been computed!\n");
+        if(A_in.rows() != (Eigen::Index) pure_idx.size() || B_in.rows() != A_in.rows() || B_in.cols() != A_in.cols())
+          throw std::logic_error("coulomb_blocks: the factors do not match the basis or each other.\n");
+
+        const size_t Nel(radial_.Nel());
+        const size_t Nrad(radial_.Nbf());
+        const size_t Nang(lval_.size());
+        const size_t Nkey(2*lm_map.size());
+
+        // The factors with the boundary functions put back, as zero rows
+        helfem::Matrix A(helfem::Matrix::Zero(Ndummy(), A_in.cols())), B(helfem::Matrix::Zero(Ndummy(), B_in.cols()));
+        for(size_t i=0;i<pure_idx.size();i++) {
+          A.row(pure_idx[i]) = A_in.row(i);
+          B.row(pure_idx[i]) = B_in.row(i);
+        }
+        // Channels where each factor is nonzero
+        std::vector<char> Anz(Nang), Bnz(Nang);
+        for(size_t iang=0;iang<Nang;iang++) {
+          Anz[iang] = A.middleRows(iang*Nrad,Nrad).norm() >= 10*DBL_EPSILON;
+          Bnz[iang] = B.middleRows(iang*Nrad,Nrad).norm() >= 10*DBL_EPSILON;
+        }
+
+        // Element blocks of the density, A_k B_l^T, contracted with the
+        // angular couplings as in coulomb()
+        std::vector<helfem::Matrix> Paux0(Nkey*Nel), Paux2(Nkey*Nel);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+        for(size_t key=0;key<Nkey;key++)
+          for(size_t kang=0;kang<Nang;kang++) {
+            if(!Anz[kang])
+              continue;
+            for(const AngCpl & c : ang_cpl[key][kang]) {
+              if(!Bnz[c.other])
+                continue;
+              for(size_t iel=0;iel<Nel;iel++) {
+                size_t ifirst, ilast;
+                radial_.idx(iel,ifirst,ilast);
+                const Eigen::Index Ni(ilast-ifirst+1);
+                if(!Paux0[key*Nel+iel].size()) {
+                  Paux0[key*Nel+iel] = helfem::Matrix::Zero(Ni,Ni);
+                  Paux2[key*Nel+iel] = helfem::Matrix::Zero(Ni,Ni);
+                }
+                const helfem::Matrix Pb = A.block(kang*Nrad+ifirst,0,Ni,A.cols())
+                    * B.block(c.other*Nrad+ifirst,0,Ni,B.cols()).transpose();
+                Paux0[key*Nel+iel] += c.u0*Pb;
+                Paux2[key*Nel+iel] += c.u1*Pb;
+              }
+            }
+          }
+
+        std::vector<helfem::Matrix> Jaux0, Jaux2;
+        const std::vector<char> used(coulomb_aux(Paux0, Paux2, Jaux0, Jaux2));
+
+        // Assemble per channel column, as coulomb() does into the dense J
+        CoulombBlocks J;
+        J.col.resize(Nang);
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+          std::vector<long> pos(Nang, -1);
+#ifdef _OPENMP
+#pragma omp for schedule(dynamic)
+#endif
+          for(size_t jang=0;jang<Nang;jang++) {
+            auto & col = J.col[jang];
+            for(size_t key=0;key<Nkey;key++) {
+              if(!used[key])
+                continue;
+              for(const AngCpl & c : ang_cpl[key][jang]) {
+                if(pos[c.other] < 0) {
+                  pos[c.other] = col.size();
+                  std::vector<helfem::Matrix> blk(Nel);
+                  for(size_t iel=0;iel<Nel;iel++)
+                    blk[iel] = helfem::Matrix::Zero(Jaux0[key*Nel+iel].rows(), Jaux0[key*Nel+iel].cols());
+                  col.emplace_back(c.other, std::move(blk));
+                }
+                auto & blk = col[pos[c.other]].second;
+                for(size_t iel=0;iel<Nel;iel++)
+                  blk[iel] += c.u0*Jaux0[key*Nel+iel] + c.u1*Jaux2[key*Nel+iel];
+              }
+            }
+            for(const auto & e : col)
+              pos[e.first] = -1;
+          }
+        }
+        return J;
+      }
+
+      helfem::Matrix TwoDBasis::apply(const CoulombBlocks & J, const helfem::Matrix & X_in, bool transpose) const {
+        const size_t Nel(radial_.Nel());
+        const size_t Nrad(radial_.Nbf());
+        const size_t Nang(lval_.size());
+        if(X_in.rows() != (Eigen::Index) pure_idx.size() || J.col.size() != Nang)
+          throw std::logic_error("TwoDBasis::apply: the operands do not match the basis.\n");
+
+        helfem::Matrix X(helfem::Matrix::Zero(Ndummy(), X_in.cols()));
+        for(size_t i=0;i<pure_idx.size();i++)
+          X.row(pure_idx[i]) = X_in.row(i);
+
+        // J(i,j) lives in column j, so J^T X is written column by column
+        // and parallelizes over j; J X is written to rows i, which the
+        // columns share, and stays serial. Both are a few element-block
+        // products per channel pair.
+        helfem::Matrix Y(helfem::Matrix::Zero(Ndummy(), X.cols()));
+        auto block_product = [&](size_t jang) {
+          for(const auto & e : J.col[jang])
+            for(size_t iel=0;iel<Nel;iel++) {
+              size_t ifirst, ilast;
+              radial_.idx(iel,ifirst,ilast);
+              const Eigen::Index Ni(ilast-ifirst+1);
+              if(transpose)
+                Y.middleRows(jang*Nrad+ifirst,Ni).noalias() += e.second[iel].transpose()*X.middleRows(e.first*Nrad+ifirst,Ni);
+              else
+                Y.middleRows(e.first*Nrad+ifirst,Ni).noalias() += e.second[iel]*X.middleRows(jang*Nrad+ifirst,Ni);
+            }
+        };
+        if(transpose) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+          for(size_t jang=0;jang<Nang;jang++)
+            block_product(jang);
+        } else {
+          for(size_t jang=0;jang<Nang;jang++)
+            block_product(jang);
+        }
+
+        helfem::Matrix Yp(pure_idx.size(), X.cols());
+        for(size_t i=0;i<pure_idx.size();i++)
+          Yp.row(i) = Y.row(pure_idx[i]);
+        return Yp;
       }
 
       helfem::Matrix TwoDBasis::exchange(const helfem::Matrix & P_in) const {

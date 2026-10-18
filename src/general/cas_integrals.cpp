@@ -15,6 +15,7 @@
 #include "cas_integrals.h"
 
 #include <stdexcept>
+#include <utility>
 
 namespace helfem {
   namespace cas {
@@ -27,6 +28,24 @@ namespace helfem {
         return ((t * n + u) * n + v) * n + w;
       }
     } // namespace
+
+    namespace {
+      class DenseCoulomb : public CoulombOperator {
+       public:
+        explicit DenseCoulomb(helfem::Matrix J) : J_(std::move(J)) {}
+        helfem::Matrix apply(const helfem::Matrix & X, bool transpose) const override {
+          return transpose ? helfem::Matrix(J_.transpose() * X) : helfem::Matrix(J_ * X);
+        }
+
+       private:
+        helfem::Matrix J_;
+      };
+    } // namespace
+
+    std::unique_ptr<CoulombOperator> JKProvider::coulomb_operator(const helfem::Matrix & A,
+                                                                  const helfem::Matrix & B) const {
+      return std::make_unique<DenseCoulomb>(coulomb(A * B.transpose()));
+    }
 
     helfem::Matrix closed_shell_veff(const JKProvider & jk, const helfem::Matrix & P) {
       // exchange() wants a SPIN density and returns the signed contribution to
@@ -63,7 +82,7 @@ namespace helfem {
           // Measured on an atomic lmax=1 basis, the antisymmetric part of
           // coulomb(C_t C_u^T) is as large as the symmetric part.
           const helfem::Matrix blk =
-              Ca.transpose() * jk.coulomb(Ca.col(t) * Ca.col(u).transpose()) * Ca;
+              Ca.transpose() * jk.coulomb_operator(Ca.col(t), Ca.col(u))->apply(Ca);
           for (Eigen::Index v = 0; v < n; v++)
             for (Eigen::Index w = 0; w < n; w++) {
               eri[idx4((size_t) n, (size_t) t, (size_t) u, (size_t) v, (size_t) w)] =
@@ -103,10 +122,10 @@ namespace helfem {
       for (Eigen::Index v = 0; v < n; v++)
         for (Eigen::Index w = v; w < n; w++) {
           // Passed bare: see active_eri.
-          const helfem::Matrix J = jk.coulomb(Ca.col(v) * Ca.col(w).transpose());
-          L_[(size_t) (v * n + w)] = C.transpose() * (J * Ca);
+          const auto J = jk.coulomb_operator(Ca.col(v), Ca.col(w));
+          L_[(size_t) (v * n + w)] = C.transpose() * J->apply(Ca);
           if (w != v)
-            L_[(size_t) (w * n + v)] = C.transpose() * (J.transpose() * Ca);
+            L_[(size_t) (w * n + v)] = C.transpose() * J->apply(Ca, true);
         }
 
       ah_.h_eff = FIo_.block(ninact, ninact, n, n);
@@ -232,19 +251,21 @@ namespace helfem {
       }
       for (Eigen::Index v = 0; v < n; v++)
         for (Eigen::Index w = v; w < n; w++) {
-          const helfem::Matrix J = jk_.coulomb(Ca.col(v) * Ca.col(w).transpose());
-          const helfem::Matrix Jx = jk_.coulomb(Cxa.col(v) * Ca.col(w).transpose()
-                                                + Ca.col(v) * Cxa.col(w).transpose());
+          const auto J = jk_.coulomb_operator(Ca.col(v), Ca.col(w));
+          helfem::Matrix A(C_.rows(), 2), B(C_.rows(), 2);
+          A << Cxa.col(v), Ca.col(v);
+          B << Ca.col(w), Cxa.col(w);
+          const auto Jx = jk_.coulomb_operator(A, B);
           const helfem::Matrix Tvw = pair_block(d, v, w);
-          acc += J * (Cxa * Tvw) + Jx * (Ca * Tvw);
+          acc += J->apply(Cxa * Tvw) + Jx->apply(Ca * Tvw);
           if (w != v) {
             const helfem::Matrix Twv = pair_block(d, w, v);
-            acc += J.transpose() * (Cxa * Twv) + Jx.transpose() * (Ca * Twv);
+            acc += J->apply(Cxa * Twv, true) + Jx->apply(Ca * Twv, true);
           }
           if (dH) {
-            const helfem::Matrix JCa = J * Ca;
-            const helfem::Matrix blk = Ca.transpose() * (Jx * Ca) + Cxa.transpose() * JCa
-                                       + Ca.transpose() * (J * Cxa);
+            const helfem::Matrix JCa = J->apply(Ca);
+            const helfem::Matrix blk = Ca.transpose() * Jx->apply(Ca) + Cxa.transpose() * JCa
+                                       + Ca.transpose() * J->apply(Cxa);
             for (Eigen::Index a = 0; a < n; a++)
               for (Eigen::Index b = 0; b < n; b++) {
                 dH->eri[idx4((size_t) n, (size_t) v, (size_t) w, (size_t) a, (size_t) b)] = blk(a, b);

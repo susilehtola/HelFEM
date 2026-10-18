@@ -18,6 +18,7 @@
 #include "basis.h"
 #include "../general/cas_integrals.h"
 
+#include <memory>
 #include <stdexcept>
 #include <utility>
 
@@ -68,6 +69,12 @@ namespace helfem {
           return basis_.coulomb(P);
         }
 
+        /// Kept as element blocks: neither the pair density nor J is formed.
+        std::unique_ptr<helfem::cas::CoulombOperator> coulomb_operator(
+            const helfem::Matrix & A, const helfem::Matrix & B) const override {
+          return std::make_unique<Coulomb>(basis_, basis_.coulomb_blocks(A, B));
+        }
+
         /// Passed straight through, exactly as in the atomic engine:
         /// TwoDBasis::exchange returns the signed contribution added to a spin
         /// channel's Fock matrix, which is cas::JKProvider's contract.
@@ -78,6 +85,19 @@ namespace helfem {
         const helfem::Matrix & hcore() const override { return hcore_; }
 
        private:
+        class Coulomb : public helfem::cas::CoulombOperator {
+         public:
+          Coulomb(const TwoDBasis & basis, TwoDBasis::CoulombBlocks J)
+              : basis_(basis), J_(std::move(J)) {}
+          helfem::Matrix apply(const helfem::Matrix & X, bool transpose) const override {
+            return basis_.apply(J_, X, transpose);
+          }
+
+         private:
+          const TwoDBasis & basis_;
+          TwoDBasis::CoulombBlocks J_;
+        };
+
         const TwoDBasis & basis_;
         helfem::Matrix hcore_;
       };
