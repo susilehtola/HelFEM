@@ -880,7 +880,7 @@ if(HELFEM_WITH_RECI)
         # how anyone with access to it already authenticates.
         FetchContent_Declare(reci
             GIT_REPOSITORY git@github.com:philipmnel/reci.git
-            GIT_TAG        7607470b7212f24550d5c150cdd02d2b419ce896)
+            GIT_TAG        909d2b25f91153b0e942ee6399be86408049fec9)
         # The CI library with its eigensolvers, which is all a CASSCF
         # driver needs: no TREXIO, executables or tests.
         set(RECI_LIBRARY_ONLY ON)
