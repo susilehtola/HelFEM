@@ -39,7 +39,8 @@ find_package(Python3 COMPONENTS Interpreter)
 foreach(t legendre_test legendre_unit_test gaunt_test sphtest over_r_test
           eval_dorbs_test converge_block_test adaptive_quadrature_test
           atomdb_test diatomic_projection_test checkpoint_precision_test
-          current_mgga_test)
+          current_mgga_test
+          cas_integrals_test cas_diatomic_test cas_ci_test cas_casscf_test)
   if(TARGET ${t})
     add_test(NAME unit.${t} COMMAND ${t})
     set_tests_properties(unit.${t} PROPERTIES LABELS "unit")
@@ -55,6 +56,12 @@ if(NOT TARGET diatomic)
   message(STATUS "HELFEM_BINARIES=OFF: integration tests not registered")
   return()
 endif()
+
+# --save followed by --load must restart exactly; see reload_test.py.
+add_test(NAME integration.reload
+         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/reload_test.py
+                 --bindir $<TARGET_FILE_DIR:diatomic>)
+set_tests_properties(integration.reload PROPERTIES LABELS "integration;quick")
 
 set(HELFEM_TEST_DRIVER "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py")
 set(HELFEM_TEST_REFS   "${CMAKE_CURRENT_SOURCE_DIR}/refs/ci.json")
@@ -121,7 +128,11 @@ foreach(line ${HELFEM_CASE_LINES})
   # rather than on "not slow" matters -- only ~49 of the ~180 cases carry
   # ci, while ~130 are merely not-slow, and a default run of those would
   # be hours.
-  if(NOT "ci" IN_LIST case_tags AND NOT HELFEM_SLOW_TESTS)
+  if("reci" IN_LIST case_tags AND NOT HELFEM_WITH_RECI)
+    # --casact cases need the reci CI; the driver refuses them without it.
+    set_tests_properties(case.${case_name} PROPERTIES DISABLED TRUE)
+    math(EXPR _n_slow "${_n_slow}+1")
+  elseif(NOT "ci" IN_LIST case_tags AND NOT HELFEM_SLOW_TESTS)
     set_tests_properties(case.${case_name} PROPERTIES DISABLED TRUE)
     math(EXPR _n_slow "${_n_slow}+1")
   else()

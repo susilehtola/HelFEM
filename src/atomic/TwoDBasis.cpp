@@ -264,6 +264,23 @@ namespace helfem {
       }
 
       template <typename T>
+      std::vector<int> TwoDBasisT<T>::sym_m(int symm) const {
+        // Block for block as sym_labels
+        std::vector<int> mv;
+        if(symm==1) {
+          for (Eigen::Index i = 0; i < mval_.size(); ++i)
+            if (std::find(mv.begin(), mv.end(), mval_(i)) == mv.end())
+              mv.push_back(mval_(i));
+          std::sort(mv.begin(), mv.end());
+        } else if(symm==2) {
+          for (Eigen::Index i = 0; i < mval_.size(); ++i)
+            mv.push_back(mval_(i));
+        } else if(symm!=0)
+          throw std::logic_error("Unknown symmetry\n");
+        return mv;
+      }
+
+      template <typename T>
       helfem::Mat<T> TwoDBasisT<T>::Sinvh(bool chol, int sym) const {
         const helfem::Mat<T> S = overlap();
 

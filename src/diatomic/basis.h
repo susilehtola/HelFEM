@@ -184,8 +184,33 @@ namespace helfem {
         /// eigenvalue-thresholded factorization, not a plain Cholesky.
         std::vector<helfem::Matrix> cd_B;
         std::vector<helfem::Vector> cd_sigma;
+        /// cd_B rearranged for exchange(), which needs, per element and
+        /// (L,|M|), K = sum_p sigma_p W_p R V_p with W_p = [M0_p' M2_p'] and
+        /// V_p = [M0_p'; M2_p'] (M_p the channel blocks of Cholesky vector
+        /// p). Stacking W_p over p as rows (cd_KW, Nprim*r x 2*Nprim) and
+        /// sigma_p V_p over p as rows (cd_KV, r*2*Nprim x Nprim) turns the
+        /// 8r tiny products per output block into two GEMMs.
+        std::vector<helfem::Matrix> cd_KW, cd_KV;
         /// Relative eigenvalue threshold for the factorization above
         double cd_thresh;
+
+        /// Angular coupling of channel j to channel i through (L,M),
+        /// M = m_j - m_i: u0 = mod_coeff(lj,mj,L,M,li,mi) and
+        /// u1 = coeff(lj,mj,L,M,li), nonzero ones only. ang_cpl[key][j]
+        /// with key = 2*lmind(L,M) + (M<0). Coulomb and exchange both
+        /// contract the density with these, on either index pair.
+        struct AngCpl { size_t other; double u0, u1; };
+        std::vector<std::vector<std::vector<AngCpl>>> ang_cpl;
+        /// Per angular row i, the channels l with a nonzero block P(i,l)
+        std::vector<std::vector<size_t>> nonzero_blocks(const helfem::Matrix & P) const;
+        /// The Coulomb potential of a density given by its element-diagonal
+        /// blocks already contracted with the angular couplings, Paux[key*Nel+iel]
+        /// (empty for a key the density does not reach). Fills Jaux likewise
+        /// and returns which keys are used.
+        std::vector<char> coulomb_aux(const std::vector<helfem::Matrix> & Paux0,
+                                      const std::vector<helfem::Matrix> & Paux2,
+                                      std::vector<helfem::Matrix> & Jaux0,
+                                      std::vector<helfem::Matrix> & Jaux2) const;
 
         /// Add to radial submatrix
         void add_sub(helfem::Matrix & M, size_t iang, size_t jang, const helfem::Matrix & Msub) const;
@@ -302,6 +327,21 @@ namespace helfem {
 
         /// Form Coulomb matrix
         helfem::Matrix coulomb(const helfem::Matrix & P) const;
+
+        /// A Coulomb matrix kept in compact form. J is element-diagonal in
+        /// the radial index, so only the element blocks of each coupled pair
+        /// of angular channels are stored: col[j] lists (i, blocks), one
+        /// block per element, for the J(i,j) channel block.
+        struct CoulombBlocks {
+          std::vector<std::vector<std::pair<size_t, std::vector<helfem::Matrix>>>> col;
+        };
+        /// J[A B^T] for a density given by its factors in the basis, without
+        /// forming the density or J. A CASSCF needs the Coulomb matrices of
+        /// pair densities only applied to a few orbitals, and the dense
+        /// route spent its time sweeping two Nbf x Nbf matrices.
+        CoulombBlocks coulomb_blocks(const helfem::Matrix & A, const helfem::Matrix & B) const;
+        /// J X, or J^T X
+        helfem::Matrix apply(const CoulombBlocks & J, const helfem::Matrix & X, bool transpose) const;
         /// Form exchange matrix
         helfem::Matrix exchange(const helfem::Matrix & P) const;
 
@@ -339,6 +379,9 @@ namespace helfem {
         /// order ("m=+1", "m=-2 u", ...). Kept alongside sym_idx so
         /// the two cannot drift apart.
         std::vector<std::string> sym_labels(int symm) const;
+        /// The m of each block of sym_idx(symm); empty when the blocks have
+        /// no signed m (symm = 0 and 3).
+        std::vector<int> sym_m(int symm) const;
         /// Largest |m| present in the basis.
         int absm_max() const;
         /// Declare that every density handed to exchange() will be
